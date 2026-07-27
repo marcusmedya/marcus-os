@@ -49,6 +49,26 @@ const fmt = (n) => "₺" + (Number(n) || 0).toLocaleString("tr-TR");
 const fmtShort = (n) => (n >= 1000 ? (n / 1000).toFixed(0) + "b" : n);
 const nextId = (arr) => (arr.length ? Math.max(...arr.map((i) => i.id || 0)) + 1 : 1);
 
+/**
+ * Tüm sekmelerin ortak "gerçek" hesaplaması: Toplam Ciro = aktif/yeni müşterilerin
+ * aylık ücretleri (Müşteriler) + ek gelir kalemleri (Finans > Gelirler). Toplam Gider =
+ * Finans > Giderler toplamı. Dashboard, Finans ve AI CEO hepsi bu fonksiyonu kullanır,
+ * böylece bir sekmede yapılan değişiklik anında diğerlerine yansır.
+ */
+function computeLive(data) {
+  const clients = data.clients || [];
+  const activeClients = clients.filter((c) => c.durum !== "ayrildi");
+  const recurring = activeClients.reduce((s, c) => s + (Number(c.aylikUcret) || 0), 0);
+  const extra = (data.gelirKalemleri || []).reduce((s, g) => s + (Number(g.tutar) || 0), 0);
+  const ciro = recurring + extra;
+  const gider = (data.giderKalemleri || []).reduce((s, g) => s + (Number(g.tutar) || 0), 0);
+  const net = ciro - gider;
+  const bekleyenToplam = (data.bekleyenTahsilatlar || []).reduce((s, b) => s + (Number(b.tutar) || 0), 0);
+  const tahsilEdilen = ciro - bekleyenToplam;
+  const karMarji = ciro ? Math.round((net / ciro) * 100) : 0;
+  return { recurring, extra, ciro, gider, net, bekleyenToplam, tahsilEdilen, karMarji };
+}
+
 /* ------------------------------------------------------------------ */
 /* SMALL UI PRIMITIVES                                                 */
 /* ------------------------------------------------------------------ */
@@ -111,7 +131,12 @@ const addBtnStyle = { display: "flex", alignItems: "center", gap: 6, background:
 function FieldForm({ fields, initial, onSubmit, onCancel, submitLabel = "Kaydet" }) {
   const [values, setValues] = useState(() => {
     const v = {};
-    fields.forEach((f) => { v[f.key] = initial && initial[f.key] !== undefined ? initial[f.key] : f.type === "number" ? 0 : ""; });
+    fields.forEach((f) => {
+      if (initial && initial[f.key] !== undefined) { v[f.key] = initial[f.key]; return; }
+      if (f.type === "number") { v[f.key] = 0; return; }
+      if (f.type === "select") { v[f.key] = f.options[0].value; return; }
+      v[f.key] = "";
+    });
     return v;
   });
   return (
@@ -148,11 +173,11 @@ function FieldForm({ fields, initial, onSubmit, onCancel, submitLabel = "Kaydet"
 function KararSeridi({ data, onAsk }) {
   const insight = useMemo(() => {
     const active = data.clients.filter((c) => c.durum !== "ayrildi");
-    if (!active.length || !data.monthly.length) return null;
+    if (!active.length) return null;
+    const live = computeLive(data);
     const enKarli = [...active].sort((a, b) => b.karMarji - a.karMarji)[0];
     const enDusuk = [...active].sort((a, b) => a.karMarji - b.karMarji)[0];
-    const lastCiro = data.monthly[data.monthly.length - 1].ciro || 1;
-    const bagimlilik = Math.round((enKarli.aylikUcret / lastCiro) * 100);
+    const bagimlilik = live.ciro ? Math.round((enKarli.aylikUcret / live.ciro) * 100) : 0;
     return { enKarli, enDusuk, bagimlilik };
   }, [data]);
 
@@ -178,19 +203,14 @@ function KararSeridi({ data, onAsk }) {
 /* DASHBOARD                                                            */
 /* ------------------------------------------------------------------ */
 function Dashboard({ data, onAsk }) {
-  const { monthly, clients, operasyonlar, bekleyenTahsilatlar } = data;
-  if (!monthly.length) {
-    return <KararSeridi data={data} onAsk={onAsk} />;
-  }
-  const last = monthly[monthly.length - 1];
-  const prev = monthly.length > 1 ? monthly[monthly.length - 2] : last;
-  const ciroDelta = prev.ciro ? (((last.ciro - prev.ciro) / prev.ciro) * 100).toFixed(1) : "0.0";
-  const netDelta = prev.net ? (((last.net - prev.net) / prev.net) * 100).toFixed(1) : "0.0";
-  const giderDelta = prev.gider ? (((last.gider - prev.gider) / prev.gider) * 100).toFixed(1) : "0.0";
-  const karMarji = last.ciro ? ((last.net / last.ciro) * 100).toFixed(0) : "0";
-  const bekleyenToplam = bekleyenTahsilatlar.reduce((s, b) => s + b.tutar, 0);
-  const tahsilEdilen = last.ciro - bekleyenToplam;
+  const { monthly, operasyonlar } = data;
+  const live = computeLive(data);
+  const prev = monthly.length ? monthly[monthly.length - 1] : null;
+  const ciroDelta = prev && prev.ciro ? Number((((live.ciro - prev.ciro) / prev.ciro) * 100).toFixed(1)) : undefined;
+  const netDelta = prev && prev.net ? Number((((live.net - prev.net) / prev.net) * 100).toFixed(1)) : undefined;
+  const giderDelta = prev && prev.gider ? Number((((live.gider - prev.gider) / prev.gider) * 100).toFixed(1)) : undefined;
 
+  const chartData = [...monthly, { id: "live", ay: "Bu Ay", ciro: live.ciro, gider: live.gider, net: live.net }];
   const opCounts = ["yesil", "turuncu", "kirmizi"].map((k) => ({ key: k, count: operasyonlar.filter((o) => o.durum === k).length }));
 
   return (
@@ -198,19 +218,19 @@ function Dashboard({ data, onAsk }) {
       <KararSeridi data={data} onAsk={onAsk} />
 
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 22 }}>
-        <KpiCard label="TOPLAM CİRO" value={fmt(last.ciro)} delta={Number(ciroDelta)} deltaYoy={18} />
-        <KpiCard label="NET KAZANÇ" value={fmt(last.net)} delta={Number(netDelta)} deltaYoy={22} accent={T.success} />
-        <KpiCard label="TOPLAM GİDER" value={fmt(last.gider)} delta={Number(giderDelta)} deltaYoy={9} />
-        <KpiCard label="KÂR MARJI" value={`%${karMarji}`} mono delta={2.1} deltaYoy={4} />
-        <KpiCard label="TAHSİL EDİLEN" value={fmt(tahsilEdilen)} delta={5.2} />
-        <KpiCard label="BEKLEYEN TAHSİLAT" value={fmt(bekleyenToplam)} mono delta={-3} accent={T.warning} />
+        <KpiCard label="TOPLAM CİRO (BU AY)" value={fmt(live.ciro)} delta={ciroDelta} />
+        <KpiCard label="NET KAZANÇ" value={fmt(live.net)} delta={netDelta} accent={T.success} />
+        <KpiCard label="TOPLAM GİDER" value={fmt(live.gider)} delta={giderDelta} />
+        <KpiCard label="KÂR MARJI" value={`%${live.karMarji}`} mono />
+        <KpiCard label="TAHSİL EDİLEN" value={fmt(live.tahsilEdilen)} />
+        <KpiCard label="BEKLEYEN TAHSİLAT" value={fmt(live.bekleyenToplam)} mono accent={T.warning} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 16, marginBottom: 22 }}>
         <Card style={{ padding: "20px 22px" }}>
-          <SectionTitle>Ciro & Net Kazanç — Son Aylar</SectionTitle>
+          <SectionTitle>Ciro & Net Kazanç — Son Aylar + Bu Ay</SectionTitle>
           <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={monthly} margin={{ left: -18, right: 8 }}>
+            <AreaChart data={chartData} margin={{ left: -18, right: 8 }}>
               <defs>
                 <linearGradient id="ciroGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={T.accent} stopOpacity={0.35} />
@@ -249,6 +269,7 @@ function Dashboard({ data, onAsk }) {
                 </div>
               );
             })}
+            {operasyonlar.length === 0 && <div style={{ color: T.textFaint, fontSize: 12.5, fontFamily: "Inter" }}>Henüz operasyon işi eklenmedi.</div>}
           </div>
         </Card>
       </div>
@@ -275,6 +296,12 @@ const CLIENT_FIELDS = [
   { key: "baslangic", label: "Başlangıç (YYYY-AA)", type: "text", placeholder: "2026-07" },
   { key: "not", label: "Not (opsiyonel)", type: "text" },
 ];
+
+const CLIENT_DURUM = {
+  aktif: { label: "Aktif", color: T.success, soft: T.successSoft },
+  yeni: { label: "Yeni", color: T.accentText, soft: T.accentSoft },
+  ayrildi: { label: "Ayrıldı", color: T.textFaint, soft: T.borderSoft },
+};
 
 function Musteriler({ clients, onAdd, onUpdate, onDelete }) {
   const [filter, setFilter] = useState("hepsi");
@@ -339,9 +366,10 @@ function Musteriler({ clients, onAdd, onUpdate, onDelete }) {
                   </td>
                   <td style={{ padding: "13px 16px", color: T.textDim, fontSize: 13 }}>{c.kategori}</td>
                   <td style={{ padding: "13px 16px" }}>
-                    <Pill color={c.durum === "aktif" ? T.success : c.durum === "yeni" ? T.accentText : T.textFaint} soft={c.durum === "aktif" ? T.successSoft : c.durum === "yeni" ? T.accentSoft : T.borderSoft}>
-                      {c.durum === "aktif" ? "Aktif" : c.durum === "yeni" ? "Yeni" : "Ayrıldı"}
-                    </Pill>
+                    {(() => {
+                      const cd = CLIENT_DURUM[c.durum] || CLIENT_DURUM.aktif;
+                      return <Pill color={cd.color} soft={cd.soft}>{cd.label}</Pill>;
+                    })()}
                   </td>
                   <td style={{ padding: "13px 16px", textAlign: "right", color: T.text, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>{c.aylikUcret ? fmt(c.aylikUcret) : "—"}</td>
                   <td style={{ padding: "13px 16px", textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: c.karMarji >= 55 ? T.success : c.karMarji >= 35 ? T.warning : T.danger }}>{c.karMarji ? `%${c.karMarji}` : "—"}</td>
@@ -397,37 +425,63 @@ function MiniList({ title, icon, items, fields, renderRow, onAdd, onDelete, addL
   );
 }
 
-function Finans({ data, onAddGelir, onDeleteGelir, onAddGider, onDeleteGider, onAddBekleyen, onDeleteBekleyen, onAddVergi, onDeleteVergi, onAddMonth, onDeleteMonth }) {
+function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDeleteGider, onAddBekleyen, onDeleteBekleyen, onAddVergi, onDeleteVergi, onAddMonth, onDeleteMonth }) {
   const { monthly, gelirKalemleri, giderKalemleri, bekleyenTahsilatlar, vergiTakvimi } = data;
   const [addingMonth, setAddingMonth] = useState(false);
-  const last = monthly.length ? monthly[monthly.length - 1] : { ciro: 0, gider: 0, net: 0 };
-  const bekleyenToplam = bekleyenTahsilatlar.reduce((s, b) => s + b.tutar, 0);
-  const tahsilatOrani = last.ciro ? Math.round(((last.ciro - bekleyenToplam) / last.ciro) * 100) : 0;
+  const live = computeLive(data);
+  const tahsilatOrani = live.ciro ? Math.round((live.tahsilEdilen / live.ciro) * 100) : 0;
+  const chartData = [...monthly, { id: "live", ay: "Bu Ay", ciro: live.ciro, gider: live.gider, net: live.net }];
+
+  const clientNames = (clients || []).filter((c) => c.durum !== "ayrildi").map((c) => c.ad);
+  const bekleyenFields = clientNames.length
+    ? [
+        { key: "musteri", label: "Müşteri", type: "select", options: clientNames.map((n) => ({ value: n, label: n })) },
+        { key: "tutar", label: "Tutar (₺)", type: "number" },
+        { key: "vade", label: "Vade Durumu", type: "text", placeholder: "örn. bugün / 3 gün gecikti" },
+      ]
+    : BEKLEYEN_FIELDS;
 
   return (
     <div>
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 22 }}>
-        <KpiCard label="NAKİT AKIŞI (SON AY)" value={fmt(last.net)} accent={T.success} delta={12} />
+        <KpiCard label="NAKİT AKIŞI (BU AY)" value={fmt(live.net)} accent={T.success} />
         <KpiCard label="TAHSİLAT ORANI" value={`%${tahsilatOrani}`} mono />
-        <KpiCard label="BEKLEYEN ÖDEME" value={fmt(bekleyenToplam)} accent={T.warning} />
+        <KpiCard label="BEKLEYEN ÖDEME" value={fmt(live.bekleyenToplam)} accent={T.warning} />
       </div>
+
+      <Card style={{ padding: "16px 20px", marginBottom: 16 }}>
+        <SectionTitle>Bu Ayın Ciro Dağılımı</SectionTitle>
+        <div style={{ display: "flex", gap: 28, flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>Müşteri Aylık Ücretleri <span style={{ opacity: 0.7 }}>(Müşteriler sekmesi)</span></div>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: T.text, marginTop: 3 }}>{fmt(live.recurring)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>Ek Gelirler <span style={{ opacity: 0.7 }}>(aşağıdaki Gelirler listesi)</span></div>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: T.text, marginTop: 3 }}>{fmt(live.extra)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>= Toplam Ciro</div>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: T.accentText, fontWeight: 600, marginTop: 3 }}>{fmt(live.ciro)}</div>
+          </div>
+        </div>
+      </Card>
 
       <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 16, marginBottom: 16 }}>
         <Card style={{ padding: "20px 22px" }}>
-          <SectionTitle>Gelir & Gider — Aylar</SectionTitle>
-          {monthly.length > 0 && (
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={monthly} margin={{ left: -18, right: 8 }} barGap={4}>
-                <CartesianGrid stroke={T.borderSoft} vertical={false} />
-                <XAxis dataKey="ay" tick={{ fill: T.textFaint, fontSize: 11.5, fontFamily: "Inter" }} axisLine={{ stroke: T.border }} tickLine={false} />
-                <YAxis tick={{ fill: T.textFaint, fontSize: 11, fontFamily: "Inter" }} axisLine={false} tickLine={false} tickFormatter={fmtShort} width={40} />
-                <Tooltip formatter={(v) => fmt(v)} contentStyle={{ background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 10, fontFamily: "Inter", fontSize: 12.5 }} />
-                <Bar dataKey="ciro" fill={T.accent} radius={[4, 4, 0, 0]} name="Gelir" />
-                <Bar dataKey="gider" fill={T.textFaint} radius={[4, 4, 0, 0]} name="Gider" />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-          <div style={{ display: "flex", flexDirection: "column", gap: 2, margin: "12px 0" }}>
+          <SectionTitle>Gelir & Gider — Son Aylar + Bu Ay</SectionTitle>
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={chartData} margin={{ left: -18, right: 8 }} barGap={4}>
+              <CartesianGrid stroke={T.borderSoft} vertical={false} />
+              <XAxis dataKey="ay" tick={{ fill: T.textFaint, fontSize: 11.5, fontFamily: "Inter" }} axisLine={{ stroke: T.border }} tickLine={false} />
+              <YAxis tick={{ fill: T.textFaint, fontSize: 11, fontFamily: "Inter" }} axisLine={false} tickLine={false} tickFormatter={fmtShort} width={40} />
+              <Tooltip formatter={(v) => fmt(v)} contentStyle={{ background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 10, fontFamily: "Inter", fontSize: 12.5 }} />
+              <Bar dataKey="ciro" fill={T.accent} radius={[4, 4, 0, 0]} name="Gelir" />
+              <Bar dataKey="gider" fill={T.textFaint} radius={[4, 4, 0, 0]} name="Gider" />
+            </BarChart>
+          </ResponsiveContainer>
+          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", margin: "10px 0 4px" }}>Geçmiş Ay Arşivi <span style={{ opacity: 0.7 }}>— sadece grafikte görünür, güncel hesaplamayı etkilemez</span></div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 12 }}>
             {monthly.map((m, i) => (
               <div key={m.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 0", borderBottom: i < monthly.length - 1 ? `1px solid ${T.borderSoft}` : "none" }}>
                 <span style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{m.ay}</span>
@@ -435,11 +489,12 @@ function Finans({ data, onAddGelir, onDeleteGelir, onAddGider, onDeleteGider, on
                 <button style={iconBtnStyle} onClick={() => { if (window.confirm("Bu ay silinsin mi?")) onDeleteMonth(m.id); }}><Trash2 size={12} color={T.danger} /></button>
               </div>
             ))}
+            {monthly.length === 0 && <div style={{ color: T.textFaint, fontSize: 12, fontFamily: "Inter" }}>Henüz geçmiş ay eklenmedi.</div>}
           </div>
           {addingMonth ? (
             <FieldForm fields={MONTH_FIELDS} onSubmit={(v) => { onAddMonth(v); setAddingMonth(false); }} onCancel={() => setAddingMonth(false)} submitLabel="Ayı Ekle" />
           ) : (
-            <button style={addBtnStyle} onClick={() => setAddingMonth(true)}><Plus size={13} /> Yeni ay ekle</button>
+            <button style={addBtnStyle} onClick={() => setAddingMonth(true)}><Plus size={13} /> Geçmiş ay ekle (arşiv)</button>
           )}
         </Card>
 
@@ -500,7 +555,7 @@ function Finans({ data, onAddGelir, onDeleteGelir, onAddGider, onDeleteGider, on
         title="Bekleyen Tahsilatlar"
         icon={<Landmark size={16} color={T.textFaint} />}
         items={bekleyenTahsilatlar}
-        fields={BEKLEYEN_FIELDS}
+        fields={bekleyenFields}
         addLabel="Bekleyen tahsilat ekle"
         onAdd={onAddBekleyen}
         onDelete={onDeleteBekleyen}
@@ -529,10 +584,21 @@ const OP_FIELDS = (stage) => [
   { key: "durum", label: "Durum", type: "select", options: [{ value: "yesil", label: "Tamamlandı" }, { value: "turuncu", label: "Bekliyor" }, { value: "kirmizi", label: "Gecikti" }] },
 ];
 
-function Operasyon({ operasyonlar, onAdd, onUpdate, onDelete }) {
+function Operasyon({ operasyonlar, clients, onAdd, onUpdate, onDelete }) {
   const [addingStage, setAddingStage] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const cycleDurum = (d) => (d === "yesil" ? "turuncu" : d === "turuncu" ? "kirmizi" : "yesil");
+
+  const clientNames = (clients || []).filter((c) => c.durum !== "ayrildi").map((c) => c.ad);
+  const opFields = (stage) =>
+    clientNames.length
+      ? [
+          { key: "musteri", label: "Müşteri", type: "select", options: clientNames.map((n) => ({ value: n, label: n })) },
+          { key: "baslik", label: "İş Başlığı", type: "text" },
+          { key: "tarih", label: "Tarih", type: "text", placeholder: "örn. 30 Tem" },
+          { key: "durum", label: "Durum", type: "select", options: [{ value: "yesil", label: "Tamamlandı" }, { value: "turuncu", label: "Bekliyor" }, { value: "kirmizi", label: "Gecikti" }] },
+        ]
+      : OP_FIELDS(stage);
 
   return (
     <div>
@@ -556,7 +622,7 @@ function Operasyon({ operasyonlar, onAdd, onUpdate, onDelete }) {
                 {items.map((o) =>
                   editingId === o.id ? (
                     <div key={o.id}>
-                      <FieldForm fields={OP_FIELDS(stage)} initial={o} onSubmit={(v) => { onUpdate(o.id, v); setEditingId(null); }} onCancel={() => setEditingId(null)} />
+                      <FieldForm fields={opFields(stage)} initial={o} onSubmit={(v) => { onUpdate(o.id, v); setEditingId(null); }} onCancel={() => setEditingId(null)} />
                     </div>
                   ) : (
                     <Card key={o.id} style={{ padding: "12px 13px" }}>
@@ -576,7 +642,7 @@ function Operasyon({ operasyonlar, onAdd, onUpdate, onDelete }) {
                   )
                 )}
                 {addingStage === stage ? (
-                  <FieldForm fields={OP_FIELDS(stage)} initial={{ tur: stage, durum: "turuncu" }} onSubmit={(v) => { onAdd({ ...v, tur: stage }); setAddingStage(null); }} onCancel={() => setAddingStage(null)} submitLabel="Ekle" />
+                  <FieldForm fields={opFields(stage)} initial={{ tur: stage, durum: "turuncu" }} onSubmit={(v) => { onAdd({ ...v, tur: stage }); setAddingStage(null); }} onCancel={() => setAddingStage(null)} submitLabel="Ekle" />
                 ) : (
                   <button style={{ ...addBtnStyle, justifyContent: "center" }} onClick={() => setAddingStage(stage)}><Plus size={13} /> Ekle</button>
                 )}
@@ -847,6 +913,7 @@ export default function MarcusOS() {
           {tab === "finans" && (
             <Finans
               data={data}
+              clients={data.clients}
               onAddGelir={addGelir} onDeleteGelir={deleteGelir}
               onAddGider={addGider} onDeleteGider={deleteGider}
               onAddBekleyen={addBekleyen} onDeleteBekleyen={deleteBekleyen}
@@ -854,13 +921,13 @@ export default function MarcusOS() {
               onAddMonth={addMonth} onDeleteMonth={deleteMonth}
             />
           )}
-          {tab === "operasyon" && <Operasyon operasyonlar={data.operasyonlar} onAdd={addOp} onUpdate={updateOp} onDelete={deleteOp} />}
+          {tab === "operasyon" && <Operasyon operasyonlar={data.operasyonlar} clients={data.clients} onAdd={addOp} onUpdate={updateOp} onDelete={deleteOp} />}
           {tab === "ayarlar" && <Ayarlar />}
         </div>
       </div>
 
       {aiOpen && <div onClick={() => setAiOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 40 }} />}
-      <AiPanel open={aiOpen} onClose={() => setAiOpen(false)} initialQuestion={aiQuestion} data={data} />
+      <AiPanel open={aiOpen} onClose={() => setAiOpen(false)} initialQuestion={aiQuestion} data={{ ...data, buAyinGercekDurumu: computeLive(data) }} />
     </div>
   );
 }

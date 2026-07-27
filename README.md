@@ -57,6 +57,15 @@ aynı Vercel panelinden yapılıyor:
 Veritabanı bağlandıktan sonra Müşteriler/Finans/Operasyon'da yaptığın her ekleme/düzenleme/silme otomatik
 olarak kaydedilir (sağ altta "Kaydedildi" yazısını görürsün) ve sayfayı kapatıp açsan bile kalır.
 
+## Sekmeler nasıl birbirine bağlı? (önemli)
+
+- **Toplam Ciro** = Müşteriler sekmesindeki aktif/yeni müşterilerin aylık ücretleri **+** Finans > Gelirler'deki ek gelir kalemleri. Bir müşteri eklediğinde/sildiğinde ya da ücretini değiştirdiğinde, Dashboard'daki ciro anında güncellenir.
+- **Toplam Gider** = Finans > Giderler'deki kalemlerin toplamı.
+- **Net Kazanç / Kâr Marjı / Bekleyen Tahsilat / Tahsil Edilen** hepsi bu iki sayıdan ve Finans > Bekleyen Tahsilatlar'dan canlı olarak hesaplanır — elle "ay ekleme" gerektirmez.
+- Finans sekmesindeki **"Geçmiş ay ekle (arşiv)"** özelliği sadece grafikte geçmiş ayları görmek içindir; güncel hesaplamayı etkilemez.
+- **Operasyon** ve **Bekleyen Tahsilatlar**'da "Müşteri" alanı artık Müşteriler sekmesindeki isimlerden seçilir (en az bir müşteri eklemeden bu alanlar serbest metin olarak kalır).
+- **AI CEO** sohbeti de bu canlı hesaplanmış verileri görür, yani sorduğun sorular güncel duruma göre cevaplanır.
+
 ## Notlar
 - Uygulama şu an örnek (demo) verilerle geliyor. Gerçek verilerini bağlamak istediğinde `src/App.jsx` içindeki `clients`, `monthly`, `operasyonlar` gibi listeleri kendi verilerinle değiştirebiliriz, ya da bir sonraki adımda bunları düzenleyebileceğin bir veri giriş ekranı ekleyebiliriz.
 - API anahtarın hiçbir zaman tarayıcıya gönderilmiyor; `api/chat.js` sunucu tarafında çalışıyor.
