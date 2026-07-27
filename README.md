@@ -76,6 +76,10 @@ olarak kaydedilir (sağ altta "Kaydedildi" yazısını görürsün) ve sayfayı 
 
 - **Müşteri bazlı maliyetler**: Bir müşterinin detay sayfasında (Müşteriler'de isme tıkla) "Maliyet ekle" ile freelancer ödemesi, dış hizmet gibi giderleri o müşteriye bağlayabilirsin. Eklediğinde: (1) o müşterinin Kâr Marjı'sı otomatik yeniden hesaplanır, (2) tutar Toplam Gider'e otomatik eklenir — elle Finans'a ayrıca girmene gerek yok.
 
+- **Aylık ödeme takibi + bildirimler**: Müşteriler'de bir müşteriyi düzenleyip "Ödeme Günü" alanını doldur (örn. 5 = ayın 5'i). Sistem her ay otomatik olarak takip eder: gün gelmeden "Yaklaşıyor", geçtiğinde "Bekliyor", 7+ gün geçtiğinde "Gecikti" gösterir — bu tutarlar Dashboard'daki "Bekleyen Tahsilat"a otomatik eklenir. Müşteri detay sayfasından "Ödendi işaretle" ile o ayı kapatırsın, bir sonraki ay otomatik sıfırlanır. Üstteki zil ikonu artık gerçek bir bildirim listesi — gecikmiş ödemeler, gecikmiş operasyon işleri ve yaklaşan vergi tarihlerini tek yerde gösterir.
+
+- **Personel sekmesi**: Yeni bir ana sekme. Her ekip üyesi için Maaş, SGK/Sigorta ve Kıdem Tazminatı Birikimi gir — toplamı otomatik olarak Dashboard ve Finans'taki Toplam Gider'e yansır, elle "gider kalemi" olarak ayrıca eklemene gerek kalmaz.
+
 ## Notlar
 - Uygulama şu an örnek (demo) verilerle geliyor. Gerçek verilerini bağlamak istediğinde `src/App.jsx` içindeki `clients`, `monthly`, `operasyonlar` gibi listeleri kendi verilerinle değiştirebiliriz, ya da bir sonraki adımda bunları düzenleyebileceğin bir veri giriş ekranı ekleyebiliriz.
 - API anahtarın hiçbir zaman tarayıcıya gönderilmiyor; `api/chat.js` sunucu tarafında çalışıyor.
