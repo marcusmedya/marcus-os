@@ -62,7 +62,7 @@ function computeLive(data) {
   const recurring = activeClients.reduce((s, c) => s + (Number(c.aylikUcret) || 0), 0);
   const extra = (data.gelirKalemleri || []).reduce((s, g) => s + (Number(g.tutar) || 0), 0);
   const ciro = recurring + extra;
-  const faturaliRecurring = activeClients.filter((c) => c.faturali !== "hayir").reduce((s, c) => s + (Number(c.aylikUcret) || 0), 0);
+  const faturaliRecurring = activeClients.reduce((s, c) => s + clientFaturaliTutar(c), 0);
   const faturaliExtra = (data.gelirKalemleri || []).filter((g) => g.faturali !== "hayir").reduce((s, g) => s + (Number(g.tutar) || 0), 0);
   const faturaliCiro = faturaliRecurring + faturaliExtra;
   const faturasizCiro = ciro - faturaliCiro;
@@ -100,6 +100,17 @@ function clientPaymentStatus(client) {
   const gecikenGun = todayDay - dueDay;
   if (gecikenGun >= 7) return { status: "gecikti", label: `${gecikenGun} gün gecikti` };
   return { status: "bekliyor", label: `Ödeme günü geçti (ayın ${dueDay}'i)` };
+}
+
+/** Bir müşterinin aylık ücretinin ne kadarının faturalı olduğunu döndürür (kısmi olabilir).
+ * Yeni "faturaliTutar" alanı varsa onu kullanır (aylıkÜcret'i geçemez); yoksa eski evet/hayır
+ * alanına bakar (geriye dönük uyumluluk). */
+function clientFaturaliTutar(c) {
+  const aylik = Number(c.aylikUcret) || 0;
+  if (c.faturaliTutar !== undefined && c.faturaliTutar !== null && c.faturaliTutar !== "") {
+    return Math.min(Math.max(Number(c.faturaliTutar) || 0, 0), aylik);
+  }
+  return c.faturali === "hayir" ? 0 : aylik;
 }
 
 /** Bir müşterinin kâr marjı: eğer o müşteriye maliyet eklenmişse (aylikUcret - maliyet)/aylikUcret
@@ -339,7 +350,7 @@ const CLIENT_FIELDS = [
   { key: "aylikUcret", label: "Aylık Ücret (₺)", type: "number" },
   { key: "karMarji", label: "Kâr Marjı (%) — müşteri detayında maliyet eklersen otomatik hesaplanır", type: "number" },
   { key: "odemeGunu", label: "Ödeme Günü (ayın kaçı — opsiyonel, örn. 5)", type: "number" },
-  { key: "faturali", label: "Faturalı mı? (KDV %20 otomatik hesaplanır)", type: "select", options: [{ value: "evet", label: "Evet - Faturalı (KDV'li)" }, { value: "hayir", label: "Hayır - Faturasız" }] },
+  { key: "faturaliTutar", label: "Faturalı Tutar (₺/ay) — aylık ücretin ne kadarı faturalı? Kalanı otomatik faturasız sayılır", type: "number" },
   { key: "baslangic", label: "Başlangıç (YYYY-AA)", type: "text", placeholder: "2026-07" },
   { key: "not", label: "Not (opsiyonel)", type: "text" },
 ];
@@ -408,7 +419,7 @@ function Musteriler({ clients, operasyonlar, bekleyenTahsilatlar, onAdd, onUpdat
               editingId === c.id ? (
                 <tr key={c.id}>
                   <td colSpan={7} style={{ padding: "12px 16px" }}>
-                    <FieldForm fields={CLIENT_FIELDS} initial={c} onSubmit={(v) => { onUpdate(c.id, v); setEditingId(null); }} onCancel={() => setEditingId(null)} />
+                    <FieldForm fields={CLIENT_FIELDS} initial={{ ...c, faturaliTutar: clientFaturaliTutar(c) }} onSubmit={(v) => { onUpdate(c.id, v); setEditingId(null); }} onCancel={() => setEditingId(null)} />
                   </td>
                 </tr>
               ) : (
@@ -435,11 +446,14 @@ function Musteriler({ clients, operasyonlar, bekleyenTahsilatlar, onAdd, onUpdat
                   </td>
                   <td style={{ padding: "13px 16px", textAlign: "right", color: T.text, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>
                     {c.aylikUcret ? fmt(c.aylikUcret) : "—"}
-                    {c.aylikUcret > 0 && (
-                      <span title={c.faturali === "hayir" ? "Faturasız" : "Faturalı (KDV %20)"} style={{ marginLeft: 6, fontSize: 10, color: c.faturali === "hayir" ? T.textFaint : T.success }}>
-                        {c.faturali === "hayir" ? "○" : "●"}
-                      </span>
-                    )}
+                    {c.aylikUcret > 0 && (() => {
+                      const ft = clientFaturaliTutar(c);
+                      const full = ft >= c.aylikUcret;
+                      const none = ft <= 0;
+                      const symbol = full ? "●" : none ? "○" : "◐";
+                      const title = full ? "Tamamen faturalı (KDV %20)" : none ? "Faturasız" : `Kısmi faturalı: ${fmt(ft)} faturalı, ${fmt(c.aylikUcret - ft)} faturasız`;
+                      return <span title={title} style={{ marginLeft: 6, fontSize: 10, color: full ? T.success : none ? T.textFaint : T.warning }}>{symbol}</span>;
+                    })()}
                   </td>
                   <td style={{ padding: "13px 16px", textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>
                     {(() => {
@@ -467,7 +481,7 @@ function Musteriler({ clients, operasyonlar, bekleyenTahsilatlar, onAdd, onUpdat
         </table>
       </Card>
       <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 10 }}>
-        Aylık Ücret yanındaki <span style={{ color: T.success }}>●</span> faturalı, <span>○</span> faturasız demektir.
+        Aylık Ücret yanındaki <span style={{ color: T.success }}>●</span> tamamen faturalı, <span style={{ color: T.warning }}>◐</span> kısmi faturalı, <span>○</span> faturasız demektir.
       </div>
 
       {detailClientId && (
@@ -515,7 +529,14 @@ function ClientDetail({ client, operasyonlar, bekleyenTahsilatlar, onAddCost, on
           <Pill color={cd.color} soft={cd.soft}>{cd.label}</Pill>
           <Pill color={T.text} soft={T.borderSoft}>Aylık {fmt(client.aylikUcret)}</Pill>
           <Pill color={km >= 55 ? T.success : km >= 35 ? T.warning : T.danger} soft={T.borderSoft}>Kâr Marjı %{km}{maliyetler.length > 0 && " (otomatik)"}</Pill>
-          {client.faturali === "hayir" ? <Pill color={T.textFaint} soft={T.borderSoft}>Faturasız</Pill> : <Pill color={T.success} soft={T.successSoft}>Faturalı · KDV %20</Pill>}
+          {(() => {
+            const ft = clientFaturaliTutar(client);
+            const full = client.aylikUcret > 0 && ft >= client.aylikUcret;
+            const none = ft <= 0;
+            if (full) return <Pill color={T.success} soft={T.successSoft}>Tamamen Faturalı · KDV %20</Pill>;
+            if (none) return <Pill color={T.textFaint} soft={T.borderSoft}>Faturasız</Pill>;
+            return <Pill color={T.warning} soft={T.warningSoft}>Kısmi: {fmt(ft)} faturalı / {fmt(client.aylikUcret - ft)} faturasız</Pill>;
+          })()}
           {bekleyenToplam > 0 && <Pill color={T.warning} soft={T.warningSoft}>Bekleyen {fmt(bekleyenToplam)}</Pill>}
         </div>
 
@@ -684,15 +705,20 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
       <Card style={{ padding: "16px 20px", marginBottom: 16 }}>
         <SectionTitle>Faturalı İşler <span style={{ fontWeight: 400, opacity: 0.7 }}>— bu ciroyu oluşturanlar</span></SectionTitle>
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {clients.filter((c) => c.durum !== "ayrildi" && c.faturali !== "hayir").map((c) => (
-            <div key={"c" + c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${T.borderSoft}` }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter" }}>{c.ad}</span>
-                <Pill color={T.accentText} soft={T.accentSoft}>Müşteri</Pill>
+          {clients.filter((c) => c.durum !== "ayrildi" && clientFaturaliTutar(c) > 0).map((c) => {
+            const ft = clientFaturaliTutar(c);
+            const kismi = ft < c.aylikUcret;
+            return (
+              <div key={"c" + c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${T.borderSoft}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter" }}>{c.ad}</span>
+                  <Pill color={T.accentText} soft={T.accentSoft}>Müşteri</Pill>
+                  {kismi && <Pill color={T.warning} soft={T.warningSoft}>Kısmi</Pill>}
+                </div>
+                <span style={{ fontSize: 13, color: T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(ft)}</span>
               </div>
-              <span style={{ fontSize: 13, color: T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(c.aylikUcret)}</span>
-            </div>
-          ))}
+            );
+          })}
           {gelirKalemleri.filter((g) => g.faturali !== "hayir").map((g) => (
             <div key={"g" + g.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${T.borderSoft}` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -702,7 +728,7 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
               <span style={{ fontSize: 13, color: T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(g.tutar)}</span>
             </div>
           ))}
-          {clients.filter((c) => c.durum !== "ayrildi" && c.faturali !== "hayir").length === 0 && gelirKalemleri.filter((g) => g.faturali !== "hayir").length === 0 && (
+          {clients.filter((c) => c.durum !== "ayrildi" && clientFaturaliTutar(c) > 0).length === 0 && gelirKalemleri.filter((g) => g.faturali !== "hayir").length === 0 && (
             <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", padding: "6px 0" }}>Faturalı işaretlenmiş müşteri/gelir yok.</div>
           )}
           <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingTop: 10, marginTop: 4 }}>
@@ -1345,8 +1371,8 @@ export default function MarcusOS() {
       ["Personel", "Pozisyon", "Maaş", "SGK/Sigorta", "Tazminat Birikimi", "Aylık Toplam"],
       ...(data.personel || []).map((p) => [p.ad, p.pozisyon, p.maas, p.sigorta, p.tazminatBirikimi || 0, (Number(p.maas) || 0) + (Number(p.sigorta) || 0) + (Number(p.tazminatBirikimi) || 0)]),
       [],
-      ["Müşteriler", "Kategori", "Durum", "Aylık Ücret", "Kâr Marjı %", "Ödeme Durumu"],
-      ...data.clients.map((c) => { const st = clientPaymentStatus(c); return [c.ad, c.kategori, c.durum, c.aylikUcret, clientKarMarji(c), st ? st.label : "Takip edilmiyor"]; }),
+      ["Müşteriler", "Kategori", "Durum", "Aylık Ücret", "Kâr Marjı %", "Ödeme Durumu", "Faturalı Tutar"],
+      ...data.clients.map((c) => { const st = clientPaymentStatus(c); return [c.ad, c.kategori, c.durum, c.aylikUcret, clientKarMarji(c), st ? st.label : "Takip edilmiyor", clientFaturaliTutar(c)]; }),
       [],
       ["Müşteri Maliyetleri", "Kalem", "Tutar"],
       ...data.clients.flatMap((c) => (c.maliyetler || []).map((m) => [c.ad, m.kalem, m.tutar])),

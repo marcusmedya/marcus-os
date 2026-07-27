@@ -82,6 +82,8 @@ olarak kaydedilir (sağ altta "Kaydedildi" yazısını görürsün) ve sayfayı 
 
 - **Faturalı/Faturasız takibi + otomatik KDV**: Müşteri eklerken/düzenlerken "Faturalı mı?" seçeneğini işaretle — faturalı olanların toplamı üzerinden Finans sekmesinde otomatik %20 KDV hesaplanır (Faturalı Ciro, Faturasız Ciro, Hesaplanan KDV KPI'ları). Aynı seçenek Gelirler'deki ek gelir kalemlerinde de var. Bu tahmini bir hesaplamadır, resmi beyanname yerine geçmez.
 
+- **Kısmi faturalı müşteriler**: Müşteri formundaki alan artık evet/hayır değil, **"Faturalı Tutar (₺/ay)"** — aylık ücretin ne kadarının faturalı olduğunu tam sayı olarak girebilirsin (örn. 40.000₺'lik müşterinin 20.000₺'si faturalı, 20.000₺'si faturasız olabilir). Kalan kısım otomatik faturasız sayılır ve KDV sadece faturalı kısım üzerinden hesaplanır.
+
 ## Notlar
 - Uygulama şu an örnek (demo) verilerle geliyor. Gerçek verilerini bağlamak istediğinde `src/App.jsx` içindeki `clients`, `monthly`, `operasyonlar` gibi listeleri kendi verilerinle değiştirebiliriz, ya da bir sonraki adımda bunları düzenleyebileceğin bir veri giriş ekranı ekleyebiliriz.
 - API anahtarın hiçbir zaman tarayıcıya gönderilmiyor; `api/chat.js` sunucu tarafında çalışıyor.
