@@ -67,6 +67,8 @@ function computeLive(data) {
   const faturaliCiro = faturaliRecurring + faturaliExtra;
   const faturasizCiro = ciro - faturaliCiro;
   const kdvTutari = Math.round(faturaliCiro * 0.2);
+  const kdvDahilToplamCiro = ciro + kdvTutari;
+  const faturaliKdvDahil = faturaliCiro + kdvTutari;
   const giderKalemToplam = (data.giderKalemleri || []).reduce((s, g) => s + (Number(g.tutar) || 0), 0);
   const clientCosts = clients.reduce((s, c) => s + (c.maliyetler || []).reduce((s2, m) => s2 + (Number(m.tutar) || 0), 0), 0);
   const personelGideri = (data.personel || []).reduce((s, p) => s + (Number(p.maas) || 0) + (Number(p.sigorta) || 0) + (Number(p.tazminatBirikimi) || 0), 0);
@@ -81,7 +83,7 @@ function computeLive(data) {
   const bekleyenToplam = manuelBekleyen + otomatikBekleyen;
   const tahsilEdilen = ciro - bekleyenToplam;
   const karMarji = ciro ? Math.round((net / ciro) * 100) : 0;
-  return { recurring, extra, ciro, faturaliCiro, faturasizCiro, kdvTutari, giderKalemToplam, clientCosts, personelGideri, gider, net, manuelBekleyen, otomatikBekleyen, bekleyenToplam, tahsilEdilen, karMarji };
+  return { recurring, extra, ciro, faturaliCiro, faturasizCiro, kdvTutari, kdvDahilToplamCiro, faturaliKdvDahil, giderKalemToplam, clientCosts, personelGideri, gider, net, manuelBekleyen, otomatikBekleyen, bekleyenToplam, tahsilEdilen, karMarji };
 }
 
 /** Bir müşterinin bu ayki ödeme durumunu, kayıtlı "ödeme günü"ne göre otomatik hesaplar. */
@@ -431,7 +433,14 @@ function Musteriler({ clients, operasyonlar, bekleyenTahsilatlar, onAdd, onUpdat
                       return <Pill color={m.c} soft={m.s}>{m.l}</Pill>;
                     })()}
                   </td>
-                  <td style={{ padding: "13px 16px", textAlign: "right", color: T.text, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>{c.aylikUcret ? fmt(c.aylikUcret) : "—"}</td>
+                  <td style={{ padding: "13px 16px", textAlign: "right", color: T.text, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>
+                    {c.aylikUcret ? fmt(c.aylikUcret) : "—"}
+                    {c.aylikUcret > 0 && (
+                      <span title={c.faturali === "hayir" ? "Faturasız" : "Faturalı (KDV %20)"} style={{ marginLeft: 6, fontSize: 10, color: c.faturali === "hayir" ? T.textFaint : T.success }}>
+                        {c.faturali === "hayir" ? "○" : "●"}
+                      </span>
+                    )}
+                  </td>
                   <td style={{ padding: "13px 16px", textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>
                     {(() => {
                       const km = clientKarMarji(c);
@@ -457,6 +466,9 @@ function Musteriler({ clients, operasyonlar, bekleyenTahsilatlar, onAdd, onUpdat
           </tbody>
         </table>
       </Card>
+      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 10 }}>
+        Aylık Ücret yanındaki <span style={{ color: T.success }}>●</span> faturalı, <span>○</span> faturasız demektir.
+      </div>
 
       {detailClientId && (
         <ClientDetail
@@ -661,13 +673,54 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
       </div>
 
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 8 }}>
-        <KpiCard label="FATURALI CİRO (BU AY)" value={fmt(live.faturaliCiro)} accent={T.accentText} />
-        <KpiCard label="FATURASIZ CİRO" value={fmt(live.faturasizCiro)} />
-        <KpiCard label="HESAPLANAN KDV (%20)" value={fmt(live.kdvTutari)} mono accent={T.warning} />
+        <KpiCard label="CİRO (KDV HARİÇ)" value={fmt(live.ciro)} accent={T.accentText} />
+        <KpiCard label="KDV TUTARI (%20)" value={fmt(live.kdvTutari)} mono accent={T.warning} />
+        <KpiCard label="KDV DAHİL TOPLAM" value={fmt(live.kdvDahilToplamCiro)} mono />
       </div>
       <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 22 }}>
-        Bu rakam tahmini bir hesaplamadır (faturalı ciro × %20) — resmi KDV beyannamesi yerine geçmez, muhasebecinle teyit et.
+        Faturalı Ciro (KDV Hariç) {fmt(live.faturaliCiro)} + Faturasız Ciro {fmt(live.faturasizCiro)} = Ciro (KDV Hariç) {fmt(live.ciro)}. KDV sadece faturalı kısım üzerinden hesaplanır ve resmi beyanname yerine geçmez, muhasebecinle teyit et.
       </div>
+
+      <Card style={{ padding: "16px 20px", marginBottom: 16 }}>
+        <SectionTitle>Faturalı İşler <span style={{ fontWeight: 400, opacity: 0.7 }}>— bu ciroyu oluşturanlar</span></SectionTitle>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {clients.filter((c) => c.durum !== "ayrildi" && c.faturali !== "hayir").map((c) => (
+            <div key={"c" + c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${T.borderSoft}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter" }}>{c.ad}</span>
+                <Pill color={T.accentText} soft={T.accentSoft}>Müşteri</Pill>
+              </div>
+              <span style={{ fontSize: 13, color: T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(c.aylikUcret)}</span>
+            </div>
+          ))}
+          {gelirKalemleri.filter((g) => g.faturali !== "hayir").map((g) => (
+            <div key={"g" + g.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${T.borderSoft}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter" }}>{g.kalem}</span>
+                <Pill color={T.textFaint} soft={T.borderSoft}>Ek Gelir</Pill>
+              </div>
+              <span style={{ fontSize: 13, color: T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(g.tutar)}</span>
+            </div>
+          ))}
+          {clients.filter((c) => c.durum !== "ayrildi" && c.faturali !== "hayir").length === 0 && gelirKalemleri.filter((g) => g.faturali !== "hayir").length === 0 && (
+            <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", padding: "6px 0" }}>Faturalı işaretlenmiş müşteri/gelir yok.</div>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingTop: 10, marginTop: 4 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontFamily: "Inter" }}>
+              <span style={{ color: T.textDim }}>Faturalı Ciro (KDV Hariç)</span>
+              <span style={{ color: T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(live.faturaliCiro)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontFamily: "Inter" }}>
+              <span style={{ color: T.textDim }}>+ KDV (%20)</span>
+              <span style={{ color: T.warning, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(live.kdvTutari)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5, fontFamily: "Inter", fontWeight: 600, paddingTop: 4, borderTop: `1px solid ${T.borderSoft}` }}>
+              <span style={{ color: T.text }}>= Faturalı Ciro (KDV Dahil)</span>
+              <span style={{ color: T.accentText, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(live.faturaliKdvDahil)}</span>
+            </div>
+          </div>
+        </div>
+      </Card>
 
       <Card style={{ padding: "16px 20px", marginBottom: 16 }}>
         <SectionTitle
@@ -1286,7 +1339,8 @@ export default function MarcusOS() {
       [],
       ["Bu Ayın Özeti"],
       ["Toplam Ciro", live.ciro], ["Toplam Gider", live.gider], ["Net Kazanç", live.net], ["Kâr Marjı %", live.karMarji],
-      ["Faturalı Ciro", live.faturaliCiro], ["Faturasız Ciro", live.faturasizCiro], ["Hesaplanan KDV (%20)", live.kdvTutari],
+      ["Faturalı Ciro (KDV Hariç)", live.faturaliCiro], ["Faturasız Ciro", live.faturasizCiro],
+      ["KDV Tutarı (%20)", live.kdvTutari], ["Faturalı Ciro (KDV Dahil)", live.faturaliKdvDahil], ["Ciro (KDV Dahil Toplam)", live.kdvDahilToplamCiro],
       [],
       ["Personel", "Pozisyon", "Maaş", "SGK/Sigorta", "Tazminat Birikimi", "Aylık Toplam"],
       ...(data.personel || []).map((p) => [p.ad, p.pozisyon, p.maas, p.sigorta, p.tazminatBirikimi || 0, (Number(p.maas) || 0) + (Number(p.sigorta) || 0) + (Number(p.tazminatBirikimi) || 0)]),
