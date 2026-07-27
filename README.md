@@ -66,6 +66,16 @@ olarak kaydedilir (sağ altta "Kaydedildi" yazısını görürsün) ve sayfayı 
 - **Operasyon** ve **Bekleyen Tahsilatlar**'da "Müşteri" alanı artık Müşteriler sekmesindeki isimlerden seçilir (en az bir müşteri eklemeden bu alanlar serbest metin olarak kalır).
 - **AI CEO** sohbeti de bu canlı hesaplanmış verileri görür, yani sorduğun sorular güncel duruma göre cevaplanır.
 
+## Yeni özellikler (bu sürüm)
+
+- **Şifre koruması**: Vercel projende **Settings → Environment Variables** kısmına `SITE_PASSWORD` adında bir değişken ekleyip istediğin şifreyi tanımla. Ekledikten sonra **Deployments** sekmesinden en son deploy'un yanındaki **"Redeploy"** butonuna bas (ortam değişkeni değişiklikleri otomatik yayına yansımaz, yeniden deploy gerekir). Şifreyi eklemezsen site eskisi gibi korumasız çalışmaya devam eder.
+- **Ayı Kapat**: Finans sekmesinde, ayın sonunda bu butona basınca o ayki gerçek ciro/gider otomatik arşive eklenir; "sabit" işaretlediğin gelir/gider kalemleri bir sonraki aya taşınır, "tek seferlik" olanlar temizlenir. Her ay elle silip yeniden girmene gerek kalmaz.
+- **Müşteri detay sayfası**: Müşteriler sekmesinde bir müşterinin adına tıkla — o müşteriye ait tüm operasyon işlerini ve bekleyen tahsilatlarını tek yerde gör.
+- **Çalışan arama kutusu**: Üstteki arama kutusuna müşteri, iş veya finans kalemi adı yaz; sonuca tıklayınca ilgili sekmeye/detaya gider.
+- **CSV dışa aktarma**: Finans veya Ayarlar sekmesinden "CSV indir" ile tüm finans verilerini Excel'de açılabilir dosya olarak indir.
+
+- **Müşteri bazlı maliyetler**: Bir müşterinin detay sayfasında (Müşteriler'de isme tıkla) "Maliyet ekle" ile freelancer ödemesi, dış hizmet gibi giderleri o müşteriye bağlayabilirsin. Eklediğinde: (1) o müşterinin Kâr Marjı'sı otomatik yeniden hesaplanır, (2) tutar Toplam Gider'e otomatik eklenir — elle Finans'a ayrıca girmene gerek yok.
+
 ## Notlar
 - Uygulama şu an örnek (demo) verilerle geliyor. Gerçek verilerini bağlamak istediğinde `src/App.jsx` içindeki `clients`, `monthly`, `operasyonlar` gibi listeleri kendi verilerinle değiştirebiliriz, ya da bir sonraki adımda bunları düzenleyebileceğin bir veri giriş ekranı ekleyebiliriz.
 - API anahtarın hiçbir zaman tarayıcıya gönderilmiyor; `api/chat.js` sunucu tarafında çalışıyor.

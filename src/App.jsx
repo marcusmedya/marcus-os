@@ -52,8 +52,9 @@ const nextId = (arr) => (arr.length ? Math.max(...arr.map((i) => i.id || 0)) + 1
 /**
  * Tüm sekmelerin ortak "gerçek" hesaplaması: Toplam Ciro = aktif/yeni müşterilerin
  * aylık ücretleri (Müşteriler) + ek gelir kalemleri (Finans > Gelirler). Toplam Gider =
- * Finans > Giderler toplamı. Dashboard, Finans ve AI CEO hepsi bu fonksiyonu kullanır,
- * böylece bir sekmede yapılan değişiklik anında diğerlerine yansır.
+ * Finans > Giderler toplamı + müşteri bazlı maliyetler (örn. freelance ödemeleri).
+ * Dashboard, Finans ve AI CEO hepsi bu fonksiyonu kullanır, böylece bir sekmede
+ * yapılan değişiklik anında diğerlerine yansır.
  */
 function computeLive(data) {
   const clients = data.clients || [];
@@ -61,17 +62,31 @@ function computeLive(data) {
   const recurring = activeClients.reduce((s, c) => s + (Number(c.aylikUcret) || 0), 0);
   const extra = (data.gelirKalemleri || []).reduce((s, g) => s + (Number(g.tutar) || 0), 0);
   const ciro = recurring + extra;
-  const gider = (data.giderKalemleri || []).reduce((s, g) => s + (Number(g.tutar) || 0), 0);
+  const giderKalemToplam = (data.giderKalemleri || []).reduce((s, g) => s + (Number(g.tutar) || 0), 0);
+  const clientCosts = clients.reduce((s, c) => s + (c.maliyetler || []).reduce((s2, m) => s2 + (Number(m.tutar) || 0), 0), 0);
+  const gider = giderKalemToplam + clientCosts;
   const net = ciro - gider;
   const bekleyenToplam = (data.bekleyenTahsilatlar || []).reduce((s, b) => s + (Number(b.tutar) || 0), 0);
   const tahsilEdilen = ciro - bekleyenToplam;
   const karMarji = ciro ? Math.round((net / ciro) * 100) : 0;
-  return { recurring, extra, ciro, gider, net, bekleyenToplam, tahsilEdilen, karMarji };
+  return { recurring, extra, ciro, giderKalemToplam, clientCosts, gider, net, bekleyenToplam, tahsilEdilen, karMarji };
 }
 
-/* ------------------------------------------------------------------ */
-/* SMALL UI PRIMITIVES                                                 */
-/* ------------------------------------------------------------------ */
+/** Bir müşterinin kâr marjı: eğer o müşteriye maliyet eklenmişse (aylikUcret - maliyet)/aylikUcret
+ * üzerinden otomatik hesaplanır; hiç maliyet eklenmemişse elle girilmiş karMarji alanı kullanılır. */
+function clientKarMarji(c) {
+  const maliyetToplam = (c.maliyetler || []).reduce((s, m) => s + (Number(m.tutar) || 0), 0);
+  if ((c.maliyetler || []).length > 0) {
+    return c.aylikUcret ? Math.round(((c.aylikUcret - maliyetToplam) / c.aylikUcret) * 100) : 0;
+  }
+  return Number(c.karMarji) || 0;
+}
+
+/** Şifre koruması: tarayıcıda saklanan şifreyi her API isteğine ekler. Sunucuda SITE_PASSWORD
+ * ortam değişkeni tanımlı değilse koruma devre dışıdır (geriye dönük uyumluluk). */
+const PW_KEY = "marcus-os-pw";
+const getPw = () => (typeof window !== "undefined" ? localStorage.getItem(PW_KEY) || "" : "");
+const setPw = (v) => { if (typeof window !== "undefined") localStorage.setItem(PW_KEY, v); };
 function Card({ children, style, ...rest }) {
   return (
     <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, ...style }} {...rest}>
@@ -175,10 +190,10 @@ function KararSeridi({ data, onAsk }) {
     const active = data.clients.filter((c) => c.durum !== "ayrildi");
     if (!active.length) return null;
     const live = computeLive(data);
-    const enKarli = [...active].sort((a, b) => b.karMarji - a.karMarji)[0];
-    const enDusuk = [...active].sort((a, b) => a.karMarji - b.karMarji)[0];
+    const enKarli = [...active].sort((a, b) => clientKarMarji(b) - clientKarMarji(a))[0];
+    const enDusuk = [...active].sort((a, b) => clientKarMarji(a) - clientKarMarji(b))[0];
     const bagimlilik = live.ciro ? Math.round((enKarli.aylikUcret / live.ciro) * 100) : 0;
-    return { enKarli, enDusuk, bagimlilik };
+    return { enKarli, enDusuk, bagimlilik, enDusukMarji: clientKarMarji(enDusuk) };
   }, [data]);
 
   if (!insight) return null;
@@ -189,7 +204,7 @@ function KararSeridi({ data, onAsk }) {
         <Sparkles size={14} /> BUGÜNÜN KARARI
       </div>
       <div style={{ fontFamily: "Inter, sans-serif", fontSize: 13.5, color: T.text, flex: 1, minWidth: 260 }}>
-        <b>{insight.enDusuk.ad}</b> kâr marjın en düşük müşterin (%{insight.enDusuk.karMarji}) — fiyat güncellemesi ya da kapsam gözden geçirmesi gerekebilir.
+        <b>{insight.enDusuk.ad}</b> kâr marjın en düşük müşterin (%{insight.enDusukMarji}) — fiyat güncellemesi ya da kapsam gözden geçirmesi gerekebilir.
         Ciron'un %{insight.bagimlilik}'i tek müşteriye ({insight.enKarli.ad}) bağlı.
       </div>
       <button onClick={onAsk} style={{ background: T.accent, color: "#fff", border: "none", borderRadius: 999, padding: "8px 14px", fontSize: 12.5, fontWeight: 600, fontFamily: "Inter, sans-serif", display: "flex", alignItems: "center", gap: 6, cursor: "pointer", whiteSpace: "nowrap" }}>
@@ -292,7 +307,7 @@ const CLIENT_FIELDS = [
   { key: "kategori", label: "Kategori", type: "text" },
   { key: "durum", label: "Durum", type: "select", options: [{ value: "aktif", label: "Aktif" }, { value: "yeni", label: "Yeni" }, { value: "ayrildi", label: "Ayrıldı" }] },
   { key: "aylikUcret", label: "Aylık Ücret (₺)", type: "number" },
-  { key: "karMarji", label: "Kâr Marjı (%)", type: "number" },
+  { key: "karMarji", label: "Kâr Marjı (%) — müşteri detayında maliyet eklersen otomatik hesaplanır", type: "number" },
   { key: "baslangic", label: "Başlangıç (YYYY-AA)", type: "text", placeholder: "2026-07" },
   { key: "not", label: "Not (opsiyonel)", type: "text" },
 ];
@@ -303,14 +318,20 @@ const CLIENT_DURUM = {
   ayrildi: { label: "Ayrıldı", color: T.textFaint, soft: T.borderSoft },
 };
 
-function Musteriler({ clients, onAdd, onUpdate, onDelete }) {
+function Musteriler({ clients, operasyonlar, bekleyenTahsilatlar, onAdd, onUpdate, onDelete, onAddCost, onDeleteCost, openClient, onOpenClientHandled }) {
   const [filter, setFilter] = useState("hepsi");
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [detailClientId, setDetailClientId] = useState(null);
+
+  useEffect(() => {
+    if (openClient) { setDetailClientId(openClient.id); onOpenClientHandled && onOpenClientHandled(); }
+    // eslint-disable-next-line
+  }, [openClient]);
 
   const active = clients.filter((c) => c.durum !== "ayrildi");
-  const enKarli = active.length ? [...active].sort((a, b) => b.karMarji - a.karMarji)[0] : null;
-  const enDusuk = active.length ? [...active].sort((a, b) => a.karMarji - b.karMarji)[0] : null;
+  const enKarli = active.length ? [...active].sort((a, b) => clientKarMarji(b) - clientKarMarji(a))[0] : null;
+  const enDusuk = active.length ? [...active].sort((a, b) => clientKarMarji(a) - clientKarMarji(b))[0] : null;
   const ortalamaGelir = active.length ? Math.round(active.reduce((s, c) => s + c.aylikUcret, 0) / active.length) : 0;
   const filtered = clients.filter((c) => (filter === "hepsi" ? true : c.durum === filter));
 
@@ -361,7 +382,7 @@ function Musteriler({ clients, onAdd, onUpdate, onDelete }) {
               ) : (
                 <tr key={c.id} style={{ borderBottom: `1px solid ${T.borderSoft}` }}>
                   <td style={{ padding: "13px 16px" }}>
-                    <div style={{ color: T.text, fontSize: 13.5, fontWeight: 600 }}>{c.ad}</div>
+                    <div style={{ color: T.text, fontSize: 13.5, fontWeight: 600, cursor: "pointer" }} onClick={() => setDetailClientId(c.id)}>{c.ad}</div>
                     {c.not && <div style={{ color: T.textFaint, fontSize: 11.5, marginTop: 2 }}>{c.not}</div>}
                   </td>
                   <td style={{ padding: "13px 16px", color: T.textDim, fontSize: 13 }}>{c.kategori}</td>
@@ -372,7 +393,18 @@ function Musteriler({ clients, onAdd, onUpdate, onDelete }) {
                     })()}
                   </td>
                   <td style={{ padding: "13px 16px", textAlign: "right", color: T.text, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>{c.aylikUcret ? fmt(c.aylikUcret) : "—"}</td>
-                  <td style={{ padding: "13px 16px", textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: c.karMarji >= 55 ? T.success : c.karMarji >= 35 ? T.warning : T.danger }}>{c.karMarji ? `%${c.karMarji}` : "—"}</td>
+                  <td style={{ padding: "13px 16px", textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>
+                    {(() => {
+                      const km = clientKarMarji(c);
+                      const color = km >= 55 ? T.success : km >= 35 ? T.warning : T.danger;
+                      const hasCosts = (c.maliyetler || []).length > 0;
+                      return (
+                        <span style={{ color }} title={hasCosts ? "Maliyetlerden otomatik hesaplandı" : undefined}>
+                          {c.aylikUcret ? `%${km}` : "—"}{hasCosts && <span style={{ color: T.textFaint, fontSize: 10 }}> •</span>}
+                        </span>
+                      );
+                    })()}
+                  </td>
                   <td style={{ padding: "13px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
                     <button style={iconBtnStyle} onClick={() => { setEditingId(c.id); setAdding(false); }}><Pencil size={14} color={T.textFaint} /></button>
                     <button style={iconBtnStyle} onClick={() => { if (window.confirm(`${c.ad} silinsin mi?`)) onDelete(c.id); }}><Trash2 size={14} color={T.danger} /></button>
@@ -386,6 +418,113 @@ function Musteriler({ clients, onAdd, onUpdate, onDelete }) {
           </tbody>
         </table>
       </Card>
+
+      {detailClientId && (
+        <ClientDetail
+          client={clients.find((c) => c.id === detailClientId)}
+          operasyonlar={operasyonlar.filter((o) => o.musteri === (clients.find((c) => c.id === detailClientId) || {}).ad)}
+          bekleyenTahsilatlar={bekleyenTahsilatlar.filter((b) => b.musteri === (clients.find((c) => c.id === detailClientId) || {}).ad)}
+          onAddCost={(cost) => onAddCost(detailClientId, cost)}
+          onDeleteCost={(costId) => onDeleteCost(detailClientId, costId)}
+          onClose={() => setDetailClientId(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+const COST_FIELDS = [
+  { key: "kalem", label: "Kalem Adı", type: "text", placeholder: "örn. Videographer Payı" },
+  { key: "tutar", label: "Tutar (₺/ay)", type: "number" },
+];
+
+function ClientDetail({ client, operasyonlar, bekleyenTahsilatlar, onAddCost, onDeleteCost, onClose }) {
+  const [addingCost, setAddingCost] = useState(false);
+  if (!client) return null;
+  const cd = CLIENT_DURUM[client.durum] || CLIENT_DURUM.aktif;
+  const bekleyenToplam = bekleyenTahsilatlar.reduce((s, b) => s + (Number(b.tutar) || 0), 0);
+  const maliyetler = client.maliyetler || [];
+  const maliyetToplam = maliyetler.reduce((s, m) => s + (Number(m.tutar) || 0), 0);
+  const km = clientKarMarji(client);
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 18, width: 560, maxWidth: "100%", maxHeight: "85vh", overflowY: "auto", padding: "24px 26px" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 18 }}>
+          <div>
+            <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 19, fontWeight: 600, color: T.text, margin: 0 }}>{client.ad}</h2>
+            <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginTop: 4 }}>{client.kategori} · {client.baslangic}</div>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><X size={18} color={T.textFaint} /></button>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+          <Pill color={cd.color} soft={cd.soft}>{cd.label}</Pill>
+          <Pill color={T.text} soft={T.borderSoft}>Aylık {fmt(client.aylikUcret)}</Pill>
+          <Pill color={km >= 55 ? T.success : km >= 35 ? T.warning : T.danger} soft={T.borderSoft}>Kâr Marjı %{km}{maliyetler.length > 0 && " (otomatik)"}</Pill>
+          {bekleyenToplam > 0 && <Pill color={T.warning} soft={T.warningSoft}>Bekleyen {fmt(bekleyenToplam)}</Pill>}
+        </div>
+
+        {client.not && (
+          <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter", marginBottom: 20, padding: "10px 12px", background: T.surfaceRaised, borderRadius: 10 }}>{client.not}</div>
+        )}
+
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 8 }}>OPERASYON İŞLERİ ({operasyonlar.length})</div>
+          {operasyonlar.length === 0 && <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Bu müşteriye ait iş yok.</div>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {operasyonlar.map((o) => (
+              <div key={o.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", background: T.surfaceRaised, borderRadius: 10 }}>
+                <div>
+                  <div style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{o.baslik}</div>
+                  <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{o.tur} · {o.tarih}</div>
+                </div>
+                <Pill color={durumMap[o.durum].color} soft={durumMap[o.durum].soft}>{durumMap[o.durum].label}</Pill>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 8 }}>
+            MALİYETLER ({maliyetler.length}) <span style={{ opacity: 0.7, fontWeight: 400 }}>— freelance ödemeleri, dış hizmetler vb. Toplam Gider'e otomatik yansır</span>
+          </div>
+          {maliyetler.length === 0 && <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 10 }}>Bu müşteriye bağlı maliyet yok.</div>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 10 }}>
+            {maliyetler.map((m) => (
+              <div key={m.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", background: T.surfaceRaised, borderRadius: 10 }}>
+                <div style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{m.kalem}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: T.text }}>{fmt(m.tutar)}</span>
+                  <button style={iconBtnStyle} onClick={() => { if (window.confirm("Bu maliyet silinsin mi?")) onDeleteCost(m.id); }}><Trash2 size={13} color={T.danger} /></button>
+                </div>
+              </div>
+            ))}
+            {maliyetler.length > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 12px", fontSize: 12, color: T.textFaint, fontFamily: "Inter" }}>
+                <span>Toplam</span><span style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(maliyetToplam)}</span>
+              </div>
+            )}
+          </div>
+          {addingCost ? (
+            <FieldForm fields={COST_FIELDS} onSubmit={(v) => { onAddCost(v); setAddingCost(false); }} onCancel={() => setAddingCost(false)} submitLabel="Maliyeti Ekle" />
+          ) : (
+            <button style={addBtnStyle} onClick={() => setAddingCost(true)}><Plus size={13} /> Maliyet ekle</button>
+          )}
+        </div>
+
+        <div>
+          <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 8 }}>BEKLEYEN TAHSİLATLAR ({bekleyenTahsilatlar.length})</div>
+          {bekleyenTahsilatlar.length === 0 && <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Bekleyen ödeme yok.</div>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {bekleyenTahsilatlar.map((b) => (
+              <div key={b.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", background: T.surfaceRaised, borderRadius: 10 }}>
+                <div style={{ fontSize: 12.5, color: b.vade.includes("gecikti") ? T.danger : T.textDim, fontFamily: "Inter" }}>{b.vade}</div>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: T.text }}>{fmt(b.tutar)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -393,7 +532,11 @@ function Musteriler({ clients, onAdd, onUpdate, onDelete }) {
 /* ------------------------------------------------------------------ */
 /* FİNANS                                                                */
 /* ------------------------------------------------------------------ */
-const KALEM_FIELDS = [{ key: "kalem", label: "Kalem Adı", type: "text" }, { key: "tutar", label: "Tutar (₺)", type: "number" }];
+const KALEM_FIELDS = [
+  { key: "kalem", label: "Kalem Adı", type: "text" },
+  { key: "tutar", label: "Tutar (₺)", type: "number" },
+  { key: "tekrar", label: "Tekrar", type: "select", options: [{ value: "sabit", label: "Sabit (her ay tekrar eder)" }, { value: "tek seferlik", label: "Tek seferlik (bu ayla sınırlı)" }] },
+];
 const BEKLEYEN_FIELDS = [{ key: "musteri", label: "Müşteri", type: "text" }, { key: "tutar", label: "Tutar (₺)", type: "number" }, { key: "vade", label: "Vade Durumu", type: "text", placeholder: "örn. bugün / 3 gün gecikti" }];
 const VERGI_FIELDS = [
   { key: "kalem", label: "Kalem Adı", type: "text" },
@@ -425,7 +568,7 @@ function MiniList({ title, icon, items, fields, renderRow, onAdd, onDelete, addL
   );
 }
 
-function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDeleteGider, onAddBekleyen, onDeleteBekleyen, onAddVergi, onDeleteVergi, onAddMonth, onDeleteMonth }) {
+function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDeleteGider, onAddBekleyen, onDeleteBekleyen, onAddVergi, onDeleteVergi, onAddMonth, onDeleteMonth, onCloseMonth, onExport }) {
   const { monthly, gelirKalemleri, giderKalemleri, bekleyenTahsilatlar, vergiTakvimi } = data;
   const [addingMonth, setAddingMonth] = useState(false);
   const live = computeLive(data);
@@ -450,7 +593,23 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
       </div>
 
       <Card style={{ padding: "16px 20px", marginBottom: 16 }}>
-        <SectionTitle>Bu Ayın Ciro Dağılımı</SectionTitle>
+        <SectionTitle
+          action={
+            <div style={{ display: "flex", gap: 8 }}>
+              <button style={cancelBtnStyle} onClick={onExport}>CSV indir</button>
+              <button
+                style={saveBtnStyle}
+                onClick={() => {
+                  if (window.confirm("Bu ayı kapatıp arşive eklemek istiyor musun? Tek seferlik gelir/gider kalemleri silinecek, sabit olanlar bir sonraki aya taşınacak.")) onCloseMonth();
+                }}
+              >
+                Ayı Kapat
+              </button>
+            </div>
+          }
+        >
+          Bu Ayın Ciro Dağılımı
+        </SectionTitle>
         <div style={{ display: "flex", gap: 28, flexWrap: "wrap" }}>
           <div>
             <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>Müşteri Aylık Ücretleri <span style={{ opacity: 0.7 }}>(Müşteriler sekmesi)</span></div>
@@ -463,6 +622,14 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
           <div>
             <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>= Toplam Ciro</div>
             <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: T.accentText, fontWeight: 600, marginTop: 3 }}>{fmt(live.ciro)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>Gider Kalemleri</div>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: T.text, marginTop: 3 }}>{fmt(live.giderKalemToplam)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>Müşteri Maliyetleri <span style={{ opacity: 0.7 }}>(Müşteriler sekmesi)</span></div>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: T.text, marginTop: 3 }}>{fmt(live.clientCosts)}</div>
           </div>
         </div>
       </Card>
@@ -528,9 +695,12 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
           onAdd={onAddGelir}
           onDelete={onDeleteGelir}
           renderRow={(g) => (
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter" }}>{g.kalem}</span>
-              <span style={{ fontSize: 13, color: T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(g.tutar)}</span>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                <span style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.kalem}</span>
+                {g.tekrar === "sabit" && <Pill color={T.accentText} soft={T.accentSoft}>Sabit</Pill>}
+              </div>
+              <span style={{ fontSize: 13, color: T.text, fontFamily: "'IBM Plex Mono', monospace", whiteSpace: "nowrap" }}>{fmt(g.tutar)}</span>
             </div>
           )}
         />
@@ -543,9 +713,12 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
           onAdd={onAddGider}
           onDelete={onDeleteGider}
           renderRow={(g) => (
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter" }}>{g.kalem}</span>
-              <span style={{ fontSize: 13, color: T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(g.tutar)}</span>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                <span style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.kalem}</span>
+                {g.tekrar === "sabit" && <Pill color={T.accentText} soft={T.accentSoft}>Sabit</Pill>}
+              </div>
+              <span style={{ fontSize: 13, color: T.text, fontFamily: "'IBM Plex Mono', monospace", whiteSpace: "nowrap" }}>{fmt(g.tutar)}</span>
             </div>
           )}
         />
@@ -661,7 +834,7 @@ function Operasyon({ operasyonlar, clients, onAdd, onUpdate, onDelete }) {
 /* ------------------------------------------------------------------ */
 /* AYARLAR                                                               */
 /* ------------------------------------------------------------------ */
-function Ayarlar() {
+function Ayarlar({ onExport }) {
   const rows = [
     { label: "İşletme Adı", value: "Marcus Medya" },
     { label: "Sektör", value: "Medya & Reklam Ajansı" },
@@ -679,11 +852,22 @@ function Ayarlar() {
           </div>
         ))}
       </Card>
-      <Card style={{ padding: "18px 22px" }}>
+
+      <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Veri</SectionTitle>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7 }}>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
           Müşteriler, Finans ve Operasyon bölümlerindeki tüm değişiklikler otomatik olarak kaydedilir. Sayfayı kapatıp
           tekrar açtığında en son haliyle karşına çıkar.
+        </p>
+        <button style={addBtnStyle} onClick={onExport}><Plus size={13} style={{ transform: "rotate(45deg)" }} /> Finans verilerini CSV indir</button>
+      </Card>
+
+      <Card style={{ padding: "18px 22px" }}>
+        <SectionTitle>Şifre Koruması</SectionTitle>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, margin: 0 }}>
+          Bu paneli sadece senin açabilmen için Vercel projenin ortam değişkenlerine <code style={{ background: T.surfaceRaised, padding: "2px 6px", borderRadius: 5 }}>SITE_PASSWORD</code> ekleyip
+          istediğin şifreyi tanımlayabilirsin. Eklendiğinde site açılışta şifre soracak; eklenmediği sürece koruma
+          devre dışıdır.
         </p>
       </Card>
     </div>
@@ -719,7 +903,7 @@ function AiPanel({ open, onClose, initialQuestion, data }) {
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Site-Password": getPw() },
         body: JSON.stringify({ question: q, context: data }),
       });
       const resData = await res.json();
@@ -768,6 +952,36 @@ function AiPanel({ open, onClose, initialQuestion, data }) {
 }
 
 /* ------------------------------------------------------------------ */
+/* ŞİFRE EKRANI                                                          */
+/* ------------------------------------------------------------------ */
+function LockScreen({ onSubmit, error, checking }) {
+  const [value, setValue] = useState("");
+  return (
+    <div style={{ background: T.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <style>{FONTS}</style>
+      <div style={{ width: 320, textAlign: "center" }}>
+        <div style={{ width: 44, height: 44, borderRadius: 12, background: T.accent, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: "#fff", fontSize: 18, margin: "0 auto 18px" }}>M</div>
+        <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 600, color: T.text, margin: "0 0 6px" }}>Marcus OS</h1>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, margin: "0 0 20px" }}>Devam etmek için şifreni gir.</p>
+        <input
+          type="password"
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && onSubmit(value)}
+          placeholder="Şifre"
+          style={{ ...inputStyle, textAlign: "center", marginBottom: 12, padding: "11px 12px" }}
+        />
+        <button onClick={() => onSubmit(value)} disabled={checking} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", padding: "11px 12px", opacity: checking ? 0.6 : 1 }}>
+          {checking ? "Kontrol ediliyor…" : "Giriş Yap"}
+        </button>
+        {error && <div style={{ color: T.danger, fontSize: 12.5, fontFamily: "Inter", marginTop: 12 }}>{error}</div>}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* APP SHELL                                                            */
 /* ------------------------------------------------------------------ */
 const NAV = [
@@ -785,16 +999,40 @@ export default function MarcusOS() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState("idle");
+  const [needsAuth, setNeedsAuth] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [authChecking, setAuthChecking] = useState(false);
+  const [search, setSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [detailClientFromSearch, setDetailClientFromSearch] = useState(null);
   const saveTimer = useRef(null);
   const skipNextSave = useRef(true);
 
-  useEffect(() => {
-    fetch("/api/data")
-      .then((r) => r.json())
-      .then((res) => setData(res.data || DEFAULT_DATA))
+  const loadData = (isRetry) => {
+    if (isRetry) setAuthChecking(true);
+    else setLoading(true);
+    fetch("/api/data", { headers: { "X-Site-Password": getPw() } })
+      .then(async (r) => {
+        if (r.status === 401) {
+          setNeedsAuth(true);
+          if (isRetry) setAuthError("Yanlış şifre, tekrar dener misin?");
+          return;
+        }
+        const res = await r.json();
+        setData(res.data || DEFAULT_DATA);
+        setNeedsAuth(false);
+        setAuthError("");
+      })
       .catch(() => setData(DEFAULT_DATA))
-      .finally(() => setLoading(false));
-  }, []);
+      .finally(() => { setLoading(false); setAuthChecking(false); });
+  };
+
+  useEffect(() => { loadData(false); }, []);
+
+  const handleAuthSubmit = (pw) => {
+    setPw(pw);
+    loadData(true);
+  };
 
   useEffect(() => {
     if (!data) return;
@@ -802,7 +1040,7 @@ export default function MarcusOS() {
     setSaveStatus("saving");
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      fetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ data }) })
+      fetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json", "X-Site-Password": getPw() }, body: JSON.stringify({ data }) })
         .then(() => setSaveStatus("saved"))
         .catch(() => setSaveStatus("error"));
     }, 500);
@@ -813,9 +1051,18 @@ export default function MarcusOS() {
   const openAi = (q) => { setAiQuestion(q || null); setAiOpen(true); };
 
   // ---- CRUD handlers ----
-  const addClient = (c) => setData((d) => ({ ...d, clients: [...d.clients, { ...c, id: nextId(d.clients) }] }));
+  const addClient = (c) => setData((d) => ({ ...d, clients: [...d.clients, { ...c, maliyetler: [], id: nextId(d.clients) }] }));
   const updateClient = (id, patch) => setData((d) => ({ ...d, clients: d.clients.map((c) => (c.id === id ? { ...c, ...patch } : c)) }));
   const deleteClient = (id) => setData((d) => ({ ...d, clients: d.clients.filter((c) => c.id !== id) }));
+
+  const addClientCost = (clientId, cost) => setData((d) => ({
+    ...d,
+    clients: d.clients.map((c) => (c.id === clientId ? { ...c, maliyetler: [...(c.maliyetler || []), { ...cost, id: nextId(c.maliyetler || []) }] } : c)),
+  }));
+  const deleteClientCost = (clientId, costId) => setData((d) => ({
+    ...d,
+    clients: d.clients.map((c) => (c.id === clientId ? { ...c, maliyetler: (c.maliyetler || []).filter((m) => m.id !== costId) } : c)),
+  }));
 
   const addOp = (o) => setData((d) => ({ ...d, operasyonlar: [...d.operasyonlar, { ...o, id: nextId(d.operasyonlar) }] }));
   const updateOp = (id, patch) => setData((d) => ({ ...d, operasyonlar: d.operasyonlar.map((o) => (o.id === id ? { ...o, ...patch } : o)) }));
@@ -836,8 +1083,78 @@ export default function MarcusOS() {
   const addMonth = (m) => setData((d) => ({ ...d, monthly: [...d.monthly, { ...m, net: (Number(m.ciro) || 0) - (Number(m.gider) || 0), id: nextId(d.monthly) }] }));
   const deleteMonth = (id) => setData((d) => ({ ...d, monthly: d.monthly.filter((m) => m.id !== id) }));
 
+  const closeMonth = () => setData((d) => {
+    const live = computeLive(d);
+    const ayAdi = new Date().toLocaleDateString("tr-TR", { month: "short" });
+    const newMonthly = [...d.monthly, { id: nextId(d.monthly), ay: ayAdi, ciro: live.ciro, gider: live.gider, net: live.net }];
+    return {
+      ...d,
+      monthly: newMonthly,
+      gelirKalemleri: d.gelirKalemleri.filter((g) => g.tekrar !== "tek seferlik"),
+      giderKalemleri: d.giderKalemleri.filter((g) => g.tekrar !== "tek seferlik"),
+    };
+  });
+
+  const exportCsv = () => {
+    const live = computeLive(data);
+    const rows = [
+      ["MARCUS OS - FİNANS RAPORU", new Date().toLocaleDateString("tr-TR")],
+      [],
+      ["Bu Ayın Özeti"],
+      ["Toplam Ciro", live.ciro], ["Toplam Gider", live.gider], ["Net Kazanç", live.net], ["Kâr Marjı %", live.karMarji],
+      [],
+      ["Müşteriler", "Kategori", "Durum", "Aylık Ücret", "Kâr Marjı %"],
+      ...data.clients.map((c) => [c.ad, c.kategori, c.durum, c.aylikUcret, clientKarMarji(c)]),
+      [],
+      ["Müşteri Maliyetleri", "Kalem", "Tutar"],
+      ...data.clients.flatMap((c) => (c.maliyetler || []).map((m) => [c.ad, m.kalem, m.tutar])),
+      [],
+      ["Gelir Kalemleri", "Tutar", "Tekrar"],
+      ...data.gelirKalemleri.map((g) => [g.kalem, g.tutar, g.tekrar || ""]),
+      [],
+      ["Gider Kalemleri", "Tutar", "Tekrar"],
+      ...data.giderKalemleri.map((g) => [g.kalem, g.tutar, g.tekrar || ""]),
+      [],
+      ["Bekleyen Tahsilatlar", "Tutar", "Vade"],
+      ...data.bekleyenTahsilatlar.map((b) => [b.musteri, b.tutar, b.vade]),
+      [],
+      ["Geçmiş Aylar", "Ciro", "Gider", "Net"],
+      ...data.monthly.map((m) => [m.ay, m.ciro, m.gider, m.net]),
+    ];
+    const csv = rows.map((r) => r.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `marcus-os-finans-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const searchResults = useMemo(() => {
+    if (!data || !search.trim()) return [];
+    const q = search.trim().toLowerCase();
+    const results = [];
+    data.clients.forEach((c) => { if (c.ad.toLowerCase().includes(q)) results.push({ type: "musteri", label: c.ad, sub: c.kategori, ref: c }); });
+    data.operasyonlar.forEach((o) => { if (o.baslik.toLowerCase().includes(q) || o.musteri.toLowerCase().includes(q)) results.push({ type: "operasyon", label: o.baslik, sub: o.musteri, ref: o }); });
+    data.gelirKalemleri.forEach((g) => { if (g.kalem.toLowerCase().includes(q)) results.push({ type: "finans", label: g.kalem, sub: "Gelir · " + fmt(g.tutar), ref: g }); });
+    data.giderKalemleri.forEach((g) => { if (g.kalem.toLowerCase().includes(q)) results.push({ type: "finans", label: g.kalem, sub: "Gider · " + fmt(g.tutar), ref: g }); });
+    return results.slice(0, 8);
+  }, [data, search]);
+
+  const goToSearchResult = (r) => {
+    setSearch(""); setSearchOpen(false);
+    if (r.type === "musteri") { setTab("musteriler"); setDetailClientFromSearch(r.ref); }
+    else if (r.type === "operasyon") setTab("operasyon");
+    else setTab("finans");
+  };
+
   const titles = { dashboard: "Dashboard", musteriler: "Müşteriler", finans: "Finans", operasyon: "Operasyon", ayarlar: "Ayarlar" };
   const todayLabel = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+
+  if (needsAuth) {
+    return <LockScreen onSubmit={handleAuthSubmit} error={authError} checking={authChecking} />;
+  }
 
   if (loading || !data) {
     return (
@@ -897,9 +1214,29 @@ export default function MarcusOS() {
             <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>{todayLabel}</div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, padding: "8px 12px" }}>
-              <Search size={14} color={T.textFaint} />
-              <span style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Ara…</span>
+            <div style={{ position: "relative" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, padding: "8px 12px", width: 220 }}>
+                <Search size={14} color={T.textFaint} />
+                <input
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value); setSearchOpen(true); }}
+                  onFocus={() => setSearchOpen(true)}
+                  onBlur={() => setTimeout(() => setSearchOpen(false), 150)}
+                  placeholder="Müşteri, iş, kalem ara…"
+                  style={{ border: "none", outline: "none", background: "transparent", color: T.text, fontSize: 12.5, fontFamily: "Inter, sans-serif", width: "100%" }}
+                />
+              </div>
+              {searchOpen && search.trim() && (
+                <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, width: 280, background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 12, boxShadow: "0 12px 32px rgba(0,0,0,0.4)", zIndex: 30, overflow: "hidden" }}>
+                  {searchResults.length === 0 && <div style={{ padding: "12px 14px", fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Sonuç yok.</div>}
+                  {searchResults.map((r, i) => (
+                    <div key={i} onMouseDown={() => goToSearchResult(r)} style={{ padding: "10px 14px", cursor: "pointer", borderBottom: i < searchResults.length - 1 ? `1px solid ${T.border}` : "none" }}>
+                      <div style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{r.label}</div>
+                      <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{r.sub}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div style={{ width: 34, height: 34, borderRadius: 10, background: T.surface, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
               <Bell size={15} color={T.textDim} />
@@ -909,7 +1246,17 @@ export default function MarcusOS() {
 
         <div style={{ padding: "20px 30px 40px" }}>
           {tab === "dashboard" && <Dashboard data={data} onAsk={() => openAi()} />}
-          {tab === "musteriler" && <Musteriler clients={data.clients} onAdd={addClient} onUpdate={updateClient} onDelete={deleteClient} />}
+          {tab === "musteriler" && (
+            <Musteriler
+              clients={data.clients}
+              operasyonlar={data.operasyonlar}
+              bekleyenTahsilatlar={data.bekleyenTahsilatlar}
+              onAdd={addClient} onUpdate={updateClient} onDelete={deleteClient}
+              onAddCost={addClientCost} onDeleteCost={deleteClientCost}
+              openClient={detailClientFromSearch}
+              onOpenClientHandled={() => setDetailClientFromSearch(null)}
+            />
+          )}
           {tab === "finans" && (
             <Finans
               data={data}
@@ -919,10 +1266,12 @@ export default function MarcusOS() {
               onAddBekleyen={addBekleyen} onDeleteBekleyen={deleteBekleyen}
               onAddVergi={addVergi} onDeleteVergi={deleteVergi}
               onAddMonth={addMonth} onDeleteMonth={deleteMonth}
+              onCloseMonth={closeMonth}
+              onExport={exportCsv}
             />
           )}
           {tab === "operasyon" && <Operasyon operasyonlar={data.operasyonlar} clients={data.clients} onAdd={addOp} onUpdate={updateOp} onDelete={deleteOp} />}
-          {tab === "ayarlar" && <Ayarlar />}
+          {tab === "ayarlar" && <Ayarlar onExport={exportCsv} />}
         </div>
       </div>
 

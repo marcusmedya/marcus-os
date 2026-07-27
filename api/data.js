@@ -2,7 +2,19 @@ import { kv } from "@vercel/kv";
 
 const KEY = "marcus-os-data";
 
+function checkAuth(req, res) {
+  const required = process.env.SITE_PASSWORD;
+  if (!required) return true; // şifre ayarlanmadıysa koruma devre dışı
+  const provided = req.headers["x-site-password"];
+  if (provided !== required) {
+    res.status(401).json({ error: "Yetkisiz. Şifre gerekli." });
+    return false;
+  }
+  return true;
+}
+
 export default async function handler(req, res) {
+  if (!checkAuth(req, res)) return;
   try {
     if (req.method === "GET") {
       const data = await kv.get(KEY);
