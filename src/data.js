@@ -8,12 +8,12 @@ export const DEFAULT_DATA = {
     { id: 6, ay: "Tem", ciro: 231000, gider: 119000, net: 112000 },
   ],
   clients: [
-    { id: 1, ad: "Nova Teknoloji", kategori: "Yazılım", durum: "aktif", aylikUcret: 58000, karMarji: 71, baslangic: "2024-11", not: "En kârlı müşteri", maliyetler: [], odemeGunu: 5, odemeler: [] },
-    { id: 2, ad: "Lezzet Sofrası", kategori: "Restoran Zinciri", durum: "aktif", aylikUcret: 45000, karMarji: 62, baslangic: "2024-06", not: "", maliyetler: [], odemeGunu: 10, odemeler: [] },
-    { id: 3, ad: "UrbanFit Spor Kulübü", kategori: "Spor & Wellness", durum: "aktif", aylikUcret: 32000, karMarji: 55, baslangic: "2025-01", not: "", maliyetler: [], odemeGunu: null, odemeler: [] },
-    { id: 4, ad: "Mavi Deniz Otelcilik", kategori: "Turizm", durum: "yeni", aylikUcret: 40000, karMarji: 48, baslangic: "2026-06", not: "", maliyetler: [], odemeGunu: null, odemeler: [] },
-    { id: 5, ad: "Yeşil Bahçe Peyzaj", kategori: "Peyzaj & Bahçe", durum: "aktif", aylikUcret: 18000, karMarji: 28, baslangic: "2025-03", not: "En düşük kârlı müşteri", maliyetler: [], odemeGunu: null, odemeler: [] },
-    { id: 6, ad: "Altın Kuyumcu", kategori: "Perakende", durum: "ayrildi", aylikUcret: 0, karMarji: 0, baslangic: "2024-02", not: "", maliyetler: [], odemeGunu: null, odemeler: [] },
+    { id: 1, ad: "Nova Teknoloji", kategori: "Yazılım", durum: "aktif", aylikUcret: 58000, karMarji: 71, baslangic: "2024-11", not: "En kârlı müşteri", maliyetler: [], odemeGunu: 5, odemeler: [], faturali: "evet" },
+    { id: 2, ad: "Lezzet Sofrası", kategori: "Restoran Zinciri", durum: "aktif", aylikUcret: 45000, karMarji: 62, baslangic: "2024-06", not: "", maliyetler: [], odemeGunu: 10, odemeler: [], faturali: "evet" },
+    { id: 3, ad: "UrbanFit Spor Kulübü", kategori: "Spor & Wellness", durum: "aktif", aylikUcret: 32000, karMarji: 55, baslangic: "2025-01", not: "", maliyetler: [], odemeGunu: null, odemeler: [], faturali: "evet" },
+    { id: 4, ad: "Mavi Deniz Otelcilik", kategori: "Turizm", durum: "yeni", aylikUcret: 40000, karMarji: 48, baslangic: "2026-06", not: "", maliyetler: [], odemeGunu: null, odemeler: [], faturali: "evet" },
+    { id: 5, ad: "Yeşil Bahçe Peyzaj", kategori: "Peyzaj & Bahçe", durum: "aktif", aylikUcret: 18000, karMarji: 28, baslangic: "2025-03", not: "En düşük kârlı müşteri", maliyetler: [], odemeGunu: null, odemeler: [], faturali: "hayir" },
+    { id: 6, ad: "Altın Kuyumcu", kategori: "Perakende", durum: "ayrildi", aylikUcret: 0, karMarji: 0, baslangic: "2024-02", not: "", maliyetler: [], odemeGunu: null, odemeler: [], faturali: "evet" },
   ],
   operasyonlar: [
     { id: 1, musteri: "Nova Teknoloji", tur: "Çekim", baslik: "Ürün lansman filmi", durum: "yesil", tarih: "28 Tem" },
@@ -26,9 +26,9 @@ export const DEFAULT_DATA = {
     { id: 8, musteri: "UrbanFit Spor Kulübü", tur: "Edit", baslik: "Üyelik kampanya videosu", durum: "yesil", tarih: "28 Tem" },
   ],
   gelirKalemleri: [
-    { id: 1, kalem: "Aylık Yönetim Bedelleri", tutar: 193000, tekrar: "sabit" },
-    { id: 2, kalem: "Proje Bazlı Çekimler", tutar: 28000, tekrar: "tek seferlik" },
-    { id: 3, kalem: "Reklam Yönetim Komisyonu", tutar: 10000, tekrar: "sabit" },
+    { id: 1, kalem: "Aylık Yönetim Bedelleri", tutar: 193000, tekrar: "sabit", faturali: "evet" },
+    { id: 2, kalem: "Proje Bazlı Çekimler", tutar: 28000, tekrar: "tek seferlik", faturali: "evet" },
+    { id: 3, kalem: "Reklam Yönetim Komisyonu", tutar: 10000, tekrar: "sabit", faturali: "evet" },
   ],
   giderKalemleri: [
     { id: 2, kalem: "Ekipman & Kiralama", tutar: 14000, tekrar: "tek seferlik" },

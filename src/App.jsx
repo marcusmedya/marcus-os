@@ -62,6 +62,11 @@ function computeLive(data) {
   const recurring = activeClients.reduce((s, c) => s + (Number(c.aylikUcret) || 0), 0);
   const extra = (data.gelirKalemleri || []).reduce((s, g) => s + (Number(g.tutar) || 0), 0);
   const ciro = recurring + extra;
+  const faturaliRecurring = activeClients.filter((c) => c.faturali !== "hayir").reduce((s, c) => s + (Number(c.aylikUcret) || 0), 0);
+  const faturaliExtra = (data.gelirKalemleri || []).filter((g) => g.faturali !== "hayir").reduce((s, g) => s + (Number(g.tutar) || 0), 0);
+  const faturaliCiro = faturaliRecurring + faturaliExtra;
+  const faturasizCiro = ciro - faturaliCiro;
+  const kdvTutari = Math.round(faturaliCiro * 0.2);
   const giderKalemToplam = (data.giderKalemleri || []).reduce((s, g) => s + (Number(g.tutar) || 0), 0);
   const clientCosts = clients.reduce((s, c) => s + (c.maliyetler || []).reduce((s2, m) => s2 + (Number(m.tutar) || 0), 0), 0);
   const personelGideri = (data.personel || []).reduce((s, p) => s + (Number(p.maas) || 0) + (Number(p.sigorta) || 0) + (Number(p.tazminatBirikimi) || 0), 0);
@@ -76,7 +81,7 @@ function computeLive(data) {
   const bekleyenToplam = manuelBekleyen + otomatikBekleyen;
   const tahsilEdilen = ciro - bekleyenToplam;
   const karMarji = ciro ? Math.round((net / ciro) * 100) : 0;
-  return { recurring, extra, ciro, giderKalemToplam, clientCosts, personelGideri, gider, net, manuelBekleyen, otomatikBekleyen, bekleyenToplam, tahsilEdilen, karMarji };
+  return { recurring, extra, ciro, faturaliCiro, faturasizCiro, kdvTutari, giderKalemToplam, clientCosts, personelGideri, gider, net, manuelBekleyen, otomatikBekleyen, bekleyenToplam, tahsilEdilen, karMarji };
 }
 
 /** Bir müşterinin bu ayki ödeme durumunu, kayıtlı "ödeme günü"ne göre otomatik hesaplar. */
@@ -332,6 +337,7 @@ const CLIENT_FIELDS = [
   { key: "aylikUcret", label: "Aylık Ücret (₺)", type: "number" },
   { key: "karMarji", label: "Kâr Marjı (%) — müşteri detayında maliyet eklersen otomatik hesaplanır", type: "number" },
   { key: "odemeGunu", label: "Ödeme Günü (ayın kaçı — opsiyonel, örn. 5)", type: "number" },
+  { key: "faturali", label: "Faturalı mı? (KDV %20 otomatik hesaplanır)", type: "select", options: [{ value: "evet", label: "Evet - Faturalı (KDV'li)" }, { value: "hayir", label: "Hayır - Faturasız" }] },
   { key: "baslangic", label: "Başlangıç (YYYY-AA)", type: "text", placeholder: "2026-07" },
   { key: "not", label: "Not (opsiyonel)", type: "text" },
 ];
@@ -497,6 +503,7 @@ function ClientDetail({ client, operasyonlar, bekleyenTahsilatlar, onAddCost, on
           <Pill color={cd.color} soft={cd.soft}>{cd.label}</Pill>
           <Pill color={T.text} soft={T.borderSoft}>Aylık {fmt(client.aylikUcret)}</Pill>
           <Pill color={km >= 55 ? T.success : km >= 35 ? T.warning : T.danger} soft={T.borderSoft}>Kâr Marjı %{km}{maliyetler.length > 0 && " (otomatik)"}</Pill>
+          {client.faturali === "hayir" ? <Pill color={T.textFaint} soft={T.borderSoft}>Faturasız</Pill> : <Pill color={T.success} soft={T.successSoft}>Faturalı · KDV %20</Pill>}
           {bekleyenToplam > 0 && <Pill color={T.warning} soft={T.warningSoft}>Bekleyen {fmt(bekleyenToplam)}</Pill>}
         </div>
 
@@ -594,6 +601,10 @@ const KALEM_FIELDS = [
   { key: "tutar", label: "Tutar (₺)", type: "number" },
   { key: "tekrar", label: "Tekrar", type: "select", options: [{ value: "sabit", label: "Sabit (her ay tekrar eder)" }, { value: "tek seferlik", label: "Tek seferlik (bu ayla sınırlı)" }] },
 ];
+const GELIR_FIELDS = [
+  ...KALEM_FIELDS,
+  { key: "faturali", label: "Faturalı mı? (KDV %20 otomatik hesaplanır)", type: "select", options: [{ value: "evet", label: "Evet - Faturalı (KDV'li)" }, { value: "hayir", label: "Hayır - Faturasız" }] },
+];
 const BEKLEYEN_FIELDS = [{ key: "musteri", label: "Müşteri", type: "text" }, { key: "tutar", label: "Tutar (₺)", type: "number" }, { key: "vade", label: "Vade Durumu", type: "text", placeholder: "örn. bugün / 3 gün gecikti" }];
 const VERGI_FIELDS = [
   { key: "kalem", label: "Kalem Adı", type: "text" },
@@ -647,6 +658,15 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
         <KpiCard label="NAKİT AKIŞI (BU AY)" value={fmt(live.net)} accent={T.success} />
         <KpiCard label="TAHSİLAT ORANI" value={`%${tahsilatOrani}`} mono />
         <KpiCard label="BEKLEYEN ÖDEME" value={fmt(live.bekleyenToplam)} accent={T.warning} />
+      </div>
+
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 8 }}>
+        <KpiCard label="FATURALI CİRO (BU AY)" value={fmt(live.faturaliCiro)} accent={T.accentText} />
+        <KpiCard label="FATURASIZ CİRO" value={fmt(live.faturasizCiro)} />
+        <KpiCard label="HESAPLANAN KDV (%20)" value={fmt(live.kdvTutari)} mono accent={T.warning} />
+      </div>
+      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 22 }}>
+        Bu rakam tahmini bir hesaplamadır (faturalı ciro × %20) — resmi KDV beyannamesi yerine geçmez, muhasebecinle teyit et.
       </div>
 
       <Card style={{ padding: "16px 20px", marginBottom: 16 }}>
@@ -751,7 +771,7 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
           title="Gelirler"
           icon={<CircleDollarSign size={16} color={T.textFaint} />}
           items={gelirKalemleri}
-          fields={KALEM_FIELDS}
+          fields={GELIR_FIELDS}
           addLabel="Gelir kalemi ekle"
           onAdd={onAddGelir}
           onDelete={onDeleteGelir}
@@ -760,6 +780,7 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
               <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                 <span style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.kalem}</span>
                 {g.tekrar === "sabit" && <Pill color={T.accentText} soft={T.accentSoft}>Sabit</Pill>}
+                {g.faturali === "hayir" ? <Pill color={T.textFaint} soft={T.borderSoft}>Faturasız</Pill> : <Pill color={T.success} soft={T.successSoft}>Faturalı</Pill>}
               </div>
               <span style={{ fontSize: 13, color: T.text, fontFamily: "'IBM Plex Mono', monospace", whiteSpace: "nowrap" }}>{fmt(g.tutar)}</span>
             </div>
@@ -1265,6 +1286,7 @@ export default function MarcusOS() {
       [],
       ["Bu Ayın Özeti"],
       ["Toplam Ciro", live.ciro], ["Toplam Gider", live.gider], ["Net Kazanç", live.net], ["Kâr Marjı %", live.karMarji],
+      ["Faturalı Ciro", live.faturaliCiro], ["Faturasız Ciro", live.faturasizCiro], ["Hesaplanan KDV (%20)", live.kdvTutari],
       [],
       ["Personel", "Pozisyon", "Maaş", "SGK/Sigorta", "Tazminat Birikimi", "Aylık Toplam"],
       ...(data.personel || []).map((p) => [p.ad, p.pozisyon, p.maas, p.sigorta, p.tazminatBirikimi || 0, (Number(p.maas) || 0) + (Number(p.sigorta) || 0) + (Number(p.tazminatBirikimi) || 0)]),
