@@ -116,6 +116,16 @@ Kurulumdan sonra Ayarlar sayfasındaki **"Şimdi Test Et"** butonuyla hemen dene
 
 - **Mobil kullanılabilirlik iyileştirmeleri**: Giriş kutularının yazı boyutu büyütüldü (iPhone'da dokununca ekranın otomatik yakınlaşması engellendi), butonlar ve tıklanabilir alanlar büyütüldü (parmakla dokunması kolaylaştı), kartların iç boşluğu telefonda daralttırıldı, açılır menüler (arama/bildirim) dar ekranlarda taşmayacak şekilde sınırlandırıldı, kenar menüsü (çekmece) artık kaydırılabilir.
 
+- **Otomatik (dinamik) AI CEO Özeti**: Dashboard'daki özet artık sabit bir metin değil — sayfayı her açtığında güncel verilerine bakarak gerçek zamanlı oluşuyor, bekleyen/gecikmiş ödemeleri isim isim ve tutarlarıyla belirtiyor. Bunun için `ANTHROPIC_API_KEY` ortam değişkeninin tanımlı olması gerekiyor (AI CEO sohbeti için daha önce alınan anahtarla aynı).
+- **Sabah 06:00 e-posta özeti**: Ayarlar sekmesinden kurulabilir — her sabah aynı AI özeti e-postana da düşer. `RESEND_API_KEY`, `BACKUP_EMAIL` ve `ANTHROPIC_API_KEY` gerektirir.
+- **Bildirimler tutar gösteriyor**: Zil ikonundaki bekleyen/gecikmiş ödeme bildirimleri artık tutarlarıyla birlikte listeleniyor.
+
+## Kaldırılan özellik
+
+- **Operasyon sekmesi (Kanban pano) kaldırıldı.** Menüden, Dashboard'dan, Takvim'den ve Müşteri detay sayfasından tamamen temizlendi.
+
+- **Ödenmeyen Ödemeler + Tebliğ Oluşturma**: Müşteriler sekmesinin en üstünde, ödeme günü geçtiği halde birden fazla aydır ödenmemiş müşteriler otomatik listelenir (kaç ay, toplam ne kadar borç birikmiş dahil). Her biri için **"Tebliğ Oluştur"** ile resmi bir ödeme hatırlatma yazısı yeni pencerede açılır ve yazdırma penceresi gelir — oradan "PDF olarak kaydet" ile dosya indirip müşteriye gönderebilirsin. "Metni Kopyala" ile de WhatsApp/e-posta için düz metin alabilirsin. Aynı özellik müşteri detay sayfasında da mevcut.
+
 ## Notlar
 - Uygulama şu an örnek (demo) verilerle geliyor. Gerçek verilerini bağlamak istediğinde `src/App.jsx` içindeki `clients`, `monthly`, `operasyonlar` gibi listeleri kendi verilerinle değiştirebiliriz, ya da bir sonraki adımda bunları düzenleyebileceğin bir veri giriş ekranı ekleyebiliriz.
 - API anahtarın hiçbir zaman tarayıcıya gönderilmiyor; `api/chat.js` sunucu tarafında çalışıyor.

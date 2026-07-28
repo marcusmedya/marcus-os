@@ -15,16 +15,6 @@ export const DEFAULT_DATA = {
     { id: 5, ad: "Yeşil Bahçe Peyzaj", kategori: "Peyzaj & Bahçe", durum: "aktif", aylikUcret: 18000, karMarji: 28, baslangic: "2025-03", not: "En düşük kârlı müşteri", maliyetler: [], odemeGunu: null, odemeler: [], faturaliTutar: 0 },
     { id: 6, ad: "Altın Kuyumcu", kategori: "Perakende", durum: "ayrildi", aylikUcret: 0, karMarji: 0, baslangic: "2024-02", not: "", maliyetler: [], odemeGunu: null, odemeler: [], faturaliTutar: 0 },
   ],
-  operasyonlar: [
-    { id: 1, musteri: "Nova Teknoloji", tur: "Çekim", baslik: "Ürün lansman filmi", durum: "yesil", tarih: "28 Tem" },
-    { id: 2, musteri: "Lezzet Sofrası", tur: "Edit", baslik: "Temmuz reels paketi", durum: "turuncu", tarih: "29 Tem" },
-    { id: 3, musteri: "UrbanFit Spor Kulübü", tur: "Onay", baslik: "Antrenman serisi v2", durum: "kirmizi", tarih: "26 Tem" },
-    { id: 4, musteri: "Mavi Deniz Otelcilik", tur: "Çekim", baslik: "Otel tanıtım drone çekimi", durum: "turuncu", tarih: "30 Tem" },
-    { id: 5, musteri: "Yeşil Bahçe Peyzaj", tur: "Paylaşım", baslik: "Instagram öncesi/sonrası", durum: "yesil", tarih: "27 Tem" },
-    { id: 6, musteri: "Nova Teknoloji", tur: "Reklam", baslik: "Meta Ads - lansman kampanyası", durum: "turuncu", tarih: "31 Tem" },
-    { id: 7, musteri: "Lezzet Sofrası", tur: "Onay", baslik: "Menü tanıtım videosu", durum: "kirmizi", tarih: "25 Tem" },
-    { id: 8, musteri: "UrbanFit Spor Kulübü", tur: "Edit", baslik: "Üyelik kampanya videosu", durum: "yesil", tarih: "28 Tem" },
-  ],
   gelirKalemleri: [
     { id: 1, kalem: "Aylık Yönetim Bedelleri", tutar: 193000, tekrar: "sabit", faturali: "evet" },
     { id: 2, kalem: "Proje Bazlı Çekimler", tutar: 28000, tekrar: "tek seferlik", faturali: "evet" },
