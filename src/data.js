@@ -1,11 +1,11 @@
 export const DEFAULT_DATA = {
   monthly: [
-    { id: 1, ay: "Şub", ciro: 168000, gider: 98000, net: 70000 },
-    { id: 2, ay: "Mar", ciro: 182000, gider: 101000, net: 81000 },
-    { id: 3, ay: "Nis", ciro: 176000, gider: 104000, net: 72000 },
-    { id: 4, ay: "May", ciro: 195000, gider: 108000, net: 87000 },
-    { id: 5, ay: "Haz", ciro: 210000, gider: 112000, net: 98000 },
-    { id: 6, ay: "Tem", ciro: 231000, gider: 119000, net: 112000 },
+    { id: 1, ay: "Şub", yil: 2026, ciro: 168000, gider: 98000, net: 70000 },
+    { id: 2, ay: "Mar", yil: 2026, ciro: 182000, gider: 101000, net: 81000 },
+    { id: 3, ay: "Nis", yil: 2026, ciro: 176000, gider: 104000, net: 72000 },
+    { id: 4, ay: "May", yil: 2026, ciro: 195000, gider: 108000, net: 87000 },
+    { id: 5, ay: "Haz", yil: 2026, ciro: 210000, gider: 112000, net: 98000 },
+    { id: 6, ay: "Tem", yil: 2026, ciro: 231000, gider: 119000, net: 112000 },
   ],
   clients: [
     { id: 1, ad: "Nova Teknoloji", kategori: "Yazılım", durum: "aktif", aylikUcret: 58000, karMarji: 71, baslangic: "2024-11", not: "En kârlı müşteri", maliyetler: [], odemeGunu: 5, odemeler: [], faturaliTutar: 58000 },

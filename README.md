@@ -109,6 +109,13 @@ Kurulumdan sonra Ayarlar sayfasındaki **"Şimdi Test Et"** butonuyla hemen dene
 
 - **Saatlik yedekleme hatırlatıcısı**: Uygulama açıkken her saat başı (ve son yedeğin 1 saatten eskiyse sayfa açılışından birkaç dakika sonra) ekranın ortasında "Şimdi Yedek Al" butonlu bir pencere çıkar. Tek tıkla JSON yedek indirir ve pencere kapanır; "1 saat sonra tekrar sor" ile erteleyebilirsin.
 
+- **Mobil uyumluluk**: Telefon ekranında (dar ekranlarda) kenar menü otomatik olarak gizlenir, üstte çıkan hamburger (☰) butonuyla açılan bir çekmeceye dönüşür. Tablolar (Müşteriler, Personel) yatay kaydırılabilir; Operasyon panosu da yatay kaydırmayla açılır. İki sütunlu düzenler (Dashboard grafikleri, Finans bölümleri, formlar) telefonda tek sütuna iner.
+
+- **Takvim sekmesi**: Yeni bir ana sekme. Operasyon işlerini (tarih alanına göre), müşterilerin ödeme günlerini ve vergi tarihlerini aylık bir takvimde gösterir. Bir güne tıklayınca o güne ait detayları listeler.
+- **Aylık & Yıllık Karşılaştırma**: Finans sekmesine eklendi. Tüm ayları (geçmiş + bu ay) bir tabloda, ay-ay % değişimle birlikte gösterir; yıl bazında toplamları karşılaştırır (en az 2 yıllık veri birikince otomatik devreye girer). Geçmiş ay eklerken artık "Yıl" alanı da isteniyor.
+
+- **Mobil kullanılabilirlik iyileştirmeleri**: Giriş kutularının yazı boyutu büyütüldü (iPhone'da dokununca ekranın otomatik yakınlaşması engellendi), butonlar ve tıklanabilir alanlar büyütüldü (parmakla dokunması kolaylaştı), kartların iç boşluğu telefonda daralttırıldı, açılır menüler (arama/bildirim) dar ekranlarda taşmayacak şekilde sınırlandırıldı, kenar menüsü (çekmece) artık kaydırılabilir.
+
 ## Notlar
 - Uygulama şu an örnek (demo) verilerle geliyor. Gerçek verilerini bağlamak istediğinde `src/App.jsx` içindeki `clients`, `monthly`, `operasyonlar` gibi listeleri kendi verilerinle değiştirebiliriz, ya da bir sonraki adımda bunları düzenleyebileceğin bir veri giriş ekranı ekleyebiliriz.
 - API anahtarın hiçbir zaman tarayıcıya gönderilmiyor; `api/chat.js` sunucu tarafında çalışıyor.

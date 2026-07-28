@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, Wallet, Clapperboard, Settings, Sparkles,
   ArrowUpRight, ArrowDownRight, X, Send, Plus, Pencil, Trash2, Check,
   Film, Scissors, CheckCircle2, Share2, Megaphone, ChevronRight,
-  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp
+  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp, Menu, Calendar, ChevronLeft
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
@@ -129,9 +129,21 @@ function clientKarMarji(c) {
 const PW_KEY = "marcus-os-pw";
 const getPw = () => (typeof window !== "undefined" ? localStorage.getItem(PW_KEY) || "" : "");
 const setPw = (v) => { if (typeof window !== "undefined") localStorage.setItem(PW_KEY, v); };
-function Card({ children, style, ...rest }) {
+
+/** Ekran genişliğine göre mobil/masaüstü ayrımı yapar; pencere yeniden boyutlandırıldığında güncellenir. */
+function useIsMobile(breakpoint = 860) {
+  const [isMobile, setIsMobile] = useState(() => (typeof window !== "undefined" ? window.innerWidth < breakpoint : false));
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < breakpoint);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [breakpoint]);
+  return isMobile;
+}
+
+function Card({ children, style, className, ...rest }) {
   return (
-    <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, ...style }} {...rest}>
+    <div className={["marcus-card", className].filter(Boolean).join(" ")} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, ...style }} {...rest}>
       {children}
     </div>
   );
@@ -178,11 +190,11 @@ function SectionTitle({ children, action }) {
   );
 }
 
-const inputStyle = { width: "100%", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 10px", color: T.text, fontSize: 13, fontFamily: "Inter, sans-serif", outline: "none" };
-const saveBtnStyle = { background: T.accent, color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 12.5, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer", display: "flex", alignItems: "center", gap: 6 };
-const cancelBtnStyle = { background: "transparent", color: T.textDim, border: `1px solid ${T.border}`, borderRadius: 8, padding: "8px 14px", fontSize: 12.5, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer" };
-const iconBtnStyle = { background: "transparent", border: "none", cursor: "pointer", padding: 5, display: "flex", alignItems: "center" };
-const addBtnStyle = { display: "flex", alignItems: "center", gap: 6, background: T.accentSoft, color: T.accentText, border: "none", borderRadius: 9, padding: "8px 13px", fontSize: 12.5, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer" };
+const inputStyle = { width: "100%", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 10px", color: T.text, fontSize: 16, fontFamily: "Inter, sans-serif", outline: "none" };
+const saveBtnStyle = { background: T.accent, color: "#fff", border: "none", borderRadius: 8, padding: "10px 16px", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, minHeight: 40 };
+const cancelBtnStyle = { background: "transparent", color: T.textDim, border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 16px", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer", minHeight: 40 };
+const iconBtnStyle = { background: "transparent", border: "none", cursor: "pointer", padding: 9, display: "flex", alignItems: "center", justifyContent: "center", minWidth: 36, minHeight: 36 };
+const addBtnStyle = { display: "flex", alignItems: "center", gap: 6, background: T.accentSoft, color: T.accentText, border: "none", borderRadius: 9, padding: "10px 15px", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer", minHeight: 40 };
 
 /** Generic small form for add/edit, driven by a field-definition list. */
 function FieldForm({ fields, initial, onSubmit, onCancel, submitLabel = "Kaydet" }) {
@@ -197,7 +209,7 @@ function FieldForm({ fields, initial, onSubmit, onCancel, submitLabel = "Kaydet"
     return v;
   });
   return (
-    <div style={{ display: "grid", gridTemplateColumns: fields.length > 3 ? "1fr 1fr" : "1fr", gap: 10, padding: 14, background: T.surfaceRaised, borderRadius: 12, border: `1px solid ${T.border}` }}>
+    <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: fields.length > 3 ? "1fr 1fr" : "1fr", gap: 10, padding: 14, background: T.surfaceRaised, borderRadius: 12, border: `1px solid ${T.border}` }}>
       {fields.map((f) => (
         <div key={f.key}>
           <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter, sans-serif", display: "block", marginBottom: 4 }}>{f.label}</label>
@@ -267,7 +279,7 @@ function Dashboard({ data, onAsk }) {
   const netDelta = prev && prev.net ? Number((((live.net - prev.net) / prev.net) * 100).toFixed(1)) : undefined;
   const giderDelta = prev && prev.gider ? Number((((live.gider - prev.gider) / prev.gider) * 100).toFixed(1)) : undefined;
 
-  const chartData = [...monthly, { id: "live", ay: "Bu Ay", ciro: live.ciro, gider: live.gider, net: live.net }];
+  const chartData = [...monthly, { id: "live", ay: "Bu Ay", yil: new Date().getFullYear(), ciro: live.ciro, gider: live.gider, net: live.net }];
   const opCounts = ["yesil", "turuncu", "kirmizi"].map((k) => ({ key: k, count: operasyonlar.filter((o) => o.durum === k).length }));
 
   return (
@@ -283,7 +295,7 @@ function Dashboard({ data, onAsk }) {
         <KpiCard label="BEKLEYEN TAHSİLAT" value={fmt(live.bekleyenToplam)} mono accent={T.warning} />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 16, marginBottom: 22 }}>
+      <div className="marcus-grid-2" style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 16, marginBottom: 22 }}>
         <Card style={{ padding: "20px 22px" }}>
           <SectionTitle>Ciro & Net Kazanç — Son Aylar + Bu Ay</SectionTitle>
           <ResponsiveContainer width="100%" height={220}>
@@ -407,7 +419,8 @@ function Musteriler({ clients, operasyonlar, bekleyenTahsilatlar, onAdd, onUpdat
       )}
 
       <Card style={{ padding: 4 }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Inter, sans-serif" }}>
+        <div className="marcus-table-wrap">
+        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Inter, sans-serif", minWidth: 640 }}>
           <thead>
             <tr>
               {["Müşteri", "Kategori", "Durum", "Ödeme", "Aylık Ücret", "Kâr Marjı", ""].map((h, i) => (
@@ -480,6 +493,7 @@ function Musteriler({ clients, operasyonlar, bekleyenTahsilatlar, onAdd, onUpdat
             )}
           </tbody>
         </table>
+        </div>
       </Card>
       <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 10 }}>
         Aylık Ücret yanındaki <span style={{ color: T.success }}>●</span> tamamen faturalı, <span style={{ color: T.warning }}>◐</span> kısmi faturalı, <span>○</span> faturasız demektir.
@@ -517,7 +531,7 @@ function ClientDetail({ client, operasyonlar, bekleyenTahsilatlar, onAddCost, on
   const paymentStatus = clientPaymentStatus(client);
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 18, width: 560, maxWidth: "100%", maxHeight: "85vh", overflowY: "auto", padding: "24px 26px" }}>
+      <div onClick={(e) => e.stopPropagation()} className="marcus-card" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 18, width: 560, maxWidth: "100%", maxHeight: "85vh", overflowY: "auto", padding: "24px 26px" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 18 }}>
           <div>
             <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 19, fontWeight: 600, color: T.text, margin: 0 }}>{client.ad}</h2>
@@ -645,7 +659,12 @@ const VERGI_FIELDS = [
   { key: "tarih", label: "Tarih", type: "text", placeholder: "örn. 26 Ağu" },
   { key: "durum", label: "Durum", type: "select", options: [{ value: "yaklaşıyor", label: "Yaklaşıyor" }, { value: "planlandı", label: "Planlandı" }] },
 ];
-const MONTH_FIELDS = [{ key: "ay", label: "Ay", type: "text", placeholder: "örn. Ağu" }, { key: "ciro", label: "Ciro (₺)", type: "number" }, { key: "gider", label: "Gider (₺)", type: "number" }];
+const MONTH_FIELDS = [
+  { key: "ay", label: "Ay", type: "text", placeholder: "örn. Ağu" },
+  { key: "yil", label: "Yıl", type: "number", placeholder: "örn. 2026" },
+  { key: "ciro", label: "Ciro (₺)", type: "number" },
+  { key: "gider", label: "Gider (₺)", type: "number" },
+];
 
 function MiniList({ title, icon, items, fields, renderRow, onAdd, onDelete, addLabel }) {
   const [adding, setAdding] = useState(false);
@@ -675,7 +694,7 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
   const [addingMonth, setAddingMonth] = useState(false);
   const live = computeLive(data);
   const tahsilatOrani = live.ciro ? Math.round((live.tahsilEdilen / live.ciro) * 100) : 0;
-  const chartData = [...monthly, { id: "live", ay: "Bu Ay", ciro: live.ciro, gider: live.gider, net: live.net }];
+  const chartData = [...monthly, { id: "live", ay: "Bu Ay", yil: new Date().getFullYear(), ciro: live.ciro, gider: live.gider, net: live.net }];
 
   const clientNames = (clients || []).filter((c) => c.durum !== "ayrildi").map((c) => c.ad);
   const bekleyenFields = clientNames.length
@@ -799,7 +818,7 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
         </div>
       </Card>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 16, marginBottom: 16 }}>
+      <div className="marcus-grid-2" style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 16, marginBottom: 16 }}>
         <Card style={{ padding: "20px 22px" }}>
           <SectionTitle>Gelir & Gider — Son Aylar + Bu Ay</SectionTitle>
           <ResponsiveContainer width="100%" height={180}>
@@ -816,7 +835,7 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
           <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 12 }}>
             {monthly.map((m, i) => (
               <div key={m.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 0", borderBottom: i < monthly.length - 1 ? `1px solid ${T.borderSoft}` : "none" }}>
-                <span style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{m.ay}</span>
+                <span style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{m.ay} {m.yil || ""}</span>
                 <span style={{ fontSize: 12, color: T.textDim, fontFamily: "'IBM Plex Mono', monospace" }}>Ciro {fmt(m.ciro)} · Gider {fmt(m.gider)} · Net {fmt(m.net)}</span>
                 <button style={iconBtnStyle} onClick={() => { if (window.confirm("Bu ay silinsin mi?")) onDeleteMonth(m.id); }}><Trash2 size={12} color={T.danger} /></button>
               </div>
@@ -824,7 +843,7 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
             {monthly.length === 0 && <div style={{ color: T.textFaint, fontSize: 12, fontFamily: "Inter" }}>Henüz geçmiş ay eklenmedi.</div>}
           </div>
           {addingMonth ? (
-            <FieldForm fields={MONTH_FIELDS} onSubmit={(v) => { onAddMonth(v); setAddingMonth(false); }} onCancel={() => setAddingMonth(false)} submitLabel="Ayı Ekle" />
+            <FieldForm fields={MONTH_FIELDS} initial={{ yil: new Date().getFullYear() }} onSubmit={(v) => { onAddMonth(v); setAddingMonth(false); }} onCancel={() => setAddingMonth(false)} submitLabel="Ayı Ekle" />
           ) : (
             <button style={addBtnStyle} onClick={() => setAddingMonth(true)}><Plus size={13} /> Geçmiş ay ekle (arşiv)</button>
           )}
@@ -871,7 +890,9 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
         />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
+      <Karsilastirma chartData={chartData} />
+
+      <div className="marcus-grid-2" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
         <MiniList
           title="Gelirler"
           icon={<CircleDollarSign size={16} color={T.textFaint} />}
@@ -938,6 +959,79 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
   );
 }
 
+function Karsilastirma({ chartData }) {
+  const rows = chartData.filter((m) => m.ay !== undefined);
+  const withDelta = rows.map((m, i) => {
+    const prev = i > 0 ? rows[i - 1] : null;
+    const ciroDelta = prev && prev.ciro ? Math.round(((m.ciro - prev.ciro) / prev.ciro) * 100) : null;
+    return { ...m, ciroDelta };
+  });
+
+  const yillikMap = {};
+  rows.forEach((m) => {
+    const y = m.yil || new Date().getFullYear();
+    if (!yillikMap[y]) yillikMap[y] = { yil: y, ciro: 0, gider: 0, net: 0, ayCount: 0 };
+    yillikMap[y].ciro += Number(m.ciro) || 0;
+    yillikMap[y].gider += Number(m.gider) || 0;
+    yillikMap[y].net += Number(m.net) || 0;
+    yillikMap[y].ayCount += 1;
+  });
+  const yillar = Object.values(yillikMap).sort((a, b) => a.yil - b.yil);
+
+  return (
+    <Card style={{ padding: "20px 22px", marginBottom: 16 }}>
+      <SectionTitle>Aylık & Yıllık Karşılaştırma</SectionTitle>
+
+      <div className="marcus-table-wrap" style={{ marginBottom: 20 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Inter, sans-serif", minWidth: 480 }}>
+          <thead>
+            <tr>
+              {["Ay", "Ciro", "Gider", "Net", "Değişim"].map((h, i) => (
+                <th key={i} style={{ textAlign: i === 0 ? "left" : "right", padding: "8px 10px", fontSize: 11, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}` }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {withDelta.map((m, i) => (
+              <tr key={i} style={{ borderBottom: `1px solid ${T.borderSoft}` }}>
+                <td style={{ padding: "8px 10px", fontSize: 12.5, color: T.text, fontWeight: m.id === "live" ? 600 : 400, fontFamily: "Inter" }}>{m.ay} {m.yil}{m.id === "live" && " (şimdi)"}</td>
+                <td style={{ padding: "8px 10px", textAlign: "right", fontSize: 12.5, fontFamily: "'IBM Plex Mono', monospace", color: T.text }}>{fmt(m.ciro)}</td>
+                <td style={{ padding: "8px 10px", textAlign: "right", fontSize: 12.5, fontFamily: "'IBM Plex Mono', monospace", color: T.textDim }}>{fmt(m.gider)}</td>
+                <td style={{ padding: "8px 10px", textAlign: "right", fontSize: 12.5, fontFamily: "'IBM Plex Mono', monospace", color: T.success }}>{fmt(m.net)}</td>
+                <td style={{ padding: "8px 10px", textAlign: "right", fontSize: 12, fontFamily: "Inter" }}>
+                  {m.ciroDelta === null ? <span style={{ color: T.textFaint }}>—</span> : <span style={{ color: m.ciroDelta >= 0 ? T.success : T.danger }}>{m.ciroDelta >= 0 ? "+" : ""}{m.ciroDelta}%</span>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 10 }}>YILLIK TOPLAMLAR</div>
+      {yillar.length < 2 && (
+        <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 8 }}>
+          Karşılaştırma için en az 2 yıllık veri gerekiyor — şu an sadece {yillar[0]?.yil} verisi var. Aylar birikince burada geçen yılla otomatik karşılaştırma göreceksin.
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+        {yillar.map((y, i) => {
+          const prevYear = yillar[i - 1];
+          const delta = prevYear && prevYear.ciro ? Math.round(((y.ciro - prevYear.ciro) / prevYear.ciro) * 100) : null;
+          return (
+            <div key={y.yil} style={{ flex: "1 1 160px", minWidth: 160, padding: "14px 16px", background: T.surfaceRaised, borderRadius: 12 }}>
+              <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 6 }}>{y.yil} ({y.ayCount} ay)</div>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 18, color: T.text, fontWeight: 600 }}>{fmt(y.ciro)}</div>
+              {delta !== null && (
+                <div style={{ fontSize: 12, fontFamily: "Inter", color: delta >= 0 ? T.success : T.danger, marginTop: 4 }}>{delta >= 0 ? "+" : ""}{delta}% önceki yıla göre</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* OPERASYON — Kanban                                                   */
 /* ------------------------------------------------------------------ */
@@ -972,7 +1066,7 @@ function Operasyon({ operasyonlar, clients, onAdd, onUpdate, onDelete }) {
           <Pill key={k} color={d.color} soft={d.soft}>{d.label} · {operasyonlar.filter((o) => o.durum === k).length}</Pill>
         ))}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${stages.length}, 1fr)`, gap: 12 }}>
+      <div className="marcus-kanban" style={{ gap: 12 }}>
         {stages.map((stage) => {
           const items = operasyonlar.filter((o) => o.tur === stage);
           const Icon = opIcon[stage];
@@ -1024,6 +1118,138 @@ function Operasyon({ operasyonlar, clients, onAdd, onUpdate, onDelete }) {
 }
 
 /* ------------------------------------------------------------------ */
+/* TAKVİM                                                                */
+/* ------------------------------------------------------------------ */
+const TR_AYLAR_KISA = ["oca", "şub", "mar", "nis", "may", "haz", "tem", "ağu", "eyl", "eki", "kas", "ara"];
+const TR_AYLAR_TAM = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+const TR_GUNLER = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
+
+/** "28 Tem" gibi serbest metin tarihleri gün/ay olarak ayrıştırır (yıl bilgisi yoktur, varsayılan olarak yok sayılır). */
+function parseTrTarih(str) {
+  if (!str) return null;
+  const m = String(str).trim().match(/(\d{1,2})\s*([a-zA-ZçğıöşüÇĞİÖŞÜ]+)/);
+  if (!m) return null;
+  const day = parseInt(m[1], 10);
+  const token = m[2].toLowerCase().slice(0, 3);
+  const monthIdx = TR_AYLAR_KISA.findIndex((a) => a === token);
+  if (monthIdx === -1 || day < 1 || day > 31) return null;
+  return { day, month: monthIdx };
+}
+
+function Takvim({ data }) {
+  const [viewDate, setViewDate] = useState(new Date());
+  const [selectedDay, setSelectedDay] = useState(null);
+
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+
+  const activeClients = data.clients.filter((c) => c.durum !== "ayrildi" && c.odemeGunu);
+
+  const eventsForDay = (day) => {
+    const ops = data.operasyonlar.filter((o) => { const p = parseTrTarih(o.tarih); return p && p.day === day && p.month === month; });
+    const vergiler = data.vergiTakvimi.filter((v) => { const p = parseTrTarih(v.tarih); return p && p.day === day && p.month === month; });
+    const odemeler = activeClients.filter((c) => Number(c.odemeGunu) === day);
+    return { ops, vergiler, odemeler };
+  };
+
+  const firstOfMonth = new Date(year, month, 1);
+  const startOffset = (firstOfMonth.getDay() + 6) % 7; // Pazartesi başlangıçlı
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells = [];
+  for (let i = 0; i < startOffset; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  const today = new Date();
+  const isToday = (d) => d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+
+  const selected = selectedDay ? eventsForDay(selectedDay) : null;
+
+  return (
+    <div>
+      <Card style={{ padding: "16px 18px", marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <button onClick={() => { setViewDate(new Date(year, month - 1, 1)); setSelectedDay(null); }} style={{ ...iconBtnStyle, background: T.surfaceRaised, borderRadius: 8 }}><ChevronLeft size={16} color={T.text} /></button>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15.5, fontWeight: 600, color: T.text }}>{TR_AYLAR_TAM[month]} {year}</div>
+          <button onClick={() => { setViewDate(new Date(year, month + 1, 1)); setSelectedDay(null); }} style={{ ...iconBtnStyle, background: T.surfaceRaised, borderRadius: 8 }}><ChevronRight size={16} color={T.text} /></button>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 6 }}>
+          {TR_GUNLER.map((g) => (
+            <div key={g} style={{ textAlign: "center", fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, padding: "4px 0" }}>{g}</div>
+          ))}
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+          {cells.map((d, i) => {
+            if (d === null) return <div key={i} />;
+            const { ops, vergiler, odemeler } = eventsForDay(d);
+            const hasEvents = ops.length + vergiler.length + odemeler.length > 0;
+            return (
+              <button
+                key={i}
+                onClick={() => setSelectedDay(d)}
+                style={{
+                  aspectRatio: "1", minHeight: 44, borderRadius: 9, border: `1px solid ${isToday(d) ? T.accent : T.borderSoft}`,
+                  background: selectedDay === d ? T.accentSoft : T.surfaceRaised, cursor: "pointer",
+                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, padding: 4,
+                }}
+              >
+                <span style={{ fontSize: 12.5, color: isToday(d) ? T.accentText : T.text, fontFamily: "Inter", fontWeight: isToday(d) ? 700 : 500 }}>{d}</span>
+                {hasEvents && (
+                  <div style={{ display: "flex", gap: 2 }}>
+                    {ops.length > 0 && <span style={{ width: 5, height: 5, borderRadius: 999, background: T.accent }} />}
+                    {odemeler.length > 0 && <span style={{ width: 5, height: 5, borderRadius: 999, background: T.warning }} />}
+                    {vergiler.length > 0 && <span style={{ width: 5, height: 5, borderRadius: 999, background: T.danger }} />}
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{ display: "flex", gap: 14, marginTop: 14, flexWrap: "wrap" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}><span style={{ width: 6, height: 6, borderRadius: 999, background: T.accent }} /> Operasyon işi</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}><span style={{ width: 6, height: 6, borderRadius: 999, background: T.warning }} /> Müşteri ödeme günü</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}><span style={{ width: 6, height: 6, borderRadius: 999, background: T.danger }} /> Vergi tarihi</span>
+        </div>
+      </Card>
+
+      {selected && (
+        <Card style={{ padding: "18px 20px" }}>
+          <SectionTitle>{selectedDay} {TR_AYLAR_TAM[month]}</SectionTitle>
+          {selected.ops.length === 0 && selected.vergiler.length === 0 && selected.odemeler.length === 0 && (
+            <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Bu günde bir şey yok.</div>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {selected.ops.map((o) => (
+              <div key={"o" + o.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", background: T.surfaceRaised, borderRadius: 10 }}>
+                <div>
+                  <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{o.baslik}</div>
+                  <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>{o.musteri} · {o.tur}</div>
+                </div>
+                <Pill color={durumMap[o.durum].color} soft={durumMap[o.durum].soft}>{durumMap[o.durum].label}</Pill>
+              </div>
+            ))}
+            {selected.odemeler.map((c) => (
+              <div key={"c" + c.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", background: T.surfaceRaised, borderRadius: 10 }}>
+                <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{c.ad} — ödeme günü</div>
+                <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: T.warning }}>{fmt(c.aylikUcret)}</span>
+              </div>
+            ))}
+            {selected.vergiler.map((v) => (
+              <div key={"v" + v.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", background: T.surfaceRaised, borderRadius: 10 }}>
+                <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{v.kalem}</div>
+                <Pill color={T.danger} soft={T.dangerSoft}>Vergi</Pill>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* PERSONEL                                                              */
 /* ------------------------------------------------------------------ */
 const PERSONEL_FIELDS = [
@@ -1060,7 +1286,8 @@ function Personel({ personel, onAdd, onUpdate, onDelete }) {
       )}
 
       <Card style={{ padding: 4 }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Inter, sans-serif" }}>
+        <div className="marcus-table-wrap">
+        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Inter, sans-serif", minWidth: 700 }}>
           <thead>
             <tr>
               {["Ad Soyad", "Pozisyon", "Maaş", "SGK/Sigorta", "Yemek", "Tazminat Birikimi", "Aylık Toplam", ""].map((h, i) => (
@@ -1100,6 +1327,7 @@ function Personel({ personel, onAdd, onUpdate, onDelete }) {
             )}
           </tbody>
         </table>
+        </div>
       </Card>
       <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginTop: 10 }}>
         Buradaki toplam, Dashboard ve Finans'taki Toplam Gider'e otomatik olarak eklenir.
@@ -1490,7 +1718,7 @@ function LockScreen({ onSubmit, error, checking }) {
 function BackupReminder({ onBackupNow, onDismiss }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 18, width: 380, maxWidth: "100%", padding: "26px 28px", textAlign: "center" }}>
+      <div className="marcus-card" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 18, width: 380, maxWidth: "100%", padding: "26px 28px", textAlign: "center" }}>
         <div style={{ width: 44, height: 44, borderRadius: 12, background: T.warningSoft, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
           <PiggyBank size={20} color={T.warning} />
         </div>
@@ -1517,6 +1745,7 @@ const NAV = [
   { key: "musteriler", label: "Müşteriler", icon: Users },
   { key: "finans", label: "Finans", icon: Wallet },
   { key: "operasyon", label: "Operasyon", icon: Clapperboard },
+  { key: "takvim", label: "Takvim", icon: Calendar },
   { key: "personel", label: "Personel", icon: Briefcase },
   { key: "birikim", label: "Birikim", icon: PiggyBank },
   { key: "ayarlar", label: "Ayarlar", icon: Settings },
@@ -1537,6 +1766,8 @@ export default function MarcusOS() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [detailClientFromSearch, setDetailClientFromSearch] = useState(null);
   const [showBackupReminder, setShowBackupReminder] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const isMobile = useIsMobile();
   const [loadError, setLoadError] = useState(false);
   const saveTimer = useRef(null);
   const skipNextSave = useRef(true);
@@ -1666,7 +1897,7 @@ export default function MarcusOS() {
   const closeMonth = () => setData((d) => {
     const live = computeLive(d);
     const ayAdi = new Date().toLocaleDateString("tr-TR", { month: "short" });
-    const newMonthly = [...d.monthly, { id: nextId(d.monthly), ay: ayAdi, ciro: live.ciro, gider: live.gider, net: live.net }];
+    const newMonthly = [...d.monthly, { id: nextId(d.monthly), ay: ayAdi, yil: new Date().getFullYear(), ciro: live.ciro, gider: live.gider, net: live.net }];
     return {
       ...d,
       monthly: newMonthly,
@@ -1709,8 +1940,8 @@ export default function MarcusOS() {
       ["Bekleyen Tahsilatlar", "Tutar", "Vade"],
       ...data.bekleyenTahsilatlar.map((b) => [b.musteri, b.tutar, b.vade]),
       [],
-      ["Geçmiş Aylar", "Ciro", "Gider", "Net"],
-      ...data.monthly.map((m) => [m.ay, m.ciro, m.gider, m.net]),
+      ["Geçmiş Aylar", "Yıl", "Ciro", "Gider", "Net"],
+      ...data.monthly.map((m) => [m.ay, m.yil || "", m.ciro, m.gider, m.net]),
     ];
     const csv = rows.map((r) => r.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
@@ -1798,7 +2029,7 @@ export default function MarcusOS() {
     else setTab("finans");
   };
 
-  const titles = { dashboard: "Dashboard", musteriler: "Müşteriler", finans: "Finans", operasyon: "Operasyon", personel: "Personel", birikim: "Birikim", ayarlar: "Ayarlar" };
+  const titles = { dashboard: "Dashboard", musteriler: "Müşteriler", finans: "Finans", operasyon: "Operasyon", takvim: "Takvim", personel: "Personel", birikim: "Birikim", ayarlar: "Ayarlar" };
   const todayLabel = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
 
   if (needsAuth) {
@@ -1830,7 +2061,7 @@ export default function MarcusOS() {
   }
 
   return (
-    <div style={{ background: T.bg, minHeight: "100vh", display: "flex", fontFamily: "Inter, sans-serif" }}>
+    <div style={{ background: T.bg, minHeight: "100vh", display: "flex", fontFamily: "Inter, sans-serif", overflowX: "hidden" }}>
       <style>{FONTS}{`
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -1840,9 +2071,35 @@ export default function MarcusOS() {
         @media (max-width: 900px) {
           .marcus-grid-2 { grid-template-columns: 1fr !important; }
         }
+        @media (max-width: 640px) {
+          .marcus-field-grid { grid-template-columns: 1fr !important; }
+          .marcus-card { padding: 14px 16px !important; }
+          h1 { font-size: 18px !important; }
+        }
+        button { touch-action: manipulation; }
+        .marcus-table-wrap table { font-size: 13px; }
+        .marcus-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .marcus-kanban { display: flex; gap: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
+        .marcus-kanban > div { flex: 0 0 220px; }
       `}</style>
 
-      <div style={{ width: 220, borderRight: `1px solid ${T.borderSoft}`, padding: "22px 14px", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+      {isMobile && mobileMenuOpen && (
+        <div onClick={() => setMobileMenuOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 70 }} />
+      )}
+
+      <div
+        style={{
+          width: 220,
+          borderRight: `1px solid ${T.borderSoft}`,
+          padding: "22px 14px",
+          display: "flex",
+          flexDirection: "column",
+          flexShrink: 0,
+          ...(isMobile
+            ? { position: "fixed", top: 0, left: 0, height: "100%", width: 260, zIndex: 80, background: T.bg, transform: mobileMenuOpen ? "translateX(0)" : "translateX(-100%)", transition: "transform 0.25s ease", overflowY: "auto" }
+            : {}),
+        }}
+      >
         <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "0 8px", marginBottom: 30 }}>
           <div style={{ width: 30, height: 30, borderRadius: 9, background: T.accent, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: "#fff", fontSize: 14 }}>M</div>
           <div>
@@ -1853,7 +2110,7 @@ export default function MarcusOS() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
           {NAV.map(({ key, label, icon: Icon }) => (
-            <button key={key} onClick={() => setTab(key)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 9, background: tab === key ? T.accentSoft : "transparent", border: "none", cursor: "pointer", textAlign: "left" }}>
+            <button key={key} onClick={() => { setTab(key); setMobileMenuOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 9, background: tab === key ? T.accentSoft : "transparent", border: "none", cursor: "pointer", textAlign: "left" }}>
               <Icon size={16} color={tab === key ? T.accentText : T.textDim} />
               <span style={{ fontSize: 13.5, fontWeight: tab === key ? 600 : 500, color: tab === key ? T.text : T.textDim, fontFamily: "Inter, sans-serif" }}>{label}</span>
             </button>
@@ -1882,15 +2139,22 @@ export default function MarcusOS() {
         </div>
       </div>
 
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 30px 0" }}>
-          <div>
-            <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 21, fontWeight: 600, color: T.text, margin: 0 }}>{titles[tab]}</h1>
-            <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>{todayLabel}</div>
+      <div style={{ flex: 1, minWidth: 0, width: "100%" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: isMobile ? "16px 16px 0" : "20px 30px 0", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {isMobile && (
+              <button onClick={() => setMobileMenuOpen(true)} style={{ width: 36, height: 36, borderRadius: 10, background: T.surface, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}>
+                <Menu size={17} color={T.text} />
+              </button>
+            )}
+            <div>
+              <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: isMobile ? 18 : 21, fontWeight: 600, color: T.text, margin: 0 }}>{titles[tab]}</h1>
+              {!isMobile && <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>{todayLabel}</div>}
+            </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ position: "relative" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, padding: "8px 12px", width: 220 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, padding: "8px 12px", width: isMobile ? 150 : 220 }}>
                 <Search size={14} color={T.textFaint} />
                 <input
                   value={search}
@@ -1902,7 +2166,7 @@ export default function MarcusOS() {
                 />
               </div>
               {searchOpen && search.trim() && (
-                <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, width: 280, background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 12, boxShadow: "0 12px 32px rgba(0,0,0,0.4)", zIndex: 30, overflow: "hidden" }}>
+                <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, width: 280, maxWidth: "85vw", background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 12, boxShadow: "0 12px 32px rgba(0,0,0,0.4)", zIndex: 30, overflow: "hidden" }}>
                   {searchResults.length === 0 && <div style={{ padding: "12px 14px", fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Sonuç yok.</div>}
                   {searchResults.map((r, i) => (
                     <div key={i} onMouseDown={() => goToSearchResult(r)} style={{ padding: "10px 14px", cursor: "pointer", borderBottom: i < searchResults.length - 1 ? `1px solid ${T.border}` : "none" }}>
@@ -1926,7 +2190,7 @@ export default function MarcusOS() {
                 )}
               </div>
               {notifOpen && (
-                <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, width: 300, background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 12, boxShadow: "0 12px 32px rgba(0,0,0,0.4)", zIndex: 30, overflow: "hidden", maxHeight: 360, overflowY: "auto" }}>
+                <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, width: 300, maxWidth: "85vw", background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 12, boxShadow: "0 12px 32px rgba(0,0,0,0.4)", zIndex: 30, overflow: "hidden", maxHeight: 360, overflowY: "auto" }}>
                   <div style={{ padding: "10px 14px", fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, borderBottom: `1px solid ${T.border}` }}>BİLDİRİMLER</div>
                   {notifications.length === 0 && <div style={{ padding: "16px 14px", fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Her şey yolunda, bekleyen bir şey yok.</div>}
                   {notifications.map((n, i) => (
@@ -1941,7 +2205,7 @@ export default function MarcusOS() {
           </div>
         </div>
 
-        <div style={{ padding: "20px 30px 40px" }}>
+        <div style={{ padding: isMobile ? "16px 16px 32px" : "20px 30px 40px" }}>
           {tab === "dashboard" && <Dashboard data={data} onAsk={() => openAi()} />}
           {tab === "musteriler" && (
             <Musteriler
@@ -1970,6 +2234,7 @@ export default function MarcusOS() {
             />
           )}
           {tab === "operasyon" && <Operasyon operasyonlar={data.operasyonlar} clients={data.clients} onAdd={addOp} onUpdate={updateOp} onDelete={deleteOp} />}
+          {tab === "takvim" && <Takvim data={data} />}
           {tab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} />}
           {tab === "birikim" && (
             <Birikim
