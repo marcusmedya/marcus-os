@@ -1235,6 +1235,34 @@ function Birikim({ birikimler, onAddFon, onDeleteFon, onAddHareket, onDeleteHare
 /* ------------------------------------------------------------------ */
 /* AYARLAR                                                               */
 /* ------------------------------------------------------------------ */
+function EmailYedekTest() {
+  const [status, setStatus] = useState("idle"); // idle | loading | ok | error
+  const [message, setMessage] = useState("");
+
+  const test = () => {
+    setStatus("loading");
+    fetch("/api/daily-backup")
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.ok) { setStatus("ok"); setMessage(`Gönderildi: ${res.to}`); }
+        else if (res.skipped) { setStatus("error"); setMessage(res.reason); }
+        else { setStatus("error"); setMessage(res.error || "Bilinmeyen hata"); }
+      })
+      .catch(() => { setStatus("error"); setMessage("Bağlantı hatası."); });
+  };
+
+  return (
+    <div>
+      <button style={addBtnStyle} onClick={test} disabled={status === "loading"}>
+        {status === "loading" ? "Gönderiliyor…" : "Şimdi Test Et"}
+      </button>
+      {message && (
+        <div style={{ fontSize: 12, fontFamily: "Inter", color: status === "ok" ? T.success : T.warning, marginTop: 8 }}>{message}</div>
+      )}
+    </div>
+  );
+}
+
 function YedekGecmisi() {
   const [dates, setDates] = useState(null);
   const [restoring, setRestoring] = useState(null);
@@ -1323,6 +1351,21 @@ function Ayarlar({ onExport, onExportJson, onImportJson }) {
           <button style={cancelBtnStyle} onClick={() => fileInputRef.current && fileInputRef.current.click()}>Yedekten Geri Yükle</button>
           <input ref={fileInputRef} type="file" accept="application/json" style={{ display: "none" }} onChange={(e) => { if (e.target.files[0]) onImportJson(e.target.files[0]); e.target.value = ""; }} />
         </div>
+      </Card>
+
+      <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+        <SectionTitle>E-posta ile Otomatik Günlük Yedek</SectionTitle>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
+          Kurulunca her gün gece 03:00'te tam veri yedeğin otomatik olarak e-postana gönderilir — Upstash'ten tamamen
+          bağımsız bir yerde (senin e-posta kutunda) durur. Kurmak için:
+        </p>
+        <ol style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.9, paddingLeft: 18, marginBottom: 14 }}>
+          <li><a href="https://resend.com" target="_blank" rel="noreferrer" style={{ color: T.accentText }}>resend.com</a>'da ücretsiz hesap aç</li>
+          <li>API Keys'ten bir anahtar oluştur</li>
+          <li>Vercel projende Environment Variables'a şunları ekle: <code style={{ background: T.surfaceRaised, padding: "1px 5px", borderRadius: 4 }}>RESEND_API_KEY</code> (anahtarın) ve <code style={{ background: T.surfaceRaised, padding: "1px 5px", borderRadius: 4 }}>BACKUP_EMAIL</code> (yedeği alacağın e-posta)</li>
+          <li>Redeploy et</li>
+        </ol>
+        <EmailYedekTest />
       </Card>
 
       <Card style={{ padding: "18px 22px" }}>
@@ -1444,6 +1487,28 @@ function LockScreen({ onSubmit, error, checking }) {
   );
 }
 
+function BackupReminder({ onBackupNow, onDismiss }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 18, width: 380, maxWidth: "100%", padding: "26px 28px", textAlign: "center" }}>
+        <div style={{ width: 44, height: 44, borderRadius: 12, background: T.warningSoft, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+          <PiggyBank size={20} color={T.warning} />
+        </div>
+        <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16.5, fontWeight: 600, color: T.text, margin: "0 0 8px" }}>Yedek alma zamanı</h2>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.6, margin: "0 0 20px" }}>
+          Verilerini düzenli yedeklemen için hatırlatıyoruz. Tek tıkla tam bir yedek indirebilirsin — bu, bilgisayarına iner ve verinin ekstra bir güvenli kopyası olur.
+        </p>
+        <button onClick={onBackupNow} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", padding: "11px 12px", marginBottom: 10 }}>
+          <Plus size={13} style={{ transform: "rotate(45deg)" }} /> Şimdi Yedek Al
+        </button>
+        <button onClick={onDismiss} style={{ background: "none", border: "none", color: T.textFaint, fontSize: 12.5, fontFamily: "Inter, sans-serif", cursor: "pointer", padding: "6px" }}>
+          1 saat sonra tekrar sor
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* APP SHELL                                                            */
 /* ------------------------------------------------------------------ */
@@ -1471,6 +1536,7 @@ export default function MarcusOS() {
   const [search, setSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [detailClientFromSearch, setDetailClientFromSearch] = useState(null);
+  const [showBackupReminder, setShowBackupReminder] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const saveTimer = useRef(null);
   const skipNextSave = useRef(true);
@@ -1683,6 +1749,19 @@ export default function MarcusOS() {
     };
     reader.readAsText(file);
   };
+
+  // Saatlik yedekleme hatırlatıcısı: uygulama açık kaldığı sürece her saat başı,
+  // ayrıca sayfa yeni açıldığında son yedek 1 saatten eskiyse birkaç dakika içinde de gösterir.
+  useEffect(() => {
+    if (!data) return;
+    const HOUR = 60 * 60 * 1000;
+    const sonYedek = data.sonYedekTarihi ? new Date(data.sonYedekTarihi).getTime() : 0;
+    const gecenSure = Date.now() - sonYedek;
+    const ilkGosterim = setTimeout(() => setShowBackupReminder(true), gecenSure >= HOUR ? 3 * 60 * 1000 : Math.max(HOUR - gecenSure, 5 * 60 * 1000));
+    const interval = setInterval(() => setShowBackupReminder(true), HOUR);
+    return () => { clearTimeout(ilkGosterim); clearInterval(interval); };
+    // eslint-disable-next-line
+  }, [!!data]);
 
   const notifications = useMemo(() => {
     if (!data) return [];
@@ -1907,6 +1986,12 @@ export default function MarcusOS() {
 
       {aiOpen && <div onClick={() => setAiOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 40 }} />}
       <AiPanel open={aiOpen} onClose={() => setAiOpen(false)} initialQuestion={aiQuestion} data={{ ...data, buAyinGercekDurumu: computeLive(data) }} />
+      {showBackupReminder && (
+        <BackupReminder
+          onBackupNow={() => { exportJson(); setShowBackupReminder(false); }}
+          onDismiss={() => setShowBackupReminder(false)}
+        />
+      )}
     </div>
   );
 }

@@ -94,6 +94,21 @@ olarak kaydedilir (sağ altta "Kaydedildi" yazısını görürsün) ve sayfayı 
 - **Otomatik günlük yedekler + geri yükleme**: Her kayıt işleminde o günün son hali sunucuda otomatik saklanır (son 30 gün). Ayarlar sekmesinden istediğin tarihe tek tıkla geri dönebilirsin. Sol menünün altında artık "Son kayıt saati" ve "Son tam yedek indirme" bilgisi de sürekli görünüyor.
 - **Ekstra öneri**: Upstash panelinde (Vercel > Storage > veritabanı > Open in Upstash > Backups sekmesi) "Daily Backup" seçeneğini de açık tutman, üçüncü bir güvenlik katmanı sağlar.
 
+## Güncelleme: E-posta ile otomatik günlük yedek (isteğe bağlı, önerilir)
+
+Her gece 03:00'te tam veri yedeğin otomatik olarak e-postana gönderilsin istersen:
+
+1. https://resend.com adresinde ücretsiz hesap aç
+2. **API Keys** → **Create API Key**
+3. Vercel'de projenin **Settings → Environment Variables** kısmına ekle:
+   - `RESEND_API_KEY` = Resend'den aldığın anahtar
+   - `BACKUP_EMAIL` = yedeği almak istediğin e-posta adresi
+4. **Deployments** sekmesinden en son deploy'u **Redeploy** et
+
+Kurulumdan sonra Ayarlar sayfasındaki **"Şimdi Test Et"** butonuyla hemen deneyebilirsin — beklemene gerek yok.
+
+- **Saatlik yedekleme hatırlatıcısı**: Uygulama açıkken her saat başı (ve son yedeğin 1 saatten eskiyse sayfa açılışından birkaç dakika sonra) ekranın ortasında "Şimdi Yedek Al" butonlu bir pencere çıkar. Tek tıkla JSON yedek indirir ve pencere kapanır; "1 saat sonra tekrar sor" ile erteleyebilirsin.
+
 ## Notlar
 - Uygulama şu an örnek (demo) verilerle geliyor. Gerçek verilerini bağlamak istediğinde `src/App.jsx` içindeki `clients`, `monthly`, `operasyonlar` gibi listeleri kendi verilerinle değiştirebiliriz, ya da bir sonraki adımda bunları düzenleyebileceğin bir veri giriş ekranı ekleyebiliriz.
 - API anahtarın hiçbir zaman tarayıcıya gönderilmiyor; `api/chat.js` sunucu tarafında çalışıyor.
