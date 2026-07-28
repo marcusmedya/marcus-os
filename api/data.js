@@ -25,6 +25,27 @@ export default async function handler(req, res) {
       const { data } = req.body || {};
       if (!data) return res.status(400).json({ error: "data eksik" });
       await kv.set(KEY, data);
+
+      // Her kayıtta o günün otomatik yedeğini de al (aynı gün içindeki kayıtlar üzerine yazar,
+      // yani her günün son hali yedeklenmiş olur).
+      const today = new Date().toISOString().slice(0, 10);
+      await kv.set(`marcus-os-snapshot-${today}`, data);
+
+      // Ara sıra (her kayıtta değil, maliyeti düşük tutmak için) 30 günden eski yedekleri temizle.
+      if (Math.random() < 0.08) {
+        try {
+          const keys = await kv.keys("marcus-os-snapshot-*");
+          const cutoff = new Date();
+          cutoff.setDate(cutoff.getDate() - 30);
+          for (const k of keys) {
+            const d = k.replace("marcus-os-snapshot-", "");
+            if (new Date(d) < cutoff) await kv.del(k);
+          }
+        } catch (e) {
+          // temizlik hatası kritik değil, kayıt işlemini engellemesin
+        }
+      }
+
       return res.status(200).json({ ok: true });
     }
 

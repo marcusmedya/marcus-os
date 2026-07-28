@@ -88,6 +88,12 @@ olarak kaydedilir (sağ altta "Kaydedildi" yazısını görürsün) ve sayfayı 
 
 - **Ofis Giderleri tablosu**: Finans sekmesinde, genel Giderler listesinden ayrı, kendi başına bir bölüm — Kira, Elektrik, Su, İnternet, Aidat gibi kalemleri tek tek ekleyip takip edebilirsin. Toplamı otomatik olarak Toplam Gider'e dahil olur.
 
+- **Veri güvenliği düzeltmesi**: Daha önce sunucudan veri okuma başarısız olursa uygulama yanlışlıkla demo veriyle devam edip onu kaydediyordu (gerçek verinin üzerine yazma riski). Artık okuma başarısız olursa hiçbir kayıt yapılmıyor, sadece "Tekrar Dene" ekranı gösteriliyor.
+- **Tam Yedek (JSON)**: Ayarlar sekmesinden tüm verinin tam bir kopyasını indirebilir, istediğin an aynı dosyadan geri yükleyebilirsin (CSV'nin aksine hiçbir detay kaybolmaz). Düzenli aralıklarla yedek almanı öneririz.
+
+- **Otomatik günlük yedekler + geri yükleme**: Her kayıt işleminde o günün son hali sunucuda otomatik saklanır (son 30 gün). Ayarlar sekmesinden istediğin tarihe tek tıkla geri dönebilirsin. Sol menünün altında artık "Son kayıt saati" ve "Son tam yedek indirme" bilgisi de sürekli görünüyor.
+- **Ekstra öneri**: Upstash panelinde (Vercel > Storage > veritabanı > Open in Upstash > Backups sekmesi) "Daily Backup" seçeneğini de açık tutman, üçüncü bir güvenlik katmanı sağlar.
+
 ## Notlar
 - Uygulama şu an örnek (demo) verilerle geliyor. Gerçek verilerini bağlamak istediğinde `src/App.jsx` içindeki `clients`, `monthly`, `operasyonlar` gibi listeleri kendi verilerinle değiştirebiliriz, ya da bir sonraki adımda bunları düzenleyebileceğin bir veri giriş ekranı ekleyebiliriz.
 - API anahtarın hiçbir zaman tarayıcıya gönderilmiyor; `api/chat.js` sunucu tarafında çalışıyor.

@@ -1235,7 +1235,46 @@ function Birikim({ birikimler, onAddFon, onDeleteFon, onAddHareket, onDeleteHare
 /* ------------------------------------------------------------------ */
 /* AYARLAR                                                               */
 /* ------------------------------------------------------------------ */
-function Ayarlar({ onExport }) {
+function YedekGecmisi() {
+  const [dates, setDates] = useState(null);
+  const [restoring, setRestoring] = useState(null);
+
+  useEffect(() => {
+    fetch("/api/backup", { headers: { "X-Site-Password": getPw() } })
+      .then((r) => r.json())
+      .then((res) => setDates(res.dates || []))
+      .catch(() => setDates([]));
+  }, []);
+
+  const restore = (date) => {
+    if (!window.confirm(`${date} tarihindeki hale geri dönülsün mü? O tarihten sonra yaptığın değişiklikler kaybolur.`)) return;
+    setRestoring(date);
+    fetch("/api/backup", { method: "POST", headers: { "Content-Type": "application/json", "X-Site-Password": getPw() }, body: JSON.stringify({ date }) })
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.ok) { window.alert("Geri yüklendi. Sayfa yenileniyor…"); window.location.reload(); }
+        else { window.alert(res.error || "Geri yükleme başarısız."); setRestoring(null); }
+      })
+      .catch(() => { window.alert("Bağlantı hatası."); setRestoring(null); });
+  };
+
+  if (dates === null) return <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Yükleniyor…</div>;
+  if (dates.length === 0) return <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Henüz otomatik yedek oluşmadı — ilk kayıttan itibaren her gün otomatik birikmeye başlayacak.</div>;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 260, overflowY: "auto" }}>
+      {dates.slice(0, 30).map((d) => (
+        <div key={d} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: T.surfaceRaised, borderRadius: 9 }}>
+          <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter" }}>{d}</span>
+          <button style={cancelBtnStyle} disabled={restoring === d} onClick={() => restore(d)}>{restoring === d ? "Geri yükleniyor…" : "Bu tarihe dön"}</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Ayarlar({ onExport, onExportJson, onImportJson }) {
+  const fileInputRef = useRef(null);
   const rows = [
     { label: "İşletme Adı", value: "Marcus Medya" },
     { label: "Sektör", value: "Medya & Reklam Ajansı" },
@@ -1261,6 +1300,29 @@ function Ayarlar({ onExport }) {
           tekrar açtığında en son haliyle karşına çıkar.
         </p>
         <button style={addBtnStyle} onClick={onExport}><Plus size={13} style={{ transform: "rotate(45deg)" }} /> Finans verilerini CSV indir</button>
+      </Card>
+
+      <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+        <SectionTitle>Otomatik Günlük Yedekler</SectionTitle>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
+          Her kayıt işleminde o günün son hali otomatik olarak sunucuda saklanır (son 30 gün). Bir şey ters giderse
+          buradan istediğin tarihe geri dönebilirsin — elle hiçbir şey yapmana gerek yok.
+        </p>
+        <YedekGecmisi />
+      </Card>
+
+      <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+        <SectionTitle>Tam Yedek</SectionTitle>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
+          CSV sadece rapor amaçlıdır ve bazı detayları (müşteri maliyetleri, birikim fonu hareketleri gibi) içermez.
+          Her şeyin tam bir kopyasını almak için JSON yedek indir — istediğin an bu dosyadan geri yükleyebilirsin.
+          Ayda bir yedek almanı öneririz.
+        </p>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <button style={addBtnStyle} onClick={onExportJson}><Plus size={13} style={{ transform: "rotate(45deg)" }} /> Tam Yedek İndir (JSON)</button>
+          <button style={cancelBtnStyle} onClick={() => fileInputRef.current && fileInputRef.current.click()}>Yedekten Geri Yükle</button>
+          <input ref={fileInputRef} type="file" accept="application/json" style={{ display: "none" }} onChange={(e) => { if (e.target.files[0]) onImportJson(e.target.files[0]); e.target.value = ""; }} />
+        </div>
       </Card>
 
       <Card style={{ padding: "18px 22px" }}>
@@ -1402,18 +1464,21 @@ export default function MarcusOS() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState("idle");
+  const [lastSavedAt, setLastSavedAt] = useState(null);
   const [needsAuth, setNeedsAuth] = useState(false);
   const [authError, setAuthError] = useState("");
   const [authChecking, setAuthChecking] = useState(false);
   const [search, setSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [detailClientFromSearch, setDetailClientFromSearch] = useState(null);
+  const [loadError, setLoadError] = useState(false);
   const saveTimer = useRef(null);
   const skipNextSave = useRef(true);
 
   const loadData = (isRetry) => {
     if (isRetry) setAuthChecking(true);
     else setLoading(true);
+    setLoadError(false);
     fetch("/api/data", { headers: { "X-Site-Password": getPw() } })
       .then(async (r) => {
         if (r.status === 401) {
@@ -1421,12 +1486,19 @@ export default function MarcusOS() {
           if (isRetry) setAuthError("Yanlış şifre, tekrar dener misin?");
           return;
         }
+        if (!r.ok) {
+          // Sunucu/veritabanı hatası: ASLA demo veriyle üzerine yazma, sadece hata göster.
+          setLoadError(true);
+          return;
+        }
         const res = await r.json();
+        // res.data === null burada gerçekten "daha önce hiç kayıt yapılmamış" anlamına gelir,
+        // bu yüzden sadece bu durumda demo veriyle başlamak güvenlidir.
         setData(res.data || DEFAULT_DATA);
         setNeedsAuth(false);
         setAuthError("");
       })
-      .catch(() => setData(DEFAULT_DATA))
+      .catch(() => setLoadError(true)) // ağ hatası — data state'ine ASLA dokunma
       .finally(() => { setLoading(false); setAuthChecking(false); });
   };
 
@@ -1444,7 +1516,7 @@ export default function MarcusOS() {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       fetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json", "X-Site-Password": getPw() }, body: JSON.stringify({ data }) })
-        .then(() => setSaveStatus("saved"))
+        .then(() => { setSaveStatus("saved"); setLastSavedAt(new Date()); })
         .catch(() => setSaveStatus("error"));
     }, 500);
     return () => clearTimeout(saveTimer.current);
@@ -1584,6 +1656,34 @@ export default function MarcusOS() {
     URL.revokeObjectURL(url);
   };
 
+  const exportJson = () => {
+    const now = new Date().toISOString();
+    const payload = { ...data, sonYedekTarihi: now };
+    setData(payload);
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `marcus-os-yedek-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importJson = (file) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const parsed = JSON.parse(e.target.result);
+        if (!parsed || !Array.isArray(parsed.clients)) throw new Error("Geçersiz dosya");
+        if (!window.confirm("Bu, mevcut tüm verilerinin üzerine yazacak. Devam etmek istiyor musun?")) return;
+        setData(parsed);
+      } catch (err) {
+        window.alert("Dosya okunamadı. Geçerli bir Marcus OS yedek dosyası (.json) seçtiğinden emin ol.");
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const notifications = useMemo(() => {
     if (!data) return [];
     const items = [];
@@ -1624,6 +1724,21 @@ export default function MarcusOS() {
 
   if (needsAuth) {
     return <LockScreen onSubmit={handleAuthSubmit} error={authError} checking={authChecking} />;
+  }
+
+  if (loadError) {
+    return (
+      <div style={{ background: T.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+        <style>{FONTS}</style>
+        <div style={{ textAlign: "center", maxWidth: 340 }}>
+          <div style={{ color: T.danger, fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 600, marginBottom: 10 }}>Verilerine ulaşılamadı</div>
+          <div style={{ color: T.textDim, fontFamily: "Inter, sans-serif", fontSize: 13, lineHeight: 1.6, marginBottom: 18 }}>
+            Sunucuya bağlanırken bir sorun oluştu. Endişelenme — mevcut verilerinin üzerine hiçbir şey yazılmadı. İnternet bağlantını kontrol edip tekrar dene.
+          </div>
+          <button style={saveBtnStyle} onClick={() => loadData(false)}>Tekrar Dene</button>
+        </div>
+      </div>
+    );
   }
 
   if (loading || !data) {
@@ -1667,8 +1782,19 @@ export default function MarcusOS() {
         </div>
 
         <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", textAlign: "center" }}>
-            {saveStatus === "saving" ? "Kaydediliyor…" : saveStatus === "saved" ? "✓ Kaydedildi" : saveStatus === "error" ? "Kaydetme hatası" : ""}
+          <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter", textAlign: "center", lineHeight: 1.6, padding: "8px 6px", background: T.surface, borderRadius: 9, border: `1px solid ${T.borderSoft}` }}>
+            <div>
+              {saveStatus === "saving" ? "Kaydediliyor…" : saveStatus === "saved" ? "✓ Kaydedildi" : saveStatus === "error" ? "⚠ Kaydetme hatası" : "…"}
+              {lastSavedAt && saveStatus === "saved" && ` · ${lastSavedAt.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}`}
+            </div>
+            <div style={{ marginTop: 2 }}>
+              {(() => {
+                if (!data.sonYedekTarihi) return <span style={{ color: T.warning }}>Hiç tam yedek alınmadı</span>;
+                const gun = Math.floor((Date.now() - new Date(data.sonYedekTarihi).getTime()) / 86400000);
+                const metin = gun <= 0 ? "Bugün yedeklendi" : gun === 1 ? "1 gün önce yedeklendi" : `${gun} gün önce yedeklendi`;
+                return <span style={{ color: gun > 14 ? T.warning : T.textFaint }}>Son yedek: {metin}</span>;
+              })()}
+            </div>
           </div>
           <button onClick={() => openAi()} style={{ display: "flex", alignItems: "center", gap: 9, padding: "11px 12px", borderRadius: 10, background: `linear-gradient(135deg, ${T.accent}, #7C6BFA)`, border: "none", cursor: "pointer", width: "100%", color: "#fff" }}>
             <Sparkles size={15} />
@@ -1775,7 +1901,7 @@ export default function MarcusOS() {
               onDeleteHareket={deleteFonHareket}
             />
           )}
-          {tab === "ayarlar" && <Ayarlar onExport={exportCsv} />}
+          {tab === "ayarlar" && <Ayarlar onExport={exportCsv} onExportJson={exportJson} onImportJson={importJson} />}
         </div>
       </div>
 
