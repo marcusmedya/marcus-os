@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, Wallet, Clapperboard, Settings, Sparkles,
   ArrowUpRight, ArrowDownRight, X, Send, Plus, Pencil, Trash2, Check,
   Film, Scissors, CheckCircle2, Share2, Megaphone, ChevronRight,
-  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase
+  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
@@ -70,9 +70,10 @@ function computeLive(data) {
   const kdvDahilToplamCiro = ciro + kdvTutari;
   const faturaliKdvDahil = faturaliCiro + kdvTutari;
   const giderKalemToplam = (data.giderKalemleri || []).reduce((s, g) => s + (Number(g.tutar) || 0), 0);
+  const ofisGiderToplam = (data.ofisGiderleri || []).reduce((s, g) => s + (Number(g.tutar) || 0), 0);
   const clientCosts = clients.reduce((s, c) => s + (c.maliyetler || []).reduce((s2, m) => s2 + (Number(m.tutar) || 0), 0), 0);
-  const personelGideri = (data.personel || []).reduce((s, p) => s + (Number(p.maas) || 0) + (Number(p.sigorta) || 0) + (Number(p.tazminatBirikimi) || 0), 0);
-  const gider = giderKalemToplam + clientCosts + personelGideri;
+  const personelGideri = (data.personel || []).reduce((s, p) => s + (Number(p.maas) || 0) + (Number(p.sigorta) || 0) + (Number(p.yemek) || 0) + (Number(p.tazminatBirikimi) || 0), 0);
+  const gider = giderKalemToplam + ofisGiderToplam + clientCosts + personelGideri;
   const net = ciro - gider;
   const manuelBekleyen = (data.bekleyenTahsilatlar || []).reduce((s, b) => s + (Number(b.tutar) || 0), 0);
   const otomatikBekleyen = activeClients.reduce((s, c) => {
@@ -83,7 +84,7 @@ function computeLive(data) {
   const bekleyenToplam = manuelBekleyen + otomatikBekleyen;
   const tahsilEdilen = ciro - bekleyenToplam;
   const karMarji = ciro ? Math.round((net / ciro) * 100) : 0;
-  return { recurring, extra, ciro, faturaliCiro, faturasizCiro, kdvTutari, kdvDahilToplamCiro, faturaliKdvDahil, giderKalemToplam, clientCosts, personelGideri, gider, net, manuelBekleyen, otomatikBekleyen, bekleyenToplam, tahsilEdilen, karMarji };
+  return { recurring, extra, ciro, faturaliCiro, faturasizCiro, kdvTutari, kdvDahilToplamCiro, faturaliKdvDahil, giderKalemToplam, ofisGiderToplam, clientCosts, personelGideri, gider, net, manuelBekleyen, otomatikBekleyen, bekleyenToplam, tahsilEdilen, karMarji };
 }
 
 /** Bir müşterinin bu ayki ödeme durumunu, kayıtlı "ödeme günü"ne göre otomatik hesaplar. */
@@ -669,8 +670,8 @@ function MiniList({ title, icon, items, fields, renderRow, onAdd, onDelete, addL
   );
 }
 
-function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDeleteGider, onAddBekleyen, onDeleteBekleyen, onAddVergi, onDeleteVergi, onAddMonth, onDeleteMonth, onCloseMonth, onExport }) {
-  const { monthly, gelirKalemleri, giderKalemleri, bekleyenTahsilatlar, vergiTakvimi } = data;
+function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDeleteGider, onAddOfisGider, onDeleteOfisGider, onAddBekleyen, onDeleteBekleyen, onAddVergi, onDeleteVergi, onAddMonth, onDeleteMonth, onCloseMonth, onExport }) {
+  const { monthly, gelirKalemleri, giderKalemleri, ofisGiderleri, bekleyenTahsilatlar, vergiTakvimi } = data;
   const [addingMonth, setAddingMonth] = useState(false);
   const live = computeLive(data);
   const tahsilatOrani = live.ciro ? Math.round((live.tahsilEdilen / live.ciro) * 100) : 0;
@@ -784,6 +785,10 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
             <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: T.text, marginTop: 3 }}>{fmt(live.giderKalemToplam)}</div>
           </div>
           <div>
+            <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>Ofis Giderleri</div>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: T.text, marginTop: 3 }}>{fmt(live.ofisGiderToplam)}</div>
+          </div>
+          <div>
             <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>Personel Gideri <span style={{ opacity: 0.7 }}>(Personel sekmesi)</span></div>
             <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: T.text, marginTop: 3 }}>{fmt(live.personelGideri)}</div>
           </div>
@@ -840,6 +845,27 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
                 <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>{v.tarih}</div>
               </div>
               {v.durum === "yaklaşıyor" && <Pill color={T.warning} soft={T.warningSoft}>Yaklaşıyor</Pill>}
+            </div>
+          )}
+        />
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <MiniList
+          title="Ofis Giderleri"
+          icon={<Receipt size={16} color={T.textFaint} />}
+          items={ofisGiderleri || []}
+          fields={KALEM_FIELDS}
+          addLabel="Ofis gideri ekle"
+          onAdd={onAddOfisGider}
+          onDelete={onDeleteOfisGider}
+          renderRow={(g) => (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                <span style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.kalem}</span>
+                {g.tekrar === "sabit" && <Pill color={T.accentText} soft={T.accentSoft}>Sabit</Pill>}
+              </div>
+              <span style={{ fontSize: 13, color: T.text, fontFamily: "'IBM Plex Mono', monospace", whiteSpace: "nowrap" }}>{fmt(g.tutar)}</span>
             </div>
           )}
         />
@@ -1005,6 +1031,7 @@ const PERSONEL_FIELDS = [
   { key: "pozisyon", label: "Pozisyon", type: "text", placeholder: "örn. Video Editörü" },
   { key: "maas", label: "Net Maaş (₺/ay)", type: "number" },
   { key: "sigorta", label: "SGK / Sigorta (₺/ay)", type: "number" },
+  { key: "yemek", label: "Yemek Gideri (₺/ay)", type: "number" },
   { key: "tazminatBirikimi", label: "Kıdem Tazminatı Birikimi (₺/ay, opsiyonel)", type: "number" },
   { key: "baslangic", label: "İşe Başlama (YYYY-AA)", type: "text", placeholder: "2026-01" },
 ];
@@ -1012,7 +1039,7 @@ const PERSONEL_FIELDS = [
 function Personel({ personel, onAdd, onUpdate, onDelete }) {
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const kisiMaliyet = (p) => (Number(p.maas) || 0) + (Number(p.sigorta) || 0) + (Number(p.tazminatBirikimi) || 0);
+  const kisiMaliyet = (p) => (Number(p.maas) || 0) + (Number(p.sigorta) || 0) + (Number(p.yemek) || 0) + (Number(p.tazminatBirikimi) || 0);
   const toplam = personel.reduce((s, p) => s + kisiMaliyet(p), 0);
 
   return (
@@ -1036,7 +1063,7 @@ function Personel({ personel, onAdd, onUpdate, onDelete }) {
         <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Inter, sans-serif" }}>
           <thead>
             <tr>
-              {["Ad Soyad", "Pozisyon", "Maaş", "SGK/Sigorta", "Tazminat Birikimi", "Aylık Toplam", ""].map((h, i) => (
+              {["Ad Soyad", "Pozisyon", "Maaş", "SGK/Sigorta", "Yemek", "Tazminat Birikimi", "Aylık Toplam", ""].map((h, i) => (
                 <th key={i} style={{ textAlign: i >= 2 ? "right" : "left", padding: "12px 16px", fontSize: 11.5, color: T.textFaint, fontWeight: 600, letterSpacing: 0.3, borderBottom: `1px solid ${T.borderSoft}` }}>{h}</th>
               ))}
             </tr>
@@ -1045,7 +1072,7 @@ function Personel({ personel, onAdd, onUpdate, onDelete }) {
             {personel.map((p) =>
               editingId === p.id ? (
                 <tr key={p.id}>
-                  <td colSpan={7} style={{ padding: "12px 16px" }}>
+                  <td colSpan={8} style={{ padding: "12px 16px" }}>
                     <FieldForm fields={PERSONEL_FIELDS} initial={p} onSubmit={(v) => { onUpdate(p.id, v); setEditingId(null); }} onCancel={() => setEditingId(null)} />
                   </td>
                 </tr>
@@ -1058,6 +1085,7 @@ function Personel({ personel, onAdd, onUpdate, onDelete }) {
                   <td style={{ padding: "13px 16px", color: T.textDim, fontSize: 13 }}>{p.pozisyon}</td>
                   <td style={{ padding: "13px 16px", textAlign: "right", color: T.text, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>{fmt(p.maas)}</td>
                   <td style={{ padding: "13px 16px", textAlign: "right", color: T.textDim, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>{fmt(p.sigorta)}</td>
+                  <td style={{ padding: "13px 16px", textAlign: "right", color: T.textDim, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>{p.yemek ? fmt(p.yemek) : "—"}</td>
                   <td style={{ padding: "13px 16px", textAlign: "right", color: T.textDim, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>{p.tazminatBirikimi ? fmt(p.tazminatBirikimi) : "—"}</td>
                   <td style={{ padding: "13px 16px", textAlign: "right", color: T.warning, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, fontWeight: 600 }}>{fmt(kisiMaliyet(p))}</td>
                   <td style={{ padding: "13px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
@@ -1068,13 +1096,137 @@ function Personel({ personel, onAdd, onUpdate, onDelete }) {
               )
             )}
             {personel.length === 0 && (
-              <tr><td colSpan={7} style={{ padding: "24px 16px", textAlign: "center", color: T.textFaint, fontSize: 13 }}>Henüz personel eklenmedi.</td></tr>
+              <tr><td colSpan={8} style={{ padding: "24px 16px", textAlign: "center", color: T.textFaint, fontSize: 13 }}>Henüz personel eklenmedi.</td></tr>
             )}
           </tbody>
         </table>
       </Card>
       <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginTop: 10 }}>
         Buradaki toplam, Dashboard ve Finans'taki Toplam Gider'e otomatik olarak eklenir.
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* BİRİKİM (Fonlar)                                                      */
+/* ------------------------------------------------------------------ */
+const FON_FIELDS = [
+  { key: "ad", label: "Fon Adı", type: "text", placeholder: "örn. Kıdem Tazminatı Fonu" },
+  { key: "hedefTutar", label: "Hedef Tutar (₺, opsiyonel)", type: "number" },
+  { key: "not", label: "Not (opsiyonel)", type: "text" },
+];
+const HAREKET_FIELDS = [
+  { key: "tutar", label: "Tutar (₺)", type: "number" },
+  { key: "not", label: "Not (opsiyonel)", type: "text", placeholder: "örn. Temmuz ayı payı" },
+];
+
+function FonCard({ fon, onDelete, onAddHareket, onDeleteHareket }) {
+  const [addingTip, setAddingTip] = useState(null); // "ekleme" | "kullanim" | null
+  const bakiye = fon.bakiye || 0;
+  const hedef = Number(fon.hedefTutar) || 0;
+  const pct = hedef > 0 ? Math.min(100, Math.round((bakiye / hedef) * 100)) : null;
+  const hareketler = [...(fon.hareketler || [])].reverse();
+
+  return (
+    <Card style={{ padding: "20px 22px" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 4 }}>
+        <div>
+          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: T.text }}>{fon.ad}</div>
+          {fon.not && <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>{fon.not}</div>}
+        </div>
+        <button style={iconBtnStyle} onClick={() => { if (window.confirm(`"${fon.ad}" fonu tüm hareketleriyle silinsin mi?`)) onDelete(); }}><Trash2 size={14} color={T.danger} /></button>
+      </div>
+
+      <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 28, fontWeight: 600, color: bakiye < 0 ? T.danger : T.text, margin: "12px 0 6px" }}>{fmt(bakiye)}</div>
+
+      {hedef > 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ height: 6, borderRadius: 999, background: T.borderSoft, overflow: "hidden", marginBottom: 5 }}>
+            <div style={{ width: `${pct}%`, height: "100%", background: T.accent, borderRadius: 999 }} />
+          </div>
+          <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>%{pct} · Hedef {fmt(hedef)}</div>
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <button style={{ ...addBtnStyle, flex: 1, justifyContent: "center" }} onClick={() => setAddingTip(addingTip === "ekleme" ? null : "ekleme")}><Plus size={13} /> Para Ekle</button>
+        <button style={{ ...cancelBtnStyle, flex: 1 }} onClick={() => setAddingTip(addingTip === "kullanim" ? null : "kullanim")}>− Para Kullan</button>
+      </div>
+
+      {addingTip && (
+        <div style={{ marginBottom: 14 }}>
+          <FieldForm
+            fields={HAREKET_FIELDS}
+            onSubmit={(v) => { onAddHareket(addingTip, v.tutar, v.not); setAddingTip(null); }}
+            onCancel={() => setAddingTip(null)}
+            submitLabel={addingTip === "ekleme" ? "Ekle" : "Kullan"}
+          />
+        </div>
+      )}
+
+      {hareketler.length > 0 && (
+        <div>
+          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 6 }}>HAREKETLER</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto" }}>
+            {hareketler.map((h) => (
+              <div key={h.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 8px", background: T.surfaceRaised, borderRadius: 8 }}>
+                <div>
+                  <span style={{ fontSize: 12, fontFamily: "Inter", color: h.tip === "ekleme" ? T.success : T.danger, fontWeight: 600 }}>{h.tip === "ekleme" ? "+" : "−"}{fmt(h.tutar)}</span>
+                  <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginLeft: 6 }}>{h.tarih}{h.not ? " · " + h.not : ""}</span>
+                </div>
+                <button style={iconBtnStyle} onClick={() => onDeleteHareket(h.id)}><Trash2 size={11} color={T.textFaint} /></button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function Birikim({ birikimler, onAddFon, onDeleteFon, onAddHareket, onDeleteHareket }) {
+  const [adding, setAdding] = useState(false);
+  const toplam = birikimler.reduce((s, f) => s + (f.bakiye || 0), 0);
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 22 }}>
+        <KpiCard label="TOPLAM BİRİKİM (TÜM FONLAR)" value={fmt(toplam)} accent={T.success} />
+        <KpiCard label="FON SAYISI" value={birikimler.length} mono={false} />
+      </div>
+
+      <Card style={{ padding: "10px 12px", marginBottom: 16, display: "flex", justifyContent: "flex-end" }}>
+        <button style={addBtnStyle} onClick={() => setAdding(true)}><Plus size={14} /> Yeni fon ekle</button>
+      </Card>
+
+      {adding && (
+        <div style={{ marginBottom: 16 }}>
+          <FieldForm fields={FON_FIELDS} onSubmit={(v) => { onAddFon(v); setAdding(false); }} onCancel={() => setAdding(false)} submitLabel="Fonu Ekle" />
+        </div>
+      )}
+
+      {birikimler.length === 0 ? (
+        <Card style={{ padding: "24px", textAlign: "center" }}>
+          <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Henüz fon eklenmedi. Kıdem tazminatı, acil müdahale fonu gibi biriktirmek istediğin her şey için ayrı bir fon açabilirsin.</div>
+        </Card>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
+          {birikimler.map((f) => (
+            <FonCard
+              key={f.id}
+              fon={f}
+              onDelete={() => onDeleteFon(f.id)}
+              onAddHareket={(tip, tutar, not) => onAddHareket(f.id, tip, tutar, not)}
+              onDeleteHareket={(hareketId) => onDeleteHareket(f.id, hareketId)}
+            />
+          ))}
+        </div>
+      )}
+
+      <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginTop: 16 }}>
+        İpucu: Personel sekmesinde bir çalışanın "Kıdem Tazminatı Birikimi" alanı her ay Toplam Gider'e otomatik ekleniyor —
+        o parayı fiilen kenara koyduğunda buradaki ilgili fona "Para Ekle" ile işleyerek gerçek bakiyeni takip edebilirsin.
       </div>
     </div>
   );
@@ -1239,6 +1391,7 @@ const NAV = [
   { key: "finans", label: "Finans", icon: Wallet },
   { key: "operasyon", label: "Operasyon", icon: Clapperboard },
   { key: "personel", label: "Personel", icon: Briefcase },
+  { key: "birikim", label: "Birikim", icon: PiggyBank },
   { key: "ayarlar", label: "Ayarlar", icon: Settings },
 ];
 
@@ -1333,6 +1486,9 @@ export default function MarcusOS() {
   const addGider = (g) => setData((d) => ({ ...d, giderKalemleri: [...d.giderKalemleri, { ...g, id: nextId(d.giderKalemleri) }] }));
   const deleteGider = (id) => setData((d) => ({ ...d, giderKalemleri: d.giderKalemleri.filter((g) => g.id !== id) }));
 
+  const addOfisGider = (g) => setData((d) => ({ ...d, ofisGiderleri: [...(d.ofisGiderleri || []), { ...g, id: nextId(d.ofisGiderleri || []) }] }));
+  const deleteOfisGider = (id) => setData((d) => ({ ...d, ofisGiderleri: (d.ofisGiderleri || []).filter((g) => g.id !== id) }));
+
   const addBekleyen = (b) => setData((d) => ({ ...d, bekleyenTahsilatlar: [...d.bekleyenTahsilatlar, { ...b, id: nextId(d.bekleyenTahsilatlar) }] }));
   const deleteBekleyen = (id) => setData((d) => ({ ...d, bekleyenTahsilatlar: d.bekleyenTahsilatlar.filter((b) => b.id !== id) }));
 
@@ -1345,6 +1501,29 @@ export default function MarcusOS() {
   const addPersonel = (p) => setData((d) => ({ ...d, personel: [...(d.personel || []), { ...p, id: nextId(d.personel || []) }] }));
   const updatePersonel = (id, patch) => setData((d) => ({ ...d, personel: (d.personel || []).map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
   const deletePersonel = (id) => setData((d) => ({ ...d, personel: (d.personel || []).filter((p) => p.id !== id) }));
+
+  const addFon = (f) => setData((d) => ({ ...d, birikimler: [...(d.birikimler || []), { ...f, bakiye: 0, hareketler: [], id: nextId(d.birikimler || []) }] }));
+  const deleteFon = (id) => setData((d) => ({ ...d, birikimler: (d.birikimler || []).filter((f) => f.id !== id) }));
+  const addFonHareket = (fonId, tip, tutar, not) => setData((d) => ({
+    ...d,
+    birikimler: (d.birikimler || []).map((f) => {
+      if (f.id !== fonId) return f;
+      const miktar = Number(tutar) || 0;
+      const delta = tip === "ekleme" ? miktar : -miktar;
+      const hareket = { id: nextId(f.hareketler || []), tip, tutar: miktar, tarih: new Date().toLocaleDateString("tr-TR"), not: not || "" };
+      return { ...f, bakiye: (f.bakiye || 0) + delta, hareketler: [...(f.hareketler || []), hareket] };
+    }),
+  }));
+  const deleteFonHareket = (fonId, hareketId) => setData((d) => ({
+    ...d,
+    birikimler: (d.birikimler || []).map((f) => {
+      if (f.id !== fonId) return f;
+      const h = (f.hareketler || []).find((x) => x.id === hareketId);
+      if (!h) return f;
+      const delta = h.tip === "ekleme" ? -h.tutar : h.tutar;
+      return { ...f, bakiye: (f.bakiye || 0) + delta, hareketler: (f.hareketler || []).filter((x) => x.id !== hareketId) };
+    }),
+  }));
 
   const closeMonth = () => setData((d) => {
     const live = computeLive(d);
@@ -1368,8 +1547,11 @@ export default function MarcusOS() {
       ["Faturalı Ciro (KDV Hariç)", live.faturaliCiro], ["Faturasız Ciro", live.faturasizCiro],
       ["KDV Tutarı (%20)", live.kdvTutari], ["Faturalı Ciro (KDV Dahil)", live.faturaliKdvDahil], ["Ciro (KDV Dahil Toplam)", live.kdvDahilToplamCiro],
       [],
-      ["Personel", "Pozisyon", "Maaş", "SGK/Sigorta", "Tazminat Birikimi", "Aylık Toplam"],
-      ...(data.personel || []).map((p) => [p.ad, p.pozisyon, p.maas, p.sigorta, p.tazminatBirikimi || 0, (Number(p.maas) || 0) + (Number(p.sigorta) || 0) + (Number(p.tazminatBirikimi) || 0)]),
+      ["Personel", "Pozisyon", "Maaş", "SGK/Sigorta", "Yemek", "Tazminat Birikimi", "Aylık Toplam"],
+      ...(data.personel || []).map((p) => [p.ad, p.pozisyon, p.maas, p.sigorta, p.yemek || 0, p.tazminatBirikimi || 0, (Number(p.maas) || 0) + (Number(p.sigorta) || 0) + (Number(p.yemek) || 0) + (Number(p.tazminatBirikimi) || 0)]),
+      [],
+      ["Birikim Fonları", "Hedef", "Mevcut Bakiye"],
+      ...(data.birikimler || []).map((f) => [f.ad, f.hedefTutar || 0, f.bakiye || 0]),
       [],
       ["Müşteriler", "Kategori", "Durum", "Aylık Ücret", "Kâr Marjı %", "Ödeme Durumu", "Faturalı Tutar"],
       ...data.clients.map((c) => { const st = clientPaymentStatus(c); return [c.ad, c.kategori, c.durum, c.aylikUcret, clientKarMarji(c), st ? st.label : "Takip edilmiyor", clientFaturaliTutar(c)]; }),
@@ -1382,6 +1564,9 @@ export default function MarcusOS() {
       [],
       ["Gider Kalemleri", "Tutar", "Tekrar"],
       ...data.giderKalemleri.map((g) => [g.kalem, g.tutar, g.tekrar || ""]),
+      [],
+      ["Ofis Giderleri", "Tutar", "Tekrar"],
+      ...(data.ofisGiderleri || []).map((g) => [g.kalem, g.tutar, g.tekrar || ""]),
       [],
       ["Bekleyen Tahsilatlar", "Tutar", "Vade"],
       ...data.bekleyenTahsilatlar.map((b) => [b.musteri, b.tutar, b.vade]),
@@ -1434,7 +1619,7 @@ export default function MarcusOS() {
     else setTab("finans");
   };
 
-  const titles = { dashboard: "Dashboard", musteriler: "Müşteriler", finans: "Finans", operasyon: "Operasyon", personel: "Personel", ayarlar: "Ayarlar" };
+  const titles = { dashboard: "Dashboard", musteriler: "Müşteriler", finans: "Finans", operasyon: "Operasyon", personel: "Personel", birikim: "Birikim", ayarlar: "Ayarlar" };
   const todayLabel = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
 
   if (needsAuth) {
@@ -1571,6 +1756,7 @@ export default function MarcusOS() {
               clients={data.clients}
               onAddGelir={addGelir} onDeleteGelir={deleteGelir}
               onAddGider={addGider} onDeleteGider={deleteGider}
+              onAddOfisGider={addOfisGider} onDeleteOfisGider={deleteOfisGider}
               onAddBekleyen={addBekleyen} onDeleteBekleyen={deleteBekleyen}
               onAddVergi={addVergi} onDeleteVergi={deleteVergi}
               onAddMonth={addMonth} onDeleteMonth={deleteMonth}
@@ -1580,6 +1766,15 @@ export default function MarcusOS() {
           )}
           {tab === "operasyon" && <Operasyon operasyonlar={data.operasyonlar} clients={data.clients} onAdd={addOp} onUpdate={updateOp} onDelete={deleteOp} />}
           {tab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} />}
+          {tab === "birikim" && (
+            <Birikim
+              birikimler={data.birikimler || []}
+              onAddFon={addFon}
+              onDeleteFon={deleteFon}
+              onAddHareket={addFonHareket}
+              onDeleteHareket={deleteFonHareket}
+            />
+          )}
           {tab === "ayarlar" && <Ayarlar onExport={exportCsv} />}
         </div>
       </div>

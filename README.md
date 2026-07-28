@@ -84,6 +84,10 @@ olarak kaydedilir (sağ altta "Kaydedildi" yazısını görürsün) ve sayfayı 
 
 - **Kısmi faturalı müşteriler**: Müşteri formundaki alan artık evet/hayır değil, **"Faturalı Tutar (₺/ay)"** — aylık ücretin ne kadarının faturalı olduğunu tam sayı olarak girebilirsin (örn. 40.000₺'lik müşterinin 20.000₺'si faturalı, 20.000₺'si faturasız olabilir). Kalan kısım otomatik faturasız sayılır ve KDV sadece faturalı kısım üzerinden hesaplanır.
 
+- **Birikim paneli**: Yeni bir sekme. Kıdem tazminatı, acil müdahale fonu gibi istediğin kadar "fon" oluşturup her birine "Para Ekle" / "Para Kullan" ile hareket işleyebilirsin. Hedef tutar girersen ilerleme çubuğu gösterir. Bu tutarlar Toplam Gider'e dahil değildir (zaten kazandığın paranın kenara ayrılmış hali) — sadece nerede ne kadar biriktirdiğini takip etmen için.
+
+- **Ofis Giderleri tablosu**: Finans sekmesinde, genel Giderler listesinden ayrı, kendi başına bir bölüm — Kira, Elektrik, Su, İnternet, Aidat gibi kalemleri tek tek ekleyip takip edebilirsin. Toplamı otomatik olarak Toplam Gider'e dahil olur.
+
 ## Notlar
 - Uygulama şu an örnek (demo) verilerle geliyor. Gerçek verilerini bağlamak istediğinde `src/App.jsx` içindeki `clients`, `monthly`, `operasyonlar` gibi listeleri kendi verilerinle değiştirebiliriz, ya da bir sonraki adımda bunları düzenleyebileceğin bir veri giriş ekranı ekleyebiliriz.
 - API anahtarın hiçbir zaman tarayıcıya gönderilmiyor; `api/chat.js` sunucu tarafında çalışıyor.

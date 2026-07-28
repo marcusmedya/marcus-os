@@ -33,16 +33,32 @@ export const DEFAULT_DATA = {
   giderKalemleri: [
     { id: 2, kalem: "Ekipman & Kiralama", tutar: 14000, tekrar: "tek seferlik" },
     { id: 3, kalem: "Reklam Harcaması (Müşteri Adına)", tutar: 22000, tekrar: "tek seferlik" },
-    { id: 4, kalem: "Ofis & Sabit Giderler", tutar: 9000, tekrar: "sabit" },
     { id: 5, kalem: "Yazılım & Araçlar", tutar: 6000, tekrar: "sabit" },
+  ],
+  ofisGiderleri: [
+    { id: 1, kalem: "Kira", tutar: 15000, tekrar: "sabit" },
+    { id: 2, kalem: "Elektrik", tutar: 1200, tekrar: "sabit" },
+    { id: 3, kalem: "Su", tutar: 300, tekrar: "sabit" },
+    { id: 4, kalem: "İnternet", tutar: 800, tekrar: "sabit" },
+    { id: 5, kalem: "Aidat", tutar: 700, tekrar: "sabit" },
   ],
   bekleyenTahsilatlar: [
     { id: 1, musteri: "Mavi Deniz Otelcilik", tutar: 40000, vade: "3 gün gecikti" },
     { id: 2, musteri: "Yeşil Bahçe Peyzaj", tutar: 18000, vade: "bugün" },
   ],
   personel: [
-    { id: 1, ad: "Ege Aydın", pozisyon: "Video Editörü", maas: 32000, sigorta: 9500, tazminatBirikimi: 1500, baslangic: "2024-09" },
-    { id: 2, ad: "Deniz Kara", pozisyon: "Sosyal Medya Uzmanı", maas: 26000, sigorta: 8000, tazminatBirikimi: 1200, baslangic: "2025-02" },
+    { id: 1, ad: "Ege Aydın", pozisyon: "Video Editörü", maas: 32000, sigorta: 9500, yemek: 3500, tazminatBirikimi: 1500, baslangic: "2024-09" },
+    { id: 2, ad: "Deniz Kara", pozisyon: "Sosyal Medya Uzmanı", maas: 26000, sigorta: 8000, yemek: 3500, tazminatBirikimi: 1200, baslangic: "2025-02" },
+  ],
+  birikimler: [
+    { id: 1, ad: "Kıdem Tazminatı Fonu", hedefTutar: 60000, not: "Ege ve Deniz için aylık birikim", bakiye: 8100, hareketler: [
+      { id: 1, tip: "ekleme", tutar: 2700, tarih: "05.07.2026", not: "Haziran payı" },
+      { id: 2, tip: "ekleme", tutar: 2700, tarih: "05.06.2026", not: "Mayıs payı" },
+      { id: 3, tip: "ekleme", tutar: 2700, tarih: "05.05.2026", not: "Nisan payı" },
+    ] },
+    { id: 2, ad: "Acil Müdahale Fonu", hedefTutar: 100000, not: "Beklenmedik giderler için", bakiye: 35000, hareketler: [
+      { id: 1, tip: "ekleme", tutar: 35000, tarih: "01.06.2026", not: "" },
+    ] },
   ],
   vergiTakvimi: [
     { id: 1, kalem: "KDV Beyannamesi", tarih: "26 Ağu", durum: "yaklaşıyor" },
