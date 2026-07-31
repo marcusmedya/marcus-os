@@ -161,6 +161,16 @@ Kurulumdan sonra Ayarlar sayfasındaki **"Şimdi Test Et"** butonuyla hemen dene
 - **Son hali gör/düzenle**: "Teklifin Son Halini Gör" / "Sözleşmenin Son Halini Gör" artık önce düzenlenebilir bir pencere açıyor — değişiklik yapıp öyle yazdırıyorsun.
 - **Hazır paketler kaldırıldı, yerine "Şablonlarım" geldi**: İstediğin bir seçimi "Şablon Olarak Kaydet" ile kendi adınla kaydedip sonra tek tıkla tekrar uygulayabiliyorsun. İstemediğin şablonu silebilirsin.
 
+## Güncelleme 4: Çekim & Edit Takibi, CEO Paneli (Yetkiler), Sözleşme Şablonları
+
+- **Çekim & Edit Takibi (yeni sekme)**: Her iş marka bazlı bir kart — içerik türü, çekim/teslim tarihi, kameraman, editör, öncelik, ilerleme yüzdesi. 9 aşamalı akış (Çekim Planlandı → ... → Teslim Edildi). Karta tıklayınca detay ekranı açılır: brief, notlar, ham/edit dosya linki, yorumlar, işlem geçmişi. "Editi Tamamladım" işi doğrudan bitirmez, "Kontrol Bekliyor"a alır — onay ve teslim sadece yöneticide. Revize isterken açıklama zorunlu. Personel girişinde "Panom" (Bugün Yapılacaklar / Geciken / Yaklaşan / Revize Bekleyen / Tamamlanan), yönetici girişinde "İstatistikler" (personel bazlı aktif/geciken iş, haftalık tamamlanan çekim/edit, ortalama süre) var.
+  - *Not:* Personelin ayrı hesabı olmadığı için (tek ortak şifre var), personel paneline ilk girişte bir kere isim giriyor — işlemler o isimle kaydediliyor.
+- **CEO Paneli — Personel Yetkileri**: Ayarlar'da artık Reklamlar / Paylaşımlar / Çekim & Edit Takibi'nin her birini personelden ayrı ayrı açıp kapatabiliyorsun. Kapattığın bölüm sunucu seviyesinde de engellenir.
+- **Sözleşme Şablonların**: Sözleşmenin son halini düzenlerken "Bu Metni Şablon Kaydet" ile istediğin sözleşmeyi adlandırıp saklayabiliyorsun, bir sonraki teklifte açılır listeden seçip yükleyebiliyorsun.
+- **Teklif artık görsel olarak zengin**: "Teklifi Yazdır/PDF" numaralı, sol çizgili, açıklamalı madde madde bir PDF üretiyor.
+- **Marka Kimliği**: Ayarlar'a yüklediğin görsel, her teklifin ve sözleşmenin en altında otomatik çıkıyor.
+- **Paylaşımlar'da markaya özel düşük stok tahmini**: Son 30 günün paylaşım hızına bakıp "~X gün içinde bitecek" şeklinde hem bildirim (zil ikonu) hem de kart üzerinde küçük turuncu bir noktayla uyarıyor.
+
 ## Notlar
 - Uygulama şu an örnek (demo) verilerle geliyor. Gerçek verilerini bağlamak istediğinde `src/App.jsx` içindeki `clients`, `monthly`, `operasyonlar` gibi listeleri kendi verilerinle değiştirebiliriz, ya da bir sonraki adımda bunları düzenleyebileceğin bir veri giriş ekranı ekleyebiliriz.
 - API anahtarın hiçbir zaman tarayıcıya gönderilmiyor; `api/chat.js` sunucu tarafında çalışıyor.

@@ -89,7 +89,7 @@ function teklifOzetMetni(musteri, secilenListe, toplamFiyat, kdvEkle, firmaAdi) 
 /* ------------------------------------------------------------------ */
 /* Yazdırma / PDF — logolar üstte, metin altta                          */
 /* ------------------------------------------------------------------ */
-function yazdirMetin(baslik, govdeMetni, logoKendi, logoMusteri) {
+function yazdirMetin(baslik, govdeMetni, logoKendi, logoMusteri, kimlikGorseli) {
   const bodyHtml = String(govdeMetni)
     .split(/\n{2,}/)
     .map((p) => `<p>${p.replace(/\n/g, "<br/>")}</p>`)
@@ -100,13 +100,63 @@ function yazdirMetin(baslik, govdeMetni, logoKendi, logoMusteri) {
          <div>${logoMusteri ? `<img src="${logoMusteri}" style="max-height:60px;max-width:200px;" />` : ""}</div>
        </div>`
     : "";
+  const kimlikHtml = kimlikGorseli ? `<div style="margin-top:60px;text-align:center;"><img src="${kimlikGorseli}" style="max-width:100%;max-height:160px;object-fit:contain;" /></div>` : "";
   const html = `<!doctype html><html lang="tr"><head><meta charset="utf-8" /><title>${baslik}</title>
   <style>
     body { font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 720px; margin: 50px auto; color:#1d1d1f; line-height:1.7; font-size:14.5px; }
     p { margin: 0 0 14px; }
     @media print { body { margin: 24px; } }
   </style></head>
-  <body>${logoHtml}${bodyHtml}</body></html>`;
+  <body>${logoHtml}${bodyHtml}${kimlikHtml}</body></html>`;
+  const win = window.open("", "_blank");
+  if (!win) { window.alert("Yeni pencere açılamadı — pop-up engelleyiciyi kontrol et."); return; }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 300);
+}
+
+/** Teklifi görsel olarak zengin (numaralı, sol çizgili, açıklamalı) bir HTML sayfası olarak yazdırır. */
+function yazdirTeklifGorsel(musteri, secilenListe, toplamFiyat, kdvEkle, firmaAdi, logoKendi, logoMusteri, kimlikGorseli) {
+  const bugun = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+  const kdvTutari = kdvEkle ? Math.round(toplamFiyat * 0.2) : 0;
+  const genelToplam = toplamFiyat + kdvTutari;
+
+  const maddelerHtml = secilenListe.map((h, i) => `
+    <div style="display:flex;gap:16px;padding:14px 0;border-bottom:1px solid #eee;">
+      <div style="flex-shrink:0;width:30px;height:30px;border-radius:9px;background:#0071E3;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;">${i + 1}</div>
+      <div style="border-left:2px solid #0071E3;padding-left:14px;flex:1;">
+        <div style="font-weight:700;font-size:14.5px;color:#1d1d1f;">${h.ad}${h.adetli && h.adet > 1 ? ` <span style="color:#6e6e73;font-weight:500;">· Aylık ${h.adet} adet</span>` : ""}</div>
+        <div style="font-size:12.5px;color:#6e6e73;margin-top:3px;">${(h.madde || "").replace("{adet}", h.adet || "")}</div>
+      </div>
+    </div>`).join("");
+
+  const logoHtml = (logoKendi || logoMusteri)
+    ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:32px;">
+         <div>${logoKendi ? `<img src="${logoKendi}" style="max-height:56px;max-width:190px;" />` : ""}</div>
+         <div>${logoMusteri ? `<img src="${logoMusteri}" style="max-height:56px;max-width:190px;" />` : ""}</div>
+       </div>` : "";
+  const kimlikHtml = kimlikGorseli ? `<div style="margin-top:56px;text-align:center;border-top:1px solid #eee;padding-top:24px;"><img src="${kimlikGorseli}" style="max-width:100%;max-height:150px;object-fit:contain;" /></div>` : "";
+
+  const html = `<!doctype html><html lang="tr"><head><meta charset="utf-8" /><title>Teklif - ${musteri.firma}</title>
+  <style>
+    body { font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 720px; margin: 50px auto; color:#1d1d1f; }
+    @media print { body { margin: 24px; } }
+  </style></head>
+  <body>
+    ${logoHtml}
+    <div style="text-align:center;margin-bottom:8px;font-size:11px;letter-spacing:1.5px;color:#6e6e73;font-weight:700;">TEKLİF</div>
+    <div style="text-align:center;font-size:22px;font-weight:700;margin-bottom:4px;">${musteri.firma || ""}</div>
+    <div style="text-align:center;font-size:12.5px;color:#6e6e73;margin-bottom:36px;">${firmaAdi} · ${bugun}</div>
+    <div style="margin-bottom:24px;">${maddelerHtml || '<div style="color:#aeaeb4;text-align:center;padding:20px 0;">Seçilen hizmet yok</div>'}</div>
+    <div style="display:flex;justify-content:flex-end;margin-top:24px;">
+      <div style="text-align:right;">
+        ${kdvEkle ? `<div style="font-size:12.5px;color:#6e6e73;">Ara Toplam: ${fmt(toplamFiyat)}</div><div style="font-size:12.5px;color:#6e6e73;margin-bottom:6px;">KDV (%20): ${fmt(kdvTutari)}</div>` : ""}
+        <div style="font-size:26px;font-weight:700;">${fmt(kdvEkle ? genelToplam : toplamFiyat)}</div>
+      </div>
+    </div>
+    ${kimlikHtml}
+  </body></html>`;
   const win = window.open("", "_blank");
   if (!win) { window.alert("Yeni pencere açılamadı — pop-up engelleyiciyi kontrol et."); return; }
   win.document.write(html);
@@ -204,8 +254,19 @@ function LogoYukleyici({ C, label, value, onChange }) {
   );
 }
 
-function SonHaliDuzenleModal({ C, baslik, initialText, logoKendi, logoMusteri, onClose }) {
+function SonHaliDuzenleModal({ C, baslik, initialText, logoKendi, logoMusteri, kimlikGorseli, isSozlesme, sablonlar = [], onSaveSablon, onDeleteSablon, onClose }) {
   const [text, setText] = useState(initialText);
+  const [sablonAdi, setSablonAdi] = useState("");
+  const [sablonKaydetAcik, setSablonKaydetAcik] = useState(false);
+  const [sablonMenuAcik, setSablonMenuAcik] = useState(false);
+
+  const kaydetSablon = () => {
+    if (!sablonAdi.trim()) return;
+    onSaveSablon && onSaveSablon(sablonAdi.trim(), text);
+    setSablonAdi("");
+    setSablonKaydetAcik(false);
+  };
+
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 18, width: 600, maxWidth: "100%", maxHeight: "88vh", overflowY: "auto", padding: "24px 26px" }}>
@@ -214,8 +275,38 @@ function SonHaliDuzenleModal({ C, baslik, initialText, logoKendi, logoMusteri, o
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><X size={18} color={C.textFaint} /></button>
         </div>
         <p style={{ fontSize: 12.5, color: C.textFaint, lineHeight: 1.6, marginBottom: 12 }}>
-          Yazdırmadan önce metni istediğin gibi değiştirebilirsin. Logolar (varsa) çıktının en üstünde otomatik yer alır.
+          Yazdırmadan önce metni istediğin gibi değiştirebilirsin. Logolar (varsa) çıktının üstünde, marka kimliği görseli (varsa) en altında otomatik yer alır.
         </p>
+
+        {isSozlesme && (
+          <div style={{ display: "flex", gap: 8, marginBottom: 12, position: "relative" }}>
+            <div style={{ position: "relative", flex: 1 }}>
+              <button onClick={() => setSablonMenuAcik((v) => !v)} style={{ width: "100%", padding: "8px 12px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.panelAlt, color: C.text, fontSize: 12.5, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
+                Kayıtlı Sözleşme Şablonların ({sablonlar.length})
+              </button>
+              {sablonMenuAcik && (
+                <div style={{ position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.3)", zIndex: 10, maxHeight: 200, overflowY: "auto" }}>
+                  {sablonlar.length === 0 && <div style={{ padding: 12, fontSize: 12, color: C.textFaint }}>Henüz kayıtlı sözleşme şablonu yok.</div>}
+                  {sablonlar.map((s) => (
+                    <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.borderSoft}` }}>
+                      <button onClick={() => { setText(s.metin); setSablonMenuAcik(false); }} style={{ flex: 1, textAlign: "left", padding: "9px 12px", background: "transparent", border: "none", color: C.text, fontSize: 12.5, cursor: "pointer" }}>{s.ad}</button>
+                      <button onClick={() => onDeleteSablon && onDeleteSablon(s.id)} style={{ padding: "8px 10px", background: "transparent", border: "none", cursor: "pointer" }}><Trash2 size={12} color={C.danger} /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            {sablonKaydetAcik ? (
+              <div style={{ display: "flex", gap: 6, flex: 1 }}>
+                <input autoFocus value={sablonAdi} onChange={(e) => setSablonAdi(e.target.value)} placeholder="Şablon adı" style={{ flex: 1, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 9, padding: "8px 10px", fontSize: 12.5, color: C.text, outline: "none" }} />
+                <button onClick={kaydetSablon} style={{ padding: "8px 12px", borderRadius: 9, border: "none", background: C.accent, color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Kaydet</button>
+              </div>
+            ) : (
+              <button onClick={() => setSablonKaydetAcik(true)} style={{ padding: "8px 12px", borderRadius: 9, border: `1px dashed ${C.border}`, background: "transparent", color: C.accentText, fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>+ Bu Metni Şablon Kaydet</button>
+            )}
+          </div>
+        )}
+
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -225,7 +316,7 @@ function SonHaliDuzenleModal({ C, baslik, initialText, logoKendi, logoMusteri, o
         <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
           <button onClick={onClose} style={{ padding: "10px 16px", borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>İptal</button>
           <button
-            onClick={() => { yazdirMetin(baslik, text, logoKendi, logoMusteri); onClose(); }}
+            onClick={() => { yazdirMetin(baslik, text, logoKendi, logoMusteri, kimlikGorseli); onClose(); }}
             style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 16px", borderRadius: 10, border: "none", background: C.accent, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
           >
             <Printer size={14} /> Yazdır / PDF
@@ -239,7 +330,7 @@ function SonHaliDuzenleModal({ C, baslik, initialText, logoKendi, logoMusteri, o
 /* ------------------------------------------------------------------ */
 /* ANA BİLEŞEN                                                           */
 /* ------------------------------------------------------------------ */
-export default function TeklifSozlesme({ firmaAdi = "Marcus Medya", onSaveTeklif, sablonlar = [], onSaveSablon, onDeleteSablon }) {
+export default function TeklifSozlesme({ firmaAdi = "Marcus Medya", onSaveTeklif, sablonlar = [], onSaveSablon, onDeleteSablon, kimlikGorseli, sozlesmeSablonlari = [], onSaveSozlesmeSablonu, onDeleteSozlesmeSablonu }) {
   const [isDark, setIsDark] = useState(true);
   const C = isDark ? DARK : LIGHT;
 
@@ -476,10 +567,13 @@ export default function TeklifSozlesme({ firmaAdi = "Marcus Medya", onSaveTeklif
           </div>
 
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <button onClick={() => setSonHali({ baslik: `Teklif - ${musteri.firma}`, text: teklifMetni() })} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", padding: "11px", borderRadius: 11, border: "none", background: C.accent, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-              <Printer size={14} /> Teklifin Son Halini Gör
+            <button onClick={() => yazdirTeklifGorsel(musteri, secilenListe, toplamFiyat, kdvEkle, firmaAdi, logoKendi, logoMusteri, kimlikGorseli)} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", padding: "11px", borderRadius: 11, border: "none", background: C.accent, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+              <Printer size={14} /> Teklifi Yazdır / PDF
             </button>
-            <button onClick={() => setSonHali({ baslik: `Sözleşme - ${musteri.firma}`, text: sozlesmeMetni() })} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", padding: "11px", borderRadius: 11, border: `1px solid ${C.border}`, background: "transparent", color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+            <button onClick={() => setSonHali({ baslik: `Teklif - ${musteri.firma}`, text: teklifMetni(), isSozlesme: false })} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", padding: "9px", borderRadius: 11, border: `1px solid ${C.border}`, background: "transparent", color: C.textDim, fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+              Metni Düzenleyip Ayrıca Yazdır
+            </button>
+            <button onClick={() => setSonHali({ baslik: `Sözleşme - ${musteri.firma}`, text: sozlesmeMetni(), isSozlesme: true })} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", padding: "11px", borderRadius: 11, border: `1px solid ${C.border}`, background: "transparent", color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
               <FileText size={14} /> Sözleşmenin Son Halini Gör
             </button>
             <div style={{ display: "flex", gap: 8 }}>
@@ -509,6 +603,11 @@ export default function TeklifSozlesme({ firmaAdi = "Marcus Medya", onSaveTeklif
           initialText={sonHali.text}
           logoKendi={logoKendi}
           logoMusteri={logoMusteri}
+          kimlikGorseli={kimlikGorseli}
+          isSozlesme={sonHali.isSozlesme}
+          sablonlar={sozlesmeSablonlari}
+          onSaveSablon={onSaveSozlesmeSablonu}
+          onDeleteSablon={onDeleteSozlesmeSablonu}
           onClose={() => setSonHali(null)}
         />
       )}

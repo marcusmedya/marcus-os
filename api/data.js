@@ -1,9 +1,16 @@
 import { kv } from "@vercel/kv";
 
 const KEY = "marcus-os-data";
-const STAFF_FIELDS = ["reklamlar", "stoklar", "paylasimGecmisi"];
+// Her alanın hangi izin anahtarına bağlı olduğu (CEO Paneli'nden açılıp kapatılabilir).
+// İzin anahtarı olmayan alanlar (örn. cekimIsleri ile birlikte gelen staffName) her zaman personel yazabilir.
+const STAFF_FIELD_PERMISSIONS = {
+  reklamlar: "reklamlar",
+  stoklar: "paylasimlar",
+  paylasimGecmisi: "paylasimlar",
+  cekimIsleri: "cekimEdit",
+};
 
-/** Şifreyi kontrol edip rolü döndürür: "owner" (tam yetki), "staff" (sadece reklam/paylaşım), ya da null (yetkisiz). */
+/** Şifreyi kontrol edip rolü döndürür: "owner" (tam yetki), "staff" (izinli alanlar), ya da null (yetkisiz). */
 function resolveRole(req) {
   const ownerPw = process.env.SITE_PASSWORD;
   const staffPw = process.env.STAFF_PASSWORD;
@@ -24,10 +31,13 @@ export default async function handler(req, res) {
       if (role === "staff") {
         // Personel sadece kendi alanlarını görsün; müşteri listesi de sadece marka kartlarını
         // gösterebilmek için isim/durum ile sınırlı gider — finans/maliyet bilgisi hiç gönderilmez.
+        const perms = (data && data.staffPermissions) || { reklamlar: true, paylasimlar: true, cekimEdit: true };
         const restricted = {
+          staffPermissions: perms,
           reklamlar: (data && data.reklamlar) || [],
           stoklar: (data && data.stoklar) || {},
           paylasimGecmisi: (data && data.paylasimGecmisi) || [],
+          cekimIsleri: (data && data.cekimIsleri) || [],
           clients: ((data && data.clients) || []).map((c) => ({ id: c.id, ad: c.ad, durum: c.durum })),
         };
         return res.status(200).json({ data: restricted, role });
@@ -39,12 +49,16 @@ export default async function handler(req, res) {
       const { data, force } = req.body || {};
       if (!data) return res.status(400).json({ error: "data eksik" });
 
-      // PERSONEL: sadece reklamlar/stok/paylaşım geçmişi alanlarını değiştirebilir, geri kalan veri
-      // sunucuda korunur ve gönderilen içerik ne olursa olsun yok sayılır.
+      // PERSONEL: sadece izin verilen alanları değiştirebilir, geri kalan veri sunucuda
+      // korunur ve gönderilen içerik ne olursa olsun yok sayılır. CEO Paneli'nden bir
+      // yetki kapatılmışsa (örn. cekimEdit: false), o alana yazma da reddedilir.
       if (role === "staff") {
         const existing = (await kv.get(KEY)) || {};
+        const perms = existing.staffPermissions || { reklamlar: true, paylasimlar: true, cekimEdit: true };
         const merged = { ...existing };
-        STAFF_FIELDS.forEach((f) => { merged[f] = data[f]; });
+        Object.entries(STAFF_FIELD_PERMISSIONS).forEach(([field, permKey]) => {
+          if (perms[permKey] !== false && data[field] !== undefined) merged[field] = data[field];
+        });
         await kv.set(KEY, merged);
         return res.status(200).json({ ok: true });
       }
