@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, Wallet, Settings, Sparkles,
   ArrowUpRight, ArrowDownRight, X, Send, Plus, Pencil, Trash2, Check,
   ChevronRight,
-  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp, Menu, Calendar, ChevronLeft, ListChecks, FileText
+  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp, Menu, Calendar, ChevronLeft, ListChecks, FileText, Megaphone, Share2, Lock
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
@@ -1615,6 +1615,179 @@ function OdemeTakvimi({ clients, onUpdateClient, onAddOdemeKaydi, onDeleteOdemeK
 }
 
 /* ------------------------------------------------------------------ */
+/* REKLAMLAR                                                             */
+/* ------------------------------------------------------------------ */
+const REKLAM_FIELDS = [
+  { key: "marka", label: "Marka / Müşteri", type: "text" },
+  { key: "reklamAdi", label: "Reklam / Kampanya Adı", type: "text" },
+  { key: "baslangicTarihi", label: "Başlangıç Tarihi", type: "date" },
+  { key: "bitisTarihi", label: "Bitiş Tarihi", type: "date" },
+  { key: "butce", label: "Bütçe (₺, opsiyonel)", type: "number" },
+  { key: "not", label: "Not (opsiyonel)", type: "text" },
+];
+
+function reklamDurumu(r) {
+  if (!r.bitisTarihi) return "aktif";
+  const bugun = new Date(); bugun.setHours(0, 0, 0, 0);
+  const bitis = new Date(r.bitisTarihi);
+  const farkGun = Math.round((bitis - bugun) / 86400000);
+  if (farkGun < 0) return "bitti";
+  if (farkGun <= 3) return "yakinda";
+  return "aktif";
+}
+
+function Reklamlar({ reklamlar, onAdd, onUpdate, onDelete }) {
+  const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [filter, setFilter] = useState("hepsi");
+
+  const siraliListe = [...reklamlar].sort((a, b) => (a.bitisTarihi || "").localeCompare(b.bitisTarihi || ""));
+  const filtered = siraliListe.filter((r) => (filter === "hepsi" ? true : reklamDurumu(r) === filter));
+  const aktifSayisi = reklamlar.filter((r) => reklamDurumu(r) !== "bitti").length;
+  const yakindaSayisi = reklamlar.filter((r) => reklamDurumu(r) === "yakinda").length;
+
+  const durumBilgi = { aktif: { label: "Aktif", color: T.success, soft: T.successSoft }, yakinda: { label: "Yakında Bitiyor", color: T.warning, soft: T.warningSoft }, bitti: { label: "Bitti", color: T.textFaint, soft: T.borderSoft } };
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 22 }}>
+        <KpiCard label="AKTİF REKLAM" value={aktifSayisi} mono={false} accent={T.success} />
+        <KpiCard label="3 GÜN İÇİNDE BİTECEK" value={yakindaSayisi} mono={false} accent={T.warning} />
+        <KpiCard label="TOPLAM KAYIT" value={reklamlar.length} mono={false} />
+      </div>
+
+      <Card style={{ padding: "10px 12px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+        <div style={{ display: "flex", gap: 8 }}>
+          {[["hepsi", "Hepsi"], ["aktif", "Aktif"], ["yakinda", "Yakında Bitiyor"], ["bitti", "Bitti"]].map(([k, l]) => (
+            <button key={k} onClick={() => setFilter(k)} style={{ background: filter === k ? T.accentSoft : "transparent", color: filter === k ? T.accentText : T.textDim, border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 12.5, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer" }}>{l}</button>
+          ))}
+        </div>
+        <button style={addBtnStyle} onClick={() => { setAdding(true); setEditingId(null); }}><Plus size={14} /> Reklam Ekle</button>
+      </Card>
+
+      {adding && <div style={{ marginBottom: 16 }}><FieldForm fields={REKLAM_FIELDS} onSubmit={(v) => { onAdd(v); setAdding(false); }} onCancel={() => setAdding(false)} submitLabel="Reklamı Ekle" /></div>}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {filtered.map((r) =>
+          editingId === r.id ? (
+            <Card key={r.id} style={{ padding: "12px 14px" }}><FieldForm fields={REKLAM_FIELDS} initial={r} onSubmit={(v) => { onUpdate(r.id, v); setEditingId(null); }} onCancel={() => setEditingId(null)} /></Card>
+          ) : (
+            <Card key={r.id} style={{ padding: "13px 16px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+                <div>
+                  <div style={{ fontSize: 13.5, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{r.marka} — {r.reklamAdi}</div>
+                  <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>
+                    {r.baslangicTarihi} → {r.bitisTarihi}{r.butce ? ` · ${fmt(r.butce)}` : ""}{r.not ? ` · ${r.not}` : ""}
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Pill color={durumBilgi[reklamDurumu(r)].color} soft={durumBilgi[reklamDurumu(r)].soft}>{durumBilgi[reklamDurumu(r)].label}</Pill>
+                  <button style={iconBtnStyle} onClick={() => { setEditingId(r.id); setAdding(false); }}><Pencil size={14} color={T.textFaint} /></button>
+                  <button style={iconBtnStyle} onClick={() => { if (window.confirm("Bu reklam kaydı silinsin mi?")) onDelete(r.id); }}><Trash2 size={14} color={T.danger} /></button>
+                </div>
+              </div>
+            </Card>
+          )
+        )}
+        {filtered.length === 0 && (
+          <Card style={{ padding: "24px", textAlign: "center" }}><div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Bu filtrede kayıt yok.</div></Card>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* PAYLAŞIMLAR                                                           */
+/* ------------------------------------------------------------------ */
+const PAYLASIM_TURLERI = ["Görsel", "Video", "Reels", "Story", "Carousel"];
+const PAYLASIM_FIELDS = [
+  { key: "marka", label: "Marka / Müşteri", type: "text" },
+  { key: "tur", label: "Tür", type: "select", options: PAYLASIM_TURLERI.map((t) => ({ value: t, label: t })) },
+  { key: "aciklama", label: "Açıklama", type: "text", placeholder: "örn. Yaz kampanyası görseli" },
+  { key: "planlananTarih", label: "Planlanan Tarih", type: "date" },
+  { key: "not", label: "Not (opsiyonel)", type: "text" },
+];
+
+function Paylasimlar({ paylasimlar, onAdd, onUpdate, onDelete, onToggleYapildi }) {
+  const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [filter, setFilter] = useState("bekleyen");
+
+  const bekleyenler = paylasimlar.filter((p) => !p.yapildiMi);
+  const turBazliStok = PAYLASIM_TURLERI.map((t) => ({ tur: t, adet: bekleyenler.filter((p) => p.tur === t).length })).filter((x) => x.adet > 0);
+
+  const filtered = [...paylasimlar]
+    .sort((a, b) => (a.planlananTarih || "").localeCompare(b.planlananTarih || ""))
+    .filter((p) => (filter === "hepsi" ? true : filter === "bekleyen" ? !p.yapildiMi : p.yapildiMi));
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 22 }}>
+        <KpiCard label="STOKTA BEKLEYEN" value={bekleyenler.length} mono={false} accent={T.warning} />
+        <KpiCard label="TOPLAM PLANLANAN" value={paylasimlar.length} mono={false} />
+      </div>
+
+      {turBazliStok.length > 0 && (
+        <Card style={{ padding: "14px 18px", marginBottom: 16, display: "flex", gap: 18, flexWrap: "wrap" }}>
+          {turBazliStok.map((x) => (
+            <div key={x.tur}>
+              <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{x.tur}</div>
+              <div style={{ fontSize: 17, fontWeight: 700, color: T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{x.adet}</div>
+            </div>
+          ))}
+        </Card>
+      )}
+
+      <Card style={{ padding: "10px 12px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+        <div style={{ display: "flex", gap: 8 }}>
+          {[["bekleyen", "Bekleyen"], ["yapildi", "Yapıldı"], ["hepsi", "Hepsi"]].map(([k, l]) => (
+            <button key={k} onClick={() => setFilter(k)} style={{ background: filter === k ? T.accentSoft : "transparent", color: filter === k ? T.accentText : T.textDim, border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 12.5, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer" }}>{l}</button>
+          ))}
+        </div>
+        <button style={addBtnStyle} onClick={() => { setAdding(true); setEditingId(null); }}><Plus size={14} /> Paylaşım Ekle</button>
+      </Card>
+
+      {adding && <div style={{ marginBottom: 16 }}><FieldForm fields={PAYLASIM_FIELDS} initial={{ tur: "Görsel" }} onSubmit={(v) => { onAdd(v); setAdding(false); }} onCancel={() => setAdding(false)} submitLabel="Paylaşımı Ekle" /></div>}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {filtered.map((p) =>
+          editingId === p.id ? (
+            <Card key={p.id} style={{ padding: "12px 14px" }}><FieldForm fields={PAYLASIM_FIELDS} initial={p} onSubmit={(v) => { onUpdate(p.id, v); setEditingId(null); }} onCancel={() => setEditingId(null)} /></Card>
+          ) : (
+            <Card key={p.id} style={{ padding: "13px 16px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <button
+                    onClick={() => onToggleYapildi(p.id)}
+                    title="Yapıldı / yapılmadı işaretle"
+                    style={{ width: 22, height: 22, borderRadius: 7, border: `1.5px solid ${p.yapildiMi ? T.success : T.border}`, background: p.yapildiMi ? T.success : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+                  >
+                    {p.yapildiMi && <Check size={13} color="#fff" strokeWidth={3} />}
+                  </button>
+                  <div>
+                    <div style={{ fontSize: 13.5, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{p.marka} — {p.aciklama}</div>
+                    <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>{p.tur} · {p.planlananTarih}{p.not ? ` · ${p.not}` : ""}</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Pill color={p.yapildiMi ? T.success : T.warning} soft={p.yapildiMi ? T.successSoft : T.warningSoft}>{p.yapildiMi ? "Yapıldı" : "Bekliyor"}</Pill>
+                  <button style={iconBtnStyle} onClick={() => { setEditingId(p.id); setAdding(false); }}><Pencil size={14} color={T.textFaint} /></button>
+                  <button style={iconBtnStyle} onClick={() => { if (window.confirm("Bu paylaşım kaydı silinsin mi?")) onDelete(p.id); }}><Trash2 size={14} color={T.danger} /></button>
+                </div>
+              </div>
+            </Card>
+          )
+        )}
+        {filtered.length === 0 && (
+          <Card style={{ padding: "24px", textAlign: "center" }}><div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Bu filtrede kayıt yok.</div></Card>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* PERSONEL                                                              */
 /* ------------------------------------------------------------------ */
 const PERSONEL_FIELDS = [
@@ -2008,12 +2181,24 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
         <EmailYedekTest endpoint="/api/daily-summary" />
       </Card>
 
-      <Card style={{ padding: "18px 22px" }}>
+      <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Şifre Koruması</SectionTitle>
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, margin: 0 }}>
           Bu paneli sadece senin açabilmen için Vercel projenin ortam değişkenlerine <code style={{ background: T.surfaceRaised, padding: "2px 6px", borderRadius: 5 }}>SITE_PASSWORD</code> ekleyip
           istediğin şifreyi tanımlayabilirsin. Eklendiğinde site açılışta şifre soracak; eklenmediği sürece koruma
           devre dışıdır.
+        </p>
+      </Card>
+
+      <Card style={{ padding: "18px 22px" }}>
+        <SectionTitle>Personel Erişimi</SectionTitle>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 10 }}>
+          Ekibine, sadece <strong>Reklamlar</strong> ve <strong>Paylaşımlar</strong> sekmelerini görebilecekleri ayrı bir giriş verebilirsin —
+          müşteri, finans, personel gibi diğer hiçbir veriye erişemezler (sunucu seviyesinde engellenir).
+        </p>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, margin: 0 }}>
+          Kurmak için Vercel'de ortam değişkenlerine <code style={{ background: T.surfaceRaised, padding: "2px 6px", borderRadius: 5 }}>STAFF_PASSWORD</code> ekleyip
+          farklı bir şifre tanımla, sonra Redeploy et. Bu şifreyi ekibinle paylaş — kendi şifren (SITE_PASSWORD) ile girdiğinde her zaman tam panel açılır.
         </p>
       </Card>
     </div>
@@ -2212,6 +2397,8 @@ const NAV = [
   { key: "takvim", label: "Takvim", icon: Calendar },
   { key: "odeme-takvimi", label: "Ödeme Takvimi", icon: ListChecks },
   { key: "teklif", label: "Teklif & Sözleşme", icon: FileText },
+  { key: "reklamlar", label: "Reklamlar", icon: Megaphone },
+  { key: "paylasimlar", label: "Paylaşımlar", icon: Share2 },
   { key: "personel", label: "Personel", icon: Briefcase },
   { key: "birikim", label: "Birikim", icon: PiggyBank },
   { key: "ayarlar", label: "Ayarlar", icon: Settings },
@@ -2226,6 +2413,7 @@ export default function MarcusOS() {
   const [saveStatus, setSaveStatus] = useState("idle");
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [needsAuth, setNeedsAuth] = useState(false);
+  const [role, setRole] = useState(null); // "owner" | "staff"
   const [authError, setAuthError] = useState("");
   const [authChecking, setAuthChecking] = useState(false);
   const [search, setSearch] = useState("");
@@ -2258,13 +2446,15 @@ export default function MarcusOS() {
           return;
         }
         const res = await r.json();
+        if (res.role) setRole(res.role);
         if (res.data) {
           setData(res.data);
           setNeedsSeedConfirm(false);
         } else {
           // Veritabanı boş döndü — bu gerçekten ilk kurulum olabilir AMA aynı zamanda şüpheli bir
           // durum da olabilir (bkz. geçmişteki veri kaybı). Onay almadan ASLA demo veriyle doldurup kaydetmiyoruz.
-          setNeedsSeedConfirm(true);
+          // Personel rolü zaten veri oluşturamaz, bu ekranı görmemesi için sahiplik owner'a bırakılır.
+          setNeedsSeedConfirm(res.role !== "staff");
         }
         setNeedsAuth(false);
         setAuthError("");
@@ -2365,6 +2555,15 @@ export default function MarcusOS() {
   }));
 
   const saveTeklif = (teklif) => setData((d) => ({ ...d, teklifler: [...(d.teklifler || []), teklif] }));
+
+  const addReklam = (r) => setData((d) => ({ ...d, reklamlar: [...(d.reklamlar || []), { ...r, id: nextId(d.reklamlar || []) }] }));
+  const updateReklam = (id, patch) => setData((d) => ({ ...d, reklamlar: (d.reklamlar || []).map((r) => (r.id === id ? { ...r, ...patch } : r)) }));
+  const deleteReklam = (id) => setData((d) => ({ ...d, reklamlar: (d.reklamlar || []).filter((r) => r.id !== id) }));
+
+  const addPaylasim = (p) => setData((d) => ({ ...d, paylasimlar: [...(d.paylasimlar || []), { ...p, yapildiMi: false, id: nextId(d.paylasimlar || []) }] }));
+  const updatePaylasim = (id, patch) => setData((d) => ({ ...d, paylasimlar: (d.paylasimlar || []).map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
+  const deletePaylasim = (id) => setData((d) => ({ ...d, paylasimlar: (d.paylasimlar || []).filter((p) => p.id !== id) }));
+  const toggleYapildi = (id) => setData((d) => ({ ...d, paylasimlar: (d.paylasimlar || []).map((p) => (p.id === id ? { ...p, yapildiMi: !p.yapildiMi, yapildigiTarih: !p.yapildiMi ? new Date().toISOString().slice(0, 10) : null } : p)) }));
 
   const toggleMonthPaid = (clientId, monthKeyStr, action) => setData((d) => ({
     ...d,
@@ -2525,7 +2724,7 @@ export default function MarcusOS() {
   }, [!!data]);
 
   const notifications = useMemo(() => {
-    if (!data) return [];
+    if (!data || role === "staff" || !data.clients) return [];
     const items = [];
     data.clients.filter((c) => c.durum !== "ayrildi").forEach((c) => {
       const st = clientPaymentStatus(c);
@@ -2535,12 +2734,17 @@ export default function MarcusOS() {
     data.vergiTakvimi.filter((v) => v.durum === "yaklaşıyor").forEach((v) => items.push({ text: `${v.kalem} — ${v.tarih}`, level: "warning" }));
     data.bekleyenTahsilatlar.filter((b) => b.vade.includes("gecikti")).forEach((b) => items.push({ text: `${b.musteri}: bekleyen tahsilat ${b.vade} — ${fmt(b.tutar)}`, level: "danger" }));
     data.bekleyenTahsilatlar.filter((b) => !b.vade.includes("gecikti")).forEach((b) => items.push({ text: `${b.musteri}: bekleyen tahsilat — ${fmt(b.tutar)} (${b.vade})`, level: "warning" }));
+    (data.reklamlar || []).forEach((r) => {
+      const d = reklamDurumu(r);
+      if (d === "bitti") items.push({ text: `${r.marka} — "${r.reklamAdi}" reklamı sona erdi (${r.bitisTarihi})`, level: "danger" });
+      else if (d === "yakinda") items.push({ text: `${r.marka} — "${r.reklamAdi}" reklamı yakında bitiyor (${r.bitisTarihi})`, level: "warning" });
+    });
     return items;
-  }, [data]);
+  }, [data, role]);
   const [notifOpen, setNotifOpen] = useState(false);
 
   const searchResults = useMemo(() => {
-    if (!data || !search.trim()) return [];
+    if (!data || role === "staff" || !search.trim() || !data.clients) return [];
     const q = search.trim().toLowerCase();
     const results = [];
     data.clients.forEach((c) => { if (c.ad.toLowerCase().includes(q)) results.push({ type: "musteri", label: c.ad, sub: c.kategori, ref: c }); });
@@ -2548,7 +2752,7 @@ export default function MarcusOS() {
     data.giderKalemleri.forEach((g) => { if (g.kalem.toLowerCase().includes(q)) results.push({ type: "finans", label: g.kalem, sub: "Gider · " + fmt(g.tutar), ref: g }); });
     (data.personel || []).forEach((p) => { if (p.ad.toLowerCase().includes(q) || (p.pozisyon || "").toLowerCase().includes(q)) results.push({ type: "personel", label: p.ad, sub: p.pozisyon, ref: p }); });
     return results.slice(0, 8);
-  }, [data, search]);
+  }, [data, search, role]);
 
   const goToSearchResult = (r) => {
     setSearch(""); setSearchOpen(false);
@@ -2557,7 +2761,7 @@ export default function MarcusOS() {
     else setTab("finans");
   };
 
-  const titles = { dashboard: "Dashboard", musteriler: "Müşteriler", finans: "Finans", takvim: "Takvim", "odeme-takvimi": "Ödeme Takvimi", teklif: "Teklif & Sözleşme", personel: "Personel", birikim: "Birikim", ayarlar: "Ayarlar" };
+  const titles = { dashboard: "Dashboard", musteriler: "Müşteriler", finans: "Finans", takvim: "Takvim", "odeme-takvimi": "Ödeme Takvimi", teklif: "Teklif & Sözleşme", reklamlar: "Reklamlar", paylasimlar: "Paylaşımlar", personel: "Personel", birikim: "Birikim", ayarlar: "Ayarlar" };
   const todayLabel = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
 
   if (needsAuth) {
@@ -2612,6 +2816,34 @@ export default function MarcusOS() {
       <div style={{ background: T.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <style>{FONTS}</style>
         <div style={{ color: T.textDim, fontFamily: "Inter, sans-serif", fontSize: 13.5 }}>Marcus OS yükleniyor…</div>
+      </div>
+    );
+  }
+
+  if (role === "staff") {
+    const staffTab = tab === "paylasimlar" ? "paylasimlar" : "reklamlar";
+    return (
+      <div style={{ background: T.bg, minHeight: "100vh", fontFamily: "Inter, sans-serif" }}>
+        <style>{FONTS}</style>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 20px", borderBottom: `1px solid ${T.borderSoft}`, flexWrap: "wrap", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 9, background: T.accent, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: "#fff", fontSize: 14 }}>M</div>
+            <div>
+              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14.5, color: T.text }}>Marcus OS</div>
+              <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter" }}>Personel Paneli</div>
+            </div>
+          </div>
+          <button onClick={() => { setPw(""); window.location.reload(); }} style={cancelBtnStyle}>Çıkış Yap</button>
+        </div>
+        <div style={{ display: "flex", gap: 8, padding: "16px 20px 0" }}>
+          {[["reklamlar", "Reklamlar"], ["paylasimlar", "Paylaşımlar"]].map(([k, l]) => (
+            <button key={k} onClick={() => setTab(k)} style={{ padding: "10px 18px", borderRadius: 10, border: "none", background: staffTab === k ? T.accentSoft : "transparent", color: staffTab === k ? T.accentText : T.textDim, fontSize: 13.5, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}>{l}</button>
+          ))}
+        </div>
+        <div style={{ padding: "20px 20px 40px" }}>
+          {staffTab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} />}
+          {staffTab === "paylasimlar" && <Paylasimlar paylasimlar={data.paylasimlar || []} onAdd={addPaylasim} onUpdate={updatePaylasim} onDelete={deletePaylasim} onToggleYapildi={toggleYapildi} />}
+        </div>
       </div>
     );
   }
@@ -2801,6 +3033,8 @@ export default function MarcusOS() {
             />
           )}
           {tab === "teklif" && <TeklifSozlesme firmaAdi={data.firmaAdi || "Marcus Medya"} onSaveTeklif={saveTeklif} />}
+          {tab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} />}
+          {tab === "paylasimlar" && <Paylasimlar paylasimlar={data.paylasimlar || []} onAdd={addPaylasim} onUpdate={updatePaylasim} onDelete={deletePaylasim} onToggleYapildi={toggleYapildi} />}
           {tab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} />}
           {tab === "birikim" && (
             <Birikim

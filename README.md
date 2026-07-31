@@ -138,6 +138,15 @@ Kurulumdan sonra Ayarlar sayfasındaki **"Şimdi Test Et"** butonuyla hemen dene
 - **Düzenlenebilir tebliğ metni**: "Tebliğ Oluştur" artık serbestçe düzenleyebileceğin bir pencere açıyor. Ayarlar > "Tebliğ Şablonu"ndan genel şablonu ve firma adını kalıcı olarak değiştirebilirsin.
 - **Teklif & Sözleşme modülü (yeni sekme)**: 55+ hazır hizmetten (İçerik, Sosyal Medya, Reklam, SEO/GEO, Tasarım, Video, Ek Hizmetler) seçim yaparak saniyeler içinde teklif ve otomatik olarak seçilen hizmetlere göre madde madde oluşan bir sözleşme üretir. 6 hazır paket (Restaurant/Hotel/Jewellery/Corporate) tüm seçimleri tek tıkla dolduruyor. Teklifi/sözleşmeyi yazdır-PDF yap, WhatsApp'ta paylaş, mail ile gönder. Açık/koyu tema desteği kendi içinde ayrı.
 
+## Güncelleme: Reklamlar, Paylaşımlar ve Personel Erişimi
+
+- **Reklamlar sekmesi**: Her markanın reklam/kampanya başlangıç-bitiş tarihlerini gir; bitmesine 3 gün kalınca ya da bittiğinde zil ikonundaki bildirimlerde otomatik uyarı çıkar.
+- **Paylaşımlar sekmesi**: Her marka için planlanan görsel/video/reels/story paylaşımlarını "yapıldı/yapılmadı" olarak takip et. Bekleyen (stoktaki) içerik sayısı türe göre otomatik gösterilir.
+- **Personel Erişimi (yeni)**: Ekibine sadece bu iki sekmeyi görebilecekleri, diğer hiçbir veriye (müşteri/finans/personel) erişemeyecekleri ayrı bir giriş verebilirsin.
+  1. Vercel'de **Settings → Environment Variables** kısmına `STAFF_PASSWORD` ekle (SITE_PASSWORD'dan farklı bir şifre)
+  2. **Redeploy** et
+  3. Bu şifreyi ekibinle paylaş — o şifreyle girdiklerinde sadece Reklamlar ve Paylaşımlar'ı görür, sunucu diğer verileri tarayıcılarına hiç göndermez
+
 ## Notlar
 - Uygulama şu an örnek (demo) verilerle geliyor. Gerçek verilerini bağlamak istediğinde `src/App.jsx` içindeki `clients`, `monthly`, `operasyonlar` gibi listeleri kendi verilerinle değiştirebiliriz, ya da bir sonraki adımda bunları düzenleyebileceğin bir veri giriş ekranı ekleyebiliriz.
 - API anahtarın hiçbir zaman tarayıcıya gönderilmiyor; `api/chat.js` sunucu tarafında çalışıyor.

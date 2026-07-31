@@ -1,29 +1,47 @@
 import { kv } from "@vercel/kv";
 
 const KEY = "marcus-os-data";
+const STAFF_FIELDS = ["reklamlar", "paylasimlar"];
 
-function checkAuth(req, res) {
-  const required = process.env.SITE_PASSWORD;
-  if (!required) return true; // şifre ayarlanmadıysa koruma devre dışı
+/** Şifreyi kontrol edip rolü döndürür: "owner" (tam yetki), "staff" (sadece reklam/paylaşım), ya da null (yetkisiz). */
+function resolveRole(req) {
+  const ownerPw = process.env.SITE_PASSWORD;
+  const staffPw = process.env.STAFF_PASSWORD;
   const provided = req.headers["x-site-password"];
-  if (provided !== required) {
-    res.status(401).json({ error: "Yetkisiz. Şifre gerekli." });
-    return false;
-  }
-  return true;
+  if (!ownerPw && !staffPw) return "owner"; // hiç şifre ayarlanmadıysa koruma devre dışı, tam yetki
+  if (ownerPw && provided === ownerPw) return "owner";
+  if (staffPw && provided === staffPw) return "staff";
+  return null;
 }
 
 export default async function handler(req, res) {
-  if (!checkAuth(req, res)) return;
+  const role = resolveRole(req);
+  if (!role) return res.status(401).json({ error: "Yetkisiz. Şifre gerekli." });
+
   try {
     if (req.method === "GET") {
       const data = await kv.get(KEY);
-      return res.status(200).json({ data: data || null });
+      if (role === "staff") {
+        // Personel sadece kendi alanlarını görsün; diğer iş verileri tarayıcıya hiç gönderilmesin.
+        const restricted = { reklamlar: (data && data.reklamlar) || [], paylasimlar: (data && data.paylasimlar) || [] };
+        return res.status(200).json({ data: restricted, role });
+      }
+      return res.status(200).json({ data: data || null, role });
     }
 
     if (req.method === "POST") {
       const { data, force } = req.body || {};
       if (!data) return res.status(400).json({ error: "data eksik" });
+
+      // PERSONEL: sadece reklamlar/paylasimlar alanlarını değiştirebilir, geri kalan veri
+      // sunucuda korunur ve gönderilen içerik ne olursa olsun yok sayılır.
+      if (role === "staff") {
+        const existing = (await kv.get(KEY)) || {};
+        const merged = { ...existing };
+        STAFF_FIELDS.forEach((f) => { merged[f] = data[f]; });
+        await kv.set(KEY, merged);
+        return res.status(200).json({ ok: true });
+      }
 
       // GÜVENLİK FRENİ: müşteri sayısı mevcut veriye göre çarpıcı biçimde azalıyorsa
       // (örn. bir hata sonucu boş/demo veri yazılmaya çalışılıyorsa) kaydı reddet.
