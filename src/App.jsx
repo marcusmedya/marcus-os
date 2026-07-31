@@ -323,7 +323,7 @@ function FieldForm({ fields, initial, onSubmit, onCancel, submitLabel = "Kaydet"
             </select>
           ) : (
             <input
-              type={f.type === "number" ? "number" : "text"}
+              type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
               value={values[f.key]}
               placeholder={f.placeholder}
               onChange={(e) => setValues((v) => ({ ...v, [f.key]: f.type === "number" ? Number(e.target.value) : e.target.value }))}
@@ -1701,36 +1701,67 @@ function Reklamlar({ reklamlar, onAdd, onUpdate, onDelete }) {
 /* PAYLAŞIMLAR                                                           */
 /* ------------------------------------------------------------------ */
 const PAYLASIM_TURLERI = ["Görsel", "Video", "Reels", "Story", "Carousel"];
-const PAYLASIM_FIELDS = [
-  { key: "marka", label: "Marka / Müşteri", type: "text" },
-  { key: "tur", label: "Tür", type: "select", options: PAYLASIM_TURLERI.map((t) => ({ value: t, label: t })) },
-  { key: "aciklama", label: "Açıklama", type: "text", placeholder: "örn. Yaz kampanyası görseli" },
-  { key: "planlananTarih", label: "Planlanan Tarih", type: "date" },
-  { key: "not", label: "Not (opsiyonel)", type: "text" },
-];
+const stokAnahtari = (clientId, tur) => `${clientId}_${tur}`;
 
-function Paylasimlar({ paylasimlar, onAdd, onUpdate, onDelete, onToggleYapildi }) {
-  const [adding, setAdding] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [filter, setFilter] = useState("bekleyen");
+function MarkaStokKarti({ client, stoklar, onStokDegis }) {
+  return (
+    <Card style={{ padding: "16px 18px" }}>
+      <div style={{ fontSize: 14, fontWeight: 700, color: T.text, fontFamily: "Inter", marginBottom: 4 }}>{client.ad}</div>
+      <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginBottom: 14 }}>Stoktaki içerikler</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {PAYLASIM_TURLERI.map((tur) => {
+          const adet = stoklar[stokAnahtari(client.id, tur)] || 0;
+          return (
+            <div key={tur} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter" }}>{tur}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button
+                  disabled={adet <= 0}
+                  onClick={() => onStokDegis(client.id, client.ad, tur, -1)}
+                  title="Paylaşıldı — stoktan bir tane düş"
+                  style={{ padding: "5px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: "transparent", color: adet > 0 ? T.text : T.textFaint, fontSize: 11.5, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: adet > 0 ? "pointer" : "default" }}
+                >
+                  Paylaşıldı
+                </button>
+                <span style={{ minWidth: 22, textAlign: "center", fontSize: 14, fontWeight: 700, color: adet > 0 ? T.text : T.textFaint, fontFamily: "'IBM Plex Mono', monospace" }}>{adet}</span>
+                <button
+                  onClick={() => onStokDegis(client.id, client.ad, tur, 1)}
+                  title="Çekim yapıldı — stoğa bir tane ekle"
+                  style={{ width: 26, height: 26, borderRadius: 8, border: "none", background: T.accentSoft, color: T.accentText, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+                >
+                  <Plus size={13} />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
 
-  const bekleyenler = paylasimlar.filter((p) => !p.yapildiMi);
-  const turBazliStok = PAYLASIM_TURLERI.map((t) => ({ tur: t, adet: bekleyenler.filter((p) => p.tur === t).length })).filter((x) => x.adet > 0);
+function Paylasimlar({ clients, stoklar, onStokDegis, gecmis }) {
+  const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
+  const stoklarObj = stoklar || {};
 
-  const filtered = [...paylasimlar]
-    .sort((a, b) => (a.planlananTarih || "").localeCompare(b.planlananTarih || ""))
-    .filter((p) => (filter === "hepsi" ? true : filter === "bekleyen" ? !p.yapildiMi : p.yapildiMi));
+  const toplamStok = PAYLASIM_TURLERI.map((t) => ({
+    tur: t,
+    adet: aktifMarkalar.reduce((s, c) => s + (stoklarObj[stokAnahtari(c.id, t)] || 0), 0),
+  })).filter((x) => x.adet > 0);
+  const toplamStokAdedi = toplamStok.reduce((s, x) => s + x.adet, 0);
+
+  const sonHareketler = [...(gecmis || [])].reverse().slice(0, 8);
 
   return (
     <div>
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 22 }}>
-        <KpiCard label="STOKTA BEKLEYEN" value={bekleyenler.length} mono={false} accent={T.warning} />
-        <KpiCard label="TOPLAM PLANLANAN" value={paylasimlar.length} mono={false} />
+        <KpiCard label="TOPLAM STOK" value={toplamStokAdedi} mono={false} accent={T.success} />
+        <KpiCard label="AKTİF MARKA" value={aktifMarkalar.length} mono={false} />
       </div>
 
-      {turBazliStok.length > 0 && (
+      {toplamStok.length > 0 && (
         <Card style={{ padding: "14px 18px", marginBottom: 16, display: "flex", gap: 18, flexWrap: "wrap" }}>
-          {turBazliStok.map((x) => (
+          {toplamStok.map((x) => (
             <div key={x.tur}>
               <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{x.tur}</div>
               <div style={{ fontSize: 17, fontWeight: 700, color: T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{x.adet}</div>
@@ -1739,50 +1770,31 @@ function Paylasimlar({ paylasimlar, onAdd, onUpdate, onDelete, onToggleYapildi }
         </Card>
       )}
 
-      <Card style={{ padding: "10px 12px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
-        <div style={{ display: "flex", gap: 8 }}>
-          {[["bekleyen", "Bekleyen"], ["yapildi", "Yapıldı"], ["hepsi", "Hepsi"]].map(([k, l]) => (
-            <button key={k} onClick={() => setFilter(k)} style={{ background: filter === k ? T.accentSoft : "transparent", color: filter === k ? T.accentText : T.textDim, border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 12.5, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer" }}>{l}</button>
+      {aktifMarkalar.length === 0 ? (
+        <Card style={{ padding: "24px", textAlign: "center" }}>
+          <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Aktif ya da yeni müşteri yok. Müşteriler sekmesinden ekleyince buradan otomatik kart açılır.</div>
+        </Card>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14, marginBottom: 16 }}>
+          {aktifMarkalar.map((c) => (
+            <MarkaStokKarti key={c.id} client={c} stoklar={stoklarObj} onStokDegis={onStokDegis} />
           ))}
         </div>
-        <button style={addBtnStyle} onClick={() => { setAdding(true); setEditingId(null); }}><Plus size={14} /> Paylaşım Ekle</button>
-      </Card>
+      )}
 
-      {adding && <div style={{ marginBottom: 16 }}><FieldForm fields={PAYLASIM_FIELDS} initial={{ tur: "Görsel" }} onSubmit={(v) => { onAdd(v); setAdding(false); }} onCancel={() => setAdding(false)} submitLabel="Paylaşımı Ekle" /></div>}
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {filtered.map((p) =>
-          editingId === p.id ? (
-            <Card key={p.id} style={{ padding: "12px 14px" }}><FieldForm fields={PAYLASIM_FIELDS} initial={p} onSubmit={(v) => { onUpdate(p.id, v); setEditingId(null); }} onCancel={() => setEditingId(null)} /></Card>
-          ) : (
-            <Card key={p.id} style={{ padding: "13px 16px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <button
-                    onClick={() => onToggleYapildi(p.id)}
-                    title="Yapıldı / yapılmadı işaretle"
-                    style={{ width: 22, height: 22, borderRadius: 7, border: `1.5px solid ${p.yapildiMi ? T.success : T.border}`, background: p.yapildiMi ? T.success : "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
-                  >
-                    {p.yapildiMi && <Check size={13} color="#fff" strokeWidth={3} />}
-                  </button>
-                  <div>
-                    <div style={{ fontSize: 13.5, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{p.marka} — {p.aciklama}</div>
-                    <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>{p.tur} · {p.planlananTarih}{p.not ? ` · ${p.not}` : ""}</div>
-                  </div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Pill color={p.yapildiMi ? T.success : T.warning} soft={p.yapildiMi ? T.successSoft : T.warningSoft}>{p.yapildiMi ? "Yapıldı" : "Bekliyor"}</Pill>
-                  <button style={iconBtnStyle} onClick={() => { setEditingId(p.id); setAdding(false); }}><Pencil size={14} color={T.textFaint} /></button>
-                  <button style={iconBtnStyle} onClick={() => { if (window.confirm("Bu paylaşım kaydı silinsin mi?")) onDelete(p.id); }}><Trash2 size={14} color={T.danger} /></button>
-                </div>
+      {sonHareketler.length > 0 && (
+        <Card style={{ padding: "14px 18px" }}>
+          <SectionTitle>Son Hareketler</SectionTitle>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {sonHareketler.map((h) => (
+              <div key={h.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontFamily: "Inter", padding: "6px 0", borderBottom: `1px solid ${T.borderSoft}` }}>
+                <span style={{ color: T.text }}>{h.marka} — {h.tur}</span>
+                <span style={{ color: h.tip === "cekim" ? T.success : T.textDim }}>{h.tip === "cekim" ? "+ stok eklendi" : "paylaşıldı"} · {h.tarih}</span>
               </div>
-            </Card>
-          )
-        )}
-        {filtered.length === 0 && (
-          <Card style={{ padding: "24px", textAlign: "center" }}><div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Bu filtrede kayıt yok.</div></Card>
-        )}
-      </div>
+            ))}
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
@@ -2120,8 +2132,6 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
           </div>
         ))}
       </Card>
-
-      <TebligSablonuKart firmaAdi={firmaAdi} tebligSablonu={tebligSablonu} onSave={onSaveTeblig} />
 
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Veri</SectionTitle>
@@ -2560,10 +2570,15 @@ export default function MarcusOS() {
   const updateReklam = (id, patch) => setData((d) => ({ ...d, reklamlar: (d.reklamlar || []).map((r) => (r.id === id ? { ...r, ...patch } : r)) }));
   const deleteReklam = (id) => setData((d) => ({ ...d, reklamlar: (d.reklamlar || []).filter((r) => r.id !== id) }));
 
-  const addPaylasim = (p) => setData((d) => ({ ...d, paylasimlar: [...(d.paylasimlar || []), { ...p, yapildiMi: false, id: nextId(d.paylasimlar || []) }] }));
-  const updatePaylasim = (id, patch) => setData((d) => ({ ...d, paylasimlar: (d.paylasimlar || []).map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
-  const deletePaylasim = (id) => setData((d) => ({ ...d, paylasimlar: (d.paylasimlar || []).filter((p) => p.id !== id) }));
-  const toggleYapildi = (id) => setData((d) => ({ ...d, paylasimlar: (d.paylasimlar || []).map((p) => (p.id === id ? { ...p, yapildiMi: !p.yapildiMi, yapildigiTarih: !p.yapildiMi ? new Date().toISOString().slice(0, 10) : null } : p)) }));
+  const degistirStok = (clientId, marka, tur, delta) => setData((d) => {
+    const key = stokAnahtari(clientId, tur);
+    const mevcut = (d.stoklar || {})[key] || 0;
+    const yeni = Math.max(0, mevcut + delta);
+    const yeniStoklar = { ...(d.stoklar || {}), [key]: yeni };
+    const gecmis = d.paylasimGecmisi || [];
+    const yeniGecmis = [...gecmis, { id: nextId(gecmis), clientId, marka, tur, tip: delta < 0 ? "paylasim" : "cekim", tarih: new Date().toLocaleDateString("tr-TR") }];
+    return { ...d, stoklar: yeniStoklar, paylasimGecmisi: yeniGecmis };
+  });
 
   const toggleMonthPaid = (clientId, monthKeyStr, action) => setData((d) => ({
     ...d,
@@ -2842,7 +2857,7 @@ export default function MarcusOS() {
         </div>
         <div style={{ padding: "20px 20px 40px" }}>
           {staffTab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} />}
-          {staffTab === "paylasimlar" && <Paylasimlar paylasimlar={data.paylasimlar || []} onAdd={addPaylasim} onUpdate={updatePaylasim} onDelete={deletePaylasim} onToggleYapildi={toggleYapildi} />}
+          {staffTab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} />}
         </div>
       </div>
     );
@@ -3034,7 +3049,7 @@ export default function MarcusOS() {
           )}
           {tab === "teklif" && <TeklifSozlesme firmaAdi={data.firmaAdi || "Marcus Medya"} onSaveTeklif={saveTeklif} />}
           {tab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} />}
-          {tab === "paylasimlar" && <Paylasimlar paylasimlar={data.paylasimlar || []} onAdd={addPaylasim} onUpdate={updatePaylasim} onDelete={deletePaylasim} onToggleYapildi={toggleYapildi} />}
+          {tab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} />}
           {tab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} />}
           {tab === "birikim" && (
             <Birikim

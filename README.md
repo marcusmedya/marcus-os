@@ -147,6 +147,12 @@ Kurulumdan sonra Ayarlar sayfasındaki **"Şimdi Test Et"** butonuyla hemen dene
   2. **Redeploy** et
   3. Bu şifreyi ekibinle paylaş — o şifreyle girdiklerinde sadece Reklamlar ve Paylaşımlar'ı görür, sunucu diğer verileri tarayıcılarına hiç göndermez
 
+## Güncelleme 2: Marka Bazlı Stok Sistemi, Tarih Seçici Düzeltmesi
+
+- **Paylaşımlar artık marka kartlı stok sistemi**: Müşteriler sekmesindeki aktif/yeni müşteriler otomatik olarak burada kart olarak çıkar. Her kartta Görsel/Video/Reels/Story/Carousel için ayrı stok sayacı var. "Paylaşıldı" tıklanınca o türün stoğu 1 azalır, "+" tıklanınca (çekim yapıldığında) 1 artar. Üstte tür bazında toplam stok özeti, altta son hareketler listesi var.
+- **Reklamlar ve Paylaşımlar'da tarih alanları artık gerçek takvim seçici**: Önceden düz metin kutusuydu, artık tıklayınca küçük bir takvim açılıp oradan seçiliyor. Bu aynı zamanda "biten reklamlar" filtresinin daha güvenilir çalışmasını sağlıyor (tarih formatı artık her zaman tutarlı).
+- **Ayarlar'daki bozuk "Tebliğ Şablonu" kartı kaldırıldı.** Tebliğ metnini düzenleme özelliği (Müşteriler'de "Tebliğ Oluştur"a tıklayınca açılan pencere) olduğu gibi çalışmaya devam ediyor.
+
 ## Notlar
 - Uygulama şu an örnek (demo) verilerle geliyor. Gerçek verilerini bağlamak istediğinde `src/App.jsx` içindeki `clients`, `monthly`, `operasyonlar` gibi listeleri kendi verilerinle değiştirebiliriz, ya da bir sonraki adımda bunları düzenleyebileceğin bir veri giriş ekranı ekleyebiliriz.
 - API anahtarın hiçbir zaman tarayıcıya gönderilmiyor; `api/chat.js` sunucu tarafında çalışıyor.

@@ -2,7 +2,8 @@ export const DEFAULT_DATA = {
   firmaAdi: "Marcus Medya",
   teklifler: [],
   reklamlar: [],
-  paylasimlar: [],
+  stoklar: {},
+  paylasimGecmisi: [],
   monthly: [
     { id: 1, ay: "Şub", yil: 2026, ciro: 168000, gider: 98000, net: 70000 },
     { id: 2, ay: "Mar", yil: 2026, ciro: 182000, gider: 101000, net: 81000 },

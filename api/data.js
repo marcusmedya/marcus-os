@@ -1,7 +1,7 @@
 import { kv } from "@vercel/kv";
 
 const KEY = "marcus-os-data";
-const STAFF_FIELDS = ["reklamlar", "paylasimlar"];
+const STAFF_FIELDS = ["reklamlar", "stoklar", "paylasimGecmisi"];
 
 /** Şifreyi kontrol edip rolü döndürür: "owner" (tam yetki), "staff" (sadece reklam/paylaşım), ya da null (yetkisiz). */
 function resolveRole(req) {
@@ -22,8 +22,14 @@ export default async function handler(req, res) {
     if (req.method === "GET") {
       const data = await kv.get(KEY);
       if (role === "staff") {
-        // Personel sadece kendi alanlarını görsün; diğer iş verileri tarayıcıya hiç gönderilmesin.
-        const restricted = { reklamlar: (data && data.reklamlar) || [], paylasimlar: (data && data.paylasimlar) || [] };
+        // Personel sadece kendi alanlarını görsün; müşteri listesi de sadece marka kartlarını
+        // gösterebilmek için isim/durum ile sınırlı gider — finans/maliyet bilgisi hiç gönderilmez.
+        const restricted = {
+          reklamlar: (data && data.reklamlar) || [],
+          stoklar: (data && data.stoklar) || {},
+          paylasimGecmisi: (data && data.paylasimGecmisi) || [],
+          clients: ((data && data.clients) || []).map((c) => ({ id: c.id, ad: c.ad, durum: c.durum })),
+        };
         return res.status(200).json({ data: restricted, role });
       }
       return res.status(200).json({ data: data || null, role });
@@ -33,7 +39,7 @@ export default async function handler(req, res) {
       const { data, force } = req.body || {};
       if (!data) return res.status(400).json({ error: "data eksik" });
 
-      // PERSONEL: sadece reklamlar/paylasimlar alanlarını değiştirebilir, geri kalan veri
+      // PERSONEL: sadece reklamlar/stok/paylaşım geçmişi alanlarını değiştirebilir, geri kalan veri
       // sunucuda korunur ve gönderilen içerik ne olursa olsun yok sayılır.
       if (role === "staff") {
         const existing = (await kv.get(KEY)) || {};
