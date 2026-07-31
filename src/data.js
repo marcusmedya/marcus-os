@@ -1,6 +1,7 @@
 export const DEFAULT_DATA = {
   firmaAdi: "Marcus Medya",
   teklifler: [],
+  teklifSablonlari: [],
   reklamlar: [],
   stoklar: {},
   paylasimGecmisi: [],

@@ -2565,6 +2565,8 @@ export default function MarcusOS() {
   }));
 
   const saveTeklif = (teklif) => setData((d) => ({ ...d, teklifler: [...(d.teklifler || []), teklif] }));
+  const saveSablon = (ad, secimler) => setData((d) => ({ ...d, teklifSablonlari: [...(d.teklifSablonlari || []), { id: nextId(d.teklifSablonlari || []), ad, secimler }] }));
+  const deleteSablon = (id) => setData((d) => ({ ...d, teklifSablonlari: (d.teklifSablonlari || []).filter((s) => s.id !== id) }));
 
   const addReklam = (r) => setData((d) => ({ ...d, reklamlar: [...(d.reklamlar || []), { ...r, id: nextId(d.reklamlar || []) }] }));
   const updateReklam = (id, patch) => setData((d) => ({ ...d, reklamlar: (d.reklamlar || []).map((r) => (r.id === id ? { ...r, ...patch } : r)) }));
@@ -3047,7 +3049,15 @@ export default function MarcusOS() {
               onDeleteOdemeKaydi={deleteOdemeKaydi}
             />
           )}
-          {tab === "teklif" && <TeklifSozlesme firmaAdi={data.firmaAdi || "Marcus Medya"} onSaveTeklif={saveTeklif} />}
+          {tab === "teklif" && (
+            <TeklifSozlesme
+              firmaAdi={data.firmaAdi || "Marcus Medya"}
+              onSaveTeklif={saveTeklif}
+              sablonlar={data.teklifSablonlari || []}
+              onSaveSablon={saveSablon}
+              onDeleteSablon={deleteSablon}
+            />
+          )}
           {tab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} />}
           {tab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} />}
           {tab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} />}

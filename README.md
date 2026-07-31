@@ -153,6 +153,14 @@ Kurulumdan sonra Ayarlar sayfasındaki **"Şimdi Test Et"** butonuyla hemen dene
 - **Reklamlar ve Paylaşımlar'da tarih alanları artık gerçek takvim seçici**: Önceden düz metin kutusuydu, artık tıklayınca küçük bir takvim açılıp oradan seçiliyor. Bu aynı zamanda "biten reklamlar" filtresinin daha güvenilir çalışmasını sağlıyor (tarih formatı artık her zaman tutarlı).
 - **Ayarlar'daki bozuk "Tebliğ Şablonu" kartı kaldırıldı.** Tebliğ metnini düzenleme özelliği (Müşteriler'de "Tebliğ Oluştur"a tıklayınca açılan pencere) olduğu gibi çalışmaya devam ediyor.
 
+## Güncelleme 3: Teklif & Sözleşme — Fiyatsız Katalog, Logo, Kendi Şablonların
+
+- **Fiyat kaldırıldı**: Hizmetlerin artık birim fiyatı yok. Sadece Reels, Carousel, Tek Görsel/Post ve Story'de adet seçilebiliyor; diğerleri sade işaretleme kutusu. Toplam fiyatı sağ panelden **tek elden sen giriyorsun**, "KDV ekle" işaretini açıp kapatabiliyorsun.
+- **"Ek Hizmetler" kategorisi (Web Sitesi, SEO, Google Ads vb.) kaldırıldı.**
+- **Logo alanları**: Sol panelde kendi logonu ve müşteri logosunu yükleyebiliyorsun; sağ önizlemede ve yazdırılan çıktıda otomatik görünüyor.
+- **Son hali gör/düzenle**: "Teklifin Son Halini Gör" / "Sözleşmenin Son Halini Gör" artık önce düzenlenebilir bir pencere açıyor — değişiklik yapıp öyle yazdırıyorsun.
+- **Hazır paketler kaldırıldı, yerine "Şablonlarım" geldi**: İstediğin bir seçimi "Şablon Olarak Kaydet" ile kendi adınla kaydedip sonra tek tıkla tekrar uygulayabiliyorsun. İstemediğin şablonu silebilirsin.
+
 ## Notlar
 - Uygulama şu an örnek (demo) verilerle geliyor. Gerçek verilerini bağlamak istediğinde `src/App.jsx` içindeki `clients`, `monthly`, `operasyonlar` gibi listeleri kendi verilerinle değiştirebiliriz, ya da bir sonraki adımda bunları düzenleyebileceğin bir veri giriş ekranı ekleyebiliriz.
 - API anahtarın hiçbir zaman tarayıcıya gönderilmiyor; `api/chat.js` sunucu tarafında çalışıyor.
