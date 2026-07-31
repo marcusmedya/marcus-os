@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, Wallet, Settings, Sparkles,
   ArrowUpRight, ArrowDownRight, X, Send, Plus, Pencil, Trash2, Check,
   ChevronRight,
-  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp, Menu, Calendar, ChevronLeft
+  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp, Menu, Calendar, ChevronLeft, ListChecks
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
@@ -101,11 +101,17 @@ function clientPaymentStatus(client) {
 function clientOverdueMonths(client) {
   if (!client.odemeGunu) return 0;
   const now = new Date();
+  let baslangicKey = null;
+  if (client.baslangic && /^\d{4}-\d{1,2}$/.test(client.baslangic.trim())) {
+    const [by, bm] = client.baslangic.trim().split("-").map(Number);
+    baslangicKey = `${by}-${String(bm).padStart(2, "0")}`;
+  }
   let count = 0;
   for (let i = 0; i < 24; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    if (i === 0 && now.getDate() < Number(client.odemeGunu)) continue; // bu ayın vadesi henüz gelmedi
     const key = monthKey(d);
+    if (baslangicKey && key < baslangicKey) break; // müşterinin başlangıcından öncesini sayma
+    if (i === 0 && now.getDate() < Number(client.odemeGunu)) continue; // bu ayın vadesi henüz gelmedi
     if ((client.odemeler || []).includes(key)) break;
     count++;
   }
@@ -1272,6 +1278,131 @@ function Takvim({ data }) {
 }
 
 /* ------------------------------------------------------------------ */
+/* ÖDEME TAKVİMİ                                                         */
+/* ------------------------------------------------------------------ */
+/** Son N ayın anahtarlarını (en eskiden en yeniye) ve kısa etiketlerini üretir. */
+function sonAylar(n) {
+  const now = new Date();
+  const arr = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    arr.push({ key: monthKey(d), label: d.toLocaleDateString("tr-TR", { month: "short", year: "2-digit" }) });
+  }
+  return arr;
+}
+
+function OdemeTakvimi({ clients, onToggleMonth }) {
+  const [ayCount, setAyCount] = useState(6);
+  const izlenenler = clients.filter((c) => c.durum !== "ayrildi" && c.odemeGunu);
+  const aylar = sonAylar(ayCount);
+  const bugunKey = monthKey();
+  const bugunGun = new Date().getDate();
+
+  const hucreDurumu = (client, ayObj) => {
+    const odendi = (client.odemeler || []).includes(ayObj.key);
+    if (odendi) return "odendi";
+    if (ayObj.key > bugunKey) return "gelecek";
+    if (ayObj.key === bugunKey && bugunGun < Number(client.odemeGunu)) return "gelecek";
+    // başlangıçtan önceyse "yok" say
+    if (client.baslangic && /^\d{4}-\d{1,2}$/.test(client.baslangic.trim())) {
+      const [by, bm] = client.baslangic.trim().split("-").map(Number);
+      const baslangicKey = `${by}-${String(bm).padStart(2, "0")}`;
+      if (ayObj.key < baslangicKey) return "yok";
+    }
+    return "odenmedi";
+  };
+
+  const toplamBirikmisBorc = izlenenler.reduce((sum, c) => {
+    const borcluAySayisi = aylar.filter((a) => hucreDurumu(c, a) === "odenmedi").length;
+    return sum + borcluAySayisi * (Number(c.aylikUcret) || 0);
+  }, 0);
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 22 }}>
+        <KpiCard label="TAKİP EDİLEN MÜŞTERİ" value={izlenenler.length} mono={false} />
+        <KpiCard label="BİRİKMİŞ TOPLAM BORÇ" value={fmt(toplamBirikmisBorc)} accent={T.danger} />
+      </div>
+
+      <Card style={{ padding: "10px 12px", marginBottom: 16, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+        {[6, 12].map((n) => (
+          <button
+            key={n}
+            onClick={() => setAyCount(n)}
+            style={{ background: ayCount === n ? T.accentSoft : "transparent", color: ayCount === n ? T.accentText : T.textDim, border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 12.5, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer" }}
+          >
+            Son {n} ay
+          </button>
+        ))}
+      </Card>
+
+      {izlenenler.length === 0 ? (
+        <Card style={{ padding: "24px", textAlign: "center" }}>
+          <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Ödeme günü tanımlı müşteri yok. Müşteriler sekmesinde bir müşteriyi düzenleyip "Ödeme Günü" alanını doldurursan burada görünür.</div>
+        </Card>
+      ) : (
+        <Card style={{ padding: 4 }}>
+          <div className="marcus-table-wrap">
+            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Inter, sans-serif", minWidth: 480 + aylar.length * 64 }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 11.5, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}`, position: "sticky", left: 0, background: T.surface }}>Müşteri</th>
+                  {aylar.map((a) => (
+                    <th key={a.key} style={{ textAlign: "center", padding: "12px 8px", fontSize: 11.5, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}`, minWidth: 64 }}>{a.label}</th>
+                  ))}
+                  <th style={{ textAlign: "right", padding: "12px 16px", fontSize: 11.5, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}` }}>Birikmiş Borç</th>
+                </tr>
+              </thead>
+              <tbody>
+                {izlenenler.map((c) => {
+                  const borcluAySayisi = aylar.filter((a) => hucreDurumu(c, a) === "odenmedi").length;
+                  const borc = borcluAySayisi * (Number(c.aylikUcret) || 0);
+                  return (
+                    <tr key={c.id} style={{ borderBottom: `1px solid ${T.borderSoft}` }}>
+                      <td style={{ padding: "10px 16px", fontSize: 13, color: T.text, fontWeight: 600, position: "sticky", left: 0, background: T.surface }}>{c.ad}</td>
+                      {aylar.map((a) => {
+                        const durum = hucreDurumu(c, a);
+                        const stil = {
+                          odendi: { bg: T.successSoft, color: T.success, sym: "✓" },
+                          odenmedi: { bg: T.dangerSoft, color: T.danger, sym: "✕" },
+                          gelecek: { bg: T.borderSoft, color: T.textFaint, sym: "·" },
+                          yok: { bg: "transparent", color: T.textFaint, sym: "" },
+                        }[durum];
+                        const tiklanabilir = durum === "odendi" || durum === "odenmedi";
+                        return (
+                          <td key={a.key} style={{ padding: "8px", textAlign: "center" }}>
+                            <button
+                              disabled={!tiklanabilir}
+                              onClick={() => tiklanabilir && onToggleMonth(c.id, a.key, durum === "odendi" ? "kaldir" : "ekle")}
+                              title={tiklanabilir ? "Durumu değiştirmek için tıkla" : undefined}
+                              style={{
+                                width: 34, height: 28, borderRadius: 7, border: "none", background: stil.bg, color: stil.color,
+                                fontSize: 13, fontWeight: 700, cursor: tiklanabilir ? "pointer" : "default", fontFamily: "Inter, sans-serif",
+                              }}
+                            >
+                              {stil.sym}
+                            </button>
+                          </td>
+                        );
+                      })}
+                      <td style={{ padding: "10px 16px", textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: borc > 0 ? T.danger : T.textFaint, fontWeight: 600 }}>{fmt(borc)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 10 }}>
+        <span style={{ color: T.success }}>✓</span> ödendi · <span style={{ color: T.danger }}>✕</span> ödenmedi (tıkla, ödendi yap) · <span style={{ color: T.textFaint }}>·</span> henüz vadesi gelmedi. Bu veriler Müşteriler sekmesindeki "Ödeme Günü" ve "Ödendi işaretle" ile aynı yerden gelir.
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* PERSONEL                                                              */
 /* ------------------------------------------------------------------ */
 const PERSONEL_FIELDS = [
@@ -1770,6 +1901,31 @@ function BackupReminder({ onBackupNow, onDismiss }) {
   );
 }
 
+function SaveBlockedModal({ info, onCancel, onForce }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 110, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div className="marcus-card" style={{ background: T.surface, border: `2px solid ${T.danger}`, borderRadius: 18, width: 420, maxWidth: "100%", padding: "26px 28px" }}>
+        <div style={{ width: 44, height: 44, borderRadius: 12, background: T.dangerSoft, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+          <Bell size={20} color={T.danger} />
+        </div>
+        <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16.5, fontWeight: 600, color: T.text, margin: "0 0 8px", textAlign: "center" }}>Kayıt güvenlik nedeniyle durduruldu</h2>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, textAlign: "center", margin: "0 0 18px" }}>
+          Kaydetmeye çalıştığın veri, mevcut kayıtlı veriden çok daha az müşteri içeriyor
+          (<strong style={{ color: T.text }}>{info.existingCount}</strong> → <strong style={{ color: T.text }}>{info.newCount}</strong>).
+          Bu, istenmeyen bir veri kaybı olabilir diye otomatik olarak durduruldu.
+        </p>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12.5, color: T.textFaint, lineHeight: 1.6, textAlign: "center", margin: "0 0 20px" }}>
+          Eğer bilerek birden fazla müşteri sildiysen "Evet, devam et" diyebilirsin. Emin değilsen "İptal" de ve Ayarlar'daki günlük yedeklerden verinin son sağlam halini kontrol et.
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <button onClick={onCancel} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center" }}>İptal — verimi koru</button>
+          <button onClick={onForce} style={{ ...cancelBtnStyle, width: "100%", color: T.danger, borderColor: T.danger }}>Evet, bu doğru — devam et ve kaydet</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* APP SHELL                                                            */
 /* ------------------------------------------------------------------ */
@@ -1778,6 +1934,7 @@ const NAV = [
   { key: "musteriler", label: "Müşteriler", icon: Users },
   { key: "finans", label: "Finans", icon: Wallet },
   { key: "takvim", label: "Takvim", icon: Calendar },
+  { key: "odeme-takvimi", label: "Ödeme Takvimi", icon: ListChecks },
   { key: "personel", label: "Personel", icon: Briefcase },
   { key: "birikim", label: "Birikim", icon: PiggyBank },
   { key: "ayarlar", label: "Ayarlar", icon: Settings },
@@ -1801,6 +1958,8 @@ export default function MarcusOS() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isMobile = useIsMobile();
   const [loadError, setLoadError] = useState(false);
+  const [needsSeedConfirm, setNeedsSeedConfirm] = useState(false);
+  const [saveBlocked, setSaveBlocked] = useState(null);
   const saveTimer = useRef(null);
   const skipNextSave = useRef(true);
 
@@ -1821,9 +1980,14 @@ export default function MarcusOS() {
           return;
         }
         const res = await r.json();
-        // res.data === null burada gerçekten "daha önce hiç kayıt yapılmamış" anlamına gelir,
-        // bu yüzden sadece bu durumda demo veriyle başlamak güvenlidir.
-        setData(res.data || DEFAULT_DATA);
+        if (res.data) {
+          setData(res.data);
+          setNeedsSeedConfirm(false);
+        } else {
+          // Veritabanı boş döndü — bu gerçekten ilk kurulum olabilir AMA aynı zamanda şüpheli bir
+          // durum da olabilir (bkz. geçmişteki veri kaybı). Onay almadan ASLA demo veriyle doldurup kaydetmiyoruz.
+          setNeedsSeedConfirm(true);
+        }
         setNeedsAuth(false);
         setAuthError("");
       })
@@ -1840,12 +2004,22 @@ export default function MarcusOS() {
 
   useEffect(() => {
     if (!data) return;
-    if (skipNextSave.current) { skipNextSave.current = false; }
+    if (skipNextSave.current) { skipNextSave.current = false; return; }
     setSaveStatus("saving");
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       fetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json", "X-Site-Password": getPw() }, body: JSON.stringify({ data }) })
-        .then(() => { setSaveStatus("saved"); setLastSavedAt(new Date()); })
+        .then(async (r) => {
+          if (r.status === 409) {
+            const res = await r.json();
+            setSaveStatus("error");
+            setSaveBlocked({ ...res, dataToForce: data });
+            return;
+          }
+          if (!r.ok) { setSaveStatus("error"); return; }
+          setSaveStatus("saved");
+          setLastSavedAt(new Date());
+        })
         .catch(() => setSaveStatus("error"));
     }, 500);
     return () => clearTimeout(saveTimer.current);
@@ -1853,6 +2027,15 @@ export default function MarcusOS() {
   }, [data]);
 
   const openAi = (q) => { setAiQuestion(q || null); setAiOpen(true); };
+
+  const forceSave = () => {
+    if (!saveBlocked) return;
+    const payload = saveBlocked.dataToForce;
+    fetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json", "X-Site-Password": getPw() }, body: JSON.stringify({ data: payload, force: true }) })
+      .then((r) => { if (r.ok) { setSaveStatus("saved"); setLastSavedAt(new Date()); } else { setSaveStatus("error"); } })
+      .catch(() => setSaveStatus("error"))
+      .finally(() => setSaveBlocked(null));
+  };
 
   // ---- CRUD handlers ----
   const addClient = (c) => setData((d) => ({ ...d, clients: [...d.clients, { ...c, maliyetler: [], odemeler: [], id: nextId(d.clients) }] }));
@@ -1875,6 +2058,16 @@ export default function MarcusOS() {
   const markClientUnpaid = (clientId) => setData((d) => ({
     ...d,
     clients: d.clients.map((c) => (c.id === clientId ? { ...c, odemeler: (c.odemeler || []).filter((m) => m !== monthKey()) } : c)),
+  }));
+
+  const toggleMonthPaid = (clientId, monthKeyStr, action) => setData((d) => ({
+    ...d,
+    clients: d.clients.map((c) => {
+      if (c.id !== clientId) return c;
+      const mevcut = c.odemeler || [];
+      const yeni = action === "ekle" ? [...mevcut.filter((m) => m !== monthKeyStr), monthKeyStr] : mevcut.filter((m) => m !== monthKeyStr);
+      return { ...c, odemeler: yeni };
+    }),
   }));
 
   const addGelir = (g) => setData((d) => ({ ...d, gelirKalemleri: [...d.gelirKalemleri, { ...g, id: nextId(d.gelirKalemleri) }] }));
@@ -2055,7 +2248,7 @@ export default function MarcusOS() {
     else setTab("finans");
   };
 
-  const titles = { dashboard: "Dashboard", musteriler: "Müşteriler", finans: "Finans", takvim: "Takvim", personel: "Personel", birikim: "Birikim", ayarlar: "Ayarlar" };
+  const titles = { dashboard: "Dashboard", musteriler: "Müşteriler", finans: "Finans", takvim: "Takvim", "odeme-takvimi": "Ödeme Takvimi", personel: "Personel", birikim: "Birikim", ayarlar: "Ayarlar" };
   const todayLabel = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
 
   if (needsAuth) {
@@ -2072,6 +2265,34 @@ export default function MarcusOS() {
             Sunucuya bağlanırken bir sorun oluştu. Endişelenme — mevcut verilerinin üzerine hiçbir şey yazılmadı. İnternet bağlantını kontrol edip tekrar dene.
           </div>
           <button style={saveBtnStyle} onClick={() => loadData(false)}>Tekrar Dene</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (needsSeedConfirm) {
+    return (
+      <div style={{ background: T.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+        <style>{FONTS}</style>
+        <div style={{ textAlign: "center", maxWidth: 380 }}>
+          <div style={{ color: T.warning, fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 600, marginBottom: 10 }}>Veritabanında hiçbir kayıt bulunamadı</div>
+          <div style={{ color: T.textDim, fontFamily: "Inter, sans-serif", fontSize: 13, lineHeight: 1.7, marginBottom: 18 }}>
+            Bunun iki sebebi olabilir: (1) bu gerçekten ilk kurulumun, ya da (2) beklenmedik bir sorun. Emin olana kadar hiçbir şey otomatik yazılmadı.
+            Daha önce veri girdiysen, "Örnek Verilerle Başla"ya BASMA — önce Ayarlar'daki günlük yedekleri kontrol et.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <button
+              style={saveBtnStyle}
+              onClick={() => {
+                skipNextSave.current = false;
+                setData(DEFAULT_DATA);
+                setNeedsSeedConfirm(false);
+              }}
+            >
+              Evet, ilk kurulum — Örnek Verilerle Başla
+            </button>
+            <button style={cancelBtnStyle} onClick={() => loadData(false)}>Tekrar Dene (bir şey değiştirmeden)</button>
+          </div>
         </div>
       </div>
     );
@@ -2259,6 +2480,7 @@ export default function MarcusOS() {
             />
           )}
           {tab === "takvim" && <Takvim data={data} />}
+          {tab === "odeme-takvimi" && <OdemeTakvimi clients={data.clients} onToggleMonth={toggleMonthPaid} />}
           {tab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} />}
           {tab === "birikim" && (
             <Birikim
@@ -2279,6 +2501,13 @@ export default function MarcusOS() {
         <BackupReminder
           onBackupNow={() => { exportJson(); setShowBackupReminder(false); }}
           onDismiss={() => setShowBackupReminder(false)}
+        />
+      )}
+      {saveBlocked && (
+        <SaveBlockedModal
+          info={saveBlocked}
+          onCancel={() => setSaveBlocked(null)}
+          onForce={forceSave}
         />
       )}
     </div>

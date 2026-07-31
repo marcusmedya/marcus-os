@@ -22,8 +22,26 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "POST") {
-      const { data } = req.body || {};
+      const { data, force } = req.body || {};
       if (!data) return res.status(400).json({ error: "data eksik" });
+
+      // GÜVENLİK FRENİ: müşteri sayısı mevcut veriye göre çarpıcı biçimde azalıyorsa
+      // (örn. bir hata sonucu boş/demo veri yazılmaya çalışılıyorsa) kaydı reddet.
+      // Bilinçli bir toplu silme durumunda ön yüz "force: true" ile tekrar dener.
+      if (!force) {
+        const existing = await kv.get(KEY);
+        const existingCount = existing && Array.isArray(existing.clients) ? existing.clients.length : 0;
+        const newCount = Array.isArray(data.clients) ? data.clients.length : 0;
+        if (existingCount >= 2 && newCount < existingCount * 0.6) {
+          return res.status(409).json({
+            blocked: true,
+            error: `Güvenlik freni: mevcut ${existingCount} müşteriden ${newCount}'a düşen bir kayıt engellendi. Bu istenmeyen bir veri kaybı olabilir.`,
+            existingCount,
+            newCount,
+          });
+        }
+      }
+
       await kv.set(KEY, data);
 
       // Her kayıtta o günün otomatik yedeğini de al (aynı gün içindeki kayıtlar üzerine yazar,

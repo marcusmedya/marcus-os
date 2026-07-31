@@ -126,6 +126,12 @@ Kurulumdan sonra Ayarlar sayfasındaki **"Şimdi Test Et"** butonuyla hemen dene
 
 - **Ödenmeyen Ödemeler + Tebliğ Oluşturma**: Müşteriler sekmesinin en üstünde, ödeme günü geçtiği halde birden fazla aydır ödenmemiş müşteriler otomatik listelenir (kaç ay, toplam ne kadar borç birikmiş dahil). Her biri için **"Tebliğ Oluştur"** ile resmi bir ödeme hatırlatma yazısı yeni pencerede açılır ve yazdırma penceresi gelir — oradan "PDF olarak kaydet" ile dosya indirip müşteriye gönderebilirsin. "Metni Kopyala" ile de WhatsApp/e-posta için düz metin alabilirsin. Aynı özellik müşteri detay sayfasında da mevcut.
 
+- **Ödeme Takvimi sekmesi (yeni)**: Ödeme günü tanımlı her müşterinin son 6/12 ayının ödenip ödenmediğini bir tabloda gösterir (✓ ödendi, ✕ ödenmedi, · henüz vadesi gelmedi). Hücrelere tıklayarak geçmişe dönük ayları da ödendi/ödenmedi olarak işaretleyebilirsin — Müşteriler sekmesindeki verilerle aynı yerden besleniyor. Her müşterinin ve toplamın birikmiş borcunu gösterir.
+- **Düzeltme**: "Kaç aydır ödenmedi" hesaplaması artık müşterinin başlangıç tarihinden öncesini saymıyor (önceden hiç "ödendi" işaretlenmemiş müşterilerde 24 aya kadar şişebiliyordu).
+
+- **İkinci güvenlik katmanı (sunucu tarafı fren)**: Artık ön yüzdeki hatadan bağımsız olarak, sunucu da her kayıt isteğinde kontrol yapıyor — eğer müşteri sayısı mevcut kayıtlı veriye göre %40'ın altına düşüyorsa (örn. bir hata sonucu boş/demo veri yazılmaya çalışılıyorsa), kayıt otomatik reddedilir ve ekranda "Kayıt güvenlik nedeniyle durduruldu" penceresi çıkar. Bilinçli bir toplu silme yaptıysan "Evet, bu doğru" ile devam edebilirsin.
+- **Kritik hata düzeltmesi**: Uygulamanın ilk açılışında veritabanından okunan veri, önceden yanlışlıkla hemen geri kaydediliyordu — okuma bir anlığına boş dönerse (örn. yeni bir deploy sonrası), bu durum gerçek veriyi örnek veriyle eziyordu. Artık ilk yükleme asla otomatik kaydetmiyor; veritabanı gerçekten boşsa açıkça onay isteyen bir ekran çıkıyor.
+
 ## Notlar
 - Uygulama şu an örnek (demo) verilerle geliyor. Gerçek verilerini bağlamak istediğinde `src/App.jsx` içindeki `clients`, `monthly`, `operasyonlar` gibi listeleri kendi verilerinle değiştirebiliriz, ya da bir sonraki adımda bunları düzenleyebileceğin bir veri giriş ekranı ekleyebiliriz.
 - API anahtarın hiçbir zaman tarayıcıya gönderilmiyor; `api/chat.js` sunucu tarafında çalışıyor.
