@@ -16,10 +16,23 @@ const C = {
   warning: "#F5A623", warningSoft: "rgba(245,166,35,0.12)",
 };
 
-export const ASAMALAR = [
+export const KATEGORILER = ["Video", "Grafik Tasarım"];
+
+export const ASAMALAR_VIDEO = [
   "Çekim Planlandı", "Çekim Yapıldı", "Dosyalar Aktarıldı", "Edit Bekliyor",
   "Edit Yapılıyor", "Kontrol Bekliyor", "Revize İstendi", "Onaylandı", "Teslim Edildi",
 ];
+export const ASAMALAR_TASARIM = [
+  "Talep Alındı", "Tasarım Bekliyor", "Tasarım Yapılıyor",
+  "Kontrol Bekliyor", "Revize İstendi", "Onaylandı", "Teslim Edildi",
+];
+/** Geriye dönük uyumluluk: kategorisiz eski kayıtlar Video akışını kullanır. */
+export const ASAMALAR = ASAMALAR_VIDEO;
+export const asamaListesi = (kategori) => (kategori === "Grafik Tasarım" ? ASAMALAR_TASARIM : ASAMALAR_VIDEO);
+/** O kategoride "işin bizzat yapıldığı" aşama — "Tamamladım" butonunun tetiklendiği yer. */
+const YAPILIYOR_ASAMASI = { "Video": "Edit Yapılıyor", "Grafik Tasarım": "Tasarım Yapılıyor" };
+const TAMAMLADIM_ETIKETI = { "Video": "Editi Tamamladım", "Grafik Tasarım": "Tasarımı Tamamladım" };
+
 const ONCELIKLER = ["Düşük", "Normal", "Yüksek"];
 const ONCELIK_RENK = { "Düşük": C.textFaint, "Normal": C.accentText, "Yüksek": C.danger };
 
@@ -70,7 +83,8 @@ const btnGhost = { display: "flex", alignItems: "center", justifyContent: "cente
 function IsKarti({ job, onClick, draggable, onDragStart }) {
   const aciliyet = aciliyetDurumu(job);
   const stil = ACILIYET_STIL[aciliyet];
-  const yuzde = Math.round((ASAMALAR.indexOf(job.asama) / (ASAMALAR.length - 1)) * 100);
+  const asamalar = asamaListesi(job.kategori);
+  const yuzde = Math.round((asamalar.indexOf(job.asama) / (asamalar.length - 1)) * 100);
   return (
     <div
       onClick={onClick}
@@ -82,9 +96,9 @@ function IsKarti({ job, onClick, draggable, onDragStart }) {
         <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{job.marka}</div>
         <span style={{ width: 7, height: 7, borderRadius: 999, background: ONCELIK_RENK[job.oncelik], flexShrink: 0, marginTop: 4 }} title={`Öncelik: ${job.oncelik}`} />
       </div>
-      <div style={{ fontSize: 11.5, color: C.textDim, marginBottom: 8 }}>{job.icerikTuru}</div>
+      <div style={{ fontSize: 11.5, color: C.textDim, marginBottom: 8 }}>{job.icerikTuru}{job.kategori ? ` · ${job.kategori}` : ""}</div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: C.textFaint, marginBottom: 8 }}>
-        <span>{job.kameraman || "—"} / {job.editor || "—"}</span>
+        <span>{job.kameraman || job.editor || "—"}{job.kategori !== "Grafik Tasarım" && job.editor ? ` / ${job.editor}` : ""}</span>
         <span style={{ color: stil.color, fontWeight: 600 }}>{job.teslimTarihi}</span>
       </div>
       <div style={{ height: 4, borderRadius: 999, background: C.borderSoft, overflow: "hidden" }}>
@@ -97,28 +111,42 @@ function IsKarti({ job, onClick, draggable, onDragStart }) {
 /* ------------------------------------------------------------------ */
 /* Yeni İş Formu                                                         */
 /* ------------------------------------------------------------------ */
-function YeniIsFormu({ clients, onSubmit, onCancel }) {
+function YeniIsFormu({ clients, varsayilanKategori, onSubmit, onCancel }) {
   const [v, setV] = useState({
+    kategori: varsayilanKategori || "Video",
     marka: "", icerikTuru: "", cekimTarihi: bugunISO(), teslimTarihi: bugunISO(),
     kameraman: "", editor: "", oncelik: "Normal", istenenAdet: "", brief: "",
   });
   const set = (k, val) => setV((s) => ({ ...s, [k]: val }));
+  const video = v.kategori !== "Grafik Tasarım";
   return (
     <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, marginBottom: 16 }}>
+      <label style={labelStyle}>Kategori</label>
+      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        {KATEGORILER.map((k) => (
+          <button
+            key={k}
+            onClick={() => set("kategori", k)}
+            style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1.5px solid ${v.kategori === k ? C.accent : C.border}`, background: v.kategori === k ? C.accentSoft : "transparent", color: v.kategori === k ? C.accentText : C.textDim, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+          >
+            {k}
+          </button>
+        ))}
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
         <div><label style={labelStyle}>Marka</label><input list="marka-listesi" style={inputStyle} value={v.marka} onChange={(e) => set("marka", e.target.value)} /></div>
-        <div><label style={labelStyle}>İçerik Türü</label><input style={inputStyle} placeholder="örn. Reels, Ürün Fotoğrafı" value={v.icerikTuru} onChange={(e) => set("icerikTuru", e.target.value)} /></div>
-        <div><label style={labelStyle}>Çekim Tarihi</label><input type="date" style={inputStyle} value={v.cekimTarihi} onChange={(e) => set("cekimTarihi", e.target.value)} /></div>
+        <div><label style={labelStyle}>İçerik / Talep Türü</label><input style={inputStyle} placeholder={video ? "örn. Reels, Ürün Fotoğrafı" : "örn. Post Tasarımı, Banner"} value={v.icerikTuru} onChange={(e) => set("icerikTuru", e.target.value)} /></div>
+        {video && <div><label style={labelStyle}>Çekim Tarihi</label><input type="date" style={inputStyle} value={v.cekimTarihi} onChange={(e) => set("cekimTarihi", e.target.value)} /></div>}
         <div><label style={labelStyle}>Teslim Tarihi</label><input type="date" style={inputStyle} value={v.teslimTarihi} onChange={(e) => set("teslimTarihi", e.target.value)} /></div>
-        <div><label style={labelStyle}>Sorumlu Kameraman</label><input style={inputStyle} value={v.kameraman} onChange={(e) => set("kameraman", e.target.value)} /></div>
-        <div><label style={labelStyle}>Sorumlu Editör</label><input style={inputStyle} value={v.editor} onChange={(e) => set("editor", e.target.value)} /></div>
+        {video && <div><label style={labelStyle}>Sorumlu Kameraman</label><input style={inputStyle} value={v.kameraman} onChange={(e) => set("kameraman", e.target.value)} /></div>}
+        <div><label style={labelStyle}>{video ? "Sorumlu Editör" : "Sorumlu Tasarımcı"}</label><input style={inputStyle} value={v.editor} onChange={(e) => set("editor", e.target.value)} /></div>
         <div>
           <label style={labelStyle}>Öncelik</label>
           <select style={inputStyle} value={v.oncelik} onChange={(e) => set("oncelik", e.target.value)}>
             {ONCELIKLER.map((o) => <option key={o} value={o}>{o}</option>)}
           </select>
         </div>
-        <div><label style={labelStyle}>İstenen İçerik Adedi</label><input style={inputStyle} value={v.istenenAdet} onChange={(e) => set("istenenAdet", e.target.value)} placeholder="örn. 6 Reels + 10 Post" /></div>
+        <div><label style={labelStyle}>İstenen Adet</label><input style={inputStyle} value={v.istenenAdet} onChange={(e) => set("istenenAdet", e.target.value)} placeholder={video ? "örn. 6 Reels + 10 Post" : "örn. 4 Post + 2 Banner"} /></div>
       </div>
       <label style={labelStyle}>Brief / Notlar</label>
       <textarea style={{ ...inputStyle, marginBottom: 12 }} rows={3} value={v.brief} onChange={(e) => set("brief", e.target.value)} />
@@ -157,7 +185,9 @@ function IsDetayModal({ job, role, staffName, onClose, onUpdate, onDelete }) {
     });
   };
 
-  const editiTamamla = () => asamaGecir("Kontrol Bekliyor", "Editi Tamamladım");
+  const kategori = job.kategori === "Grafik Tasarım" ? "Grafik Tasarım" : "Video";
+  const asamalar = asamaListesi(kategori);
+  const editiTamamla = () => asamaGecir("Kontrol Bekliyor", TAMAMLADIM_ETIKETI[kategori]);
   const onayla = () => asamaGecir("Onaylandı");
   const teslimEt = () => asamaGecir("Teslim Edildi");
   const revizeGonder = () => {
@@ -176,8 +206,8 @@ function IsDetayModal({ job, role, staffName, onClose, onUpdate, onDelete }) {
     setDuzenle(false);
   };
 
-  const suankiIndex = ASAMALAR.indexOf(job.asama);
-  const ileriAsama = suankiIndex < ASAMALAR.length - 1 ? ASAMALAR[suankiIndex + 1] : null;
+  const suankiIndex = asamalar.indexOf(job.asama);
+  const ileriAsama = suankiIndex >= 0 && suankiIndex < asamalar.length - 1 ? asamalar[suankiIndex + 1] : null;
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
@@ -201,13 +231,19 @@ function IsDetayModal({ job, role, staffName, onClose, onUpdate, onDelete }) {
 
         {duzenle ? (
           <div style={{ marginBottom: 16 }}>
+            <label style={labelStyle}>Kategori</label>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              {KATEGORILER.map((k) => (
+                <button key={k} onClick={() => setTaslak((s) => ({ ...s, kategori: k }))} style={{ flex: 1, padding: "8px 0", borderRadius: 9, border: `1.5px solid ${taslak.kategori === k ? C.accent : C.border}`, background: taslak.kategori === k ? C.accentSoft : "transparent", color: taslak.kategori === k ? C.accentText : C.textDim, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>{k}</button>
+              ))}
+            </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
               <div><label style={labelStyle}>Marka</label><input style={inputStyle} value={taslak.marka} onChange={(e) => setTaslak((s) => ({ ...s, marka: e.target.value }))} /></div>
               <div><label style={labelStyle}>İçerik Türü</label><input style={inputStyle} value={taslak.icerikTuru} onChange={(e) => setTaslak((s) => ({ ...s, icerikTuru: e.target.value }))} /></div>
-              <div><label style={labelStyle}>Çekim Tarihi</label><input type="date" style={inputStyle} value={taslak.cekimTarihi} onChange={(e) => setTaslak((s) => ({ ...s, cekimTarihi: e.target.value }))} /></div>
+              {taslak.kategori !== "Grafik Tasarım" && <div><label style={labelStyle}>Çekim Tarihi</label><input type="date" style={inputStyle} value={taslak.cekimTarihi} onChange={(e) => setTaslak((s) => ({ ...s, cekimTarihi: e.target.value }))} /></div>}
               <div><label style={labelStyle}>Teslim Tarihi</label><input type="date" style={inputStyle} value={taslak.teslimTarihi} onChange={(e) => setTaslak((s) => ({ ...s, teslimTarihi: e.target.value }))} /></div>
-              <div><label style={labelStyle}>Kameraman</label><input style={inputStyle} value={taslak.kameraman} onChange={(e) => setTaslak((s) => ({ ...s, kameraman: e.target.value }))} /></div>
-              <div><label style={labelStyle}>Editör</label><input style={inputStyle} value={taslak.editor} onChange={(e) => setTaslak((s) => ({ ...s, editor: e.target.value }))} /></div>
+              {taslak.kategori !== "Grafik Tasarım" && <div><label style={labelStyle}>Kameraman</label><input style={inputStyle} value={taslak.kameraman} onChange={(e) => setTaslak((s) => ({ ...s, kameraman: e.target.value }))} /></div>}
+              <div><label style={labelStyle}>{taslak.kategori !== "Grafik Tasarım" ? "Editör" : "Tasarımcı"}</label><input style={inputStyle} value={taslak.editor} onChange={(e) => setTaslak((s) => ({ ...s, editor: e.target.value }))} /></div>
               <div>
                 <label style={labelStyle}>Öncelik</label>
                 <select style={inputStyle} value={taslak.oncelik} onChange={(e) => setTaslak((s) => ({ ...s, oncelik: e.target.value }))}>
@@ -259,8 +295,8 @@ function IsDetayModal({ job, role, staffName, onClose, onUpdate, onDelete }) {
 
             {yetkili && (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
-                {job.asama === "Edit Yapılıyor" && <button style={btnPrimary} onClick={editiTamamla}><CheckCircle2 size={14} /> Editi Tamamladım</button>}
-                {job.asama !== "Edit Yapılıyor" && ileriAsama && !["Onaylandı", "Teslim Edildi"].includes(ileriAsama) && (
+                {job.asama === YAPILIYOR_ASAMASI[kategori] && <button style={btnPrimary} onClick={editiTamamla}><CheckCircle2 size={14} /> {TAMAMLADIM_ETIKETI[kategori]}</button>}
+                {job.asama !== YAPILIYOR_ASAMASI[kategori] && ileriAsama && !["Onaylandı", "Teslim Edildi"].includes(ileriAsama) && (
                   <button style={btnGhost} onClick={() => asamaGecir(ileriAsama)}><ChevronRight size={14} /> Sonraki Aşamaya Geçir: {ileriAsama}</button>
                 )}
                 {job.asama === "Kontrol Bekliyor" && !revizeAciliyor && <button style={{ ...btnGhost, color: C.danger, borderColor: C.danger }} onClick={() => setRevizeAciliyor(true)}>Revize İste</button>}
@@ -386,7 +422,7 @@ function YoneticiIstatistik({ jobs }) {
   return (
     <div>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 18 }}>
-        <Kutu label="EDİT BEKLEYEN İŞLER" value={jobs.filter((j) => j.asama === "Edit Bekliyor").length} renk={C.warning} />
+        <Kutu label="İŞ BEKLEYEN İŞLER" value={jobs.filter((j) => j.asama === "Edit Bekliyor" || j.asama === "Tasarım Bekliyor").length} renk={C.warning} />
         <Kutu label="KONTROL BEKLEYEN İŞLER" value={jobs.filter((j) => j.asama === "Kontrol Bekliyor").length} renk={C.accentText} />
         <Kutu label="GECİKEN İŞLER" value={jobs.filter((j) => aciliyetDurumu(j) === "gecikti").length} renk={C.danger} />
         <Kutu label="HAFTALIK TAMAMLANAN ÇEKİM" value={haftalikCekim} renk={C.success} />
@@ -421,6 +457,7 @@ function YoneticiIstatistik({ jobs }) {
 export default function CekimEditTakibi({ role, clients, jobs, onAddJob, onUpdateJob, onDeleteJob, girisYapanAd }) {
   const [staffName, setStaffNameState] = useState(girisYapanAd || getStaffName());
   const [view, setView] = useState(role === "staff" ? "panom" : "pano");
+  const [panoKategori, setPanoKategori] = useState("Video");
   const [adding, setAdding] = useState(false);
   const [acikIs, setAcikIs] = useState(null);
 
@@ -442,9 +479,12 @@ export default function CekimEditTakibi({ role, clients, jobs, onAddJob, onUpdat
     );
   }
 
+  const panoIsleri = isler.filter((j) => (j.kategori === "Grafik Tasarım" ? "Grafik Tasarım" : "Video") === panoKategori);
+  const panoAsamalari = asamaListesi(panoKategori);
+
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", gap: 8 }}>
           {role === "staff" && (
             <button onClick={() => setView("panom")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "none", background: view === "panom" ? C.accentSoft : "transparent", color: view === "panom" ? C.accentText : C.textDim, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><ListTodo size={14} /> Panom</button>
@@ -457,7 +497,15 @@ export default function CekimEditTakibi({ role, clients, jobs, onAddJob, onUpdat
         <button style={btnPrimary} onClick={() => setAdding((v) => !v)}><Plus size={14} /> Yeni İş</button>
       </div>
 
-      {adding && <YeniIsFormu clients={clients} onCancel={() => setAdding(false)} onSubmit={(v) => { onAddJob(v); setAdding(false); }} />}
+      {view === "pano" && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 16, background: C.panelAlt, borderRadius: 10, padding: 3, width: "fit-content" }}>
+          {KATEGORILER.map((k) => (
+            <button key={k} onClick={() => setPanoKategori(k)} style={{ padding: "7px 16px", borderRadius: 8, border: "none", background: panoKategori === k ? C.accent : "transparent", color: panoKategori === k ? "#fff" : C.textDim, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>{k}</button>
+          ))}
+        </div>
+      )}
+
+      {adding && <YeniIsFormu clients={clients} varsayilanKategori={view === "pano" ? panoKategori : "Video"} onCancel={() => setAdding(false)} onSubmit={(v) => { onAddJob(v); setAdding(false); }} />}
 
       {view === "panom" && role === "staff" && <PersonelPaneli jobs={isler} staffName={staffName} onOpen={setAcikIs} />}
 
@@ -465,8 +513,8 @@ export default function CekimEditTakibi({ role, clients, jobs, onAddJob, onUpdat
 
       {view === "pano" && (
         <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8 }}>
-          {ASAMALAR.map((asama) => {
-            const buAsamadakiler = isler.filter((j) => j.asama === asama);
+          {panoAsamalari.map((asama) => {
+            const buAsamadakiler = panoIsleri.filter((j) => j.asama === asama);
             return (
               <div key={asama} style={{ flex: "0 0 240px", minWidth: 240 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, padding: "0 2px" }}>

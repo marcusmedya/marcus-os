@@ -1,10 +1,20 @@
 import { kv } from "@vercel/kv";
 
 // Bu fonksiyon iki şekilde çalışır:
-// 1) Vercel Cron tarafından her gün otomatik (vercel.json'daki zamanlamaya göre)
-// 2) Ayarlar sayfasındaki "Şimdi Test Et" butonuyla elle
+// 1) Vercel Cron tarafından her gün otomatik (vercel.json'daki zamanlamaya göre) — CRON_SECRET ile korunur
+// 2) Ayarlar sayfasındaki "Şimdi Test Et" butonuyla elle — SITE_PASSWORD ile korunur
+
+function yetkiliMi(req) {
+  const cronSecret = process.env.CRON_SECRET;
+  const sitePw = process.env.SITE_PASSWORD;
+  if (!cronSecret && !sitePw) return true; // hiçbiri ayarlanmadıysa (geriye dönük uyumluluk) izin ver
+  if (cronSecret && req.headers["authorization"] === `Bearer ${cronSecret}`) return true;
+  if (sitePw && req.headers["x-site-password"] === sitePw) return true;
+  return false;
+}
 
 export default async function handler(req, res) {
+  if (!yetkiliMi(req)) return res.status(401).json({ error: "Yetkisiz." });
   try {
     const data = await kv.get("marcus-os-data");
     if (!data) {

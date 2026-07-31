@@ -26,6 +26,8 @@ const DARK = {
 };
 
 const fmt = (n) => "₺" + (Number(n) || 0).toLocaleString("tr-TR");
+/** Kullanıcı verisini yazdırılabilir HTML'e basmadan önce güvenli hale getirir (kod enjeksiyonunu engeller). */
+const escapeHtml = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 const nid = () => Math.random().toString(36).slice(2, 9);
 
 const KATEGORI_IKON = {
@@ -90,7 +92,7 @@ function teklifOzetMetni(musteri, secilenListe, toplamFiyat, kdvEkle, firmaAdi) 
 /* Yazdırma / PDF — logolar üstte, metin altta                          */
 /* ------------------------------------------------------------------ */
 function yazdirMetin(baslik, govdeMetni, logoKendi, logoMusteri, kimlikGorseli) {
-  const bodyHtml = String(govdeMetni)
+  const bodyHtml = escapeHtml(govdeMetni)
     .split(/\n{2,}/)
     .map((p) => `<p>${p.replace(/\n/g, "<br/>")}</p>`)
     .join("\n");
@@ -101,7 +103,7 @@ function yazdirMetin(baslik, govdeMetni, logoKendi, logoMusteri, kimlikGorseli) 
        </div>`
     : "";
   const kimlikHtml = kimlikGorseli ? `<div style="margin-top:60px;text-align:center;"><img src="${kimlikGorseli}" style="max-width:100%;max-height:160px;object-fit:contain;" /></div>` : "";
-  const html = `<!doctype html><html lang="tr"><head><meta charset="utf-8" /><title>${baslik}</title>
+  const html = `<!doctype html><html lang="tr"><head><meta charset="utf-8" /><title>${escapeHtml(baslik)}</title>
   <style>
     body { font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 720px; margin: 50px auto; color:#1d1d1f; line-height:1.7; font-size:14.5px; }
     p { margin: 0 0 14px; }
@@ -126,8 +128,8 @@ function yazdirTeklifGorsel(musteri, secilenListe, toplamFiyat, kdvEkle, firmaAd
     <div style="display:flex;gap:16px;padding:14px 0;border-bottom:1px solid #eee;">
       <div style="flex-shrink:0;width:30px;height:30px;border-radius:9px;background:#0071E3;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;">${i + 1}</div>
       <div style="border-left:2px solid #0071E3;padding-left:14px;flex:1;">
-        <div style="font-weight:700;font-size:14.5px;color:#1d1d1f;">${h.ad}${h.adetli && h.adet > 1 ? ` <span style="color:#6e6e73;font-weight:500;">· Aylık ${h.adet} adet</span>` : ""}</div>
-        <div style="font-size:12.5px;color:#6e6e73;margin-top:3px;">${(h.madde || "").replace("{adet}", h.adet || "")}</div>
+        <div style="font-weight:700;font-size:14.5px;color:#1d1d1f;">${escapeHtml(h.ad)}${h.adetli && h.adet > 1 ? ` <span style="color:#6e6e73;font-weight:500;">· Aylık ${Number(h.adet) || 0} adet</span>` : ""}</div>
+        <div style="font-size:12.5px;color:#6e6e73;margin-top:3px;">${escapeHtml((h.madde || "").replace("{adet}", h.adet || ""))}</div>
       </div>
     </div>`).join("");
 
@@ -138,7 +140,7 @@ function yazdirTeklifGorsel(musteri, secilenListe, toplamFiyat, kdvEkle, firmaAd
        </div>` : "";
   const kimlikHtml = kimlikGorseli ? `<div style="margin-top:56px;text-align:center;border-top:1px solid #eee;padding-top:24px;"><img src="${kimlikGorseli}" style="max-width:100%;max-height:150px;object-fit:contain;" /></div>` : "";
 
-  const html = `<!doctype html><html lang="tr"><head><meta charset="utf-8" /><title>Teklif - ${musteri.firma}</title>
+  const html = `<!doctype html><html lang="tr"><head><meta charset="utf-8" /><title>Teklif - ${escapeHtml(musteri.firma)}</title>
   <style>
     body { font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; max-width: 720px; margin: 50px auto; color:#1d1d1f; }
     @media print { body { margin: 24px; } }
@@ -146,8 +148,8 @@ function yazdirTeklifGorsel(musteri, secilenListe, toplamFiyat, kdvEkle, firmaAd
   <body>
     ${logoHtml}
     <div style="text-align:center;margin-bottom:8px;font-size:11px;letter-spacing:1.5px;color:#6e6e73;font-weight:700;">TEKLİF</div>
-    <div style="text-align:center;font-size:22px;font-weight:700;margin-bottom:4px;">${musteri.firma || ""}</div>
-    <div style="text-align:center;font-size:12.5px;color:#6e6e73;margin-bottom:36px;">${firmaAdi} · ${bugun}</div>
+    <div style="text-align:center;font-size:22px;font-weight:700;margin-bottom:4px;">${escapeHtml(musteri.firma || "")}</div>
+    <div style="text-align:center;font-size:12.5px;color:#6e6e73;margin-bottom:36px;">${escapeHtml(firmaAdi)} · ${bugun}</div>
     <div style="margin-bottom:24px;">${maddelerHtml || '<div style="color:#aeaeb4;text-align:center;padding:20px 0;">Seçilen hizmet yok</div>'}</div>
     <div style="display:flex;justify-content:flex-end;margin-top:24px;">
       <div style="text-align:right;">

@@ -1,7 +1,16 @@
 import { kv } from "@vercel/kv";
 
-// Her gün sabah (vercel.json'daki zamanlamaya göre) otomatik çalışır,
-// ayrıca Ayarlar sayfasındaki "Şimdi Test Et" ile elle de tetiklenebilir.
+// Her gün sabah (vercel.json'daki zamanlamaya göre) otomatik çalışır — CRON_SECRET ile korunur,
+// ayrıca Ayarlar sayfasındaki "Şimdi Test Et" ile elle de tetiklenebilir — SITE_PASSWORD ile korunur.
+
+function yetkiliMi(req) {
+  const cronSecret = process.env.CRON_SECRET;
+  const sitePw = process.env.SITE_PASSWORD;
+  if (!cronSecret && !sitePw) return true;
+  if (cronSecret && req.headers["authorization"] === `Bearer ${cronSecret}`) return true;
+  if (sitePw && req.headers["x-site-password"] === sitePw) return true;
+  return false;
+}
 
 function clientPaymentStatus(client) {
   if (!client.odemeGunu) return null;
@@ -41,6 +50,7 @@ function computeLive(data) {
 }
 
 export default async function handler(req, res) {
+  if (!yetkiliMi(req)) return res.status(401).json({ error: "Yetkisiz." });
   try {
     const data = await kv.get("marcus-os-data");
     if (!data) return res.status(200).json({ skipped: true, reason: "Henüz kayıtlı veri yok." });

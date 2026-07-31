@@ -179,6 +179,22 @@ Kurulumdan sonra Ayarlar sayfasındaki **"Şimdi Test Et"** butonuyla hemen dene
 - Şifreler sunucuda **hash'lenmiş** olarak saklanıyor (düz metin hiçbir zaman tutulmuyor), ayrı ve korumalı bir uçtan (`/api/manage-staff`) yönetiliyor — ana veri akışına hiç karışmıyor, owner dahil kimseye şifre/hash geri gönderilmiyor.
 - Eski tek şifreli personel girişi (`STAFF_PASSWORD`) hâlâ çalışmaya devam ediyor — istersen ikisini birlikte de kullanabilirsin.
 
+## Güncelleme 6: Güvenlik Denetimi
+
+- **Giriş ekranındaki tarayıcı otomatik-doldurma sorunu düzeltildi.** Kullanıcı adı/şifre kutularına doğru `autocomplete` özellikleri eklendi — tarayıcı artık alakasız/eski bir kayıtlı değeri oraya doldurmaya çalışmayacak.
+- **İki tamamen korumasız uç nokta kapatıldı**: `/api/daily-backup` ve `/api/daily-summary` önceden URL'yi bilen HERKES tarafından tetiklenebiliyordu (senin adına e-posta ve AI maliyeti oluşturabilirdi). Artık `CRON_SECRET` (Vercel'in otomatik cron çağrıları için) veya `SITE_PASSWORD` (Ayarlar'daki "Şimdi Test Et" butonun için) gerektiriyor.
+  - **ÖNEMLİ — bir şey yapman gerekiyor:** Vercel'de ortam değişkenlerine yeni bir `CRON_SECRET` ekle (rastgele, uzun bir metin — örn. bir şifre üretici ile oluşturabilirsin) ve Redeploy et. Bunu eklemezsen gece 03:00 ve 06:00'daki **otomatik** yedek/özet e-postaları artık çalışmaz (elle "Şimdi Test Et" butonu SITE_PASSWORD ile zaten çalışmaya devam eder).
+- **Teklif/Sözleşme/Tebliğ çıktılarında HTML kod enjeksiyonu riski kapatıldı.** Yazdırılan belgelere eklenen metinler artık güvenli şekilde işleniyor.
+- **Personel hesap yönetimi zaten şifreleri hash'lenmiş saklıyordu** — bu denetimde ek bir sorun bulunmadı, mevcut haliyle güvenli.
+- **Veri kaybı korumaları (skipNextSave, güvenlik freni, seed-onay ekranı) tam olarak sağlam** — yeni eklenen personel hesabı mantığı bunlarla çakışmıyor.
+
+## Güncelleme 7: Operasyon — Video ve Grafik Tasarım Ayrımı
+
+- **"Çekim & Edit Takibi" artık "Operasyon" olarak adlandırıldı** ve iki kategoriyi kapsıyor: **Video** ve **Grafik Tasarım**.
+- Yeni iş oluştururken artık en üstte bir **Kategori** seçiyorsun. Video seçersen iş, Video Edit akışına (Çekim Planlandı → ... → Teslim Edildi) düşüyor; Grafik Tasarım seçersen tasarıma özel bir akışa (Talep Alındı → Tasarım Bekliyor → Tasarım Yapılıyor → Kontrol Bekliyor → ... → Teslim Edildi) düşüyor — çekimle ilgisi olmayan gereksiz adımlar (Çekim Tarihi, Kameraman) otomatik gizleniyor.
+- "Tüm İşler" görünümünde artık üstte **Video / Grafik Tasarım** sekmesi var, her biri kendi panosunu (kanban) gösteriyor.
+- Personel ve yönetici panelleri, istatistikler bu ayrımla uyumlu çalışıyor.
+
 ## Notlar
 - Uygulama şu an örnek (demo) verilerle geliyor. Gerçek verilerini bağlamak istediğinde `src/App.jsx` içindeki `clients`, `monthly`, `operasyonlar` gibi listeleri kendi verilerinle değiştirebiliriz, ya da bir sonraki adımda bunları düzenleyebileceğin bir veri giriş ekranı ekleyebiliriz.
 - API anahtarın hiçbir zaman tarayıcıya gönderilmiyor; `api/chat.js` sunucu tarafında çalışıyor.

@@ -163,15 +163,18 @@ function renderTeblig(sablon, vars) {
   return text;
 }
 
+/** Kullanıcı verisini yazdırılabilir HTML'e basmadan önce güvenli hale getirir (kod enjeksiyonunu engeller). */
+const escapeHtml = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
 /** Serbestçe düzenlenmiş tebliğ metnini yazdırılabilir HTML'e sarar. */
 function tebligHtmlFromText(text, client, firmaAdi) {
   const bugun = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
-  const bodyHtml = String(text)
+  const bodyHtml = escapeHtml(text)
     .split(/\n{2,}/)
     .map((para) => `<p>${para.replace(/\n/g, "<br/>")}</p>`)
     .join("\n");
   return `<!doctype html>
-<html lang="tr"><head><meta charset="utf-8" /><title>Ödeme Hatırlatma - ${client.ad}</title>
+<html lang="tr"><head><meta charset="utf-8" /><title>Ödeme Hatırlatma - ${escapeHtml(client.ad)}</title>
 <style>
   body { font-family: Georgia, 'Times New Roman', serif; max-width: 700px; margin: 60px auto; color:#111; line-height:1.7; font-size:15px; }
   .header { display:flex; justify-content:space-between; margin-bottom:40px; }
@@ -181,7 +184,7 @@ function tebligHtmlFromText(text, client, firmaAdi) {
 </style></head>
 <body>
   <div class="header">
-    <div><strong>${firmaAdi}</strong></div>
+    <div><strong>${escapeHtml(firmaAdi)}</strong></div>
     <div>${bugun}</div>
   </div>
   <div class="baslik">Ödeme Hatırlatma Bildirimi</div>
@@ -2046,7 +2049,7 @@ function EmailYedekTest({ endpoint = "/api/daily-backup" }) {
 
   const test = () => {
     setStatus("loading");
-    fetch(endpoint)
+    fetch(endpoint, { headers: { "X-Site-Password": getPw() } })
       .then((r) => r.json())
       .then((res) => {
         if (res.ok) { setStatus("ok"); setMessage(`Gönderildi: ${res.to}`); }
@@ -2252,7 +2255,7 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
           {[
             { key: "reklamlar", label: "Reklamlar" },
             { key: "paylasimlar", label: "Paylaşımlar" },
-            { key: "cekimEdit", label: "Çekim & Edit Takibi" },
+            { key: "cekimEdit", label: "Operasyon (Video/Grafik Tasarım)" },
           ].map((m) => (
             <label key={m.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: T.surfaceRaised, borderRadius: 10, cursor: "pointer" }}>
               <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{m.label}</span>
@@ -2339,7 +2342,7 @@ function PersonelHesaplariKart() {
     <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
       <SectionTitle>Personel Hesapları</SectionTitle>
       <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
-        Her ekip üyesine kendi kullanıcı adı ve şifresiyle ayrı bir giriş verebilirsin. Böylece Çekim & Edit Takibi'nde
+        Her ekip üyesine kendi kullanıcı adı ve şifresiyle ayrı bir giriş verebilirsin. Böylece Operasyon bölümünde
         kim ne yaptı otomatik olarak kişi adıyla kaydedilir. Personel girişinde "Personel Girişi" sekmesini kullanır.
       </p>
 
@@ -2365,7 +2368,7 @@ function PersonelHesaplariKart() {
               </div>
               {sifirlanan === h.id && (
                 <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                  <input type="password" placeholder="Yeni şifre" value={yeniSifreDeger} onChange={(e) => setYeniSifreDeger(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                  <input type="password" placeholder="Yeni şifre" name="reset-staff-password" autoComplete="new-password" value={yeniSifreDeger} onChange={(e) => setYeniSifreDeger(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
                   <button style={saveBtnStyle} onClick={() => sifreSifirla(h.id)}>Kaydet</button>
                 </div>
               )}
@@ -2377,9 +2380,9 @@ function PersonelHesaplariKart() {
       {ekleAcik ? (
         <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 14px" }}>
           <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-            <input placeholder="Ad Soyad" value={yeniAd} onChange={(e) => setYeniAd(e.target.value)} style={inputStyle} />
-            <input placeholder="Kullanıcı Adı" value={yeniKullanici} onChange={(e) => setYeniKullanici(e.target.value)} style={inputStyle} />
-            <input type="password" placeholder="Şifre" value={yeniSifre} onChange={(e) => setYeniSifre(e.target.value)} style={inputStyle} />
+            <input placeholder="Ad Soyad" name="new-staff-name" autoComplete="off" value={yeniAd} onChange={(e) => setYeniAd(e.target.value)} style={inputStyle} />
+            <input placeholder="Kullanıcı Adı" name="new-staff-username" autoComplete="off" value={yeniKullanici} onChange={(e) => setYeniKullanici(e.target.value)} style={inputStyle} />
+            <input type="password" placeholder="Şifre" name="new-staff-password" autoComplete="new-password" value={yeniSifre} onChange={(e) => setYeniSifre(e.target.value)} style={inputStyle} />
           </div>
           {hata && <div style={{ color: T.danger, fontSize: 12, fontFamily: "Inter", marginBottom: 8 }}>{hata}</div>}
           <div style={{ display: "flex", gap: 8 }}>
@@ -2526,6 +2529,8 @@ function LockScreen({ onSubmit, onStaffSubmit, error, checking }) {
           <>
             <input
               type="password"
+              name="site-password"
+              autoComplete="current-password"
               autoFocus
               value={value}
               onChange={(e) => setValue(e.target.value)}
@@ -2541,6 +2546,8 @@ function LockScreen({ onSubmit, onStaffSubmit, error, checking }) {
           <>
             <input
               type="text"
+              name="staff-username"
+              autoComplete="username"
               autoFocus
               value={kullaniciAdi}
               onChange={(e) => setKullaniciAdi(e.target.value)}
@@ -2549,6 +2556,8 @@ function LockScreen({ onSubmit, onStaffSubmit, error, checking }) {
             />
             <input
               type="password"
+              name="staff-password"
+              autoComplete="current-password"
               value={personelSifre}
               onChange={(e) => setPersonelSifre(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && onStaffSubmit(kullaniciAdi, personelSifre)}
@@ -2653,7 +2662,7 @@ const NAV = [
   { key: "teklif", label: "Teklif & Sözleşme", icon: FileText },
   { key: "reklamlar", label: "Reklamlar", icon: Megaphone },
   { key: "paylasimlar", label: "Paylaşımlar", icon: Share2 },
-  { key: "cekim-edit", label: "Çekim & Edit Takibi", icon: Camera },
+  { key: "cekim-edit", label: "Operasyon", icon: Camera },
   { key: "personel", label: "Personel", icon: Briefcase },
   { key: "birikim", label: "Birikim", icon: PiggyBank },
   { key: "ayarlar", label: "Ayarlar", icon: Settings },
@@ -2824,7 +2833,7 @@ export default function MarcusOS() {
   const saveMarkaKimligi = (gorsel) => setData((d) => ({ ...d, markaKimligiGorseli: gorsel }));
   const updateStaffPermissions = (perms) => setData((d) => ({ ...d, staffPermissions: perms }));
 
-  const addCekimIsi = (job) => setData((d) => ({ ...d, cekimIsleri: [...(d.cekimIsleri || []), { ...job, id: nextId(d.cekimIsleri || []), asama: "Çekim Planlandı", yorumlar: [], gecmis: [{ id: nextId([]), tarih: new Date().toLocaleString("tr-TR"), yazan: "Yönetici", aciklama: "İş oluşturuldu" }] }] }));
+  const addCekimIsi = (job) => setData((d) => ({ ...d, cekimIsleri: [...(d.cekimIsleri || []), { ...job, id: nextId(d.cekimIsleri || []), asama: job.kategori === "Grafik Tasarım" ? "Talep Alındı" : "Çekim Planlandı", yorumlar: [], gecmis: [{ id: nextId([]), tarih: new Date().toLocaleString("tr-TR"), yazan: "Yönetici", aciklama: "İş oluşturuldu" }] }] }));
   const updateCekimIsi = (id, patch) => setData((d) => ({ ...d, cekimIsleri: (d.cekimIsleri || []).map((j) => (j.id === id ? { ...j, ...patch } : j)) }));
   const deleteCekimIsi = (id) => setData((d) => ({ ...d, cekimIsleri: (d.cekimIsleri || []).filter((j) => j.id !== id) }));
   const deleteSablon = (id) => setData((d) => ({ ...d, teklifSablonlari: (d.teklifSablonlari || []).filter((s) => s.id !== id) }));
@@ -3054,7 +3063,7 @@ export default function MarcusOS() {
     else setTab("finans");
   };
 
-  const titles = { dashboard: "Dashboard", musteriler: "Müşteriler", finans: "Finans", takvim: "Takvim", "odeme-takvimi": "Ödeme Takvimi", teklif: "Teklif & Sözleşme", reklamlar: "Reklamlar", paylasimlar: "Paylaşımlar", "cekim-edit": "Çekim & Edit Takibi", personel: "Personel", birikim: "Birikim", ayarlar: "Ayarlar" };
+  const titles = { dashboard: "Dashboard", musteriler: "Müşteriler", finans: "Finans", takvim: "Takvim", "odeme-takvimi": "Ödeme Takvimi", teklif: "Teklif & Sözleşme", reklamlar: "Reklamlar", paylasimlar: "Paylaşımlar", "cekim-edit": "Operasyon", personel: "Personel", birikim: "Birikim", ayarlar: "Ayarlar" };
   const todayLabel = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
 
   if (needsAuth) {
@@ -3118,7 +3127,7 @@ export default function MarcusOS() {
     const staffNavAll = [
       { key: "reklamlar", label: "Reklamlar", izin: izinler.reklamlar },
       { key: "paylasimlar", label: "Paylaşımlar", izin: izinler.paylasimlar },
-      { key: "cekim-edit", label: "Çekim & Edit", izin: izinler.cekimEdit },
+      { key: "cekim-edit", label: "Operasyon", izin: izinler.cekimEdit },
     ].filter((x) => x.izin !== false);
     const staffTab = staffNavAll.some((x) => x.key === tab) ? tab : (staffNavAll[0] ? staffNavAll[0].key : null);
     return (
