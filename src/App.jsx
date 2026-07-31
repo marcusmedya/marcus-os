@@ -1,9 +1,10 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
+import TeklifSozlesme from "./TeklifSozlesme.jsx";
 import {
   LayoutDashboard, Users, Wallet, Settings, Sparkles,
   ArrowUpRight, ArrowDownRight, X, Send, Plus, Pencil, Trash2, Check,
   ChevronRight,
-  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp, Menu, Calendar, ChevronLeft, ListChecks
+  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp, Menu, Calendar, ChevronLeft, ListChecks, FileText
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
@@ -71,7 +72,7 @@ function computeLive(data) {
   const manuelBekleyen = (data.bekleyenTahsilatlar || []).reduce((s, b) => s + (Number(b.tutar) || 0), 0);
   const otomatikBekleyen = activeClients.reduce((s, c) => {
     const st = clientPaymentStatus(c);
-    if (st && (st.status === "bekliyor" || st.status === "gecikti")) return s + (Number(c.aylikUcret) || 0);
+    if (st && (st.status === "bekliyor" || st.status === "gecikti")) return s + monthRemaining(c, monthKey());
     return s;
   }, 0);
   const bekleyenToplam = manuelBekleyen + otomatikBekleyen;
@@ -82,22 +83,45 @@ function computeLive(data) {
 
 /** Bir müşterinin bu ayki ödeme durumunu, kayıtlı "ödeme günü"ne göre otomatik hesaplar. */
 const monthKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+
+/** Belirli bir ay için o müşteriden gerçekten tahsil edilen toplam tutar (kısmi ödemeler dahil).
+ * Eski sistemde (odemeler dizisinde işaretli ama hiç ödeme kaydı yoksa) geriye dönük uyumluluk için
+ * tam ödenmiş sayılır. */
+function monthPaidAmount(client, key) {
+  const kayitlar = (client.odemeKayitlari || []).filter((k) => k.ay === key);
+  const sum = kayitlar.reduce((s, k) => s + (Number(k.tutar) || 0), 0);
+  if (sum > 0) return sum;
+  if ((client.odemeler || []).includes(key)) return Number(client.aylikUcret) || 0;
+  return 0;
+}
+/** O ay için kalan (henüz ödenmemiş) bakiye. */
+function monthRemaining(client, key) {
+  return Math.max(0, (Number(client.aylikUcret) || 0) - monthPaidAmount(client, key));
+}
+/** O ay tam olarak ödenmiş mi? */
+function isMonthPaid(client, key) {
+  const tutar = Number(client.aylikUcret) || 0;
+  if (tutar <= 0) return true;
+  return monthPaidAmount(client, key) >= tutar;
+}
+
 function clientPaymentStatus(client) {
   if (!client.odemeGunu) return null;
   const today = new Date();
   const curKey = monthKey(today);
-  const paidThisMonth = (client.odemeler || []).includes(curKey);
-  if (paidThisMonth) return { status: "odendi", label: "Bu ay ödendi" };
+  if (isMonthPaid(client, curKey)) return { status: "odendi", label: "Bu ay ödendi" };
   const dueDay = Number(client.odemeGunu);
   const todayDay = today.getDate();
   if (todayDay < dueDay) return { status: "yaklasiyor", label: `Ödeme günü: ayın ${dueDay}'i` };
   const gecikenGun = todayDay - dueDay;
-  if (gecikenGun >= 7) return { status: "gecikti", label: `${gecikenGun} gün gecikti` };
-  return { status: "bekliyor", label: `Ödeme günü geçti (ayın ${dueDay}'i)` };
+  const kalan = monthRemaining(client, curKey);
+  const kismiNot = monthPaidAmount(client, curKey) > 0 ? ` — kalan ${fmt(kalan)}` : "";
+  if (gecikenGun >= 7) return { status: "gecikti", label: `${gecikenGun} gün gecikti${kismiNot}` };
+  return { status: "bekliyor", label: `Ödeme günü geçti (ayın ${dueDay}'i)${kismiNot}` };
 }
 
 /** Bir müşterinin kaç aydır (bu ay dahil, geriye doğru art arda) ödeme yapmadığını hesaplar.
- * "odemeler" listesinde bir ay bulununca sayımı durdurur (ödenmiş bir ay demektir). */
+ * Tam ödenmiş bir ay bulununca sayımı durdurur (kısmi ödemeler yine "ödenmemiş" sayılır). */
 function clientOverdueMonths(client) {
   if (!client.odemeGunu) return 0;
   const now = new Date();
@@ -112,49 +136,60 @@ function clientOverdueMonths(client) {
     const key = monthKey(d);
     if (baslangicKey && key < baslangicKey) break; // müşterinin başlangıcından öncesini sayma
     if (i === 0 && now.getDate() < Number(client.odemeGunu)) continue; // bu ayın vadesi henüz gelmedi
-    if ((client.odemeler || []).includes(key)) break;
+    if (isMonthPaid(client, key)) break;
     count++;
   }
   return count;
 }
 
-/** Resmi ödeme hatırlatma yazısını (tebliğ) yazdırılabilir HTML olarak oluşturur. */
-function tebligHtml(client, months, tutarToplam) {
+const DEFAULT_TEBLIG_SABLONU = `Sayın {musteri} Yetkilisi,
+
+Firmanız ile aramızda devam etmekte olan hizmet ilişkisi kapsamında, aylık {aylikUcret} tutarındaki hizmet bedelinin {ay} aydır tarafımıza ödenmediği tespit edilmiştir.
+
+Toplam Bakiye: {toplamBakiye}
+
+İş bu bildirim tarihinden itibaren 7 (yedi) gün içerisinde yukarıda belirtilen toplam bakiyenin tarafımıza ödenmesini, aksi halde hizmetin askıya alınması ve/veya yasal yollara başvurulması hakkımızın saklı olduğunu bilgilerinize sunarız.
+
+Herhangi bir ödeme yapıldıysa veya bir yanlışlık olduğunu düşünüyorsanız, en kısa sürede tarafımızla iletişime geçmenizi rica ederiz.
+
+Saygılarımızla,
+{firma}`;
+
+/** Şablondaki {musteri}, {aylikUcret}, {ay}, {toplamBakiye}, {firma}, {tarih} yer tutucularını gerçek değerlerle değiştirir. */
+function renderTeblig(sablon, vars) {
+  let text = sablon || DEFAULT_TEBLIG_SABLONU;
+  Object.entries(vars).forEach(([k, v]) => { text = text.split(`{${k}}`).join(String(v)); });
+  return text;
+}
+
+/** Serbestçe düzenlenmiş tebliğ metnini yazdırılabilir HTML'e sarar. */
+function tebligHtmlFromText(text, client, firmaAdi) {
   const bugun = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+  const bodyHtml = String(text)
+    .split(/\n{2,}/)
+    .map((para) => `<p>${para.replace(/\n/g, "<br/>")}</p>`)
+    .join("\n");
   return `<!doctype html>
 <html lang="tr"><head><meta charset="utf-8" /><title>Ödeme Hatırlatma - ${client.ad}</title>
 <style>
   body { font-family: Georgia, 'Times New Roman', serif; max-width: 700px; margin: 60px auto; color:#111; line-height:1.7; font-size:15px; }
   .header { display:flex; justify-content:space-between; margin-bottom:40px; }
   .baslik { font-size:20px; font-weight:bold; text-align:center; margin: 30px 0; text-transform:uppercase; letter-spacing:1px; }
-  table { width:100%; border-collapse:collapse; margin: 22px 0; }
-  td, th { border:1px solid #ccc; padding:8px 10px; text-align:left; font-size:14px; }
-  .imza { margin-top:60px; }
+  p { margin: 0 0 16px; }
   @media print { body { margin: 20px; } }
 </style></head>
 <body>
   <div class="header">
-    <div><strong>Marcus Medya</strong><br/>Medya &amp; Reklam Ajansı</div>
+    <div><strong>${firmaAdi}</strong></div>
     <div>${bugun}</div>
   </div>
   <div class="baslik">Ödeme Hatırlatma Bildirimi</div>
-  <p><strong>Sayın ${client.ad} Yetkilisi,</strong></p>
-  <p>Firmanız ile aramızda devam etmekte olan hizmet ilişkisi kapsamında, aylık ${fmt(client.aylikUcret)} tutarındaki hizmet bedelinin <strong>${months} aydır</strong> tarafımıza ödenmediği tespit edilmiştir.</p>
-  <table>
-    <tr><th>Müşteri</th><td>${client.ad}</td></tr>
-    <tr><th>Aylık Hizmet Bedeli</th><td>${fmt(client.aylikUcret)}</td></tr>
-    <tr><th>Gecikme Süresi</th><td>${months} ay</td></tr>
-    <tr><th>Toplam Bakiye</th><td><strong>${fmt(tutarToplam)}</strong></td></tr>
-  </table>
-  <p>İş bu bildirim tarihinden itibaren <strong>7 (yedi) gün</strong> içerisinde yukarıda belirtilen toplam bakiyenin tarafımıza ödenmesini, aksi halde hizmetin askıya alınması ve/veya yasal yollara başvurulması hakkımızın saklı olduğunu bilgilerinize sunarız.</p>
-  <p>Herhangi bir ödeme yapıldıysa veya bir yanlışlık olduğunu düşünüyorsanız, en kısa sürede tarafımızla iletişime geçmenizi rica ederiz.</p>
-  <p>Saygılarımızla,</p>
-  <div class="imza"><strong>Marcus Medya</strong></div>
+  ${bodyHtml}
 </body></html>`;
 }
 
-function yazdirTebligi(client, months, tutarToplam) {
-  const html = tebligHtml(client, months, tutarToplam);
+function yazdirTebligMetni(text, client, firmaAdi) {
+  const html = tebligHtmlFromText(text, client, firmaAdi);
   const win = window.open("", "_blank");
   if (!win) { window.alert("Yeni pencere açılamadı — tarayıcının pop-up engelleyicisini kontrol et."); return; }
   win.document.write(html);
@@ -163,15 +198,14 @@ function yazdirTebligi(client, months, tutarToplam) {
   setTimeout(() => win.print(), 300);
 }
 
-function kopyalaTebligMetni(client, months, tutarToplam) {
-  const bugun = new Date().toLocaleDateString("tr-TR");
-  const text = `Sayın ${client.ad} Yetkilisi,\n\nFirmanız ile aramızdaki hizmet ilişkisi kapsamında, aylık ${fmt(client.aylikUcret)} tutarındaki hizmet bedelinin ${months} aydır ödenmediği tespit edilmiştir.\n\nToplam bakiye: ${fmt(tutarToplam)}\n\nBildirim tarihinden itibaren 7 gün içinde ödemenin yapılmasını rica ederiz.\n\nSaygılarımızla,\nMarcus Medya\n${bugun}`;
+function kopyalaMetin(text) {
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(() => window.alert("Metin kopyalandı — WhatsApp veya e-postaya yapıştırabilirsin.")).catch(() => window.alert("Kopyalanamadı."));
   } else {
     window.alert("Bu tarayıcıda otomatik kopyalama desteklenmiyor.");
   }
 }
+
 
 /** Bir müşterinin aylık ücretinin ne kadarının faturalı olduğunu döndürür (kısmi olabilir).
  * Yeni "faturaliTutar" alanı varsa onu kullanır (aylıkÜcret'i geçemez); yoksa eski evet/hayır
@@ -475,7 +509,7 @@ const CLIENT_DURUM = {
   ayrildi: { label: "Ayrıldı", color: T.textFaint, soft: T.borderSoft },
 };
 
-function Musteriler({ clients, bekleyenTahsilatlar, onAdd, onUpdate, onDelete, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, openClient, onOpenClientHandled }) {
+function Musteriler({ clients, bekleyenTahsilatlar, onAdd, onUpdate, onDelete, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, openClient, onOpenClientHandled }) {
   const [filter, setFilter] = useState("hepsi");
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -512,8 +546,7 @@ function Musteriler({ clients, bekleyenTahsilatlar, onAdd, onUpdate, onDelete, o
                     <div style={{ fontSize: 11.5, color: T.danger, fontFamily: "Inter" }}>{ay} aydır ödenmedi · Toplam {fmt(toplam)}</div>
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
-                    <button style={cancelBtnStyle} onClick={() => kopyalaTebligMetni(c, ay, toplam)}>Metni Kopyala</button>
-                    <button style={saveBtnStyle} onClick={() => yazdirTebligi(c, ay, toplam)}>Tebliğ Oluştur / Yazdır</button>
+                    <button style={saveBtnStyle} onClick={() => onOpenTeblig(c, ay, toplam)}>Tebliğ Oluştur / Düzenle</button>
                   </div>
                 </div>
               );
@@ -639,6 +672,9 @@ function Musteriler({ clients, bekleyenTahsilatlar, onAdd, onUpdate, onDelete, o
           onDeleteCost={(costId) => onDeleteCost(detailClientId, costId)}
           onMarkPaid={() => onMarkPaid(detailClientId)}
           onMarkUnpaid={() => onMarkUnpaid(detailClientId)}
+          onOpenTeblig={onOpenTeblig}
+          onAddOdemeKaydi={onAddOdemeKaydi}
+          onDeleteOdemeKaydi={onDeleteOdemeKaydi}
           onClose={() => setDetailClientId(null)}
         />
       )}
@@ -651,8 +687,9 @@ const COST_FIELDS = [
   { key: "tutar", label: "Tutar (₺/ay)", type: "number" },
 ];
 
-function ClientDetail({ client, bekleyenTahsilatlar, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onClose }) {
+function ClientDetail({ client, bekleyenTahsilatlar, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, onClose }) {
   const [addingCost, setAddingCost] = useState(false);
+  const [odemeModalOpen, setOdemeModalOpen] = useState(false);
   if (!client) return null;
   const cd = CLIENT_DURUM[client.durum] || CLIENT_DURUM.aktif;
   const bekleyenToplam = bekleyenTahsilatlar.reduce((s, b) => s + (Number(b.tutar) || 0), 0);
@@ -699,11 +736,7 @@ function ClientDetail({ client, bekleyenTahsilatlar, onAddCost, onDeleteCost, on
                 {paymentStatus.label}
               </div>
             </div>
-            {paymentStatus.status === "odendi" ? (
-              <button style={cancelBtnStyle} onClick={onMarkUnpaid}>Geri al</button>
-            ) : (
-              <button style={saveBtnStyle} onClick={onMarkPaid}><Check size={13} /> Ödendi işaretle</button>
-            )}
+            <button style={saveBtnStyle} onClick={() => setOdemeModalOpen(true)}>Ödemeleri Yönet</button>
           </div>
         )}
         {!paymentStatus && (
@@ -711,12 +744,20 @@ function ClientDetail({ client, bekleyenTahsilatlar, onAddCost, onDeleteCost, on
             Bu müşteri için ödeme günü tanımlı değil — düzenle butonundan "Ödeme Günü" alanını doldurursan otomatik takip başlar.
           </div>
         )}
+        {odemeModalOpen && (
+          <AyOdemeModal
+            client={client}
+            ayObj={{ key: monthKey(), label: new Date().toLocaleDateString("tr-TR", { month: "short", year: "2-digit" }) }}
+            onAddKaydi={(kayit) => onAddOdemeKaydi(client.id, kayit)}
+            onDeleteKaydi={(kayitId) => onDeleteOdemeKaydi(client.id, kayitId)}
+            onClose={() => setOdemeModalOpen(false)}
+          />
+        )}
         {overdueMonths > 0 && (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 20, padding: "12px 14px", background: T.dangerSoft, borderRadius: 12, border: `1px solid ${T.danger}` }}>
             <div style={{ fontSize: 12.5, color: T.danger, fontFamily: "Inter", fontWeight: 600 }}>{overdueMonths} aydır ödenmedi — toplam {fmt((Number(client.aylikUcret) || 0) * overdueMonths)}</div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button style={cancelBtnStyle} onClick={() => kopyalaTebligMetni(client, overdueMonths, (Number(client.aylikUcret) || 0) * overdueMonths)}>Metni Kopyala</button>
-              <button style={saveBtnStyle} onClick={() => yazdirTebligi(client, overdueMonths, (Number(client.aylikUcret) || 0) * overdueMonths)}>Tebliğ Oluştur</button>
+              <button style={saveBtnStyle} onClick={() => onOpenTeblig(client, overdueMonths, (Number(client.aylikUcret) || 0) * overdueMonths)}>Tebliğ Oluştur / Düzenle</button>
             </div>
           </div>
         )}
@@ -1080,6 +1121,42 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
           + {fmt(live.otomatikBekleyen)} — Müşteriler sekmesinde ödeme günü geçtiği halde "ödendi" işaretlenmemiş müşterilerden otomatik hesaplanan tutar. "Bekleyen Ödeme" KPI'sı bu ikisinin toplamıdır.
         </div>
       )}
+
+      <Card style={{ padding: "16px 20px", marginTop: 16 }}>
+        <SectionTitle>Banka Hareketleri <span style={{ fontWeight: 400, opacity: 0.7 }}>— Ödeme Takvimi'nde kaydedilen tüm tahsilatlar</span></SectionTitle>
+        {(() => {
+          const hareketler = (clients || [])
+            .flatMap((c) => (c.odemeKayitlari || []).map((k) => ({ ...k, musteri: c.ad })))
+            .reverse();
+          if (hareketler.length === 0) {
+            return <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Henüz bir ödeme kaydı yok. Ödeme Takvimi sekmesinden tutar ve banka bilgisiyle kayıt ekleyebilirsin.</div>;
+          }
+          return (
+            <div className="marcus-table-wrap">
+              <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Inter, sans-serif", minWidth: 480 }}>
+                <thead>
+                  <tr>
+                    {["Müşteri", "Banka", "Tarih", "Not", "Tutar"].map((h, i) => (
+                      <th key={i} style={{ textAlign: i === 4 ? "right" : "left", padding: "8px 10px", fontSize: 11, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}` }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {hareketler.slice(0, 40).map((h, i) => (
+                    <tr key={i} style={{ borderBottom: `1px solid ${T.borderSoft}` }}>
+                      <td style={{ padding: "8px 10px", fontSize: 12.5, color: T.text, fontWeight: 600 }}>{h.musteri}</td>
+                      <td style={{ padding: "8px 10px", fontSize: 12.5, color: T.textDim }}>{h.banka || "—"}</td>
+                      <td style={{ padding: "8px 10px", fontSize: 12.5, color: T.textDim }}>{h.tarih}</td>
+                      <td style={{ padding: "8px 10px", fontSize: 12.5, color: T.textFaint }}>{h.not || ""}</td>
+                      <td style={{ padding: "8px 10px", textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: T.success, fontWeight: 600 }}>{fmt(h.tutar)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
+      </Card>
     </div>
   );
 }
@@ -1325,8 +1402,81 @@ function OdemeGunuHucre({ client, onUpdateClient }) {
   );
 }
 
-function OdemeTakvimi({ clients, onToggleMonth, onUpdateClient }) {
+function AyOdemeModal({ client, ayObj, onAddKaydi, onDeleteKaydi, onClose }) {
+  const [tutar, setTutar] = useState(monthRemaining(client, ayObj.key) || client.aylikUcret || 0);
+  const [banka, setBanka] = useState("");
+  const [tarih, setTarih] = useState(new Date().toLocaleDateString("tr-TR"));
+  const [not, setNot] = useState("");
+  const kayitlar = (client.odemeKayitlari || []).filter((k) => k.ay === ayObj.key);
+  const odenen = monthPaidAmount(client, ayObj.key);
+  const kalan = monthRemaining(client, ayObj.key);
+
+  const submit = () => {
+    const n = Number(tutar);
+    if (!n || n <= 0) { window.alert("Geçerli bir tutar gir."); return; }
+    onAddKaydi({ ay: ayObj.key, tutar: n, banka: banka.trim(), tarih: tarih.trim(), not: not.trim() });
+    setTutar(0); setBanka(""); setNot("");
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div className="marcus-card" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 18, width: 440, maxWidth: "100%", padding: "22px 24px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+          <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15.5, fontWeight: 600, color: T.text, margin: 0 }}>{client.ad} — {ayObj.label}</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><X size={17} color={T.textFaint} /></button>
+        </div>
+        <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 16 }}>
+          Aylık ücret {fmt(client.aylikUcret)} · Ödenen {fmt(odenen)} · <span style={{ color: kalan > 0 ? T.danger : T.success, fontWeight: 600 }}>Kalan {fmt(kalan)}</span>
+        </div>
+
+        {kayitlar.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 6 }}>ÖDEME KAYITLARI</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {kayitlar.map((k) => (
+                <div key={k.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: T.surfaceRaised, borderRadius: 9 }}>
+                  <div>
+                    <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{fmt(k.tutar)}{k.banka ? ` · ${k.banka}` : ""}</div>
+                    <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{k.tarih}{k.not ? ` · ${k.not}` : ""}</div>
+                  </div>
+                  <button style={iconBtnStyle} onClick={() => onDeleteKaydi(k.id)}><Trash2 size={13} color={T.danger} /></button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 8 }}>{kalan > 0 ? "ÖDEME EKLE" : "EK ÖDEME EKLE (opsiyonel)"}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+          <div>
+            <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Tutar (₺)</label>
+            <input type="number" value={tutar} onChange={(e) => setTutar(e.target.value)} style={inputStyle} />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Banka</label>
+            <input type="text" value={banka} onChange={(e) => setBanka(e.target.value)} placeholder="örn. Ziraat Bankası" style={inputStyle} />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Tarih</label>
+            <input type="text" value={tarih} onChange={(e) => setTarih(e.target.value)} style={inputStyle} />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Not (opsiyonel)</label>
+            <input type="text" value={not} onChange={(e) => setNot(e.target.value)} style={inputStyle} />
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button style={cancelBtnStyle} onClick={onClose}>Kapat</button>
+          <button style={saveBtnStyle} onClick={submit}><Check size={13} /> Ödemeyi Kaydet</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OdemeTakvimi({ clients, onUpdateClient, onAddOdemeKaydi, onDeleteOdemeKaydi }) {
   const [ayCount, setAyCount] = useState(6);
+  const [activeCell, setActiveCell] = useState(null); // { client, ayObj }
   const izlenenler = clients.filter((c) => c.durum !== "ayrildi");
   const aylar = sonAylar(ayCount);
   const bugunKey = monthKey();
@@ -1334,11 +1484,12 @@ function OdemeTakvimi({ clients, onToggleMonth, onUpdateClient }) {
 
   const hucreDurumu = (client, ayObj) => {
     if (!client.odemeGunu) return "gunYok";
-    const odendi = (client.odemeler || []).includes(ayObj.key);
-    if (odendi) return "odendi";
+    const odenen = monthPaidAmount(client, ayObj.key);
+    const tamOdendi = isMonthPaid(client, ayObj.key);
+    if (tamOdendi) return "odendi";
+    if (odenen > 0) return "kismi";
     if (ayObj.key > bugunKey) return "gelecek";
     if (ayObj.key === bugunKey && bugunGun < Number(client.odemeGunu)) return "gelecek";
-    // başlangıçtan önceyse "yok" say
     if (client.baslangic && /^\d{4}-\d{1,2}$/.test(client.baslangic.trim())) {
       const [by, bm] = client.baslangic.trim().split("-").map(Number);
       const baslangicKey = `${by}-${String(bm).padStart(2, "0")}`;
@@ -1348,8 +1499,12 @@ function OdemeTakvimi({ clients, onToggleMonth, onUpdateClient }) {
   };
 
   const toplamBirikmisBorc = izlenenler.reduce((sum, c) => {
-    const borcluAySayisi = aylar.filter((a) => hucreDurumu(c, a) === "odenmedi").length;
-    return sum + borcluAySayisi * (Number(c.aylikUcret) || 0);
+    const ayBorcu = aylar.reduce((s, a) => {
+      const durum = hucreDurumu(c, a);
+      if (durum === "odenmedi" || durum === "kismi") return s + monthRemaining(c, a.key);
+      return s;
+    }, 0);
+    return sum + ayBorcu;
   }, 0);
 
   const gunTanimliSayisi = izlenenler.filter((c) => c.odemeGunu).length;
@@ -1393,8 +1548,11 @@ function OdemeTakvimi({ clients, onToggleMonth, onUpdateClient }) {
               </thead>
               <tbody>
                 {izlenenler.map((c) => {
-                  const borcluAySayisi = aylar.filter((a) => hucreDurumu(c, a) === "odenmedi").length;
-                  const borc = borcluAySayisi * (Number(c.aylikUcret) || 0);
+                  const borc = aylar.reduce((s, a) => {
+                    const durum = hucreDurumu(c, a);
+                    if (durum === "odenmedi" || durum === "kismi") return s + monthRemaining(c, a.key);
+                    return s;
+                  }, 0);
                   return (
                     <tr key={c.id} style={{ borderBottom: `1px solid ${T.borderSoft}` }}>
                       <td style={{ padding: "10px 16px", fontSize: 13, color: T.text, fontWeight: 600, position: "sticky", left: 0, background: T.surface }}>{c.ad}</td>
@@ -1405,18 +1563,20 @@ function OdemeTakvimi({ clients, onToggleMonth, onUpdateClient }) {
                         const durum = hucreDurumu(c, a);
                         const stil = {
                           odendi: { bg: T.successSoft, color: T.success, sym: "✓" },
+                          kismi: { bg: T.warningSoft, color: T.warning, sym: "½" },
                           odenmedi: { bg: T.dangerSoft, color: T.danger, sym: "✕" },
                           gelecek: { bg: T.borderSoft, color: T.textFaint, sym: "·" },
                           yok: { bg: "transparent", color: T.textFaint, sym: "" },
                           gunYok: { bg: "transparent", color: T.textFaint, sym: "—" },
                         }[durum];
-                        const tiklanabilir = durum === "odendi" || durum === "odenmedi";
+                        const tiklanabilir = durum === "odendi" || durum === "odenmedi" || durum === "kismi";
+                        const baslik = durum === "kismi" ? `Kısmi ödendi — kalan ${fmt(monthRemaining(c, a.key))}` : tiklanabilir ? "Ödeme kayıtlarını görüntüle/ekle" : durum === "gunYok" ? "Önce ödeme günü gir" : undefined;
                         return (
                           <td key={a.key} style={{ padding: "8px", textAlign: "center" }}>
                             <button
                               disabled={!tiklanabilir}
-                              onClick={() => tiklanabilir && onToggleMonth(c.id, a.key, durum === "odendi" ? "kaldir" : "ekle")}
-                              title={tiklanabilir ? "Durumu değiştirmek için tıkla" : durum === "gunYok" ? "Önce ödeme günü gir" : undefined}
+                              onClick={() => tiklanabilir && setActiveCell({ client: c, ayObj: a })}
+                              title={baslik}
                               style={{
                                 width: 34, height: 28, borderRadius: 7, border: "none", background: stil.bg, color: stil.color,
                                 fontSize: 13, fontWeight: 700, cursor: tiklanabilir ? "pointer" : "default", fontFamily: "Inter, sans-serif",
@@ -1438,8 +1598,18 @@ function OdemeTakvimi({ clients, onToggleMonth, onUpdateClient }) {
       )}
 
       <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 10 }}>
-        <span style={{ color: T.success }}>✓</span> ödendi · <span style={{ color: T.danger }}>✕</span> ödenmedi (tıkla, ödendi yap) · <span style={{ color: T.textFaint }}>·</span> henüz vadesi gelmedi · <span style={{ color: T.textFaint }}>—</span> ödeme günü tanımlı değil. "Ödeme Günü" sütununa tıklayıp buradan doğrudan girebilir/değiştirebilirsin — Müşteriler sekmesiyle aynı veriyi paylaşır.
+        <span style={{ color: T.success }}>✓</span> tam ödendi · <span style={{ color: T.warning }}>½</span> kısmi ödendi · <span style={{ color: T.danger }}>✕</span> ödenmedi (tıkla, tutar + banka gir) · <span style={{ color: T.textFaint }}>·</span> henüz vadesi gelmedi · <span style={{ color: T.textFaint }}>—</span> ödeme günü tanımlı değil. "Ödeme Günü" sütununa tıklayıp buradan doğrudan girebilir/değiştirebilirsin — Müşteriler sekmesiyle aynı veriyi paylaşır.
       </div>
+
+      {activeCell && (
+        <AyOdemeModal
+          client={activeCell.client}
+          ayObj={activeCell.ayObj}
+          onAddKaydi={(kayit) => onAddOdemeKaydi(activeCell.client.id, kayit)}
+          onDeleteKaydi={(kayitId) => onDeleteOdemeKaydi(activeCell.client.id, kayitId)}
+          onClose={() => setActiveCell(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1724,7 +1894,41 @@ function YedekGecmisi() {
   );
 }
 
-function Ayarlar({ onExport, onExportJson, onImportJson }) {
+function TebligSablonuKart({ firmaAdi, tebligSablonu, onSave }) {
+  const [ad, setAd] = useState(firmaAdi || "Marcus Medya");
+  const [sablon, setSablon] = useState(tebligSablonu || DEFAULT_TEBLIG_SABLONU);
+  const [kaydedildi, setKaydedildi] = useState(false);
+
+  return (
+    <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+      <SectionTitle>Tebliğ Şablonu</SectionTitle>
+      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
+        Müşteriler'deki "Tebliğ Oluştur" her tıklandığında bu şablon kullanılır (istersen o an ayrıca da düzenleyebilirsin).
+        Kullanabileceğin yer tutucular: <code style={{ background: T.surfaceRaised, padding: "1px 5px", borderRadius: 4 }}>{"{musteri}"}</code>{" "}
+        <code style={{ background: T.surfaceRaised, padding: "1px 5px", borderRadius: 4 }}>{"{aylikUcret}"}</code>{" "}
+        <code style={{ background: T.surfaceRaised, padding: "1px 5px", borderRadius: 4 }}>{"{ay}"}</code>{" "}
+        <code style={{ background: T.surfaceRaised, padding: "1px 5px", borderRadius: 4 }}>{"{toplamBakiye}"}</code>{" "}
+        <code style={{ background: T.surfaceRaised, padding: "1px 5px", borderRadius: 4 }}>{"{firma}"}</code>{" "}
+        <code style={{ background: T.surfaceRaised, padding: "1px 5px", borderRadius: 4 }}>{"{tarih}"}</code>
+      </p>
+      <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Firma Adı (yazının imzasında ve başlığında görünür)</label>
+      <input value={ad} onChange={(e) => setAd(e.target.value)} style={{ ...inputStyle, marginBottom: 14 }} />
+      <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Şablon Metni</label>
+      <textarea
+        value={sablon}
+        onChange={(e) => setSablon(e.target.value)}
+        rows={12}
+        style={{ width: "100%", background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px 14px", color: T.text, fontSize: 13.5, fontFamily: "Inter, sans-serif", outline: "none", resize: "vertical", lineHeight: 1.6, marginBottom: 12 }}
+      />
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <button style={saveBtnStyle} onClick={() => { onSave(ad, sablon); setKaydedildi(true); setTimeout(() => setKaydedildi(false), 2000); }}>Şablonu Kaydet</button>
+        {kaydedildi && <span style={{ fontSize: 12.5, color: T.success, fontFamily: "Inter" }}>✓ Kaydedildi</span>}
+      </div>
+    </Card>
+  );
+}
+
+function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu, onSaveTeblig }) {
   const fileInputRef = useRef(null);
   const rows = [
     { label: "İşletme Adı", value: "Marcus Medya" },
@@ -1743,6 +1947,8 @@ function Ayarlar({ onExport, onExportJson, onImportJson }) {
           </div>
         ))}
       </Card>
+
+      <TebligSablonuKart firmaAdi={firmaAdi} tebligSablonu={tebligSablonu} onSave={onSaveTeblig} />
 
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Veri</SectionTitle>
@@ -1943,6 +2149,34 @@ function BackupReminder({ onBackupNow, onDismiss }) {
   );
 }
 
+function TebligDuzenleModal({ initialText, client, firmaAdi, onClose }) {
+  const [text, setText] = useState(initialText);
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div className="marcus-card" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 18, width: 560, maxWidth: "100%", maxHeight: "88vh", overflowY: "auto", padding: "24px 26px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+          <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16.5, fontWeight: 600, color: T.text, margin: 0 }}>Tebliğ Metnini Düzenle</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><X size={18} color={T.textFaint} /></button>
+        </div>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12.5, color: T.textFaint, lineHeight: 1.6, marginBottom: 12 }}>
+          {client.ad} için oluşturulan metni burada serbestçe değiştirebilirsin. Genel şablonu (bundan sonraki tüm tebliğlerin başlangıcını) değiştirmek istersen Ayarlar &gt; Tebliğ Şablonu'na bak.
+        </p>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={14}
+          style={{ width: "100%", background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px 14px", color: T.text, fontSize: 14, fontFamily: "Inter, sans-serif", outline: "none", resize: "vertical", lineHeight: 1.6 }}
+        />
+        <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+          <button style={cancelBtnStyle} onClick={onClose}>İptal</button>
+          <button style={cancelBtnStyle} onClick={() => kopyalaMetin(text)}>Metni Kopyala</button>
+          <button style={saveBtnStyle} onClick={() => { yazdirTebligMetni(text, client, firmaAdi); onClose(); }}>Yazdır / PDF</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SaveBlockedModal({ info, onCancel, onForce }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 110, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
@@ -1977,6 +2211,7 @@ const NAV = [
   { key: "finans", label: "Finans", icon: Wallet },
   { key: "takvim", label: "Takvim", icon: Calendar },
   { key: "odeme-takvimi", label: "Ödeme Takvimi", icon: ListChecks },
+  { key: "teklif", label: "Teklif & Sözleşme", icon: FileText },
   { key: "personel", label: "Personel", icon: Briefcase },
   { key: "birikim", label: "Birikim", icon: PiggyBank },
   { key: "ayarlar", label: "Ayarlar", icon: Settings },
@@ -2002,6 +2237,7 @@ export default function MarcusOS() {
   const [loadError, setLoadError] = useState(false);
   const [needsSeedConfirm, setNeedsSeedConfirm] = useState(false);
   const [saveBlocked, setSaveBlocked] = useState(null);
+  const [tebligOpen, setTebligOpen] = useState(null);
   const saveTimer = useRef(null);
   const skipNextSave = useRef(true);
 
@@ -2070,6 +2306,19 @@ export default function MarcusOS() {
 
   const openAi = (q) => { setAiQuestion(q || null); setAiOpen(true); };
 
+  const openTeblig = (client, months, toplam) => {
+    const bugun = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+    const text = renderTeblig(data.tebligSablonu, {
+      musteri: client.ad,
+      aylikUcret: fmt(client.aylikUcret),
+      ay: months,
+      toplamBakiye: fmt(toplam),
+      firma: data.firmaAdi || "Marcus Medya",
+      tarih: bugun,
+    });
+    setTebligOpen({ client, text });
+  };
+
   const forceSave = () => {
     if (!saveBlocked) return;
     const payload = saveBlocked.dataToForce;
@@ -2101,6 +2350,21 @@ export default function MarcusOS() {
     ...d,
     clients: d.clients.map((c) => (c.id === clientId ? { ...c, odemeler: (c.odemeler || []).filter((m) => m !== monthKey()) } : c)),
   }));
+
+  const addOdemeKaydi = (clientId, kayit) => setData((d) => ({
+    ...d,
+    clients: d.clients.map((c) => {
+      if (c.id !== clientId) return c;
+      const yeniKayit = { ...kayit, id: nextId(c.odemeKayitlari || []) };
+      return { ...c, odemeKayitlari: [...(c.odemeKayitlari || []), yeniKayit] };
+    }),
+  }));
+  const deleteOdemeKaydi = (clientId, kayitId) => setData((d) => ({
+    ...d,
+    clients: d.clients.map((c) => (c.id === clientId ? { ...c, odemeKayitlari: (c.odemeKayitlari || []).filter((k) => k.id !== kayitId) } : c)),
+  }));
+
+  const saveTeklif = (teklif) => setData((d) => ({ ...d, teklifler: [...(d.teklifler || []), teklif] }));
 
   const toggleMonthPaid = (clientId, monthKeyStr, action) => setData((d) => ({
     ...d,
@@ -2205,6 +2469,9 @@ export default function MarcusOS() {
       [],
       ["Geçmiş Aylar", "Yıl", "Ciro", "Gider", "Net"],
       ...data.monthly.map((m) => [m.ay, m.yil || "", m.ciro, m.gider, m.net]),
+      [],
+      ["Ödeme Kayıtları (Banka Hareketleri)", "Ay", "Tutar", "Banka", "Tarih", "Not"],
+      ...data.clients.flatMap((c) => (c.odemeKayitlari || []).map((k) => [c.ad, k.ay, k.tutar, k.banka || "", k.tarih || "", k.not || ""])),
     ];
     const csv = rows.map((r) => r.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
@@ -2290,7 +2557,7 @@ export default function MarcusOS() {
     else setTab("finans");
   };
 
-  const titles = { dashboard: "Dashboard", musteriler: "Müşteriler", finans: "Finans", takvim: "Takvim", "odeme-takvimi": "Ödeme Takvimi", personel: "Personel", birikim: "Birikim", ayarlar: "Ayarlar" };
+  const titles = { dashboard: "Dashboard", musteriler: "Müşteriler", finans: "Finans", takvim: "Takvim", "odeme-takvimi": "Ödeme Takvimi", teklif: "Teklif & Sözleşme", personel: "Personel", birikim: "Birikim", ayarlar: "Ayarlar" };
   const todayLabel = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
 
   if (needsAuth) {
@@ -2503,6 +2770,9 @@ export default function MarcusOS() {
               onAdd={addClient} onUpdate={updateClient} onDelete={deleteClient}
               onAddCost={addClientCost} onDeleteCost={deleteClientCost}
               onMarkPaid={markClientPaid} onMarkUnpaid={markClientUnpaid}
+              onOpenTeblig={openTeblig}
+              onAddOdemeKaydi={addOdemeKaydi}
+              onDeleteOdemeKaydi={deleteOdemeKaydi}
               openClient={detailClientFromSearch}
               onOpenClientHandled={() => setDetailClientFromSearch(null)}
             />
@@ -2522,7 +2792,15 @@ export default function MarcusOS() {
             />
           )}
           {tab === "takvim" && <Takvim data={data} />}
-          {tab === "odeme-takvimi" && <OdemeTakvimi clients={data.clients} onToggleMonth={toggleMonthPaid} onUpdateClient={updateClient} />}
+          {tab === "odeme-takvimi" && (
+            <OdemeTakvimi
+              clients={data.clients}
+              onUpdateClient={updateClient}
+              onAddOdemeKaydi={addOdemeKaydi}
+              onDeleteOdemeKaydi={deleteOdemeKaydi}
+            />
+          )}
+          {tab === "teklif" && <TeklifSozlesme firmaAdi={data.firmaAdi || "Marcus Medya"} onSaveTeklif={saveTeklif} />}
           {tab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} />}
           {tab === "birikim" && (
             <Birikim
@@ -2533,7 +2811,13 @@ export default function MarcusOS() {
               onDeleteHareket={deleteFonHareket}
             />
           )}
-          {tab === "ayarlar" && <Ayarlar onExport={exportCsv} onExportJson={exportJson} onImportJson={importJson} />}
+          {tab === "ayarlar" && (
+            <Ayarlar
+              onExport={exportCsv} onExportJson={exportJson} onImportJson={importJson}
+              firmaAdi={data.firmaAdi} tebligSablonu={data.tebligSablonu}
+              onSaveTeblig={(ad, sablon) => setData((d) => ({ ...d, firmaAdi: ad, tebligSablonu: sablon }))}
+            />
+          )}
         </div>
       </div>
 
@@ -2550,6 +2834,14 @@ export default function MarcusOS() {
           info={saveBlocked}
           onCancel={() => setSaveBlocked(null)}
           onForce={forceSave}
+        />
+      )}
+      {tebligOpen && (
+        <TebligDuzenleModal
+          initialText={tebligOpen.text}
+          client={tebligOpen.client}
+          firmaAdi={data.firmaAdi || "Marcus Medya"}
+          onClose={() => setTebligOpen(null)}
         />
       )}
     </div>

@@ -1,4 +1,6 @@
 export const DEFAULT_DATA = {
+  firmaAdi: "Marcus Medya",
+  teklifler: [],
   monthly: [
     { id: 1, ay: "Şub", yil: 2026, ciro: 168000, gider: 98000, net: 70000 },
     { id: 2, ay: "Mar", yil: 2026, ciro: 182000, gider: 101000, net: 81000 },
@@ -8,12 +10,12 @@ export const DEFAULT_DATA = {
     { id: 6, ay: "Tem", yil: 2026, ciro: 231000, gider: 119000, net: 112000 },
   ],
   clients: [
-    { id: 1, ad: "Nova Teknoloji", kategori: "Yazılım", durum: "aktif", aylikUcret: 58000, karMarji: 71, baslangic: "2024-11", not: "En kârlı müşteri", maliyetler: [], odemeGunu: 5, odemeler: [], faturaliTutar: 58000 },
-    { id: 2, ad: "Lezzet Sofrası", kategori: "Restoran Zinciri", durum: "aktif", aylikUcret: 45000, karMarji: 62, baslangic: "2024-06", not: "", maliyetler: [], odemeGunu: 10, odemeler: [], faturaliTutar: 45000 },
-    { id: 3, ad: "UrbanFit Spor Kulübü", kategori: "Spor & Wellness", durum: "aktif", aylikUcret: 32000, karMarji: 55, baslangic: "2025-01", not: "", maliyetler: [], odemeGunu: null, odemeler: [], faturaliTutar: 32000 },
-    { id: 4, ad: "Mavi Deniz Otelcilik", kategori: "Turizm", durum: "yeni", aylikUcret: 40000, karMarji: 48, baslangic: "2026-06", not: "Ödemenin yarısı nakit, yarısı faturalı", maliyetler: [], odemeGunu: null, odemeler: [], faturaliTutar: 20000 },
-    { id: 5, ad: "Yeşil Bahçe Peyzaj", kategori: "Peyzaj & Bahçe", durum: "aktif", aylikUcret: 18000, karMarji: 28, baslangic: "2025-03", not: "En düşük kârlı müşteri", maliyetler: [], odemeGunu: null, odemeler: [], faturaliTutar: 0 },
-    { id: 6, ad: "Altın Kuyumcu", kategori: "Perakende", durum: "ayrildi", aylikUcret: 0, karMarji: 0, baslangic: "2024-02", not: "", maliyetler: [], odemeGunu: null, odemeler: [], faturaliTutar: 0 },
+    { id: 1, ad: "Nova Teknoloji", kategori: "Yazılım", durum: "aktif", aylikUcret: 58000, karMarji: 71, baslangic: "2024-11", not: "En kârlı müşteri", maliyetler: [], odemeGunu: 5, odemeler: [], odemeKayitlari: [], faturaliTutar: 58000 },
+    { id: 2, ad: "Lezzet Sofrası", kategori: "Restoran Zinciri", durum: "aktif", aylikUcret: 45000, karMarji: 62, baslangic: "2024-06", not: "", maliyetler: [], odemeGunu: 10, odemeler: [], odemeKayitlari: [], faturaliTutar: 45000 },
+    { id: 3, ad: "UrbanFit Spor Kulübü", kategori: "Spor & Wellness", durum: "aktif", aylikUcret: 32000, karMarji: 55, baslangic: "2025-01", not: "", maliyetler: [], odemeGunu: null, odemeler: [], odemeKayitlari: [], faturaliTutar: 32000 },
+    { id: 4, ad: "Mavi Deniz Otelcilik", kategori: "Turizm", durum: "yeni", aylikUcret: 40000, karMarji: 48, baslangic: "2026-06", not: "Ödemenin yarısı nakit, yarısı faturalı", maliyetler: [], odemeGunu: null, odemeler: [], odemeKayitlari: [], faturaliTutar: 20000 },
+    { id: 5, ad: "Yeşil Bahçe Peyzaj", kategori: "Peyzaj & Bahçe", durum: "aktif", aylikUcret: 18000, karMarji: 28, baslangic: "2025-03", not: "En düşük kârlı müşteri", maliyetler: [], odemeGunu: null, odemeler: [], odemeKayitlari: [], faturaliTutar: 0 },
+    { id: 6, ad: "Altın Kuyumcu", kategori: "Perakende", durum: "ayrildi", aylikUcret: 0, karMarji: 0, baslangic: "2024-02", not: "", maliyetler: [], odemeGunu: null, odemeler: [], odemeKayitlari: [], faturaliTutar: 0 },
   ],
   gelirKalemleri: [
     { id: 1, kalem: "Aylık Yönetim Bedelleri", tutar: 193000, tekrar: "sabit", faturali: "evet" },

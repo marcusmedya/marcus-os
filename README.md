@@ -134,6 +134,10 @@ Kurulumdan sonra Ayarlar sayfasındaki **"Şimdi Test Et"** butonuyla hemen dene
 
 - **Ödeme Takvimi'nde doğrudan ödeme günü girme**: Artık Müşteriler sekmesine gitmeden, Ödeme Takvimi tablosundaki "Ödeme Günü" sütununa tıklayıp her müşterinin ödeme gününü girebilir/değiştirebilirsin. Ödeme günü tanımlı olmayan müşteriler de listede görünür (ay hücreleri "—" ile işaretli, tıklanamaz — önce gün girilmesi gerekir).
 
+- **Kısmi ödeme + banka takibi**: Ödeme Takvimi'ndeki hücrelere tıklayınca artık tutar, banka ve tarih girerek gerçek ödeme kayıtları oluşturabilirsin. Bir ay kısmen ödendiyse (½ işareti) kalan tutar otomatik hesaplanır ve Dashboard/Finans'a yansır. Finans sekmesine tüm bu kayıtları listeleyen "Banka Hareketleri" bölümü eklendi.
+- **Düzenlenebilir tebliğ metni**: "Tebliğ Oluştur" artık serbestçe düzenleyebileceğin bir pencere açıyor. Ayarlar > "Tebliğ Şablonu"ndan genel şablonu ve firma adını kalıcı olarak değiştirebilirsin.
+- **Teklif & Sözleşme modülü (yeni sekme)**: 55+ hazır hizmetten (İçerik, Sosyal Medya, Reklam, SEO/GEO, Tasarım, Video, Ek Hizmetler) seçim yaparak saniyeler içinde teklif ve otomatik olarak seçilen hizmetlere göre madde madde oluşan bir sözleşme üretir. 6 hazır paket (Restaurant/Hotel/Jewellery/Corporate) tüm seçimleri tek tıkla dolduruyor. Teklifi/sözleşmeyi yazdır-PDF yap, WhatsApp'ta paylaş, mail ile gönder. Açık/koyu tema desteği kendi içinde ayrı.
+
 ## Notlar
 - Uygulama şu an örnek (demo) verilerle geliyor. Gerçek verilerini bağlamak istediğinde `src/App.jsx` içindeki `clients`, `monthly`, `operasyonlar` gibi listeleri kendi verilerinle değiştirebiliriz, ya da bir sonraki adımda bunları düzenleyebileceğin bir veri giriş ekranı ekleyebiliriz.
 - API anahtarın hiçbir zaman tarayıcıya gönderilmiyor; `api/chat.js` sunucu tarafında çalışıyor.
