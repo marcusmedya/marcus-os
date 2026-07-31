@@ -132,6 +132,8 @@ Kurulumdan sonra Ayarlar sayfasındaki **"Şimdi Test Et"** butonuyla hemen dene
 - **İkinci güvenlik katmanı (sunucu tarafı fren)**: Artık ön yüzdeki hatadan bağımsız olarak, sunucu da her kayıt isteğinde kontrol yapıyor — eğer müşteri sayısı mevcut kayıtlı veriye göre %40'ın altına düşüyorsa (örn. bir hata sonucu boş/demo veri yazılmaya çalışılıyorsa), kayıt otomatik reddedilir ve ekranda "Kayıt güvenlik nedeniyle durduruldu" penceresi çıkar. Bilinçli bir toplu silme yaptıysan "Evet, bu doğru" ile devam edebilirsin.
 - **Kritik hata düzeltmesi**: Uygulamanın ilk açılışında veritabanından okunan veri, önceden yanlışlıkla hemen geri kaydediliyordu — okuma bir anlığına boş dönerse (örn. yeni bir deploy sonrası), bu durum gerçek veriyi örnek veriyle eziyordu. Artık ilk yükleme asla otomatik kaydetmiyor; veritabanı gerçekten boşsa açıkça onay isteyen bir ekran çıkıyor.
 
+- **Ödeme Takvimi'nde doğrudan ödeme günü girme**: Artık Müşteriler sekmesine gitmeden, Ödeme Takvimi tablosundaki "Ödeme Günü" sütununa tıklayıp her müşterinin ödeme gününü girebilir/değiştirebilirsin. Ödeme günü tanımlı olmayan müşteriler de listede görünür (ay hücreleri "—" ile işaretli, tıklanamaz — önce gün girilmesi gerekir).
+
 ## Notlar
 - Uygulama şu an örnek (demo) verilerle geliyor. Gerçek verilerini bağlamak istediğinde `src/App.jsx` içindeki `clients`, `monthly`, `operasyonlar` gibi listeleri kendi verilerinle değiştirebiliriz, ya da bir sonraki adımda bunları düzenleyebileceğin bir veri giriş ekranı ekleyebiliriz.
 - API anahtarın hiçbir zaman tarayıcıya gönderilmiyor; `api/chat.js` sunucu tarafında çalışıyor.

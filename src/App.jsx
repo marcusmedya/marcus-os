@@ -1291,14 +1291,49 @@ function sonAylar(n) {
   return arr;
 }
 
-function OdemeTakvimi({ clients, onToggleMonth }) {
+function OdemeGunuHucre({ client, onUpdateClient }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(client.odemeGunu || "");
+
+  useEffect(() => { setVal(client.odemeGunu || ""); }, [client.odemeGunu]);
+
+  const save = () => {
+    if (val === "" || val === null) { onUpdateClient(client.id, { odemeGunu: null }); setEditing(false); return; }
+    const n = Number(val);
+    if (n >= 1 && n <= 31) onUpdateClient(client.id, { odemeGunu: n });
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <input
+        type="number" min={1} max={31} autoFocus value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
+        style={{ width: 70, background: T.surface, border: `1px solid ${T.accent}`, borderRadius: 7, padding: "6px 8px", color: T.text, fontSize: 13, fontFamily: "Inter, sans-serif", outline: "none" }}
+      />
+    );
+  }
+  return (
+    <button
+      onClick={() => setEditing(true)}
+      style={{ background: "transparent", border: `1px dashed ${client.odemeGunu ? T.border : T.warning}`, borderRadius: 7, padding: "6px 10px", color: client.odemeGunu ? T.text : T.warning, fontSize: 12.5, fontFamily: "Inter, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}
+    >
+      {client.odemeGunu ? `Ayın ${client.odemeGunu}'i` : "+ Gün gir"}
+    </button>
+  );
+}
+
+function OdemeTakvimi({ clients, onToggleMonth, onUpdateClient }) {
   const [ayCount, setAyCount] = useState(6);
-  const izlenenler = clients.filter((c) => c.durum !== "ayrildi" && c.odemeGunu);
+  const izlenenler = clients.filter((c) => c.durum !== "ayrildi");
   const aylar = sonAylar(ayCount);
   const bugunKey = monthKey();
   const bugunGun = new Date().getDate();
 
   const hucreDurumu = (client, ayObj) => {
+    if (!client.odemeGunu) return "gunYok";
     const odendi = (client.odemeler || []).includes(ayObj.key);
     if (odendi) return "odendi";
     if (ayObj.key > bugunKey) return "gelecek";
@@ -1317,10 +1352,12 @@ function OdemeTakvimi({ clients, onToggleMonth }) {
     return sum + borcluAySayisi * (Number(c.aylikUcret) || 0);
   }, 0);
 
+  const gunTanimliSayisi = izlenenler.filter((c) => c.odemeGunu).length;
+
   return (
     <div>
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 22 }}>
-        <KpiCard label="TAKİP EDİLEN MÜŞTERİ" value={izlenenler.length} mono={false} />
+        <KpiCard label="TAKİP EDİLEN MÜŞTERİ" value={gunTanimliSayisi} mono={false} />
         <KpiCard label="BİRİKMİŞ TOPLAM BORÇ" value={fmt(toplamBirikmisBorc)} accent={T.danger} />
       </div>
 
@@ -1338,15 +1375,16 @@ function OdemeTakvimi({ clients, onToggleMonth }) {
 
       {izlenenler.length === 0 ? (
         <Card style={{ padding: "24px", textAlign: "center" }}>
-          <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Ödeme günü tanımlı müşteri yok. Müşteriler sekmesinde bir müşteriyi düzenleyip "Ödeme Günü" alanını doldurursan burada görünür.</div>
+          <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Henüz aktif/yeni müşteri yok.</div>
         </Card>
       ) : (
         <Card style={{ padding: 4 }}>
           <div className="marcus-table-wrap">
-            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Inter, sans-serif", minWidth: 480 + aylar.length * 64 }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Inter, sans-serif", minWidth: 620 + aylar.length * 64 }}>
               <thead>
                 <tr>
                   <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 11.5, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}`, position: "sticky", left: 0, background: T.surface }}>Müşteri</th>
+                  <th style={{ textAlign: "left", padding: "12px 12px", fontSize: 11.5, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}` }}>Ödeme Günü</th>
                   {aylar.map((a) => (
                     <th key={a.key} style={{ textAlign: "center", padding: "12px 8px", fontSize: 11.5, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}`, minWidth: 64 }}>{a.label}</th>
                   ))}
@@ -1360,6 +1398,9 @@ function OdemeTakvimi({ clients, onToggleMonth }) {
                   return (
                     <tr key={c.id} style={{ borderBottom: `1px solid ${T.borderSoft}` }}>
                       <td style={{ padding: "10px 16px", fontSize: 13, color: T.text, fontWeight: 600, position: "sticky", left: 0, background: T.surface }}>{c.ad}</td>
+                      <td style={{ padding: "8px 12px" }}>
+                        <OdemeGunuHucre client={c} onUpdateClient={onUpdateClient} />
+                      </td>
                       {aylar.map((a) => {
                         const durum = hucreDurumu(c, a);
                         const stil = {
@@ -1367,6 +1408,7 @@ function OdemeTakvimi({ clients, onToggleMonth }) {
                           odenmedi: { bg: T.dangerSoft, color: T.danger, sym: "✕" },
                           gelecek: { bg: T.borderSoft, color: T.textFaint, sym: "·" },
                           yok: { bg: "transparent", color: T.textFaint, sym: "" },
+                          gunYok: { bg: "transparent", color: T.textFaint, sym: "—" },
                         }[durum];
                         const tiklanabilir = durum === "odendi" || durum === "odenmedi";
                         return (
@@ -1374,7 +1416,7 @@ function OdemeTakvimi({ clients, onToggleMonth }) {
                             <button
                               disabled={!tiklanabilir}
                               onClick={() => tiklanabilir && onToggleMonth(c.id, a.key, durum === "odendi" ? "kaldir" : "ekle")}
-                              title={tiklanabilir ? "Durumu değiştirmek için tıkla" : undefined}
+                              title={tiklanabilir ? "Durumu değiştirmek için tıkla" : durum === "gunYok" ? "Önce ödeme günü gir" : undefined}
                               style={{
                                 width: 34, height: 28, borderRadius: 7, border: "none", background: stil.bg, color: stil.color,
                                 fontSize: 13, fontWeight: 700, cursor: tiklanabilir ? "pointer" : "default", fontFamily: "Inter, sans-serif",
@@ -1396,7 +1438,7 @@ function OdemeTakvimi({ clients, onToggleMonth }) {
       )}
 
       <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 10 }}>
-        <span style={{ color: T.success }}>✓</span> ödendi · <span style={{ color: T.danger }}>✕</span> ödenmedi (tıkla, ödendi yap) · <span style={{ color: T.textFaint }}>·</span> henüz vadesi gelmedi. Bu veriler Müşteriler sekmesindeki "Ödeme Günü" ve "Ödendi işaretle" ile aynı yerden gelir.
+        <span style={{ color: T.success }}>✓</span> ödendi · <span style={{ color: T.danger }}>✕</span> ödenmedi (tıkla, ödendi yap) · <span style={{ color: T.textFaint }}>·</span> henüz vadesi gelmedi · <span style={{ color: T.textFaint }}>—</span> ödeme günü tanımlı değil. "Ödeme Günü" sütununa tıklayıp buradan doğrudan girebilir/değiştirebilirsin — Müşteriler sekmesiyle aynı veriyi paylaşır.
       </div>
     </div>
   );
@@ -2480,7 +2522,7 @@ export default function MarcusOS() {
             />
           )}
           {tab === "takvim" && <Takvim data={data} />}
-          {tab === "odeme-takvimi" && <OdemeTakvimi clients={data.clients} onToggleMonth={toggleMonthPaid} />}
+          {tab === "odeme-takvimi" && <OdemeTakvimi clients={data.clients} onToggleMonth={toggleMonthPaid} onUpdateClient={updateClient} />}
           {tab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} />}
           {tab === "birikim" && (
             <Birikim
