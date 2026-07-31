@@ -235,6 +235,18 @@ const PW_KEY = "marcus-os-pw";
 const getPw = () => (typeof window !== "undefined" ? localStorage.getItem(PW_KEY) || "" : "");
 const setPw = (v) => { if (typeof window !== "undefined") localStorage.setItem(PW_KEY, v); };
 
+/** Kişiye özel personel girişi: kullanıcı adı + şifre, ayrı bir localStorage anahtarında. */
+const STAFF_USER_KEY = "marcus-os-staff-user";
+const STAFF_PW_KEY = "marcus-os-staff-pw";
+const getStaffCreds = () => (typeof window !== "undefined" ? { kullaniciAdi: localStorage.getItem(STAFF_USER_KEY) || "", sifre: localStorage.getItem(STAFF_PW_KEY) || "" } : { kullaniciAdi: "", sifre: "" });
+const setStaffCreds = (kullaniciAdi, sifre) => { if (typeof window !== "undefined") { localStorage.setItem(STAFF_USER_KEY, kullaniciAdi); localStorage.setItem(STAFF_PW_KEY, sifre); } };
+const clearStaffCreds = () => { if (typeof window !== "undefined") { localStorage.removeItem(STAFF_USER_KEY); localStorage.removeItem(STAFF_PW_KEY); } };
+/** /api/data isteklerine hem olası tek-şifre hem de kişisel personel kimliğini ekler. */
+const authHeaders = () => {
+  const staff = getStaffCreds();
+  return { "X-Site-Password": getPw(), "X-Staff-Username": staff.kullaniciAdi, "X-Staff-Password": staff.sifre };
+};
+
 /** Ekran genişliğine göre mobil/masaüstü ayrımı yapar; pencere yeniden boyutlandırıldığında güncellenir. */
 function useIsMobile(breakpoint = 860) {
   const [isMobile, setIsMobile] = useState(() => (typeof window !== "undefined" ? window.innerWidth < breakpoint : false));
@@ -2227,6 +2239,8 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
         </p>
       </Card>
 
+      <PersonelHesaplariKart />
+
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>CEO Paneli — Personel Yetkileri</SectionTitle>
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
@@ -2261,6 +2275,122 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
         <MarkaKimligiYukleyici value={markaKimligiGorseli} onChange={onSaveMarkaKimligi} />
       </Card>
     </div>
+  );
+}
+
+function PersonelHesaplariKart() {
+  const [hesaplar, setHesaplar] = useState(null); // null = yüklenmedi
+  const [ekleAcik, setEkleAcik] = useState(false);
+  const [yeniAd, setYeniAd] = useState("");
+  const [yeniKullanici, setYeniKullanici] = useState("");
+  const [yeniSifre, setYeniSifre] = useState("");
+  const [hata, setHata] = useState("");
+  const [sifirlanan, setSifirlanan] = useState(null); // id
+  const [yeniSifreDeger, setYeniSifreDeger] = useState("");
+
+  const yukle = () => {
+    fetch("/api/manage-staff", { headers: { "X-Site-Password": getPw() } })
+      .then((r) => r.json())
+      .then((res) => setHesaplar(res.hesaplar || []))
+      .catch(() => setHesaplar([]));
+  };
+  useEffect(() => { yukle(); }, []);
+
+  const ekle = () => {
+    setHata("");
+    if (!yeniAd.trim() || !yeniKullanici.trim() || !yeniSifre.trim()) { setHata("Ad, kullanıcı adı ve şifre gerekli."); return; }
+    fetch("/api/manage-staff", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Site-Password": getPw() },
+      body: JSON.stringify({ action: "ekle", ad: yeniAd.trim(), kullaniciAdi: yeniKullanici.trim(), sifre: yeniSifre }),
+    })
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.error) { setHata(res.error); return; }
+        setHesaplar(res.hesaplar);
+        setYeniAd(""); setYeniKullanici(""); setYeniSifre(""); setEkleAcik(false);
+      })
+      .catch(() => setHata("Bağlantı hatası."));
+  };
+
+  const sifreSifirla = (id) => {
+    if (!yeniSifreDeger.trim()) return;
+    fetch("/api/manage-staff", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Site-Password": getPw() },
+      body: JSON.stringify({ action: "sifreSifirla", id, sifre: yeniSifreDeger }),
+    })
+      .then((r) => r.json())
+      .then((res) => { if (res.hesaplar) setHesaplar(res.hesaplar); setSifirlanan(null); setYeniSifreDeger(""); });
+  };
+
+  const sil = (id) => {
+    if (!window.confirm("Bu personel hesabı silinsin mi?")) return;
+    fetch("/api/manage-staff", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Site-Password": getPw() },
+      body: JSON.stringify({ action: "sil", id }),
+    })
+      .then((r) => r.json())
+      .then((res) => { if (res.hesaplar) setHesaplar(res.hesaplar); });
+  };
+
+  return (
+    <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+      <SectionTitle>Personel Hesapları</SectionTitle>
+      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
+        Her ekip üyesine kendi kullanıcı adı ve şifresiyle ayrı bir giriş verebilirsin. Böylece Çekim & Edit Takibi'nde
+        kim ne yaptı otomatik olarak kişi adıyla kaydedilir. Personel girişinde "Personel Girişi" sekmesini kullanır.
+      </p>
+
+      {hesaplar === null && <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Yükleniyor…</div>}
+
+      {hesaplar && hesaplar.length === 0 && !ekleAcik && (
+        <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 12 }}>Henüz kişisel personel hesabı yok.</div>
+      )}
+
+      {hesaplar && hesaplar.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+          {hesaplar.map((h) => (
+            <div key={h.id} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "10px 12px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{h.ad}</div>
+                  <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>@{h.kullaniciAdi}</div>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button style={cancelBtnStyle} onClick={() => { setSifirlanan(sifirlanan === h.id ? null : h.id); setYeniSifreDeger(""); }}>Şifre Sıfırla</button>
+                  <button style={iconBtnStyle} onClick={() => sil(h.id)}><Trash2 size={14} color={T.danger} /></button>
+                </div>
+              </div>
+              {sifirlanan === h.id && (
+                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                  <input type="password" placeholder="Yeni şifre" value={yeniSifreDeger} onChange={(e) => setYeniSifreDeger(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+                  <button style={saveBtnStyle} onClick={() => sifreSifirla(h.id)}>Kaydet</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {ekleAcik ? (
+        <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 14px" }}>
+          <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+            <input placeholder="Ad Soyad" value={yeniAd} onChange={(e) => setYeniAd(e.target.value)} style={inputStyle} />
+            <input placeholder="Kullanıcı Adı" value={yeniKullanici} onChange={(e) => setYeniKullanici(e.target.value)} style={inputStyle} />
+            <input type="password" placeholder="Şifre" value={yeniSifre} onChange={(e) => setYeniSifre(e.target.value)} style={inputStyle} />
+          </div>
+          {hata && <div style={{ color: T.danger, fontSize: 12, fontFamily: "Inter", marginBottom: 8 }}>{hata}</div>}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button style={cancelBtnStyle} onClick={() => setEkleAcik(false)}>İptal</button>
+            <button style={saveBtnStyle} onClick={ekle}>Hesabı Oluştur</button>
+          </div>
+        </div>
+      ) : (
+        <button style={addBtnStyle} onClick={() => setEkleAcik(true)}><Plus size={13} /> Yeni Personel Hesabı</button>
+      )}
+    </Card>
   );
 }
 
@@ -2373,27 +2503,63 @@ function AiPanel({ open, onClose, initialQuestion, data }) {
 /* ------------------------------------------------------------------ */
 /* ŞİFRE EKRANI                                                          */
 /* ------------------------------------------------------------------ */
-function LockScreen({ onSubmit, error, checking }) {
+function LockScreen({ onSubmit, onStaffSubmit, error, checking }) {
+  const [mode, setMode] = useState("sifre"); // "sifre" | "personel"
   const [value, setValue] = useState("");
+  const [kullaniciAdi, setKullaniciAdi] = useState("");
+  const [personelSifre, setPersonelSifre] = useState("");
+
   return (
     <div style={{ background: T.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <style>{FONTS}</style>
       <div style={{ width: 320, textAlign: "center" }}>
         <div style={{ width: 44, height: 44, borderRadius: 12, background: T.accent, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: "#fff", fontSize: 18, margin: "0 auto 18px" }}>M</div>
         <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 600, color: T.text, margin: "0 0 6px" }}>Marcus OS</h1>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, margin: "0 0 20px" }}>Devam etmek için şifreni gir.</p>
-        <input
-          type="password"
-          autoFocus
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && onSubmit(value)}
-          placeholder="Şifre"
-          style={{ ...inputStyle, textAlign: "center", marginBottom: 12, padding: "11px 12px" }}
-        />
-        <button onClick={() => onSubmit(value)} disabled={checking} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", padding: "11px 12px", opacity: checking ? 0.6 : 1 }}>
-          {checking ? "Kontrol ediliyor…" : "Giriş Yap"}
-        </button>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, margin: "0 0 18px" }}>{mode === "sifre" ? "Devam etmek için şifreni gir." : "Kullanıcı adın ve şifrenle giriş yap."}</p>
+
+        <div style={{ display: "flex", gap: 6, marginBottom: 16, background: T.surfaceRaised, borderRadius: 10, padding: 3 }}>
+          <button onClick={() => setMode("sifre")} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: mode === "sifre" ? T.accent : "transparent", color: mode === "sifre" ? "#fff" : T.textDim, fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}>Şifreyle Gir</button>
+          <button onClick={() => setMode("personel")} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: mode === "personel" ? T.accent : "transparent", color: mode === "personel" ? "#fff" : T.textDim, fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}>Personel Girişi</button>
+        </div>
+
+        {mode === "sifre" ? (
+          <>
+            <input
+              type="password"
+              autoFocus
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && onSubmit(value)}
+              placeholder="Şifre"
+              style={{ ...inputStyle, textAlign: "center", marginBottom: 12, padding: "11px 12px" }}
+            />
+            <button onClick={() => onSubmit(value)} disabled={checking} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", padding: "11px 12px", opacity: checking ? 0.6 : 1 }}>
+              {checking ? "Kontrol ediliyor…" : "Giriş Yap"}
+            </button>
+          </>
+        ) : (
+          <>
+            <input
+              type="text"
+              autoFocus
+              value={kullaniciAdi}
+              onChange={(e) => setKullaniciAdi(e.target.value)}
+              placeholder="Kullanıcı Adı"
+              style={{ ...inputStyle, textAlign: "center", marginBottom: 10, padding: "11px 12px" }}
+            />
+            <input
+              type="password"
+              value={personelSifre}
+              onChange={(e) => setPersonelSifre(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && onStaffSubmit(kullaniciAdi, personelSifre)}
+              placeholder="Şifre"
+              style={{ ...inputStyle, textAlign: "center", marginBottom: 12, padding: "11px 12px" }}
+            />
+            <button onClick={() => onStaffSubmit(kullaniciAdi, personelSifre)} disabled={checking} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", padding: "11px 12px", opacity: checking ? 0.6 : 1 }}>
+              {checking ? "Kontrol ediliyor…" : "Giriş Yap"}
+            </button>
+          </>
+        )}
         {error && <div style={{ color: T.danger, fontSize: 12.5, fontFamily: "Inter", marginTop: 12 }}>{error}</div>}
       </div>
     </div>
@@ -2503,6 +2669,7 @@ export default function MarcusOS() {
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [needsAuth, setNeedsAuth] = useState(false);
   const [role, setRole] = useState(null); // "owner" | "staff"
+  const [loggedStaffName, setLoggedStaffName] = useState("");
   const [authError, setAuthError] = useState("");
   const [authChecking, setAuthChecking] = useState(false);
   const [search, setSearch] = useState("");
@@ -2522,7 +2689,7 @@ export default function MarcusOS() {
     if (isRetry) setAuthChecking(true);
     else setLoading(true);
     setLoadError(false);
-    fetch("/api/data", { headers: { "X-Site-Password": getPw() } })
+    fetch("/api/data", { headers: authHeaders() })
       .then(async (r) => {
         if (r.status === 401) {
           setNeedsAuth(true);
@@ -2536,6 +2703,7 @@ export default function MarcusOS() {
         }
         const res = await r.json();
         if (res.role) setRole(res.role);
+        if (res.staffName) setLoggedStaffName(res.staffName);
         if (res.data) {
           setData(res.data);
           setNeedsSeedConfirm(false);
@@ -2556,6 +2724,12 @@ export default function MarcusOS() {
 
   const handleAuthSubmit = (pw) => {
     setPw(pw);
+    clearStaffCreds();
+    loadData(true);
+  };
+  const handleStaffAuthSubmit = (kullaniciAdi, sifre) => {
+    setPw("");
+    setStaffCreds(kullaniciAdi, sifre);
     loadData(true);
   };
 
@@ -2565,7 +2739,7 @@ export default function MarcusOS() {
     setSaveStatus("saving");
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      fetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json", "X-Site-Password": getPw() }, body: JSON.stringify({ data }) })
+      fetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ data }) })
         .then(async (r) => {
           if (r.status === 409) {
             const res = await r.json();
@@ -2601,7 +2775,7 @@ export default function MarcusOS() {
   const forceSave = () => {
     if (!saveBlocked) return;
     const payload = saveBlocked.dataToForce;
-    fetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json", "X-Site-Password": getPw() }, body: JSON.stringify({ data: payload, force: true }) })
+    fetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ data: payload, force: true }) })
       .then((r) => { if (r.ok) { setSaveStatus("saved"); setLastSavedAt(new Date()); } else { setSaveStatus("error"); } })
       .catch(() => setSaveStatus("error"))
       .finally(() => setSaveBlocked(null));
@@ -2884,7 +3058,7 @@ export default function MarcusOS() {
   const todayLabel = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
 
   if (needsAuth) {
-    return <LockScreen onSubmit={handleAuthSubmit} error={authError} checking={authChecking} />;
+    return <LockScreen onSubmit={handleAuthSubmit} onStaffSubmit={handleStaffAuthSubmit} error={authError} checking={authChecking} />;
   }
 
   if (loadError) {
@@ -2958,7 +3132,7 @@ export default function MarcusOS() {
               <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter" }}>Personel Paneli</div>
             </div>
           </div>
-          <button onClick={() => { setPw(""); window.location.reload(); }} style={cancelBtnStyle}>Çıkış Yap</button>
+          <button onClick={() => { setPw(""); clearStaffCreds(); window.location.reload(); }} style={cancelBtnStyle}>Çıkış Yap</button>
         </div>
         {staffNavAll.length > 1 && (
           <div style={{ display: "flex", gap: 8, padding: "16px 20px 0" }}>
@@ -2971,7 +3145,7 @@ export default function MarcusOS() {
           {!staffTab && <div style={{ color: T.textFaint, fontFamily: "Inter", fontSize: 13 }}>Henüz erişimin olan bir bölüm yok. Yöneticine sor.</div>}
           {staffTab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} />}
           {staffTab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} />}
-          {staffTab === "cekim-edit" && <CekimEditTakibi role="staff" clients={data.clients || []} jobs={data.cekimIsleri || []} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} />}
+          {staffTab === "cekim-edit" && <CekimEditTakibi role="staff" clients={data.clients || []} jobs={data.cekimIsleri || []} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} girisYapanAd={loggedStaffName} />}
         </div>
       </div>
     );

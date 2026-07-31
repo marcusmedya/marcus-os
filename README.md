@@ -171,6 +171,14 @@ Kurulumdan sonra Ayarlar sayfasındaki **"Şimdi Test Et"** butonuyla hemen dene
 - **Marka Kimliği**: Ayarlar'a yüklediğin görsel, her teklifin ve sözleşmenin en altında otomatik çıkıyor.
 - **Paylaşımlar'da markaya özel düşük stok tahmini**: Son 30 günün paylaşım hızına bakıp "~X gün içinde bitecek" şeklinde hem bildirim (zil ikonu) hem de kart üzerinde küçük turuncu bir noktayla uyarıyor.
 
+## Güncelleme 5: Gerçek Personel Hesapları
+
+- **Artık her ekip üyesine kendi kullanıcı adı + şifresi verilebiliyor** (tek ortak personel şifresi yerine, ya da onunla birlikte). Ayarlar > "Personel Hesapları"ndan ekleyip yönetiyorsun.
+- Giriş ekranında artık **"Şifreyle Gir"** (senin şifren) ve **"Personel Girişi"** (kullanıcı adı + şifre) olmak üzere iki seçenek var.
+- Kişisel hesapla giren bir personelin adı **otomatik olarak** biliniyor — Çekim & Edit Takibi'nde artık ismini elle girmesine gerek yok, işlem geçmişinde otomatik kendi adıyla görünüyor.
+- Şifreler sunucuda **hash'lenmiş** olarak saklanıyor (düz metin hiçbir zaman tutulmuyor), ayrı ve korumalı bir uçtan (`/api/manage-staff`) yönetiliyor — ana veri akışına hiç karışmıyor, owner dahil kimseye şifre/hash geri gönderilmiyor.
+- Eski tek şifreli personel girişi (`STAFF_PASSWORD`) hâlâ çalışmaya devam ediyor — istersen ikisini birlikte de kullanabilirsin.
+
 ## Notlar
 - Uygulama şu an örnek (demo) verilerle geliyor. Gerçek verilerini bağlamak istediğinde `src/App.jsx` içindeki `clients`, `monthly`, `operasyonlar` gibi listeleri kendi verilerinle değiştirebiliriz, ya da bir sonraki adımda bunları düzenleyebileceğin bir veri giriş ekranı ekleyebiliriz.
 - API anahtarın hiçbir zaman tarayıcıya gönderilmiyor; `api/chat.js` sunucu tarafında çalışıyor.

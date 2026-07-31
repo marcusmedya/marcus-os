@@ -418,13 +418,13 @@ function YoneticiIstatistik({ jobs }) {
 /* ------------------------------------------------------------------ */
 /* ANA BİLEŞEN                                                           */
 /* ------------------------------------------------------------------ */
-export default function CekimEditTakibi({ role, clients, jobs, onAddJob, onUpdateJob, onDeleteJob }) {
-  const [staffName, setStaffNameState] = useState(getStaffName());
+export default function CekimEditTakibi({ role, clients, jobs, onAddJob, onUpdateJob, onDeleteJob, girisYapanAd }) {
+  const [staffName, setStaffNameState] = useState(girisYapanAd || getStaffName());
   const [view, setView] = useState(role === "staff" ? "panom" : "pano");
   const [adding, setAdding] = useState(false);
   const [acikIs, setAcikIs] = useState(null);
 
-  useEffect(() => { setStaffNameState(getStaffName()); }, []);
+  useEffect(() => { setStaffNameState(girisYapanAd || getStaffName()); }, [girisYapanAd]);
 
   const isler = jobs || [];
 
