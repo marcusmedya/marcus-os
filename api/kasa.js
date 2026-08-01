@@ -33,9 +33,16 @@ async function yetkiliMi(req) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") return res.status(405).json({ error: "Sadece POST kabul edilir." });
   const auth = await yetkiliMi(req);
   if (!auth) return res.status(401).json({ error: "Yetkisiz." });
+
+  if (req.method === "GET") {
+    // Sadece "özel bir kasa şifresi ayarlanmış mı" bilgisini döner — hash/salt asla gönderilmez.
+    const data = (await kv.get(KEY)) || {};
+    return res.status(200).json({ ayarlandiMi: !!data.kasaSifresiHash });
+  }
+
+  if (req.method !== "POST") return res.status(405).json({ error: "Sadece GET/POST kabul edilir." });
 
   try {
     const { action, sifre, yeniSifre } = req.body || {};

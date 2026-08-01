@@ -2717,13 +2717,20 @@ function SifreGateli({ children }) {
       <div style={{ fontSize: 14, color: T.text, fontWeight: 600, fontFamily: "Inter", marginBottom: 6 }}>Bu sayfa ekstra korumalı</div>
       <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 18 }}>Müşteri hesap bilgilerini görmek için kasa şifresini gir.</div>
       <input
-        type="password"
+        type="text"
         autoFocus
+        name={`kasa-giris-${Math.random().toString(36).slice(2)}`}
+        autoComplete="off"
+        autoCorrect="off"
+        autoCapitalize="off"
+        spellCheck="false"
+        data-lpignore="true"
+        data-1p-ignore="true"
         value={sifre}
         onChange={(e) => setSifre(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && dogrula()}
         placeholder="Kasa Şifresi"
-        style={{ ...inputStyle, textAlign: "center", marginBottom: 12 }}
+        style={{ ...inputStyle, textAlign: "center", marginBottom: 12, WebkitTextSecurity: "disc" }}
       />
       <button onClick={dogrula} disabled={kontrolEdiliyor} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", opacity: kontrolEdiliyor ? 0.6 : 1 }}>
         {kontrolEdiliyor ? "Kontrol ediliyor…" : "Devam Et"}
@@ -2833,16 +2840,26 @@ function yukleJsPDF() {
   });
 }
 
-function hesapBilgileriPdfOlustur(marka, firmaAdi, girisListesi, driveLinki) {
+function hesapBilgileriPdfOlustur(marka, firmaAdi, girisListesi, driveLinki, logo) {
   return yukleJsPDF().then(({ jsPDF }) => {
     const doc = new jsPDF();
+    let baslikY = 20;
+    if (logo) {
+      try {
+        const format = logo.includes("image/png") ? "PNG" : "JPEG";
+        doc.addImage(logo, format, 14, 10, 32, 20);
+        baslikY = 42;
+      } catch (e) {
+        // logo eklenemezse (bozuk/desteklenmeyen format) PDF'in geri kalanı yine de oluşsun
+      }
+    }
     doc.setFontSize(16);
-    doc.text(`${marka} - Hesap Bilgileri`, 14, 20);
+    doc.text(`${marka} - Hesap Bilgileri`, 14, baslikY);
     doc.setFontSize(10);
     doc.setTextColor(120);
-    doc.text(`${firmaAdi || "Marcus Medya"} - ${new Date().toLocaleDateString("tr-TR")}`, 14, 27);
+    doc.text(`${firmaAdi || "Marcus Medya"} - ${new Date().toLocaleDateString("tr-TR")}`, 14, baslikY + 7);
     doc.setTextColor(0);
-    let y = 40;
+    let y = baslikY + 20;
     if (girisListesi.length === 0) {
       doc.setFontSize(11);
       doc.text("Kayitli hesap bilgisi bulunmuyor.", 14, y);
@@ -2855,17 +2872,29 @@ function hesapBilgileriPdfOlustur(marka, firmaAdi, girisListesi, driveLinki) {
       doc.text(`Kullanici Adi: ${g.kullanici || "-"}`, 18, y + 6);
       doc.text(`Sifre: ${g.sifre || "-"}`, 18, y + 12);
       y += 20;
-      if (y > 270) { doc.addPage(); y = 20; }
+      if (y > 250) { doc.addPage(); y = 20; }
     });
     if (driveLinki) {
       doc.setFontSize(10);
       doc.text(`Drive: ${driveLinki}`, 14, y + 6);
+      y += 14;
     }
+    // Güvenlik uyarısı — her zaman en altta, kırmızımsı bir kutu içinde.
+    if (y > 240) { doc.addPage(); y = 20; }
+    y += 10;
+    doc.setDrawColor(220, 53, 69);
+    doc.setFillColor(255, 236, 236);
+    doc.roundedRect(14, y, 182, 22, 2, 2, "FD");
+    doc.setTextColor(150, 20, 30);
+    doc.setFontSize(9);
+    doc.text("ONEMLI: Bu belge gizli hesap bilgileri icermektedir. Bilgilerinizi aldiktan sonra bu", 18, y + 8);
+    doc.text("dosyayi siliniz ve sifrelerinizi ucuncu sahislarla KESINLIKLE paylasmayiniz.", 18, y + 15);
+    doc.setTextColor(0);
     doc.save(`${marka.replace(/[^\w]+/g, "-")}-hesap-bilgileri.pdf`);
   });
 }
 
-function DevirTeslimFormu({ client, girisler, firmaAdi, onClose }) {
+function DevirTeslimFormu({ client, girisler, firmaAdi, logo, onClose }) {
   const [driveLinki, setDriveLinki] = useState("");
   const [email, setEmail] = useState("");
   const [telefon, setTelefon] = useState("");
@@ -2890,7 +2919,7 @@ function DevirTeslimFormu({ client, girisler, firmaAdi, onClose }) {
     fetch("/api/devir-teslim", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ email: email.trim(), marka: client.ad, driveLinki: driveLinki.trim(), girisler: girisListesi, firmaAdi }),
+      body: JSON.stringify({ email: email.trim(), marka: client.ad, driveLinki: driveLinki.trim(), girisler: girisListesi, firmaAdi, logo }),
     })
       .then((r) => r.json())
       .then((res) => {
@@ -2919,7 +2948,7 @@ function DevirTeslimFormu({ client, girisler, firmaAdi, onClose }) {
   };
 
   const pdfIndir = () => {
-    hesapBilgileriPdfOlustur(client.ad, firmaAdi, girisListesi, driveLinki.trim()).catch(() => setSonuc("❌ PDF oluşturulamadı."));
+    hesapBilgileriPdfOlustur(client.ad, firmaAdi, girisListesi, driveLinki.trim(), logo).catch(() => setSonuc("❌ PDF oluşturulamadı."));
   };
 
   return (
@@ -2963,7 +2992,7 @@ function DevirTeslimFormu({ client, girisler, firmaAdi, onClose }) {
 
 /** Devir teslimden bağımsız, "müşteri şifresini istedi" durumunda hızlıca kullanılan sade gönderim —
  * 15 gün/1 gün uyarıları yok, sadece bilgiler paylaşılır. Bu da göndermeden önce owner şifresi ister. */
-function HizliSifreGonderFormu({ client, girisler, firmaAdi, onClose }) {
+function HizliSifreGonderFormu({ client, girisler, firmaAdi, logo, onClose }) {
   const [email, setEmail] = useState("");
   const [gonderiliyor, setGonderiliyor] = useState(false);
   const [sonuc, setSonuc] = useState("");
@@ -2979,7 +3008,7 @@ function HizliSifreGonderFormu({ client, girisler, firmaAdi, onClose }) {
     fetch("/api/devir-teslim", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ email: email.trim(), marka: client.ad, girisler: girisListesi, firmaAdi, mod: "hizli" }),
+      body: JSON.stringify({ email: email.trim(), marka: client.ad, girisler: girisListesi, firmaAdi, mod: "hizli", logo }),
     })
       .then((r) => r.json())
       .then((res) => {
@@ -2995,7 +3024,7 @@ function HizliSifreGonderFormu({ client, girisler, firmaAdi, onClose }) {
     setOnayAcik(true);
   };
 
-  const pdfIndir = () => hesapBilgileriPdfOlustur(client.ad, firmaAdi, girisListesi, "").catch(() => setSonuc("❌ PDF oluşturulamadı."));
+  const pdfIndir = () => hesapBilgileriPdfOlustur(client.ad, firmaAdi, girisListesi, "", logo).catch(() => setSonuc("❌ PDF oluşturulamadı."));
 
   return (
     <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: 14 }}>
@@ -3018,7 +3047,7 @@ function HizliSifreGonderFormu({ client, girisler, firmaAdi, onClose }) {
   );
 }
 
-function MusteriGirisleriIcerik({ clients, girisler, onUpdate, firmaAdi }) {
+function MusteriGirisleriIcerik({ clients, girisler, onUpdate, firmaAdi, logo }) {
   const [acikId, setAcikId] = useState(null);
   const [devirTeslimId, setDevirTeslimId] = useState(null);
   const [hizliGonderId, setHizliGonderId] = useState(null);
@@ -3065,9 +3094,9 @@ function MusteriGirisleriIcerik({ clients, girisler, onUpdate, firmaAdi }) {
                     </div>
                     <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${T.borderSoft}` }}>
                       {devirTeslimId === c.id ? (
-                        <DevirTeslimFormu client={c} girisler={g} firmaAdi={firmaAdi} onClose={() => setDevirTeslimId(null)} />
+                        <DevirTeslimFormu client={c} girisler={g} firmaAdi={firmaAdi} logo={logo} onClose={() => setDevirTeslimId(null)} />
                       ) : hizliGonderId === c.id ? (
-                        <HizliSifreGonderFormu client={c} girisler={g} firmaAdi={firmaAdi} onClose={() => setHizliGonderId(null)} />
+                        <HizliSifreGonderFormu client={c} girisler={g} firmaAdi={firmaAdi} logo={logo} onClose={() => setHizliGonderId(null)} />
                       ) : (
                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                           <button onClick={() => setHizliGonderId(c.id)} style={addBtnStyle}>✉️ Şifreleri Gönder</button>
@@ -3128,6 +3157,17 @@ function KasaSifresiKarti() {
   const [hata, setHata] = useState("");
   const [basari, setBasari] = useState(false);
   const [kaydediliyor, setKaydediliyor] = useState(false);
+  const [ayarlandiMi, setAyarlandiMi] = useState(null);
+  const rastgeleAd1 = useRef(`kasa-alan-${Math.random().toString(36).slice(2)}`).current;
+  const rastgeleAd2 = useRef(`kasa-alan-${Math.random().toString(36).slice(2)}`).current;
+
+  const durumuYukle = () => {
+    fetch("/api/kasa", { headers: { "X-Site-Password": getPw() } })
+      .then((r) => r.json())
+      .then((res) => setAyarlandiMi(!!res.ayarlandiMi))
+      .catch(() => setAyarlandiMi(null));
+  };
+  useEffect(() => { durumuYukle(); }, []);
 
   const kaydet = () => {
     setHata(""); setBasari(false);
@@ -3141,7 +3181,7 @@ function KasaSifresiKarti() {
     })
       .then((r) => r.json())
       .then((res) => {
-        if (res.ok) { setBasari(true); setYeniSifre(""); setTekrar(""); setAcik(false); }
+        if (res.ok) { setBasari(true); setYeniSifre(""); setTekrar(""); setAcik(false); durumuYukle(); }
         else setHata(res.error || "Bir sorun oluştu.");
       })
       .catch(() => setHata("Bağlantı hatası."))
@@ -3151,15 +3191,46 @@ function KasaSifresiKarti() {
   return (
     <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
       <SectionTitle>Şifre Kasası Şifresi</SectionTitle>
-      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
+      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 10 }}>
         Şifre Kasası'na (müşteri sosyal medya girişleri) girerken artık kendi şifrenle değil, buradan belirlediğin
         <strong> ayrı bir kasa şifresiyle</strong> doğrulama yapılıyor. Henüz belirlemediysen, ilk seferde kendi şifren geçici olarak kabul edilir.
       </p>
+      {ayarlandiMi !== null && (
+        <div style={{ fontSize: 12, fontFamily: "Inter", fontWeight: 600, color: ayarlandiMi ? T.success : T.warning, marginBottom: 14 }}>
+          {ayarlandiMi ? "✅ Şu an özel bir kasa şifresi ayarlı — owner şifren artık kasa şifresi olarak kabul edilmiyor." : "⚠️ Şu an henüz özel bir kasa şifresi ayarlanmadı — kasa hâlâ owner şifrenle açılıyor."}
+        </div>
+      )}
       {basari && <div style={{ color: T.success, fontSize: 12.5, fontFamily: "Inter", marginBottom: 10 }}>Kasa şifresi güncellendi.</div>}
       {acik ? (
         <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 14px" }}>
-          <input type="password" autoComplete="new-password" placeholder="Yeni kasa şifresi" value={yeniSifre} onChange={(e) => setYeniSifre(e.target.value)} style={{ ...inputStyle, marginBottom: 10 }} />
-          <input type="password" autoComplete="new-password" placeholder="Yeni kasa şifresi (tekrar)" value={tekrar} onChange={(e) => setTekrar(e.target.value)} style={{ ...inputStyle, marginBottom: 10 }} />
+          <input
+            type="text"
+            name={rastgeleAd1}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck="false"
+            data-lpignore="true"
+            data-1p-ignore="true"
+            placeholder="Yeni kasa şifresi"
+            value={yeniSifre}
+            onChange={(e) => setYeniSifre(e.target.value)}
+            style={{ ...inputStyle, marginBottom: 10, WebkitTextSecurity: "disc" }}
+          />
+          <input
+            type="text"
+            name={rastgeleAd2}
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck="false"
+            data-lpignore="true"
+            data-1p-ignore="true"
+            placeholder="Yeni kasa şifresi (tekrar)"
+            value={tekrar}
+            onChange={(e) => setTekrar(e.target.value)}
+            style={{ ...inputStyle, marginBottom: 10, WebkitTextSecurity: "disc" }}
+          />
           {hata && <div style={{ color: T.danger, fontSize: 12, fontFamily: "Inter", marginBottom: 8 }}>{hata}</div>}
           <div style={{ display: "flex", gap: 8 }}>
             <button style={cancelBtnStyle} onClick={() => { setAcik(false); setYeniSifre(""); setTekrar(""); setHata(""); }}>İptal</button>
@@ -4552,7 +4623,7 @@ export default function MarcusOS() {
             />
           )}
           {staffTab === "musteri-girisleri" && (
-            <MusteriGirisleri clients={data.clients || []} girisler={data.musteriGirisleri || {}} onUpdate={updateMusteriGiris} firmaAdi={data.firmaAdi} />
+            <MusteriGirisleri clients={data.clients || []} girisler={data.musteriGirisleri || {}} onUpdate={updateMusteriGiris} firmaAdi={data.firmaAdi} logo={data.markaKimligiGorseli} />
           )}
         </div>
       </div>
@@ -4781,7 +4852,7 @@ export default function MarcusOS() {
             />
           )}
           {tab === "musteri-girisleri" && (
-            <MusteriGirisleri clients={data.clients || []} girisler={data.musteriGirisleri || {}} onUpdate={updateMusteriGiris} firmaAdi={data.firmaAdi} />
+            <MusteriGirisleri clients={data.clients || []} girisler={data.musteriGirisleri || {}} onUpdate={updateMusteriGiris} firmaAdi={data.firmaAdi} logo={data.markaKimligiGorseli} />
           )}
           {tab === "ayarlar" && (
             <Ayarlar
