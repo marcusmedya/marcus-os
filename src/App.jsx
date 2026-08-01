@@ -1785,7 +1785,123 @@ function MarkaStokKarti({ client, stoklar, gecmis, onStokDegis }) {
   );
 }
 
-function Paylasimlar({ clients, stoklar, onStokDegis, gecmis }) {
+const GUN_ADLARI = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
+/** Verilen tarihin (varsayılan bugün) içinde bulunduğu haftanın Pazartesi gününü YYYY-MM-DD olarak döner. */
+function haftaBaslangici(d = new Date()) {
+  const gun = (d.getDay() + 6) % 7; // Pazartesi=0
+  const pazartesi = new Date(d);
+  pazartesi.setDate(d.getDate() - gun);
+  return pazartesi.toISOString().slice(0, 10);
+}
+function haftaEkle(haftaKeyStr, adet) {
+  const d = new Date(haftaKeyStr);
+  d.setDate(d.getDate() + adet * 7);
+  return haftaBaslangici(d);
+}
+
+function HaftalikPaylasimPlani({ clients, plan, onAddPlan, onToggleYapildi, onDeletePlan }) {
+  const [haftaKey, setHaftaKey] = useState(haftaBaslangici());
+  const [secim, setSecim] = useState(null); // { clientId, gun }
+  const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
+  const buHaftaPlan = (plan || []).filter((p) => p.haftaKey === haftaKey);
+
+  const gunTarihi = (gunIndex) => {
+    const d = new Date(haftaKey);
+    d.setDate(d.getDate() + gunIndex);
+    return d.toLocaleDateString("tr-TR", { day: "numeric", month: "short" });
+  };
+
+  const planBul = (clientId, gun) => buHaftaPlan.find((p) => p.clientId === clientId && p.gun === gun);
+
+  return (
+    <Card style={{ padding: "16px 18px", marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+        <SectionTitle>Haftalık Paylaşım Planı</SectionTitle>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button onClick={() => setHaftaKey((h) => haftaEkle(h, -1))} style={{ ...iconBtnStyle, background: T.surfaceRaised, borderRadius: 8 }}><ChevronLeft size={15} color={T.text} /></button>
+          <span style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600, minWidth: 100, textAlign: "center" }}>{new Date(haftaKey).toLocaleDateString("tr-TR", { day: "numeric", month: "short" })} haftası</span>
+          <button onClick={() => setHaftaKey((h) => haftaEkle(h, 1))} style={{ ...iconBtnStyle, background: T.surfaceRaised, borderRadius: 8 }}><ChevronRight size={15} color={T.text} /></button>
+        </div>
+      </div>
+
+      {aktifMarkalar.length === 0 ? (
+        <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Aktif marka yok.</div>
+      ) : (
+        <div className="marcus-table-wrap">
+          <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Inter, sans-serif", minWidth: 560 }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 11, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}`, position: "sticky", left: 0, background: T.surface }}>Marka</th>
+                {GUN_ADLARI.map((g, i) => (
+                  <th key={g} style={{ textAlign: "center", padding: "8px 6px", fontSize: 10.5, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}`, minWidth: 62 }}>{g}<br /><span style={{ fontWeight: 400 }}>{gunTarihi(i)}</span></th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {aktifMarkalar.map((c) => (
+                <tr key={c.id} style={{ borderBottom: `1px solid ${T.borderSoft}` }}>
+                  <td style={{ padding: "8px 10px", fontSize: 12.5, color: T.text, fontWeight: 600, position: "sticky", left: 0, background: T.surface }}>{c.ad}</td>
+                  {GUN_ADLARI.map((_, gunIndex) => {
+                    const p = planBul(c.id, gunIndex);
+                    return (
+                      <td key={gunIndex} style={{ padding: 5, textAlign: "center" }}>
+                        {!p ? (
+                          <button
+                            onClick={() => setSecim({ clientId: c.id, gun: gunIndex })}
+                            style={{ width: 32, height: 28, borderRadius: 7, border: `1px dashed ${T.border}`, background: "transparent", color: T.textFaint, cursor: "pointer", fontSize: 15 }}
+                          >+</button>
+                        ) : (
+                          <button
+                            onClick={() => onToggleYapildi(p.id)}
+                            onDoubleClick={() => { if (window.confirm("Bu plan silinsin mi?")) onDeletePlan(p.id); }}
+                            title={`${p.tur} — tıkla: yapıldı işaretle, çift tıkla: sil`}
+                            style={{
+                              width: 32, height: 28, borderRadius: 7, border: "none",
+                              background: p.yapildi ? T.successSoft : T.warningSoft,
+                              color: p.yapildi ? T.success : T.warning,
+                              cursor: "pointer", fontSize: 13, fontWeight: 700,
+                            }}
+                          >
+                            {p.yapildi ? "✓" : p.tur.slice(0, 2)}
+                          </button>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 10 }}>
+        <span style={{ color: T.warning }}>■</span> planlandı (henüz paylaşılmadı) · <span style={{ color: T.success }}>✓</span> paylaşıldı. Bir güne tıklayıp tür seçerek plan ekle; planlı güne tıklayınca "paylaşıldı" işaretlenir, çift tıklayınca silinir.
+      </div>
+
+      {secim && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 90, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={() => setSecim(null)}>
+          <div onClick={(e) => e.stopPropagation()} className="marcus-card" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: "18px 20px", width: 280 }}>
+            <div style={{ fontSize: 13, color: T.text, fontWeight: 600, marginBottom: 12 }}>Hangi tür paylaşılacak?</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {PAYLASIM_TURLERI.map((t) => (
+                <button
+                  key={t}
+                  onClick={() => { onAddPlan(secim.clientId, secim.gun, haftaKey, t); setSecim(null); }}
+                  style={{ padding: "9px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.surfaceRaised, color: T.text, fontSize: 13, fontFamily: "Inter", cursor: "pointer", textAlign: "left" }}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, onAddHaftalikPlan, onToggleHaftalikYapildi, onDeleteHaftalikPlan }) {
   const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
   const stoklarObj = stoklar || {};
 
@@ -1803,6 +1919,14 @@ function Paylasimlar({ clients, stoklar, onStokDegis, gecmis }) {
         <KpiCard label="TOPLAM STOK" value={toplamStokAdedi} mono={false} accent={T.success} />
         <KpiCard label="AKTİF MARKA" value={aktifMarkalar.length} mono={false} />
       </div>
+
+      <HaftalikPaylasimPlani
+        clients={clients}
+        plan={haftalikPlan}
+        onAddPlan={onAddHaftalikPlan}
+        onToggleYapildi={onToggleHaftalikYapildi}
+        onDeletePlan={onDeleteHaftalikPlan}
+      />
 
       {toplamStok.length > 0 && (
         <Card style={{ padding: "14px 18px", marginBottom: 16, display: "flex", gap: 18, flexWrap: "wrap" }}>
@@ -2435,6 +2559,23 @@ function PersonelHesaplariKart() {
   const [hata, setHata] = useState("");
   const [sifirlanan, setSifirlanan] = useState(null); // id
   const [yeniSifreDeger, setYeniSifreDeger] = useState("");
+  const [acikId, setAcikId] = useState(null); // yetki/e-posta düzenleme paneli açık olan hesap
+  const [taslakEmail, setTaslakEmail] = useState("");
+  const [taslakIzin, setTaslakIzin] = useState({});
+
+  const IZIN_LISTESI = [
+    { key: "dashboard", label: "Dashboard" },
+    { key: "musteriler", label: "Müşteriler" },
+    { key: "finans", label: "Finans" },
+    { key: "takvim", label: "Takvim" },
+    { key: "odemeTakvimi", label: "Ödeme Takvimi" },
+    { key: "teklif", label: "Teklif & Sözleşme" },
+    { key: "reklamlar", label: "Reklamlar" },
+    { key: "paylasimlar", label: "Paylaşımlar (+ Günlük Kontrol)" },
+    { key: "cekimEdit", label: "Operasyon" },
+    { key: "personel", label: "Personel" },
+    { key: "birikim", label: "Birikim" },
+  ];
 
   const yukle = () => {
     fetch("/api/manage-staff", { headers: { "X-Site-Password": getPw() } })
@@ -2483,12 +2624,30 @@ function PersonelHesaplariKart() {
       .then((res) => { if (res.hesaplar) setHesaplar(res.hesaplar); });
   };
 
+  const acPaneli = (h) => {
+    if (acikId === h.id) { setAcikId(null); return; }
+    setAcikId(h.id);
+    setTaslakEmail(h.email || "");
+    setTaslakIzin({ ...h.izinler });
+  };
+
+  const kaydetGuncelle = (id) => {
+    fetch("/api/manage-staff", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Site-Password": getPw() },
+      body: JSON.stringify({ action: "guncelle", id, email: taslakEmail.trim(), izinler: taslakIzin }),
+    })
+      .then((r) => r.json())
+      .then((res) => { if (res.hesaplar) { setHesaplar(res.hesaplar); setAcikId(null); } });
+  };
+
   return (
     <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
       <SectionTitle>Personel Hesapları</SectionTitle>
       <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
-        Her ekip üyesine kendi kullanıcı adı ve şifresiyle ayrı bir giriş verebilirsin. Böylece Operasyon bölümünde
-        kim ne yaptı otomatik olarak kişi adıyla kaydedilir. Personel girişinde "Personel Girişi" sekmesini kullanır.
+        Her ekip üyesine kendi kullanıcı adı, şifresi, e-postası ve <strong>kendine özel yetkileri</strong> olan ayrı bir hesap verebilirsin.
+        Bir isme "Yetkiler" panelinden verdiğin izinler, CEO Paneli'ndeki genel ayarların yerine geçer — yani her kişiyi istediğin gibi farklılaştırabilirsin.
+        E-posta girersen, Operasyon'da o kişiye bir iş atandığında otomatik bildirim e-postası gider.
       </p>
 
       {hesaplar === null && <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Yükleniyor…</div>}
@@ -2501,12 +2660,13 @@ function PersonelHesaplariKart() {
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
           {hesaplar.map((h) => (
             <div key={h.id} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "10px 12px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
                 <div>
                   <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{h.ad}</div>
-                  <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>@{h.kullaniciAdi}</div>
+                  <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>@{h.kullaniciAdi}{h.email ? ` · ${h.email}` : ""}</div>
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
+                  <button style={cancelBtnStyle} onClick={() => acPaneli(h)}>{acikId === h.id ? "Kapat" : "Yetkiler / E-posta"}</button>
                   <button style={cancelBtnStyle} onClick={() => { setSifirlanan(sifirlanan === h.id ? null : h.id); setYeniSifreDeger(""); }}>Şifre Sıfırla</button>
                   <button style={iconBtnStyle} onClick={() => sil(h.id)}><Trash2 size={14} color={T.danger} /></button>
                 </div>
@@ -2515,6 +2675,22 @@ function PersonelHesaplariKart() {
                 <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                   <input type="password" placeholder="Yeni şifre" name="reset-staff-password" autoComplete="new-password" value={yeniSifreDeger} onChange={(e) => setYeniSifreDeger(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
                   <button style={saveBtnStyle} onClick={() => sifreSifirla(h.id)}>Kaydet</button>
+                </div>
+              )}
+              {acikId === h.id && (
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
+                  <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>E-posta (opsiyonel — iş bildirimleri için)</label>
+                  <input type="email" value={taslakEmail} onChange={(e) => setTaslakEmail(e.target.value)} placeholder="ornek@marcusmedya.com" style={{ ...inputStyle, marginBottom: 12 }} />
+                  <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 8 }}>BU KİŞİYE ÖZEL YETKİLER</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+                    {IZIN_LISTESI.map((m) => (
+                      <label key={m.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", background: T.surface, borderRadius: 8, cursor: "pointer" }}>
+                        <span style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter" }}>{m.label}</span>
+                        <input type="checkbox" checked={taslakIzin[m.key] === true} onChange={(e) => setTaslakIzin((s) => ({ ...s, [m.key]: e.target.checked }))} style={{ width: 16, height: 16, cursor: "pointer" }} />
+                      </label>
+                    ))}
+                  </div>
+                  <button style={saveBtnStyle} onClick={() => kaydetGuncelle(h.id)}>Kaydet</button>
                 </div>
               )}
             </div>
@@ -3004,7 +3180,23 @@ export default function MarcusOS() {
   const saveMarkaKimligi = (gorsel) => setData((d) => ({ ...d, markaKimligiGorseli: gorsel }));
   const updateStaffPermissions = (perms) => setData((d) => ({ ...d, staffPermissions: perms }));
 
-  const addCekimIsi = (job) => setData((d) => ({ ...d, cekimIsleri: [...(d.cekimIsleri || []), { ...job, id: nextId(d.cekimIsleri || []), asama: job.kategori === "Grafik Tasarım" ? "Talep Alındı" : "Çekim Planlandı", yorumlar: [], gecmis: [{ id: nextId([]), tarih: new Date().toLocaleString("tr-TR"), yazan: "Yönetici", aciklama: "İş oluşturuldu" }] }] }));
+  const addCekimIsi = (job) => {
+    setData((d) => ({ ...d, cekimIsleri: [...(d.cekimIsleri || []), { ...job, id: nextId(d.cekimIsleri || []), asama: job.kategori === "Grafik Tasarım" ? "Talep Alındı" : "Çekim Planlandı", yorumlar: [], gecmis: [{ id: nextId([]), tarih: new Date().toLocaleString("tr-TR"), yazan: "Yönetici", aciklama: "İş oluşturuldu" }] }] }));
+
+    // Atanan kişi kayıtlı bir personelse ve e-postası varsa, iş atandığını bildiren bir e-posta gönder.
+    const atananlar = [job.kameraman, job.editor].filter(Boolean);
+    const roster = data.personelRosteri || [];
+    atananlar.forEach((ad) => {
+      const kisi = roster.find((p) => p.ad.trim().toLowerCase() === ad.trim().toLowerCase());
+      if (kisi && kisi.email) {
+        fetch("/api/notify-job", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify({ email: kisi.email, ad: kisi.ad, marka: job.marka, icerikTuru: job.icerikTuru, teslimTarihi: job.teslimTarihi, firmaAdi: data.firmaAdi }),
+        }).catch(() => {});
+      }
+    });
+  };
   const updateCekimIsi = (id, patch) => setData((d) => ({ ...d, cekimIsleri: (d.cekimIsleri || []).map((j) => (j.id === id ? { ...j, ...patch } : j)) }));
   const deleteCekimIsi = (id) => setData((d) => ({ ...d, cekimIsleri: (d.cekimIsleri || []).filter((j) => j.id !== id) }));
   const deleteSablon = (id) => setData((d) => ({ ...d, teklifSablonlari: (d.teklifSablonlari || []).filter((s) => s.id !== id) }));
@@ -3029,6 +3221,17 @@ export default function MarcusOS() {
     const yeniListe = mevcutListe.includes(clientId) ? mevcutListe.filter((id) => id !== clientId) : [...mevcutListe, clientId];
     return { ...d, gunlukKontrol: { tarih: bugun, yapilanlar: yeniListe } };
   });
+
+  const addHaftalikPlan = (clientId, gun, haftaKey, tur) => setData((d) => {
+    const liste = d.haftalikPaylasimlar || [];
+    const yeni = { id: nextId(liste), clientId, gun, haftaKey, tur, yapildi: false, yapildigiTarih: null };
+    return { ...d, haftalikPaylasimlar: [...liste, yeni] };
+  });
+  const toggleHaftalikYapildi = (planId) => setData((d) => ({
+    ...d,
+    haftalikPaylasimlar: (d.haftalikPaylasimlar || []).map((p) => (p.id === planId ? { ...p, yapildi: !p.yapildi, yapildigiTarih: !p.yapildi ? new Date().toLocaleDateString("tr-TR") : null } : p)),
+  }));
+  const deleteHaftalikPlan = (planId) => setData((d) => ({ ...d, haftalikPaylasimlar: (d.haftalikPaylasimlar || []).filter((p) => p.id !== planId) }));
 
   const addHesap = (ad) => setData((d) => ({ ...d, hesaplar: [...(d.hesaplar && d.hesaplar.length ? d.hesaplar : [{ id: "ana", ad: "Marcus Medya", anaHesap: true }]), { id: nextId(d.hesaplar || []), ad }] }));
   const transferEt = (kaynakHesapId, tutar) => setData((d) => {
@@ -3407,9 +3610,9 @@ export default function MarcusOS() {
             />
           )}
           {staffTab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} />}
-          {staffTab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} />}
+          {staffTab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} />}
           {staffTab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} kontrol={data.gunlukKontrol} onToggle={toggleGunlukKontrol} />}
-          {staffTab === "cekim-edit" && <CekimEditTakibi role="staff" clients={data.clients || []} jobs={data.cekimIsleri || []} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} girisYapanAd={loggedStaffName} />}
+          {staffTab === "cekim-edit" && <CekimEditTakibi role="staff" clients={data.clients || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} girisYapanAd={loggedStaffName} />}
           {staffTab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} />}
           {staffTab === "birikim" && (
             <Birikim
@@ -3630,9 +3833,9 @@ export default function MarcusOS() {
             />
           )}
           {tab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} />}
-          {tab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} />}
+          {tab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} />}
           {tab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} kontrol={data.gunlukKontrol} onToggle={toggleGunlukKontrol} />}
-          {tab === "cekim-edit" && <CekimEditTakibi role="owner" clients={data.clients || []} jobs={data.cekimIsleri || []} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} />}
+          {tab === "cekim-edit" && <CekimEditTakibi role="owner" clients={data.clients || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} />}
           {tab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} />}
           {tab === "birikim" && (
             <Birikim

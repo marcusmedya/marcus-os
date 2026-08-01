@@ -15,8 +15,24 @@ const PERMISSION_DATA_FIELDS = {
   odemeTakvimi: ["clients", "hesaplar", "hesapTransferleri"],
   teklif: ["teklifler", "teklifSablonlari", "sozlesmeSablonlari", "markaKimligiGorseli"],
   reklamlar: ["reklamlar"],
-  paylasimlar: ["stoklar", "paylasimGecmisi", "gunlukKontrol", "clients"],
+  paylasimlar: ["stoklar", "paylasimGecmisi", "gunlukKontrol", "clients", "haftalikPaylasimlar"],
   cekimEdit: ["cekimIsleri", "clients"],
+  personel: ["personel"],
+  birikim: ["birikimler"],
+};
+// YAZMA izinleri OKUMA izinlerinden bilerek farklı: paylasimlar/cekimEdit gibi dar izinler
+// "clients"i sadece marka adı GÖRMEK için (sadeleştirilmiş) alır — asıl (zengin) müşteri
+// verisinin bu sadeleştirilmiş haliyle EZİLMEMESİ için o izinlerden clients YAZILAMAZ.
+const PERMISSION_WRITE_FIELDS = {
+  dashboard: ["clients", "monthly", "gelirKalemleri", "giderKalemleri", "ofisGiderleri", "bekleyenTahsilatlar", "personel", "vergiTakvimi", "hesaplar", "hesapTransferleri"],
+  musteriler: ["clients", "bekleyenTahsilatlar", "hesaplar"],
+  finans: ["gelirKalemleri", "giderKalemleri", "ofisGiderleri", "bekleyenTahsilatlar", "monthly", "vergiTakvimi", "clients", "personel", "hesaplar", "hesapTransferleri"],
+  takvim: ["clients", "vergiTakvimi"],
+  odemeTakvimi: ["clients", "hesaplar", "hesapTransferleri"],
+  teklif: ["teklifler", "teklifSablonlari", "sozlesmeSablonlari", "markaKimligiGorseli"],
+  reklamlar: ["reklamlar"],
+  paylasimlar: ["stoklar", "paylasimGecmisi", "gunlukKontrol", "haftalikPaylasimlar"],
+  cekimEdit: ["cekimIsleri"],
   personel: ["personel"],
   birikim: ["birikimler"],
 };
@@ -25,7 +41,7 @@ const DEFAULT_FIELD_VALUES = {
   clients: [], monthly: [], gelirKalemleri: [], giderKalemleri: [], ofisGiderleri: [], bekleyenTahsilatlar: [],
   personel: [], vergiTakvimi: [], hesaplar: [{ id: "ana", ad: "Marcus Medya", anaHesap: true }], hesapTransferleri: [],
   teklifler: [], teklifSablonlari: [], sozlesmeSablonlari: [], markaKimligiGorseli: null,
-  reklamlar: [], stoklar: {}, paylasimGecmisi: [], gunlukKontrol: null, cekimIsleri: [], birikimler: [],
+  reklamlar: [], stoklar: {}, paylasimGecmisi: [], gunlukKontrol: null, cekimIsleri: [], birikimler: [], haftalikPaylasimlar: [],
 };
 const DEFAULT_PERMS = {
   dashboard: false, musteriler: false, finans: false, takvim: false, odemeTakvimi: false,
@@ -57,7 +73,7 @@ async function resolveRole(req) {
     const hesap = ((data && data.personelHesaplari) || []).find((h) => h.kullaniciAdi === username);
     if (hesap) {
       const hash = hashSifre(password, hesap.sifreSalt);
-      if (hash === hesap.sifreHash) return { role: "staff", staffId: hesap.id, staffName: hesap.ad };
+      if (hash === hesap.sifreHash) return { role: "staff", staffId: hesap.id, staffName: hesap.ad, staffPerms: hesap.izinler || null, staffEmail: hesap.email || "" };
     }
   }
   return null;
@@ -66,13 +82,15 @@ async function resolveRole(req) {
 export default async function handler(req, res) {
   const auth = await resolveRole(req);
   if (!auth) return res.status(401).json({ error: "Yetkisiz. Şifre gerekli." });
-  const { role, staffId, staffName } = auth;
+  const { role, staffId, staffName, staffPerms, staffEmail } = auth;
 
   try {
     if (req.method === "GET") {
       const data = await kv.get(KEY);
       if (role === "staff") {
-        const perms = { ...DEFAULT_PERMS, ...((data && data.staffPermissions) || {}) };
+        // Kişiye özel hesapla girildiyse o hesabın kendi izinleri kullanılır; eski ortak
+        // personel şifresiyle (STAFF_PASSWORD) girildiyse genel (herkes için ortak) izinler kullanılır.
+        const perms = staffPerms ? { ...DEFAULT_PERMS, ...staffPerms } : { ...DEFAULT_PERMS, ...((data && data.staffPermissions) || {}) };
         const restricted = { staffPermissions: perms, firmaAdi: (data && data.firmaAdi) || "Marcus Medya" };
 
         // Hangi izinler açıksa, o izne bağlı alanları gerçek veriyle dolduruyoruz.
@@ -88,11 +106,17 @@ export default async function handler(req, res) {
           restricted.clients = ((data && data.clients) || []).map((c) => ({ id: c.id, ad: c.ad, durum: c.durum }));
         }
 
+        // İş atarken kime atadığını seçebilmesi için isim/e-posta listesi (giriş bilgisi YOK).
+        if (perms.cekimEdit === true) {
+          restricted.personelRosteri = ((data && data.personelHesaplari) || []).map((h) => ({ ad: h.ad, email: h.email || "" }));
+        }
+
         return res.status(200).json({ data: restricted, role, staffId, staffName });
       }
       // Sahibe (owner) bile şifre hash'lerini asla gönderme — ayrı, korumalı bir uçtan yönetiliyor.
       const { personelHesaplari, ...safeData } = data || {};
-      return res.status(200).json({ data: data ? safeData : null, role });
+      const personelRosteri = (personelHesaplari || []).map((h) => ({ ad: h.ad, email: h.email || "" }));
+      return res.status(200).json({ data: data ? { ...safeData, personelRosteri } : null, role });
     }
 
     if (req.method === "POST") {
@@ -100,14 +124,28 @@ export default async function handler(req, res) {
       if (!data) return res.status(400).json({ error: "data eksik" });
 
       // PERSONEL: sadece izin verilen alanları değiştirebilir, geri kalan veri sunucuda
-      // korunur ve gönderilen içerik ne olursa olsun yok sayılır.
+      // korunur ve gönderilen içerik ne olursa olsun yok sayılır. "clients" alanı SADECE
+      // geniş kapsamlı izinlerden (musteriler/finans/takvim/odemeTakvimi/dashboard) yazılabilir —
+      // paylasimlar/cekimEdit gibi dar izinler clients'i sadece okuyabilir, asla yazamaz
+      // (yoksa sadeleştirilmiş liste, zengin müşteri verisinin üzerine yazardı).
       if (role === "staff") {
         const existing = (await kv.get(KEY)) || {};
-        const perms = { ...DEFAULT_PERMS, ...(existing.staffPermissions || {}) };
+        const guncelHesap = staffId ? ((existing.personelHesaplari || []).find((h) => h.id === staffId)) : null;
+        const perms = guncelHesap ? { ...DEFAULT_PERMS, ...(guncelHesap.izinler || {}) } : { ...DEFAULT_PERMS, ...(existing.staffPermissions || {}) };
         const merged = { ...existing };
-        Object.entries(PERMISSION_DATA_FIELDS).forEach(([permKey, fields]) => {
+        Object.entries(PERMISSION_WRITE_FIELDS).forEach(([permKey, fields]) => {
           if (perms[permKey] !== true) return;
-          fields.forEach((f) => { if (data[f] !== undefined) merged[f] = data[f]; });
+          fields.forEach((f) => {
+            if (data[f] === undefined) return;
+            if (f === "clients") {
+              // Personel yazımlarında da aynı güvenlik freni: müşteri sayısı çarpıcı biçimde
+              // azalıyorsa (bayat/eksik veri olabilir) bu alanı yazmayı reddet.
+              const existingCount = Array.isArray(existing.clients) ? existing.clients.length : 0;
+              const newCount = Array.isArray(data.clients) ? data.clients.length : 0;
+              if (existingCount >= 2 && newCount < existingCount * 0.6) return;
+            }
+            merged[f] = data[f];
+          });
         });
         await kv.set(KEY, merged);
         return res.status(200).json({ ok: true });
