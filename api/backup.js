@@ -18,6 +18,14 @@ export default async function handler(req, res) {
   if (!checkAuth(req, res)) return;
   try {
     if (req.method === "GET") {
+      // ?date=YYYY-MM-DD verilirse, o günün yedeğinin İÇERİĞİNİ döner (indirmek için) —
+      // verilmezse mevcut tüm yedek tarihlerinin listesini döner.
+      const { date } = req.query || {};
+      if (date) {
+        const snapshot = await kv.get(`${PREFIX}${date}`);
+        if (!snapshot) return res.status(404).json({ error: "Bu tarihe ait yedek bulunamadı." });
+        return res.status(200).json({ data: snapshot });
+      }
       const keys = await kv.keys(`${PREFIX}*`);
       const dates = keys.map((k) => k.replace(PREFIX, "")).sort().reverse();
       return res.status(200).json({ dates });

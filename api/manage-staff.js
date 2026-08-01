@@ -17,6 +17,11 @@ function hashSifre(sifre, salt) {
   return crypto.scryptSync(sifre, salt, 64).toString("hex");
 }
 
+async function yedekle(veri) {
+  const bugun = new Date().toISOString().slice(0, 10);
+  await kv.set(`marcus-os-snapshot-${bugun}`, veri);
+}
+
 function guvenliListe(hesaplar) {
   return (hesaplar || []).map((h) => ({ id: h.id, ad: h.ad, kullaniciAdi: h.kullaniciAdi, email: h.email || "", izinler: { ...DEFAULT_PERMS, ...(h.izinler || {}) } }));
 }
@@ -44,7 +49,7 @@ export default async function handler(req, res) {
         const salt = crypto.randomBytes(16).toString("hex");
         const yeni = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ad, kullaniciAdi, email: email || "", izinler: { ...DEFAULT_PERMS }, sifreHash: hashSifre(sifre, salt), sifreSalt: salt };
         const guncel = [...hesaplar, yeni];
-        await kv.set(KEY, { ...data, personelHesaplari: guncel });
+        const yeniVeri = { ...data, personelHesaplari: guncel }; await kv.set(KEY, yeniVeri); await yedekle(yeniVeri);
         return res.status(200).json({ ok: true, hesaplar: guvenliListe(guncel) });
       }
 
@@ -53,7 +58,7 @@ export default async function handler(req, res) {
         if (sifre.length < 4) return res.status(400).json({ error: "Şifre en az 4 karakter olmalı." });
         const salt = crypto.randomBytes(16).toString("hex");
         const guncel = hesaplar.map((h) => (h.id === id ? { ...h, sifreHash: hashSifre(sifre, salt), sifreSalt: salt } : h));
-        await kv.set(KEY, { ...data, personelHesaplari: guncel });
+        const yeniVeri = { ...data, personelHesaplari: guncel }; await kv.set(KEY, yeniVeri); await yedekle(yeniVeri);
         return res.status(200).json({ ok: true, hesaplar: guvenliListe(guncel) });
       }
 
@@ -66,14 +71,14 @@ export default async function handler(req, res) {
           if (izinler !== undefined) yeni.izinler = { ...DEFAULT_PERMS, ...izinler };
           return yeni;
         });
-        await kv.set(KEY, { ...data, personelHesaplari: guncel });
+        const yeniVeri = { ...data, personelHesaplari: guncel }; await kv.set(KEY, yeniVeri); await yedekle(yeniVeri);
         return res.status(200).json({ ok: true, hesaplar: guvenliListe(guncel) });
       }
 
       if (action === "sil") {
         if (!id) return res.status(400).json({ error: "id gerekli." });
         const guncel = hesaplar.filter((h) => h.id !== id);
-        await kv.set(KEY, { ...data, personelHesaplari: guncel });
+        const yeniVeri = { ...data, personelHesaplari: guncel }; await kv.set(KEY, yeniVeri); await yedekle(yeniVeri);
         return res.status(200).json({ ok: true, hesaplar: guvenliListe(guncel) });
       }
 

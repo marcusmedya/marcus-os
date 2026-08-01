@@ -32,7 +32,7 @@ export default async function handler(req, res) {
   if (!(await yetkiliMi(req))) return res.status(401).json({ error: "Yetkisiz." });
 
   try {
-    const { email, marka, driveLinki, girisler, firmaAdi } = req.body || {};
+    const { email, marka, driveLinki, girisler, firmaAdi, mod } = req.body || {};
     const resendKey = process.env.RESEND_API_KEY;
     if (!email) return res.status(400).json({ error: "Müşteri e-posta adresi gerekli." });
     if (!resendKey) return res.status(200).json({ skipped: true, reason: "RESEND_API_KEY tanımlı değil." });
@@ -42,9 +42,28 @@ export default async function handler(req, res) {
       .map((g) => `<tr><td style="padding:6px 12px;border-bottom:1px solid #eee;">${g.platform}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;">${g.kullanici || "—"}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;">${g.sifre || "—"}</td></tr>`)
       .join("");
 
-    const html = `
+    const hizli = mod === "hizli";
+    const baslik = hizli ? "Hesap Bilgileri" : "Hesap Devir Teslim Bildirimi";
+    const girisTablosu = girisSatirlari ? `
+        <p style="line-height:1.6;">Talep ettiğiniz hesap giriş bilgileri aşağıda paylaşılmıştır:</p>
+        <table style="border-collapse:collapse;width:100%;margin-bottom:16px;">
+          <tr style="background:#f5f5f7;"><th style="padding:6px 12px;text-align:left;">Platform</th><th style="padding:6px 12px;text-align:left;">Kullanıcı Adı</th><th style="padding:6px 12px;text-align:left;">Şifre</th></tr>
+          ${girisSatirlari}
+        </table>` : "";
+
+    const html = hizli ? `
       <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto; color:#1d1d1f;">
-        <h2 style="color:#1a1a1a;">Hesap Devir Teslim Bildirimi</h2>
+        <h2 style="color:#1a1a1a;">${baslik}</h2>
+        <p style="line-height:1.6;">Sayın <strong>${marka || ""}</strong> yetkilisi,</p>
+        <p style="line-height:1.6;">Talebiniz üzerine hesap bilgileriniz aşağıda paylaşılmıştır.</p>
+        ${driveLinki ? `<p><a href="${driveLinki}" style="color:#0071E3;">${driveLinki}</a></p>` : ""}
+        ${girisTablosu}
+        <p style="line-height:1.6;">İyi çalışmalar dileriz.</p>
+        <p style="font-size:12px;color:#999;margin-top:24px;">${firmaAdi || "Marcus Medya"}</p>
+      </div>
+    ` : `
+      <div style="font-family: sans-serif; max-width: 560px; margin: 0 auto; color:#1d1d1f;">
+        <h2 style="color:#1a1a1a;">${baslik}</h2>
         <p style="line-height:1.6;">Sayın <strong>${marka || ""}</strong> yetkilisi,</p>
         <p style="line-height:1.6;">${firmaAdi || "Marcus Medya"} ile aranızdaki hizmet sürecini sonlandırmış bulunmaktayız. Sizinle ilgili tüm belge ve dosyalarınıza aşağıdaki bağlantıdan ulaşabilirsiniz:</p>
         ${driveLinki ? `<p><a href="${driveLinki}" style="color:#0071E3;">${driveLinki}</a></p>` : ""}
@@ -67,7 +86,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         from: "Marcus OS <bildirim@marcusmedya.com>",
         to: [email],
-        subject: `Hesap Devir Teslim Bildirimi — ${marka || ""}`,
+        subject: `${baslik} — ${marka || ""}`,
         html,
       }),
     });

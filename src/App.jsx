@@ -330,6 +330,32 @@ const iconBtnStyle = { background: "transparent", border: "none", cursor: "point
 const addBtnStyle = { display: "flex", alignItems: "center", gap: 6, background: T.accentSoft, color: T.accentText, border: "none", borderRadius: 9, padding: "10px 15px", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer", minHeight: 40 };
 
 /** Generic small form for add/edit, driven by a field-definition list. */
+const AY_ADLARI = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+
+/** Native <input type="month"> Safari masaüstünde desteklenmediği için (düz metin kutusuna
+ * dönüşüyor ve yanlış/gün eklenmiş değerler kabul edilebiliyor), bunun yerine iki ayrı <select>
+ * (Ay + Yıl) ile tüm tarayıcılarda garanti aynı şekilde çalışan bir seçici kullanılıyor. */
+function AySeciciAlan({ value, onChange }) {
+  const gecerli = value && /^\d{4}-\d{1,2}$/.test(value);
+  const [yil, ay] = gecerli ? value.split("-").map(Number) : [new Date().getFullYear(), new Date().getMonth() + 1];
+  const buYil = new Date().getFullYear();
+  const yilListesi = [];
+  for (let y = buYil - 6; y <= buYil + 1; y++) yilListesi.push(y);
+
+  const guncelle = (yeniYil, yeniAy) => onChange(`${yeniYil}-${String(yeniAy).padStart(2, "0")}`);
+
+  return (
+    <div style={{ display: "flex", gap: 8 }}>
+      <select value={ay} onChange={(e) => guncelle(yil, Number(e.target.value))} style={{ ...inputStyle, flex: 1.4 }}>
+        {AY_ADLARI.map((ad, i) => <option key={i} value={i + 1}>{ad}</option>)}
+      </select>
+      <select value={yil} onChange={(e) => guncelle(Number(e.target.value), ay)} style={{ ...inputStyle, flex: 1 }}>
+        {yilListesi.map((y) => <option key={y} value={y}>{y}</option>)}
+      </select>
+    </div>
+  );
+}
+
 function FieldForm({ fields, initial, onSubmit, onCancel, submitLabel = "Kaydet" }) {
   const [values, setValues] = useState(() => {
     const v = {};
@@ -351,9 +377,11 @@ function FieldForm({ fields, initial, onSubmit, onCancel, submitLabel = "Kaydet"
             <select value={values[f.key]} onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))} style={inputStyle}>
               {f.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
+          ) : f.type === "month" ? (
+            <AySeciciAlan value={values[f.key]} onChange={(val) => setValues((v) => ({ ...v, [f.key]: val }))} />
           ) : (
             <input
-              type={f.type === "number" ? "number" : f.type === "date" ? "date" : f.type === "month" ? "month" : "text"}
+              type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
               value={values[f.key]}
               placeholder={f.placeholder}
               onChange={(e) => setValues((v) => ({ ...v, [f.key]: f.type === "number" ? Number(e.target.value) : e.target.value }))}
@@ -2541,6 +2569,7 @@ function EmailYedekTest({ endpoint = "/api/daily-backup" }) {
 function YedekGecmisi() {
   const [dates, setDates] = useState(null);
   const [restoring, setRestoring] = useState(null);
+  const [indiriliyor, setIndiriliyor] = useState(null);
 
   useEffect(() => {
     fetch("/api/backup", { headers: { "X-Site-Password": getPw() } })
@@ -2561,15 +2590,47 @@ function YedekGecmisi() {
       .catch(() => { window.alert("Bağlantı hatası."); setRestoring(null); });
   };
 
+  // Bu tarihin yedeğini gerçek bir dosya olarak indirir — tarayıcının kendi "Farklı Kaydet"
+  // davranışına göre nereye kaydedeceğini kendin seçebilirsin (Chrome/Edge'de "indirmeden önce
+  // sor" ayarı açıksa doğrudan bir konum seçme penceresi çıkar).
+  const indir = (date) => {
+    setIndiriliyor(date);
+    fetch(`/api/backup?date=${encodeURIComponent(date)}`, { headers: { "X-Site-Password": getPw() } })
+      .then((r) => r.json())
+      .then((res) => {
+        if (!res.data) { window.alert(res.error || "Bu tarihin yedeği bulunamadı."); return; }
+        const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `marcus-os-yedek-${date}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      })
+      .catch(() => window.alert("Bağlantı hatası — indirilemedi."))
+      .finally(() => setIndiriliyor(null));
+  };
+
+  const okunakliTarih = (d) => {
+    const parcalar = d.split("-");
+    if (parcalar.length !== 3) return d;
+    const [y, m, day] = parcalar;
+    const tarih = new Date(Number(y), Number(m) - 1, Number(day));
+    return tarih.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+  };
+
   if (dates === null) return <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Yükleniyor…</div>;
   if (dates.length === 0) return <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Henüz otomatik yedek oluşmadı — ilk kayıttan itibaren her gün otomatik birikmeye başlayacak.</div>;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 260, overflowY: "auto" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 320, overflowY: "auto" }}>
       {dates.slice(0, 30).map((d) => (
-        <div key={d} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: T.surfaceRaised, borderRadius: 9 }}>
-          <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter" }}>{d}</span>
-          <button style={cancelBtnStyle} disabled={restoring === d} onClick={() => restore(d)}>{restoring === d ? "Geri yükleniyor…" : "Bu tarihe dön"}</button>
+        <div key={d} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: T.surfaceRaised, borderRadius: 9, flexWrap: "wrap", gap: 8 }}>
+          <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter" }}>{okunakliTarih(d)}</span>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button style={cancelBtnStyle} disabled={indiriliyor === d} onClick={() => indir(d)}>{indiriliyor === d ? "İndiriliyor…" : "İndir (JSON)"}</button>
+            <button style={cancelBtnStyle} disabled={restoring === d} onClick={() => restore(d)}>{restoring === d ? "Geri yükleniyor…" : "Bu tarihe dön"}</button>
+          </div>
         </div>
       ))}
     </div>
@@ -2674,6 +2735,12 @@ const SOSYAL_PLATFORMLAR = [
 
 function KopyalanabilirAlan({ label, value, onChange, gizli }) {
   const [gosterildi, setGosterildi] = useState(false);
+  // Tarayıcı, "type=password" olan her alanı (bu alan Göster/Gizle ile type değiştiriyordu)
+  // bu sitede daha önce kaydedilmiş bir şifreyle (örn. senin owner şifrenle) otomatik
+  // doldurmaya çalışıyordu — "şifrenin kendiliğinden CEO şifresine dönüşmesi" bundan kaynaklanıyordu.
+  // Çözüm: alan hiçbir zaman gerçek type="password" olmuyor, gizleme sadece görsel olarak
+  // (-webkit-text-security ile) yapılıyor — tarayıcı bunu bir "şifre alanı" olarak tanımıyor.
+  const rastgeleAd = useRef(`alan-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`).current;
   const kopyala = () => {
     if (!value) return;
     navigator.clipboard.writeText(value).catch(() => {});
@@ -2683,11 +2750,17 @@ function KopyalanabilirAlan({ label, value, onChange, gizli }) {
       <label style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 3 }}>{label}</label>
       <div style={{ display: "flex", gap: 6 }}>
         <input
-          type={gizli && !gosterildi ? "password" : "text"}
+          type="text"
           value={value || ""}
           onChange={(e) => onChange(e.target.value)}
           autoComplete="off"
-          style={{ ...inputStyle, flex: 1, padding: "7px 10px", fontSize: 12.5 }}
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck="false"
+          name={rastgeleAd}
+          data-lpignore="true"
+          data-1p-ignore="true"
+          style={{ ...inputStyle, flex: 1, padding: "7px 10px", fontSize: 12.5, WebkitTextSecurity: gizli && !gosterildi ? "disc" : "none" }}
         />
         {gizli && (
           <button type="button" onClick={() => setGosterildi((v) => !v)} title={gosterildi ? "Gizle" : "Göster"} style={{ ...iconBtnStyle, width: 30, height: 30 }}>
@@ -2705,12 +2778,91 @@ function KopyalanabilirAlan({ label, value, onChange, gizli }) {
 /** Marka ile çalışma bittiğinde: Drive linki + varsa kayıtlı şifreleri e-posta ile iade eder,
  * ve aynı bildirimi WhatsApp'ta göndermeye hazır halde açar (gerçek otomatik WhatsApp gönderimi
  * Meta'nın iş onayı gerektirdiği için burada "wa.me" bağlantısıyla tek tıkla gönderime hazırlanır). */
+/** Şifre gönderme gibi geri alınamaz işlemlerden hemen önce, Şifre Kasası'na giriş için kullanılan
+ * kasa şifresinden BAĞIMSIZ olarak, gerçek owner (SITE_PASSWORD) şifresini tekrar ister. */
+function OwnerSifreOnay({ onConfirmed, onCancel }) {
+  const [sifre, setSifre] = useState("");
+  const [hata, setHata] = useState("");
+  const [kontrolEdiliyor, setKontrolEdiliyor] = useState(false);
+
+  const dogrula = () => {
+    if (!sifre) return;
+    setKontrolEdiliyor(true);
+    setHata("");
+    fetch("/api/data", { headers: { "X-Site-Password": sifre } })
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.role === "owner") onConfirmed(sifre);
+        else setHata("Şifre yanlış — sadece yönetici (owner) şifresiyle gönderilebilir.");
+      })
+      .catch(() => setHata("Bağlantı hatası."))
+      .finally(() => setKontrolEdiliyor(false));
+  };
+
+  return (
+    <div style={{ background: T.surface, border: `1px solid ${T.danger}`, borderRadius: 10, padding: 12, marginTop: 8 }}>
+      <div style={{ fontSize: 12, color: T.text, fontWeight: 600, marginBottom: 8 }}>🔒 Göndermeden önce owner şifreni onayla</div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input type="password" autoFocus autoComplete="off" value={sifre} onChange={(e) => setSifre(e.target.value)} onKeyDown={(e) => e.key === "Enter" && dogrula()} placeholder="Owner Şifresi" style={{ ...inputStyle, flex: 1 }} />
+        <button style={saveBtnStyle} onClick={dogrula} disabled={kontrolEdiliyor}>{kontrolEdiliyor ? "…" : "Onayla ve Gönder"}</button>
+        <button style={cancelBtnStyle} onClick={onCancel}>İptal</button>
+      </div>
+      {hata && <div style={{ color: T.danger, fontSize: 11.5, marginTop: 6 }}>{hata}</div>}
+    </div>
+  );
+}
+
+/** jsPDF'i sayfaya bir kere yükler (npm bağımlılığı eklemeden, CDN üzerinden). */
+function yukleJsPDF() {
+  return new Promise((resolve, reject) => {
+    if (window.jspdf) { resolve(window.jspdf); return; }
+    const script = document.createElement("script");
+    script.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+    script.onload = () => resolve(window.jspdf);
+    script.onerror = () => reject(new Error("PDF kütüphanesi yüklenemedi — internet bağlantını kontrol et."));
+    document.head.appendChild(script);
+  });
+}
+
+function hesapBilgileriPdfOlustur(marka, firmaAdi, girisListesi, driveLinki) {
+  return yukleJsPDF().then(({ jsPDF }) => {
+    const doc = new jsPDF();
+    doc.setFontSize(16);
+    doc.text(`${marka} - Hesap Bilgileri`, 14, 20);
+    doc.setFontSize(10);
+    doc.setTextColor(120);
+    doc.text(`${firmaAdi || "Marcus Medya"} - ${new Date().toLocaleDateString("tr-TR")}`, 14, 27);
+    doc.setTextColor(0);
+    let y = 40;
+    if (girisListesi.length === 0) {
+      doc.setFontSize(11);
+      doc.text("Kayitli hesap bilgisi bulunmuyor.", 14, y);
+      y += 10;
+    }
+    girisListesi.forEach((g) => {
+      doc.setFontSize(11);
+      doc.text(String(g.platform || ""), 14, y);
+      doc.setFontSize(9);
+      doc.text(`Kullanici Adi: ${g.kullanici || "-"}`, 18, y + 6);
+      doc.text(`Sifre: ${g.sifre || "-"}`, 18, y + 12);
+      y += 20;
+      if (y > 270) { doc.addPage(); y = 20; }
+    });
+    if (driveLinki) {
+      doc.setFontSize(10);
+      doc.text(`Drive: ${driveLinki}`, 14, y + 6);
+    }
+    doc.save(`${marka.replace(/[^\w]+/g, "-")}-hesap-bilgileri.pdf`);
+  });
+}
+
 function DevirTeslimFormu({ client, girisler, firmaAdi, onClose }) {
   const [driveLinki, setDriveLinki] = useState("");
   const [email, setEmail] = useState("");
   const [telefon, setTelefon] = useState("");
   const [gonderiliyor, setGonderiliyor] = useState(false);
   const [sonuc, setSonuc] = useState("");
+  const [onayBekleyenIslem, setOnayBekleyenIslem] = useState(null); // "eposta" | "whatsapp" | null
 
   const girisListesi = SOSYAL_PLATFORMLAR
     .map((p) => ({ platform: p.label, ...(girisler[p.key] || {}) }))
@@ -2723,8 +2875,7 @@ function DevirTeslimFormu({ client, girisler, firmaAdi, onClose }) {
     return m;
   };
 
-  const epostaGonder = () => {
-    if (!email.trim()) { setSonuc("Müşteri e-posta adresi gerekli."); return; }
+  const epostaGonderGercek = () => {
     setGonderiliyor(true);
     setSonuc("");
     fetch("/api/devir-teslim", {
@@ -2741,11 +2892,25 @@ function DevirTeslimFormu({ client, girisler, firmaAdi, onClose }) {
       .finally(() => setGonderiliyor(false));
   };
 
-  const whatsappAc = () => {
-    if (!telefon.trim()) { setSonuc("WhatsApp için telefon numarası gerekli (ülke koduyla, örn. 90532...)."); return; }
+  const epostaGonder = () => {
+    if (!email.trim()) { setSonuc("Müşteri e-posta adresi gerekli."); return; }
+    setOnayBekleyenIslem("eposta");
+  };
+
+  const whatsappAcGercek = () => {
     const numara = telefon.replace(/[^0-9]/g, "");
     const url = `https://wa.me/${numara}?text=${encodeURIComponent(mesajMetni())}`;
     window.open(url, "_blank");
+    setOnayBekleyenIslem(null);
+  };
+
+  const whatsappAc = () => {
+    if (!telefon.trim()) { setSonuc("WhatsApp için telefon numarası gerekli (ülke koduyla, örn. 90532...)."); return; }
+    setOnayBekleyenIslem("whatsapp");
+  };
+
+  const pdfIndir = () => {
+    hesapBilgileriPdfOlustur(client.ad, firmaAdi, girisListesi, driveLinki.trim()).catch(() => setSonuc("❌ PDF oluşturulamadı."));
   };
 
   return (
@@ -2769,8 +2934,76 @@ function DevirTeslimFormu({ client, girisler, firmaAdi, onClose }) {
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button style={saveBtnStyle} onClick={epostaGonder} disabled={gonderiliyor}>{gonderiliyor ? "Gönderiliyor…" : "E-posta Gönder"}</button>
         <button style={{ ...saveBtnStyle, background: "#25D366" }} onClick={whatsappAc}>WhatsApp'ta Aç</button>
+        <button style={cancelBtnStyle} onClick={pdfIndir}>PDF İndir</button>
         <button style={cancelBtnStyle} onClick={onClose}>Kapat</button>
       </div>
+      {onayBekleyenIslem && (
+        <OwnerSifreOnay
+          onCancel={() => setOnayBekleyenIslem(null)}
+          onConfirmed={() => {
+            if (onayBekleyenIslem === "eposta") epostaGonderGercek();
+            else whatsappAcGercek();
+            setOnayBekleyenIslem(null);
+          }}
+        />
+      )}
+      {sonuc && <div style={{ fontSize: 12, color: sonuc.startsWith("✅") ? T.success : T.danger, marginTop: 10 }}>{sonuc}</div>}
+    </div>
+  );
+}
+
+/** Devir teslimden bağımsız, "müşteri şifresini istedi" durumunda hızlıca kullanılan sade gönderim —
+ * 15 gün/1 gün uyarıları yok, sadece bilgiler paylaşılır. Bu da göndermeden önce owner şifresi ister. */
+function HizliSifreGonderFormu({ client, girisler, firmaAdi, onClose }) {
+  const [email, setEmail] = useState("");
+  const [gonderiliyor, setGonderiliyor] = useState(false);
+  const [sonuc, setSonuc] = useState("");
+  const [onayAcik, setOnayAcik] = useState(false);
+
+  const girisListesi = SOSYAL_PLATFORMLAR
+    .map((p) => ({ platform: p.label, ...(girisler[p.key] || {}) }))
+    .filter((g) => g.kullanici || g.sifre);
+
+  const gonderGercek = () => {
+    setGonderiliyor(true);
+    setSonuc("");
+    fetch("/api/devir-teslim", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ email: email.trim(), marka: client.ad, girisler: girisListesi, firmaAdi, mod: "hizli" }),
+    })
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.ok) setSonuc("✅ E-posta gönderildi.");
+        else setSonuc("❌ " + (res.reason || res.error || "Gönderilemedi."));
+      })
+      .catch(() => setSonuc("❌ Bağlantı hatası."))
+      .finally(() => setGonderiliyor(false));
+  };
+
+  const gonder = () => {
+    if (!email.trim()) { setSonuc("Müşteri e-posta adresi gerekli."); return; }
+    setOnayAcik(true);
+  };
+
+  const pdfIndir = () => hesapBilgileriPdfOlustur(client.ad, firmaAdi, girisListesi, "").catch(() => setSonuc("❌ PDF oluşturulamadı."));
+
+  return (
+    <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: 14 }}>
+      <div style={{ fontSize: 12.5, color: T.text, fontWeight: 600, marginBottom: 10 }}>Şifreleri Gönder — {client.ad}</div>
+      <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Müşteri E-postası</label>
+      <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="musteri@ornek.com" style={{ ...inputStyle, marginBottom: 10 }} />
+      <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginBottom: 10 }}>
+        {girisListesi.length > 0 ? `${girisListesi.length} kayıtlı hesap bilgisi gönderilecek.` : "Bu markaya kayıtlı hesap bilgisi yok."}
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button style={saveBtnStyle} onClick={gonder} disabled={gonderiliyor}>{gonderiliyor ? "Gönderiliyor…" : "E-posta Gönder"}</button>
+        <button style={cancelBtnStyle} onClick={pdfIndir}>PDF İndir</button>
+        <button style={cancelBtnStyle} onClick={onClose}>Kapat</button>
+      </div>
+      {onayAcik && (
+        <OwnerSifreOnay onCancel={() => setOnayAcik(false)} onConfirmed={() => { gonderGercek(); setOnayAcik(false); }} />
+      )}
       {sonuc && <div style={{ fontSize: 12, color: sonuc.startsWith("✅") ? T.success : T.danger, marginTop: 10 }}>{sonuc}</div>}
     </div>
   );
@@ -2779,6 +3012,7 @@ function DevirTeslimFormu({ client, girisler, firmaAdi, onClose }) {
 function MusteriGirisleriIcerik({ clients, girisler, onUpdate, firmaAdi }) {
   const [acikId, setAcikId] = useState(null);
   const [devirTeslimId, setDevirTeslimId] = useState(null);
+  const [hizliGonderId, setHizliGonderId] = useState(null);
   const tumMarkalar = clients || [];
   const veri = girisler || {};
 
@@ -2823,8 +3057,13 @@ function MusteriGirisleriIcerik({ clients, girisler, onUpdate, firmaAdi }) {
                     <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${T.borderSoft}` }}>
                       {devirTeslimId === c.id ? (
                         <DevirTeslimFormu client={c} girisler={g} firmaAdi={firmaAdi} onClose={() => setDevirTeslimId(null)} />
+                      ) : hizliGonderId === c.id ? (
+                        <HizliSifreGonderFormu client={c} girisler={g} firmaAdi={firmaAdi} onClose={() => setHizliGonderId(null)} />
                       ) : (
-                        <button onClick={() => setDevirTeslimId(c.id)} style={{ ...addBtnStyle, background: T.dangerSoft, color: T.danger }}>📤 Devir Teslim Bildirimi Gönder</button>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          <button onClick={() => setHizliGonderId(c.id)} style={addBtnStyle}>✉️ Şifreleri Gönder</button>
+                          <button onClick={() => setDevirTeslimId(c.id)} style={{ ...addBtnStyle, background: T.dangerSoft, color: T.danger }}>📤 Devir Teslim Bildirimi Gönder</button>
+                        </div>
                       )}
                     </div>
                   </>
@@ -2838,10 +3077,37 @@ function MusteriGirisleriIcerik({ clients, girisler, onUpdate, firmaAdi }) {
   );
 }
 
+/** Web teknolojisiyle ekran görüntüsü almayı GERÇEKTEN engellemek mümkün değil (hiçbir site/uygulama
+ * bunu tam garanti edemez — işletim sistemi seviyesinde bir kısıtlama gerekir). Bunun yerine daha
+ * gerçekçi bir caydırıcı kullanılıyor: sayfanın üzerine, ekran görüntüsüne de dahil olacak şekilde,
+ * tarih/saat içeren hafif bir filigran basılıyor — böylece bir görüntü paylaşılırsa ne zaman alındığı bellidir. */
+function FiligranKatmani() {
+  const damga = new Date().toLocaleString("tr-TR");
+  return (
+    <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 5, overflow: "hidden", opacity: 0.06 }}>
+      <div style={{
+        position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%) rotate(-30deg)",
+        fontSize: 13, fontFamily: "Inter, sans-serif", color: T.text, whiteSpace: "pre", lineHeight: 3.2, textAlign: "center", width: "200%",
+      }}>
+        {Array(14).fill(`GİZLİ — Şifre Kasası — ${damga}`).join("\n")}
+      </div>
+    </div>
+  );
+}
+
 function MusteriGirisleri(props) {
   return (
     <SifreGateli>
-      <MusteriGirisleriIcerik {...props} />
+      <div style={{ position: "relative" }}>
+        <FiligranKatmani />
+        <Card style={{ padding: "12px 16px", marginBottom: 14, background: T.dangerSoft }}>
+          <div style={{ fontSize: 12, color: T.danger, fontFamily: "Inter", lineHeight: 1.6 }}>
+            Not: Web teknolojisiyle ekran görüntüsü almak teknik olarak engellenemez (hiçbir web sitesi bunu tam olarak garanti edemez).
+            Bunun yerine sayfaya tarih/saat içeren görünmez bir filigran basılıyor — bir görüntü paylaşılırsa nereden ve ne zaman alındığı iz sürülebilir.
+          </div>
+        </Card>
+        <MusteriGirisleriIcerik {...props} />
+      </div>
     </SifreGateli>
   );
 }
@@ -2930,8 +3196,9 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Otomatik Günlük Yedekler</SectionTitle>
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
-          Her kayıt işleminde o günün son hali otomatik olarak sunucuda saklanır (son 30 gün). Bir şey ters giderse
-          buradan istediğin tarihe geri dönebilirsin — elle hiçbir şey yapmana gerek yok.
+          Her kayıt işleminde (senin ya da personelin yaptığı — hepsi dahil) o günün son hali otomatik olarak sunucuda saklanır (son 30 gün).
+          Her tarihin yanındaki <strong>"İndir (JSON)"</strong> ile o günün yedeğini bilgisayarına indirip istediğin yere
+          (Drive, harici disk vb.) taşıyabilirsin. Bir şey ters giderse <strong>"Bu tarihe dön"</strong> ile doğrudan o tarihe geri dönebilirsin.
         </p>
         <YedekGecmisi />
       </Card>

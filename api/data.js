@@ -183,6 +183,10 @@ export default async function handler(req, res) {
           });
         });
         await kv.set(KEY, merged);
+        // Personel yazımları da günlük yedeğe dahil olsun — daha önce sadece owner kayıtları
+        // yedekleniyordu, bu da personelin yaptığı işlerin yedeksiz kalması riskini taşıyordu.
+        const bugun = new Date().toISOString().slice(0, 10);
+        await kv.set(`marcus-os-snapshot-${bugun}`, merged);
         return res.status(200).json({ ok: true });
       }
 

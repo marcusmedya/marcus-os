@@ -45,6 +45,15 @@ function gecmiseEkle(data, clientId, marka, tur, tip) {
   data.paylasimGecmisi = [...liste, { id: nid(), clientId, marka, tur, tip, tarih: bugunTR() }];
 }
 
+/** Her kayıtta ana veriyi VE o günün yedeğini birlikte yazar — bu uç nokta üzerinden yapılan
+ * (stok/paylaşım/haftalık plan/şube/günlük kontrol) değişiklikler daha önce günlük yedeğe hiç
+ * dahil edilmiyordu, bu da bu verinin bir "bu tarihe dön" işleminde kaybolabileceği anlamına geliyordu. */
+async function kaydetVeYedekle(data) {
+  await kv.set(KEY, data);
+  const bugun = new Date().toISOString().slice(0, 10);
+  await kv.set(`marcus-os-snapshot-${bugun}`, data);
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Sadece POST kabul edilir." });
   if (!(await yetkiliMi(req))) return res.status(401).json({ error: "Yetkisiz." });
@@ -60,7 +69,7 @@ export default async function handler(req, res) {
       const { clientId, tur, delta } = body;
       stokDegistirDahili(data, clientId, tur, delta);
       gecmiseEkle(data, clientId, markaAdi(clientId), tur, delta < 0 ? "paylasim" : "cekim");
-      await kv.set(KEY, data);
+      await kaydetVeYedekle(data);
       return res.status(200).json({ ok: true, stoklar: data.stoklar, paylasimGecmisi: data.paylasimGecmisi });
     }
 
@@ -69,14 +78,14 @@ export default async function handler(req, res) {
       const liste = data.haftalikPaylasimlar || [];
       const yeni = { id: nid(), clientId, gun, haftaKey, tur, yapildi: false, yapildigiTarih: null };
       data.haftalikPaylasimlar = [...liste, yeni];
-      await kv.set(KEY, data);
+      await kaydetVeYedekle(data);
       return res.status(200).json({ ok: true, haftalikPaylasimlar: data.haftalikPaylasimlar });
     }
 
     if (action === "haftalikSil") {
       const { planId } = body;
       data.haftalikPaylasimlar = (data.haftalikPaylasimlar || []).filter((p) => p.id !== planId);
-      await kv.set(KEY, data);
+      await kaydetVeYedekle(data);
       return res.status(200).json({ ok: true, haftalikPaylasimlar: data.haftalikPaylasimlar });
     }
 
@@ -89,7 +98,7 @@ export default async function handler(req, res) {
       data.haftalikPaylasimlar = liste.map((p) => (p.id === planId ? { ...p, yapildi: yeniYapildi, yapildigiTarih: yeniYapildi ? bugunTR() : null } : p));
       stokDegistirDahili(data, plan.clientId, plan.tur, yeniYapildi ? -1 : 1);
       gecmiseEkle(data, plan.clientId, markaAdi(plan.clientId), plan.tur, yeniYapildi ? "paylasim" : "cekim");
-      await kv.set(KEY, data);
+      await kaydetVeYedekle(data);
       return res.status(200).json({ ok: true, haftalikPaylasimlar: data.haftalikPaylasimlar, stoklar: data.stoklar, paylasimGecmisi: data.paylasimGecmisi });
     }
 
@@ -103,7 +112,7 @@ export default async function handler(req, res) {
       data.gunlukKontrol = { tarih: bugun, yapilanlar: yeniYapilanlar };
       stokDegistirDahili(data, clientId, tur, varMi ? 1 : -1);
       gecmiseEkle(data, clientId, markaAdi(clientId), tur, varMi ? "cekim" : "paylasim");
-      await kv.set(KEY, data);
+      await kaydetVeYedekle(data);
       return res.status(200).json({ ok: true, gunlukKontrol: data.gunlukKontrol, stoklar: data.stoklar, paylasimGecmisi: data.paylasimGecmisi });
     }
 
@@ -117,14 +126,14 @@ export default async function handler(req, res) {
       const liste = data.subeler || [];
       const yeni = { id: nid(), clientId, ad: ad.trim() };
       data.subeler = [...liste, yeni];
-      await kv.set(KEY, data);
+      await kaydetVeYedekle(data);
       return res.status(200).json({ ok: true, subeler: data.subeler });
     }
 
     if (action === "subeSil") {
       const { subeId } = body;
       data.subeler = (data.subeler || []).filter((s) => s.id !== subeId);
-      await kv.set(KEY, data);
+      await kaydetVeYedekle(data);
       return res.status(200).json({ ok: true, subeler: data.subeler });
     }
 
@@ -139,7 +148,7 @@ export default async function handler(req, res) {
       // Genel (toplam) stok da aynı miktarda değişir.
       stokDegistirDahili(data, clientId, tur, delta);
       gecmiseEkle(data, clientId, `${markaAdi(clientId)}${subeAdi ? " (" + subeAdi + ")" : ""}`, tur, delta < 0 ? "paylasim" : "cekim");
-      await kv.set(KEY, data);
+      await kaydetVeYedekle(data);
       return res.status(200).json({ ok: true, stoklar: data.stoklar, paylasimGecmisi: data.paylasimGecmisi });
     }
 
