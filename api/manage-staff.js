@@ -4,7 +4,7 @@ import crypto from "crypto";
 const KEY = "marcus-os-data";
 const DEFAULT_PERMS = {
   dashboard: false, musteriler: false, finans: false, takvim: false, odemeTakvimi: false,
-  teklif: false, reklamlar: true, paylasimlar: true, cekimListesi: false, cekimEdit: true, personel: false, birikim: false,
+  teklif: false, reklamlar: true, paylasimlar: true, cekimListesi: false, cekimEdit: true, personel: false, birikim: false, sifreKasasi: false,
 };
 
 function checkOwner(req) {

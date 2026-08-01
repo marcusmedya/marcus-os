@@ -11,6 +11,8 @@ export const DEFAULT_DATA = {
   gunlukKontrol: null,
   haftalikPaylasimlar: [],
   subeler: [],
+  musteriGirisleri: {},
+  markalasmaSurecleri: [],
   hesaplar: [{ id: "ana", ad: "Marcus Medya", anaHesap: true }],
   hesapTransferleri: [],
   staffPermissions: {
