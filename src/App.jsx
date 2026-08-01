@@ -2691,7 +2691,7 @@ function SifreGateli({ children }) {
   const [ayarlandiMi, setAyarlandiMi] = useState(null); // null = henüz bilinmiyor, kontrol ediliyor
 
   useEffect(() => {
-    fetch("/api/kasa", { headers: { "X-Site-Password": getPw() } })
+    fetch("/api/kasa", { headers: { ...authHeaders() } })
       .then((r) => r.json())
       .then((res) => setAyarlandiMi(!!res.ayarlandiMi))
       .catch(() => setAyarlandiMi(false));
