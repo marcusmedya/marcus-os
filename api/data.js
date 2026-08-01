@@ -3,6 +3,31 @@ import crypto from "crypto";
 
 const KEY = "marcus-os-data";
 
+/** Kaba kuvvet (brute-force) koruması: aynı IP'den 15 dakikada 20'den fazla başarısız
+ * giriş denemesi olursa, şifre doğru olsa bile bir süre reddedilir. */
+const RATE_LIMIT_ESIK = 20;
+const RATE_LIMIT_PENCERE_SN = 900; // 15 dakika
+function istekIP(req) {
+  return (req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "bilinmeyen").split(",")[0].trim();
+}
+async function rateLimitAsildiMi(req) {
+  try {
+    const sayac = (await kv.get(`login-fail-${istekIP(req)}`)) || 0;
+    return sayac >= RATE_LIMIT_ESIK;
+  } catch (e) {
+    return false; // KV'ye ulaşılamıyorsa girişi tamamen engelleme, sadece koruma devre dışı kalır
+  }
+}
+async function basarisizGirisiKaydet(req) {
+  try {
+    const key = `login-fail-${istekIP(req)}`;
+    const sayac = (await kv.get(key)) || 0;
+    await kv.set(key, sayac + 1, { ex: RATE_LIMIT_PENCERE_SN });
+  } catch (e) {
+    // sayaç kaydedilemezse sessizce geç, bu kritik değil
+  }
+}
+
 // Her izin, personel görürse hangi veri alanlarına ihtiyaç duyacağını belirler.
 // CEO Paneli'nden bu izinlerden hangileri açıksa, personelin GET yanıtına o alanlar dahil edilir
 // ve POST ile o alanlara yazması kabul edilir. Ayarlar bilerek bu listede YOK — personel hesap
@@ -17,9 +42,10 @@ const PERMISSION_DATA_FIELDS = {
   reklamlar: ["reklamlar"],
   paylasimlar: ["stoklar", "paylasimGecmisi", "gunlukKontrol", "clients", "haftalikPaylasimlar", "subeler"],
   cekimListesi: ["stoklar", "paylasimGecmisi", "clients", "subeler"],
-  cekimEdit: ["cekimIsleri", "clients"],
+  cekimEdit: ["cekimIsleri", "clients", "markalasmaSurecleri"],
   personel: ["personel"],
   birikim: ["birikimler"],
+  sifreKasasi: ["musteriGirisleri", "clients"],
 };
 // YAZMA izinleri OKUMA izinlerinden bilerek farklı: paylasimlar/cekimEdit gibi dar izinler
 // "clients"i sadece marka adı GÖRMEK için (sadeleştirilmiş) alır — asıl (zengin) müşteri
@@ -34,20 +60,21 @@ const PERMISSION_WRITE_FIELDS = {
   reklamlar: ["reklamlar"],
   paylasimlar: ["stoklar", "paylasimGecmisi", "gunlukKontrol", "haftalikPaylasimlar", "subeler"],
   cekimListesi: [],
-  cekimEdit: ["cekimIsleri"],
+  cekimEdit: ["cekimIsleri", "markalasmaSurecleri"],
   personel: ["personel"],
   birikim: ["birikimler"],
+  sifreKasasi: ["musteriGirisleri"],
 };
 const FULL_CLIENT_PERMS = ["dashboard", "musteriler", "finans", "takvim", "odemeTakvimi"];
 const DEFAULT_FIELD_VALUES = {
   clients: [], monthly: [], gelirKalemleri: [], giderKalemleri: [], ofisGiderleri: [], bekleyenTahsilatlar: [],
   personel: [], vergiTakvimi: [], hesaplar: [{ id: "ana", ad: "Marcus Medya", anaHesap: true }], hesapTransferleri: [],
   teklifler: [], teklifSablonlari: [], sozlesmeSablonlari: [], markaKimligiGorseli: null,
-  reklamlar: [], stoklar: {}, paylasimGecmisi: [], gunlukKontrol: null, cekimIsleri: [], birikimler: [], haftalikPaylasimlar: [], subeler: [],
+  reklamlar: [], stoklar: {}, paylasimGecmisi: [], gunlukKontrol: null, cekimIsleri: [], birikimler: [], haftalikPaylasimlar: [], subeler: [], markalasmaSurecleri: [],
 };
 const DEFAULT_PERMS = {
   dashboard: false, musteriler: false, finans: false, takvim: false, odemeTakvimi: false,
-  teklif: false, reklamlar: true, paylasimlar: true, cekimListesi: false, cekimEdit: true, personel: false, birikim: false,
+  teklif: false, reklamlar: true, paylasimlar: true, cekimListesi: false, cekimEdit: true, personel: false, birikim: false, sifreKasasi: false,
 };
 
 function hashSifre(sifre, salt) {
@@ -82,8 +109,14 @@ async function resolveRole(req) {
 }
 
 export default async function handler(req, res) {
+  if (await rateLimitAsildiMi(req)) {
+    return res.status(429).json({ error: "Çok fazla başarısız giriş denemesi. 15 dakika sonra tekrar dene." });
+  }
   const auth = await resolveRole(req);
-  if (!auth) return res.status(401).json({ error: "Yetkisiz. Şifre gerekli." });
+  if (!auth) {
+    await basarisizGirisiKaydet(req);
+    return res.status(401).json({ error: "Yetkisiz. Şifre gerekli." });
+  }
   const { role, staffId, staffName, staffPerms, staffEmail } = auth;
 
   try {
