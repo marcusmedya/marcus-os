@@ -51,10 +51,9 @@ export default async function handler(req, res) {
     if (action === "dogrula") {
       if (!sifre) return res.status(400).json({ ok: false, error: "Şifre gerekli." });
       if (!data.kasaSifresiHash) {
-        // Henüz kasa şifresi belirlenmemiş — bootstrap için owner'ın site şifresi geçici olarak kabul edilir.
-        const ownerPw = process.env.SITE_PASSWORD;
-        if (ownerPw && sifre === ownerPw) return res.status(200).json({ ok: true, kasaSifresiYok: true });
-        return res.status(200).json({ ok: false, error: "Şifre yanlış." });
+        // Henüz kasa şifresi hiç belirlenmemiş — owner şifresiyle (ya da başka hiçbir şeyle)
+        // GİRİLEMEZ. Önce Ayarlar'dan bir kasa şifresi belirlenmesi gerekir.
+        return res.status(200).json({ ok: false, kasaSifresiYok: true, error: "Henüz kasa şifresi belirlenmemiş. Önce Ayarlar > Şifre Kasası Şifresi'nden bir şifre belirle." });
       }
       const hash = hashSifre(sifre, data.kasaSifresiSalt);
       if (hash === data.kasaSifresiHash) return res.status(200).json({ ok: true });

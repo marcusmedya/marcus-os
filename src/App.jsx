@@ -2688,6 +2688,14 @@ function SifreGateli({ children }) {
   const [sifre, setSifre] = useState("");
   const [hata, setHata] = useState("");
   const [kontrolEdiliyor, setKontrolEdiliyor] = useState(false);
+  const [ayarlandiMi, setAyarlandiMi] = useState(null); // null = henüz bilinmiyor, kontrol ediliyor
+
+  useEffect(() => {
+    fetch("/api/kasa", { headers: { "X-Site-Password": getPw() } })
+      .then((r) => r.json())
+      .then((res) => setAyarlandiMi(!!res.ayarlandiMi))
+      .catch(() => setAyarlandiMi(false));
+  }, []);
 
   const dogrula = () => {
     if (!sifre) return;
@@ -2701,6 +2709,7 @@ function SifreGateli({ children }) {
       .then((r) => r.json())
       .then((res) => {
         if (res.ok) setDogrulandi(true);
+        else if (res.kasaSifresiYok) setAyarlandiMi(false);
         else setHata(res.error || "Şifre yanlış.");
       })
       .catch(() => setHata("Bağlantı hatası — tekrar dene."))
@@ -2709,13 +2718,32 @@ function SifreGateli({ children }) {
 
   if (dogrulandi) return children;
 
+  if (ayarlandiMi === null) {
+    return <div style={{ maxWidth: 340, margin: "60px auto", textAlign: "center", color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Yükleniyor…</div>;
+  }
+
+  if (ayarlandiMi === false) {
+    return (
+      <div style={{ maxWidth: 380, margin: "60px auto", textAlign: "center" }}>
+        <div style={{ width: 44, height: 44, borderRadius: 12, background: T.warningSoft, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+          <KeyRound size={20} color={T.warning} />
+        </div>
+        <div style={{ fontSize: 14, color: T.text, fontWeight: 600, fontFamily: "Inter", marginBottom: 6 }}>Henüz kasa şifresi belirlenmedi</div>
+        <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", lineHeight: 1.6 }}>
+          Bu sayfa, owner (site) şifrenden <strong>tamamen bağımsız</strong> ayrı bir şifre gerektiriyor.
+          Devam edebilmek için önce <strong>Ayarlar → Şifre Kasası Şifresi</strong> bölümünden bir şifre belirlemen gerekiyor.
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ maxWidth: 340, margin: "60px auto", textAlign: "center" }}>
       <div style={{ width: 44, height: 44, borderRadius: 12, background: T.surfaceRaised, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
         <Lock size={20} color={T.textFaint} />
       </div>
       <div style={{ fontSize: 14, color: T.text, fontWeight: 600, fontFamily: "Inter", marginBottom: 6 }}>Bu sayfa ekstra korumalı</div>
-      <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 18 }}>Müşteri hesap bilgilerini görmek için kasa şifresini gir.</div>
+      <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 18 }}>Devam etmek için Ayarlar'dan belirlediğin kasa şifresini gir.</div>
       <input
         type="text"
         autoFocus
@@ -3193,7 +3221,7 @@ function KasaSifresiKarti() {
       <SectionTitle>Şifre Kasası Şifresi</SectionTitle>
       <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 10 }}>
         Şifre Kasası'na (müşteri sosyal medya girişleri) girerken artık kendi şifrenle değil, buradan belirlediğin
-        <strong> ayrı bir kasa şifresiyle</strong> doğrulama yapılıyor. Henüz belirlemediysen, ilk seferde kendi şifren geçici olarak kabul edilir.
+        <strong> ayrı bir kasa şifresiyle</strong> doğrulama yapılıyor. Owner (site) şifren burada <strong>hiçbir zaman</strong> geçerli olmaz — aşağıdan bir kasa şifresi belirlemen gerekiyor.
       </p>
       {ayarlandiMi !== null && (
         <div style={{ fontSize: 12, fontFamily: "Inter", fontWeight: 600, color: ayarlandiMi ? T.success : T.warning, marginBottom: 14 }}>
@@ -4323,6 +4351,12 @@ export default function MarcusOS() {
       [],
       ["Kaydedilen Teklifler", "Marka", "Toplam Tutar", "Tarih"],
       ...(data.teklifler || []).map((t) => [(t.musteri && t.musteri.firma) || "", t.toplamFiyat || 0, t.tarih ? new Date(t.tarih).toLocaleDateString("tr-TR") : ""]),
+      [],
+      ["Markalaşma Süreçleri", "Yönetici", "Tamamlanma", "Durum", "Açıldı", "Tamamlandı"],
+      ...(data.markalasmaSurecleri || []).map((s) => {
+        const oran = s.gorevler && s.gorevler.length ? Math.round((s.gorevler.filter((g) => g.tamamlandi).length / s.gorevler.length) * 100) : 0;
+        return [s.marka || "", s.yonetici || "", `%${oran}`, s.tamTamamlandi ? "Tamamlandı" : "Devam Ediyor", s.olusturmaTarihi || "", s.tamamlanmaTarihi || ""];
+      }),
     ];
     const csv = rows.map((r) => r.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
