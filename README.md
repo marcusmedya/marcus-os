@@ -195,6 +195,10 @@ Kurulumdan sonra Ayarlar sayfasındaki **"Şimdi Test Et"** butonuyla hemen dene
 - "Tüm İşler" görünümünde artık üstte **Video / Grafik Tasarım** sekmesi var, her biri kendi panosunu (kanban) gösteriyor.
 - Personel ve yönetici panelleri, istatistikler bu ayrımla uyumlu çalışıyor.
 
+## Güncelleme 8: "Tahsil Edilen" Hesaplama Düzeltmesi
+
+- **Dashboard'daki "Tahsil Edilen" rakamı artık gerçek ödeme kayıtlarından hesaplanıyor**, önceki gibi ciro'dan bekleyeni çıkararak tahmin edilmiyor. Eski yöntem, ödeme günü henüz gelmemiş müşterileri de "tahsil edildi" sayıyordu — örneğin ayın 1'inde, hiç ödeme alınmamışken bile "Tahsil Edilen" büyük bir rakam gösterebiliyordu. Artık sadece Ödeme Takvimi'nden gerçekten "ödendi" olarak işaretlenmiş/kaydedilmiş tutarlar sayılıyor.
+
 ## Notlar
 - Uygulama şu an örnek (demo) verilerle geliyor. Gerçek verilerini bağlamak istediğinde `src/App.jsx` içindeki `clients`, `monthly`, `operasyonlar` gibi listeleri kendi verilerinle değiştirebiliriz, ya da bir sonraki adımda bunları düzenleyebileceğin bir veri giriş ekranı ekleyebiliriz.
 - API anahtarın hiçbir zaman tarayıcıya gönderilmiyor; `api/chat.js` sunucu tarafında çalışıyor.

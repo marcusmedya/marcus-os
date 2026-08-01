@@ -77,7 +77,10 @@ function computeLive(data) {
     return s;
   }, 0);
   const bekleyenToplam = manuelBekleyen + otomatikBekleyen;
-  const tahsilEdilen = ciro - bekleyenToplam;
+  // "Tahsil Edilen" artık ciro'dan bekleyeni çıkararak TAHMİN edilmiyor (bu, ödeme günü henüz
+  // gelmemiş müşterileri de "tahsil edildi" sayan bir hataya yol açıyordu — örn. ayın 1'inde
+  // hiç ödeme alınmamışken bile öyle görünüyordu). Bunun yerine gerçek ödeme kayıtlarından toplanıyor.
+  const tahsilEdilen = extra + activeClients.reduce((s, c) => s + monthPaidAmount(c, monthKey()), 0);
   const karMarji = ciro ? Math.round((net / ciro) * 100) : 0;
   return { recurring, extra, ciro, faturaliCiro, faturasizCiro, kdvTutari, kdvDahilToplamCiro, faturaliKdvDahil, giderKalemToplam, ofisGiderToplam, clientCosts, personelGideri, gider, net, manuelBekleyen, otomatikBekleyen, bekleyenToplam, tahsilEdilen, karMarji };
 }
