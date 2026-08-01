@@ -15,7 +15,8 @@ const PERMISSION_DATA_FIELDS = {
   odemeTakvimi: ["clients", "hesaplar", "hesapTransferleri"],
   teklif: ["teklifler", "teklifSablonlari", "sozlesmeSablonlari", "markaKimligiGorseli"],
   reklamlar: ["reklamlar"],
-  paylasimlar: ["stoklar", "paylasimGecmisi", "gunlukKontrol", "clients", "haftalikPaylasimlar"],
+  paylasimlar: ["stoklar", "paylasimGecmisi", "gunlukKontrol", "clients", "haftalikPaylasimlar", "subeler"],
+  cekimListesi: ["stoklar", "paylasimGecmisi", "clients", "subeler"],
   cekimEdit: ["cekimIsleri", "clients"],
   personel: ["personel"],
   birikim: ["birikimler"],
@@ -31,7 +32,8 @@ const PERMISSION_WRITE_FIELDS = {
   odemeTakvimi: ["clients", "hesaplar", "hesapTransferleri"],
   teklif: ["teklifler", "teklifSablonlari", "sozlesmeSablonlari", "markaKimligiGorseli"],
   reklamlar: ["reklamlar"],
-  paylasimlar: ["stoklar", "paylasimGecmisi", "gunlukKontrol", "haftalikPaylasimlar"],
+  paylasimlar: ["stoklar", "paylasimGecmisi", "gunlukKontrol", "haftalikPaylasimlar", "subeler"],
+  cekimListesi: [],
   cekimEdit: ["cekimIsleri"],
   personel: ["personel"],
   birikim: ["birikimler"],
@@ -41,11 +43,11 @@ const DEFAULT_FIELD_VALUES = {
   clients: [], monthly: [], gelirKalemleri: [], giderKalemleri: [], ofisGiderleri: [], bekleyenTahsilatlar: [],
   personel: [], vergiTakvimi: [], hesaplar: [{ id: "ana", ad: "Marcus Medya", anaHesap: true }], hesapTransferleri: [],
   teklifler: [], teklifSablonlari: [], sozlesmeSablonlari: [], markaKimligiGorseli: null,
-  reklamlar: [], stoklar: {}, paylasimGecmisi: [], gunlukKontrol: null, cekimIsleri: [], birikimler: [], haftalikPaylasimlar: [],
+  reklamlar: [], stoklar: {}, paylasimGecmisi: [], gunlukKontrol: null, cekimIsleri: [], birikimler: [], haftalikPaylasimlar: [], subeler: [],
 };
 const DEFAULT_PERMS = {
   dashboard: false, musteriler: false, finans: false, takvim: false, odemeTakvimi: false,
-  teklif: false, reklamlar: true, paylasimlar: true, cekimEdit: true, personel: false, birikim: false,
+  teklif: false, reklamlar: true, paylasimlar: true, cekimListesi: false, cekimEdit: true, personel: false, birikim: false,
 };
 
 function hashSifre(sifre, salt) {

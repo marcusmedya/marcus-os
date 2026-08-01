@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Wallet, Settings, Sparkles,
   ArrowUpRight, ArrowDownRight, X, Send, Plus, Pencil, Trash2, Check,
   ChevronRight,
-  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp, Menu, Calendar, ChevronLeft, ListChecks, FileText, Megaphone, Share2, Lock, Camera, Shield, ClipboardCheck
+  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp, Menu, Calendar, ChevronLeft, ListChecks, FileText, Megaphone, Share2, Lock, Camera, Shield, ClipboardCheck, Video
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
@@ -877,7 +877,7 @@ function MiniList({ title, icon, items, fields, renderRow, onAdd, onDelete, addL
   );
 }
 
-function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDeleteGider, onAddOfisGider, onDeleteOfisGider, onAddBekleyen, onDeleteBekleyen, onAddVergi, onDeleteVergi, onAddMonth, onDeleteMonth, onCloseMonth, onExport, onTransfer, onAddHesap }) {
+function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDeleteGider, onAddOfisGider, onDeleteOfisGider, onAddBekleyen, onDeleteBekleyen, onAddVergi, onDeleteVergi, onAddMonth, onDeleteMonth, onCloseMonth, onExport, onTransfer, onAddHesap, onDeleteHesap }) {
   const { monthly, gelirKalemleri, giderKalemleri, ofisGiderleri, bekleyenTahsilatlar, vergiTakvimi } = data;
   const [addingMonth, setAddingMonth] = useState(false);
   const live = computeLive(data);
@@ -1144,7 +1144,7 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
         </div>
       )}
 
-      <HesapBakiyeleri hesaplar={data.hesaplar} clients={clients} transferler={data.hesapTransferleri} onTransfer={onTransfer} onAddHesap={onAddHesap} />
+      <HesapBakiyeleri hesaplar={data.hesaplar} clients={clients} transferler={data.hesapTransferleri} onTransfer={onTransfer} onAddHesap={onAddHesap} onDeleteHesap={onDeleteHesap} />
 
       <Card style={{ padding: "16px 20px", marginTop: 16 }}>
         <SectionTitle>Banka Hareketleri <span style={{ fontWeight: 400, opacity: 0.7 }}>— Ödeme Takvimi'nde kaydedilen tüm tahsilatlar</span></SectionTitle>
@@ -1502,7 +1502,7 @@ function AyOdemeModal({ client, ayObj, hesaplar, onAddKaydi, onDeleteKaydi, onCl
   );
 }
 
-function OdemeTakvimi({ clients, hesaplar, transferler, onUpdateClient, onAddOdemeKaydi, onDeleteOdemeKaydi, onTransfer, onAddHesap }) {
+function OdemeTakvimi({ clients, hesaplar, transferler, onUpdateClient, onAddOdemeKaydi, onDeleteOdemeKaydi, onTransfer, onAddHesap, onDeleteHesap }) {
   const [ayCount, setAyCount] = useState(6);
   const [activeCell, setActiveCell] = useState(null); // { client, ayObj }
   const izlenenler = clients.filter((c) => c.durum !== "ayrildi");
@@ -1544,7 +1544,7 @@ function OdemeTakvimi({ clients, hesaplar, transferler, onUpdateClient, onAddOde
         <KpiCard label="BİRİKMİŞ TOPLAM BORÇ" value={fmt(toplamBirikmisBorc)} accent={T.danger} />
       </div>
 
-      <HesapBakiyeleri hesaplar={hesaplar} clients={clients} transferler={transferler} onTransfer={onTransfer} onAddHesap={onAddHesap} />
+      <HesapBakiyeleri hesaplar={hesaplar} clients={clients} transferler={transferler} onTransfer={onTransfer} onAddHesap={onAddHesap} onDeleteHesap={onDeleteHesap} />
 
       <Card style={{ padding: "10px 12px", marginBottom: 16, display: "flex", justifyContent: "flex-end", gap: 8 }}>
         {[6, 12].map((n) => (
@@ -1734,7 +1734,9 @@ function Reklamlar({ reklamlar, onAdd, onUpdate, onDelete }) {
 const PAYLASIM_TURLERI = ["Görsel", "Video", "Reels", "Story", "Carousel"];
 const stokAnahtari = (clientId, tur) => `${clientId}_${tur}`;
 
-function MarkaStokKarti({ client, stoklar, gecmis, onStokDegis }) {
+function MarkaStokKarti({ client, stoklar, gecmis, subeler, onStokDegis, onAddSube, onDeleteSube, onSubeStokDegis }) {
+  const [subeEkleAcik, setSubeEkleAcik] = useState(false);
+  const [subeAdi, setSubeAdi] = useState("");
   const dusukMu = (tur, adet) => {
     if (adet <= 0) return false;
     if (adet <= 2) return true;
@@ -1746,14 +1748,15 @@ function MarkaStokKarti({ client, stoklar, gecmis, onStokDegis }) {
     return kalanGun <= 7;
   };
   const toplamStok = PAYLASIM_TURLERI.reduce((s, t) => s + (stoklar[stokAnahtari(client.id, t)] || 0), 0);
+  const buMarkaSubeleri = (subeler || []).filter((s) => s.clientId === client.id);
   return (
     <Card style={{ padding: "16px 18px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: T.text, fontFamily: "Inter" }}>{client.ad}</div>
         <span style={{ fontSize: 12, fontWeight: 700, color: toplamStok > 0 ? T.accentText : T.textFaint, fontFamily: "'IBM Plex Mono', monospace", background: T.accentSoft, padding: "2px 9px", borderRadius: 999 }}>{toplamStok}</span>
       </div>
-      <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginBottom: 14 }}>Stoktaki içerikler</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginBottom: 14 }}>Stoktaki içerikler {buMarkaSubeleri.length > 0 ? "(tüm şubeler dahil toplam)" : ""}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: buMarkaSubeleri.length > 0 || onAddSube ? 14 : 0 }}>
         {PAYLASIM_TURLERI.map((tur) => {
           const adet = stoklar[stokAnahtari(client.id, tur)] || 0;
           const dusuk = dusukMu(tur, adet);
@@ -1785,6 +1788,52 @@ function MarkaStokKarti({ client, stoklar, gecmis, onStokDegis }) {
           );
         })}
       </div>
+
+      {onAddSube && (
+        <div style={{ borderTop: `1px solid ${T.borderSoft}`, paddingTop: 12 }}>
+          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 8 }}>ŞUBELER</div>
+          {buMarkaSubeleri.map((sube) => (
+            <div key={sube.id} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "8px 10px", marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                <span style={{ fontSize: 12, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{sube.ad}</span>
+                <button
+                  onClick={() => {
+                    const subeToplami = PAYLASIM_TURLERI.reduce((s, t) => s + (stoklar[`${client.id}_${sube.id}_${t}`] || 0), 0);
+                    const mesaj = subeToplami > 0
+                      ? `${sube.ad} şubesinde hâlâ ${subeToplami} adet stok var. Şubeyi silmek bu stoğu genel toplamdan DÜŞMEZ — önce stoğu sıfırlaman önerilir. Yine de silinsin mi?`
+                      : `${sube.ad} şubesi silinsin mi?`;
+                    if (window.confirm(mesaj)) onDeleteSube(sube.id);
+                  }}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}
+                ><Trash2 size={12} color={T.textFaint} /></button>
+              </div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {PAYLASIM_TURLERI.map((tur) => {
+                  const key = `${client.id}_${sube.id}_${tur}`;
+                  const adet = stoklar[key] || 0;
+                  return (
+                    <div key={tur} style={{ display: "flex", alignItems: "center", gap: 4, background: T.surface, borderRadius: 999, padding: "2px 4px 2px 8px" }}>
+                      <span style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter" }}>{tur.slice(0, 3)}</span>
+                      <button onClick={() => onSubeStokDegis(client.id, sube.id, tur, -1)} disabled={adet <= 0} style={{ width: 16, height: 16, borderRadius: 999, border: "none", background: "transparent", color: adet > 0 ? T.text : T.textFaint, cursor: adet > 0 ? "pointer" : "default", fontSize: 12, lineHeight: 1 }}>–</button>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: T.text, fontFamily: "'IBM Plex Mono', monospace", minWidth: 12, textAlign: "center" }}>{adet}</span>
+                      <button onClick={() => onSubeStokDegis(client.id, sube.id, tur, 1)} style={{ width: 16, height: 16, borderRadius: 999, border: "none", background: "transparent", color: T.accentText, cursor: "pointer", fontSize: 12, lineHeight: 1 }}>+</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          {subeEkleAcik ? (
+            <div style={{ display: "flex", gap: 6 }}>
+              <input autoFocus value={subeAdi} onChange={(e) => setSubeAdi(e.target.value)} placeholder="örn. Antalya Şubesi" style={{ ...inputStyle, flex: 1, fontSize: 12.5, padding: "7px 10px" }} />
+              <button style={{ ...saveBtnStyle, padding: "7px 12px", fontSize: 12 }} onClick={() => { if (subeAdi.trim()) { onAddSube(client.id, subeAdi.trim()); setSubeAdi(""); setSubeEkleAcik(false); } }}>Ekle</button>
+              <button style={{ ...cancelBtnStyle, padding: "7px 12px", fontSize: 12 }} onClick={() => setSubeEkleAcik(false)}>İptal</button>
+            </div>
+          ) : (
+            <button onClick={() => setSubeEkleAcik(true)} style={{ background: "none", border: "none", color: T.accentText, fontSize: 11.5, cursor: "pointer", padding: 0, fontFamily: "Inter" }}>+ Şube Ekle</button>
+          )}
+        </div>
+      )}
     </Card>
   );
 }
@@ -1915,7 +1964,7 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, onAddPlan, onToggleYapi
   );
 }
 
-function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, onAddHaftalikPlan, onToggleHaftalikYapildi, onDeleteHaftalikPlan }) {
+function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, onAddHaftalikPlan, onToggleHaftalikYapildi, onDeleteHaftalikPlan, subeler, onAddSube, onDeleteSube, onSubeStokDegis }) {
   const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
   const stoklarObj = stoklar || {};
 
@@ -1961,7 +2010,7 @@ function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, onAd
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14, marginBottom: 16 }}>
           {aktifMarkalar.map((c) => (
-            <MarkaStokKarti key={c.id} client={c} stoklar={stoklarObj} gecmis={gecmis} onStokDegis={onStokDegis} />
+            <MarkaStokKarti key={c.id} client={c} stoklar={stoklarObj} gecmis={gecmis} onStokDegis={onStokDegis} subeler={subeler} onAddSube={onAddSube} onDeleteSube={onDeleteSube} onSubeStokDegis={onSubeStokDegis} />
           ))}
         </div>
       )}
@@ -1996,7 +2045,7 @@ function hesapBakiyesi(hesapId, clients, transferler) {
   return girisler + transferGiris - transferCikis;
 }
 
-function HesapBakiyeleri({ hesaplar, clients, transferler, onTransfer, onAddHesap }) {
+function HesapBakiyeleri({ hesaplar, clients, transferler, onTransfer, onAddHesap, onDeleteHesap }) {
   const [yeniHesapAcik, setYeniHesapAcik] = useState(false);
   const [yeniHesapAdi, setYeniHesapAdi] = useState("");
   const liste = hesaplar && hesaplar.length ? hesaplar : [{ id: "ana", ad: "Marcus Medya", anaHesap: true }];
@@ -2014,14 +2063,19 @@ function HesapBakiyeleri({ hesaplar, clients, transferler, onTransfer, onAddHesa
                 <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{h.ad}{h.anaHesap ? " (Ana Hesap)" : ""}</div>
                 <div style={{ fontSize: 15, color: h.anaHesap ? T.accentText : T.text, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", marginTop: 2 }}>{fmt(bakiye)}</div>
               </div>
-              {!h.anaHesap && bakiye > 0 && (
-                <button
-                  style={saveBtnStyle}
-                  onClick={() => { if (window.confirm(`${fmt(bakiye)} tutarı ${h.ad}'dan ${anaHesap.ad}'a aktarılsın mı?`)) onTransfer(h.id, bakiye); }}
-                >
-                  Ana Hesaba Aktar
-                </button>
-              )}
+              <div style={{ display: "flex", gap: 8 }}>
+                {!h.anaHesap && bakiye > 0 && (
+                  <button
+                    style={saveBtnStyle}
+                    onClick={() => { if (window.confirm(`${fmt(bakiye)} tutarı ${h.ad}'dan ${anaHesap.ad}'a aktarılsın mı?`)) onTransfer(h.id, bakiye); }}
+                  >
+                    Ana Hesaba Aktar
+                  </button>
+                )}
+                {!h.anaHesap && bakiye === 0 && onDeleteHesap && (
+                  <button style={iconBtnStyle} title="Hesabı sil" onClick={() => { if (window.confirm(`${h.ad} hesabı silinsin mi?`)) onDeleteHesap(h.id); }}><Trash2 size={14} color={T.danger} /></button>
+                )}
+              </div>
             </div>
           );
         })}
@@ -2039,6 +2093,68 @@ function HesapBakiyeleri({ hesaplar, clients, transferler, onTransfer, onAddHesa
   );
 }
 
+
+function CekimListesi({ clients, stoklar, subeler, gecmis }) {
+  const ESIK = 4;
+  const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
+  const stoklarObj = stoklar || {};
+
+  const sonCekimTarihi = (clientId, tur) => {
+    const kayitlar = (gecmis || []).filter((h) => h.clientId === clientId && h.tur === tur && h.tip === "cekim");
+    return kayitlar.length ? kayitlar[kayitlar.length - 1].tarih : null;
+  };
+
+  // Marka bazlı (genel) düşük stok satırları.
+  const genelListe = aktifMarkalar.flatMap((c) =>
+    PAYLASIM_TURLERI
+      .map((tur) => ({ marka: c.ad, sube: null, tur, adet: stoklarObj[stokAnahtari(c.id, tur)] || 0, sonCekim: sonCekimTarihi(c.id, tur) }))
+      .filter((x) => x.adet <= ESIK)
+  );
+
+  // Şube bazlı düşük stok satırları (varsa).
+  const subeListe = (subeler || []).flatMap((s) => {
+    const c = aktifMarkalar.find((x) => x.id === s.clientId);
+    if (!c) return [];
+    return PAYLASIM_TURLERI
+      .map((tur) => ({ marka: c.ad, sube: s.ad, tur, adet: stoklarObj[`${s.clientId}_${s.id}_${tur}`] || 0, sonCekim: null }))
+      .filter((x) => x.adet <= ESIK);
+  });
+
+  const tumListe = [...genelListe, ...subeListe].sort((a, b) => a.adet - b.adet);
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 22 }}>
+        <KpiCard label="ÇEKİM GEREKEN" value={tumListe.length} mono={false} accent={tumListe.length > 0 ? T.danger : T.success} />
+      </div>
+
+      {tumListe.length === 0 ? (
+        <Card style={{ padding: "24px", textAlign: "center" }}>
+          <div style={{ color: T.success, fontSize: 13, fontFamily: "Inter", fontWeight: 600 }}>🎉 Şu an stoğu {ESIK} ve altına düşen marka/tür yok — çekim gereken bir şey görünmüyor.</div>
+        </Card>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {tumListe.map((x, i) => {
+            const renk = x.adet <= 1 ? T.danger : x.adet <= 2 ? T.warning : T.textDim;
+            return (
+              <Card key={i} style={{ padding: "12px 16px", border: `1px solid ${x.adet <= 1 ? T.danger : T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontSize: 13.5, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{x.marka}{x.sube ? ` — ${x.sube}` : ""}</div>
+                  <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>{x.tur}{x.sonCekim ? ` · Son çekim: ${x.sonCekim}` : ""}</div>
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: renk, fontFamily: "'IBM Plex Mono', monospace" }}>{x.adet}</div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 12 }}>
+        Stoğu {ESIK} ve altına düşen her marka/tür (ve varsa şube) burada listelenir — en düşükten yükseğe sıralanır. Çekim yapıp Paylaşımlar sekmesinden stoğa ekleyince buradan otomatik kalkar.
+      </div>
+    </div>
+  );
+}
 
 function GunlukKontrol({ clients, stoklar, gecmis, kontrol, onToggle }) {
   const bugun = bugunISO();
@@ -2563,6 +2679,7 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
             { key: "teklif", label: "Teklif & Sözleşme", varsayilan: false },
             { key: "reklamlar", label: "Reklamlar", varsayilan: true },
             { key: "paylasimlar", label: "Paylaşımlar (+ Günlük Kontrol)", varsayilan: true },
+            { key: "cekimListesi", label: "Çekim (düşük stok listesi)", varsayilan: false },
             { key: "cekimEdit", label: "Operasyon (Video/Grafik Tasarım)", varsayilan: true },
             { key: "personel", label: "Personel", varsayilan: false },
             { key: "birikim", label: "Birikim", varsayilan: false },
@@ -2620,6 +2737,7 @@ function PersonelHesaplariKart({ onRosterChange }) {
     { key: "teklif", label: "Teklif & Sözleşme" },
     { key: "reklamlar", label: "Reklamlar" },
     { key: "paylasimlar", label: "Paylaşımlar (+ Günlük Kontrol)" },
+    { key: "cekimListesi", label: "Çekim (düşük stok listesi)" },
     { key: "cekimEdit", label: "Operasyon" },
     { key: "personel", label: "Personel" },
     { key: "birikim", label: "Birikim" },
@@ -3032,6 +3150,7 @@ const NAV = [
   { key: "reklamlar", label: "Reklamlar", icon: Megaphone },
   { key: "paylasimlar", label: "Paylaşımlar", icon: Share2 },
   { key: "gunluk-kontrol", label: "Günlük Kontrol", icon: ClipboardCheck },
+  { key: "cekim-listesi", label: "Çekim", icon: Video },
   { key: "cekim-edit", label: "Operasyon", icon: Camera },
   { key: "personel", label: "Personel", icon: Briefcase },
   { key: "birikim", label: "Birikim", icon: PiggyBank },
@@ -3301,7 +3420,12 @@ export default function MarcusOS() {
   const toggleHaftalikYapildi = (planId) => paylasimIstek({ action: "haftalikToggle", planId }, "Bağlantı hatası — işaretlenemedi, tekrar dene.");
   const deleteHaftalikPlan = (planId) => paylasimIstek({ action: "haftalikSil", planId }, "Bağlantı hatası — silinemedi, tekrar dene.");
 
-  const addHesap = (ad) => setData((d) => ({ ...d, hesaplar: [...(d.hesaplar && d.hesaplar.length ? d.hesaplar : [{ id: "ana", ad: "Marcus Medya", anaHesap: true }]), { id: nextId(d.hesaplar || []), ad }] }));
+  const addSube = (clientId, ad) => paylasimIstek({ action: "subeEkle", clientId, ad }, "Bağlantı hatası — şube eklenemedi, tekrar dene.");
+  const deleteSube = (subeId) => paylasimIstek({ action: "subeSil", subeId }, "Bağlantı hatası — şube silinemedi, tekrar dene.");
+  const subeStokDegistir = (clientId, subeId, tur, delta) => paylasimIstek({ action: "subeStokDegistir", clientId, subeId, tur, delta }, "Bağlantı hatası — stok güncellenemedi, tekrar dene.");
+
+  const addHesap = (ad) => setData((d) => ({ ...d, hesaplar: [...(d.hesaplar && d.hesaplar.length ? d.hesaplar : [{ id: "ana", ad: "Marcus Medya", anaHesap: true }]), { id: `hesap_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, ad }] }));
+  const deleteHesap = (hesapId) => setData((d) => ({ ...d, hesaplar: (d.hesaplar || []).filter((h) => h.id !== hesapId) }));
   const transferEt = (kaynakHesapId, tutar) => setData((d) => {
     const liste = d.hesaplar && d.hesaplar.length ? d.hesaplar : [{ id: "ana", ad: "Marcus Medya", anaHesap: true }];
     const anaHesap = liste.find((h) => h.anaHesap) || liste[0];
@@ -3379,6 +3503,7 @@ export default function MarcusOS() {
 
   const exportCsv = () => {
     const live = computeLive(data);
+    const hesapListesi = data.hesaplar && data.hesaplar.length ? data.hesaplar : [{ id: "ana", ad: "Marcus Medya", anaHesap: true }];
     const rows = [
       ["MARCUS OS - FİNANS RAPORU", new Date().toLocaleDateString("tr-TR")],
       [],
@@ -3387,8 +3512,17 @@ export default function MarcusOS() {
       ["Faturalı Ciro (KDV Hariç)", live.faturaliCiro], ["Faturasız Ciro", live.faturasizCiro],
       ["KDV Tutarı (%20)", live.kdvTutari], ["Faturalı Ciro (KDV Dahil)", live.faturaliKdvDahil], ["Ciro (KDV Dahil Toplam)", live.kdvDahilToplamCiro],
       [],
+      ["Hesap Bakiyeleri", "Bakiye"],
+      ...hesapListesi.map((h) => [h.ad + (h.anaHesap ? " (Ana Hesap)" : ""), hesapBakiyesi(h.id, data.clients, data.hesapTransferleri)]),
+      [],
+      ["Şubeler", "Marka"],
+      ...(data.subeler || []).map((s) => { const c = data.clients.find((x) => x.id === s.clientId); return [s.ad, c ? c.ad : ""]; }),
+      [],
       ["Personel", "Pozisyon", "Maaş", "SGK/Sigorta", "Yemek", "Tazminat Birikimi", "Aylık Toplam"],
       ...(data.personel || []).map((p) => [p.ad, p.pozisyon, p.maas, p.sigorta, p.yemek || 0, p.tazminatBirikimi || 0, (Number(p.maas) || 0) + (Number(p.sigorta) || 0) + (Number(p.yemek) || 0) + (Number(p.tazminatBirikimi) || 0)]),
+      [],
+      ["Personel Hesapları (Giriş)", "Kullanıcı Adı", "E-posta"],
+      ...(data.personelRosteri || []).map((p) => [p.ad, "", p.email || ""]),
       [],
       ["Birikim Fonları", "Hedef", "Mevcut Bakiye"],
       ...(data.birikimler || []).map((f) => [f.ad, f.hedefTutar || 0, f.bakiye || 0]),
@@ -3414,8 +3548,20 @@ export default function MarcusOS() {
       ["Geçmiş Aylar", "Yıl", "Ciro", "Gider", "Net"],
       ...data.monthly.map((m) => [m.ay, m.yil || "", m.ciro, m.gider, m.net]),
       [],
-      ["Ödeme Kayıtları (Banka Hareketleri)", "Ay", "Tutar", "Banka", "Tarih", "Not"],
+      ["Ödeme Kayıtları (Banka Hareketleri)", "Ay", "Tutar", "Hesap", "Tarih", "Not"],
       ...data.clients.flatMap((c) => (c.odemeKayitlari || []).map((k) => [c.ad, k.ay, k.tutar, k.banka || "", k.tarih || "", k.not || ""])),
+      [],
+      ["Reklamlar", "Marka", "Başlangıç", "Bitiş", "Bütçe", "Not"],
+      ...(data.reklamlar || []).map((r) => [r.reklamAdi || "", r.marka || "", r.baslangicTarihi || "", r.bitisTarihi || "", r.butce || 0, r.not || ""]),
+      [],
+      ["Operasyon İşleri", "Kategori", "İçerik Türü", "Aşama", "Kameraman/Tasarımcı", "Editör", "Teslim Tarihi"],
+      ...(data.cekimIsleri || []).map((j) => [j.marka || "", j.kategori || "Video", j.icerikTuru || "", j.asama || "", j.kameraman || "", j.editor || "", j.teslimTarihi || ""]),
+      [],
+      ["Haftalık Paylaşım Planı", "Hafta", "Gün (0=Pzt)", "Tür", "Yapıldı Mı", "Yapıldığı Tarih"],
+      ...(data.haftalikPaylasimlar || []).map((p) => { const c = data.clients.find((x) => x.id === p.clientId); return [c ? c.ad : "", p.haftaKey || "", p.gun, p.tur || "", p.yapildi ? "Evet" : "Hayır", p.yapildigiTarih || ""]; }),
+      [],
+      ["Kaydedilen Teklifler", "Marka", "Toplam Tutar", "Tarih"],
+      ...(data.teklifler || []).map((t) => [(t.musteri && t.musteri.firma) || "", t.toplamFiyat || 0, t.tarih ? new Date(t.tarih).toLocaleDateString("tr-TR") : ""]),
     ];
     const csv = rows.map((r) => r.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
@@ -3521,7 +3667,7 @@ export default function MarcusOS() {
     else setTab("finans");
   };
 
-  const titles = { dashboard: "Dashboard", musteriler: "Müşteriler", finans: "Finans", takvim: "Takvim", "odeme-takvimi": "Ödeme Takvimi", teklif: "Teklif & Sözleşme", reklamlar: "Reklamlar", paylasimlar: "Paylaşımlar", "gunluk-kontrol": "Günlük Kontrol", "cekim-edit": "Operasyon", personel: "Personel", birikim: "Birikim", ayarlar: "Ayarlar" };
+  const titles = { dashboard: "Dashboard", musteriler: "Müşteriler", finans: "Finans", takvim: "Takvim", "odeme-takvimi": "Ödeme Takvimi", teklif: "Teklif & Sözleşme", reklamlar: "Reklamlar", paylasimlar: "Paylaşımlar", "gunluk-kontrol": "Günlük Kontrol", "cekim-listesi": "Çekim", "cekim-edit": "Operasyon", personel: "Personel", birikim: "Birikim", ayarlar: "Ayarlar" };
   const todayLabel = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
 
   if (needsAuth) {
@@ -3581,7 +3727,7 @@ export default function MarcusOS() {
   }
 
   if (role === "staff") {
-    const izinler = { dashboard: false, musteriler: false, finans: false, takvim: false, odemeTakvimi: false, teklif: false, reklamlar: true, paylasimlar: true, cekimEdit: true, personel: false, birikim: false, ...(data.staffPermissions || {}) };
+    const izinler = { dashboard: false, musteriler: false, finans: false, takvim: false, odemeTakvimi: false, teklif: false, reklamlar: true, paylasimlar: true, cekimEdit: true, personel: false, birikim: false, cekimListesi: false, ...(data.staffPermissions || {}) };
     const staffNavAll = [
       { key: "dashboard", label: "Dashboard", izin: izinler.dashboard },
       { key: "musteriler", label: "Müşteriler", izin: izinler.musteriler },
@@ -3592,6 +3738,7 @@ export default function MarcusOS() {
       { key: "reklamlar", label: "Reklamlar", izin: izinler.reklamlar },
       { key: "paylasimlar", label: "Paylaşımlar", izin: izinler.paylasimlar },
       { key: "gunluk-kontrol", label: "Günlük Kontrol", izin: izinler.paylasimlar },
+      { key: "cekim-listesi", label: "Çekim", izin: izinler.cekimListesi },
       { key: "cekim-edit", label: "Operasyon", izin: izinler.cekimEdit },
       { key: "personel", label: "Personel", izin: izinler.personel },
       { key: "birikim", label: "Birikim", izin: izinler.birikim },
@@ -3599,7 +3746,26 @@ export default function MarcusOS() {
     const staffTab = staffNavAll.some((x) => x.key === tab) ? tab : (staffNavAll[0] ? staffNavAll[0].key : null);
     return (
       <div style={{ background: T.bg, minHeight: "100vh", fontFamily: "Inter, sans-serif" }}>
-        <style>{FONTS}</style>
+        <style>{FONTS}{`
+          * { box-sizing: border-box; }
+          ::-webkit-scrollbar { width: 8px; height: 8px; }
+          ::-webkit-scrollbar-thumb { background: ${T.border}; border-radius: 8px; }
+          input:focus, select:focus { border-color: ${T.accent} !important; }
+          button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid ${T.accent}; outline-offset: 1px; }
+          @media (max-width: 900px) {
+            .marcus-grid-2 { grid-template-columns: 1fr !important; }
+          }
+          @media (max-width: 640px) {
+            .marcus-field-grid { grid-template-columns: 1fr !important; }
+            .marcus-card { padding: 14px 16px !important; }
+            h1 { font-size: 18px !important; }
+          }
+          button { touch-action: manipulation; }
+          .marcus-table-wrap table { font-size: 13px; }
+          .marcus-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+          .marcus-kanban { display: flex; gap: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
+          .marcus-kanban > div { flex: 0 0 220px; }
+        `}</style>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 20px", borderBottom: `1px solid ${T.borderSoft}`, flexWrap: "wrap", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ width: 32, height: 32, borderRadius: 9, background: T.accent, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: "#fff", fontSize: 14 }}>M</div>
@@ -3649,6 +3815,7 @@ export default function MarcusOS() {
               onExport={exportCsv}
               onTransfer={transferEt}
               onAddHesap={addHesap}
+              onDeleteHesap={deleteHesap}
             />
           )}
           {staffTab === "takvim" && <Takvim data={data} />}
@@ -3662,6 +3829,7 @@ export default function MarcusOS() {
               onDeleteOdemeKaydi={deleteOdemeKaydi}
               onTransfer={transferEt}
               onAddHesap={addHesap}
+              onDeleteHesap={deleteHesap}
             />
           )}
           {staffTab === "teklif" && (
@@ -3678,8 +3846,9 @@ export default function MarcusOS() {
             />
           )}
           {staffTab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} />}
-          {staffTab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} />}
+          {staffTab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} />}
           {staffTab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} kontrol={data.gunlukKontrol} onToggle={toggleGunlukKontrol} />}
+          {staffTab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} />}
           {staffTab === "cekim-edit" && <CekimEditTakibi role="staff" clients={data.clients || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} girisYapanAd={loggedStaffName} />}
           {staffTab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} />}
           {staffTab === "birikim" && (
@@ -3872,6 +4041,7 @@ export default function MarcusOS() {
               onExport={exportCsv}
               onTransfer={transferEt}
               onAddHesap={addHesap}
+              onDeleteHesap={deleteHesap}
             />
           )}
           {tab === "takvim" && <Takvim data={data} />}
@@ -3885,6 +4055,7 @@ export default function MarcusOS() {
               onDeleteOdemeKaydi={deleteOdemeKaydi}
               onTransfer={transferEt}
               onAddHesap={addHesap}
+              onDeleteHesap={deleteHesap}
             />
           )}
           {tab === "teklif" && (
@@ -3901,8 +4072,9 @@ export default function MarcusOS() {
             />
           )}
           {tab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} />}
-          {tab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} />}
+          {tab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} />}
           {tab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} kontrol={data.gunlukKontrol} onToggle={toggleGunlukKontrol} />}
+          {tab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} />}
           {tab === "cekim-edit" && <CekimEditTakibi role="owner" clients={data.clients || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} />}
           {tab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} />}
           {tab === "birikim" && (

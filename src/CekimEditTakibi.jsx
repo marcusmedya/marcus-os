@@ -167,7 +167,7 @@ function YeniIsFormu({ clients, personelRosteri, varsayilanKategori, onSubmit, o
           </button>
         ))}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+      <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
         <div><label style={labelStyle}>Marka</label><input list="marka-listesi" style={inputStyle} value={v.marka} onChange={(e) => set("marka", e.target.value)} /></div>
         <div><label style={labelStyle}>İçerik / Talep Türü</label><input style={inputStyle} placeholder={video ? "örn. Reels, Ürün Fotoğrafı" : "örn. Post Tasarımı, Banner"} value={v.icerikTuru} onChange={(e) => set("icerikTuru", e.target.value)} /></div>
         {video && <div><label style={labelStyle}>Çekim Tarihi</label><input type="date" style={inputStyle} value={v.cekimTarihi} onChange={(e) => set("cekimTarihi", e.target.value)} /></div>}
@@ -202,6 +202,8 @@ function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate
   const [revizeAciliyor, setRevizeAciliyor] = useState(false);
   const [duzenle, setDuzenle] = useState(false);
   const [taslak, setTaslak] = useState({ ...job });
+  const [dosyaDuzenle, setDosyaDuzenle] = useState(false);
+  const [dosyaTaslak, setDosyaTaslak] = useState({ hamDosyaLink: job.hamDosyaLink || "", editliDosyaLink: job.editliDosyaLink || "" });
 
   const yetkili = duzenleyebilirMi(job, role, staffName);
   const aciliyet = aciliyetDurumu(job);
@@ -210,6 +212,11 @@ function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate
   const logKaydet = (aciklama) => {
     const kayit = { id: nid(), tarih: new Date().toLocaleString("tr-TR"), yazan: role === "owner" ? "Yönetici" : (staffName || "Personel"), aciklama };
     return [...(job.gecmis || []), kayit];
+  };
+
+  const dosyaLinkleriniKaydet = () => {
+    onUpdate(job.id, { ...dosyaTaslak, gecmis: logKaydet("Dosya bağlantıları güncellendi") });
+    setDosyaDuzenle(false);
   };
 
   const asamaGecir = (yeniAsama, ekAciklama) => {
@@ -272,7 +279,7 @@ function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate
                 <button key={k} onClick={() => setTaslak((s) => ({ ...s, kategori: k }))} style={{ flex: 1, padding: "8px 0", borderRadius: 9, border: `1.5px solid ${taslak.kategori === k ? C.accent : C.border}`, background: taslak.kategori === k ? C.accentSoft : "transparent", color: taslak.kategori === k ? C.accentText : C.textDim, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>{k}</button>
               ))}
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+            <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
               <div><label style={labelStyle}>Marka</label><input style={inputStyle} value={taslak.marka} onChange={(e) => setTaslak((s) => ({ ...s, marka: e.target.value }))} /></div>
               <div><label style={labelStyle}>İçerik Türü</label><input style={inputStyle} value={taslak.icerikTuru} onChange={(e) => setTaslak((s) => ({ ...s, icerikTuru: e.target.value }))} /></div>
               {taslak.kategori !== "Grafik Tasarım" && <div><label style={labelStyle}>Çekim Tarihi</label><input type="date" style={inputStyle} value={taslak.cekimTarihi} onChange={(e) => setTaslak((s) => ({ ...s, cekimTarihi: e.target.value }))} /></div>}
@@ -300,7 +307,7 @@ function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate
           </div>
         ) : (
           <>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16, fontSize: 12.5 }}>
+            <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16, fontSize: 12.5 }}>
               <div><span style={{ color: C.textFaint }}>Çekim Tarihi:</span> <span style={{ color: C.text }}>{job.cekimTarihi}</span></div>
               <div><span style={{ color: C.textFaint }}>Teslim Tarihi:</span> <span style={{ color: C.text }}>{job.teslimTarihi}</span></div>
               <div><span style={{ color: C.textFaint }}>Kameraman:</span> <span style={{ color: C.text }}>{job.kameraman || "—"}</span></div>
@@ -323,9 +330,29 @@ function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate
               </div>
             )}
 
-            <div style={{ display: "flex", gap: 16, marginBottom: 16, flexWrap: "wrap" }}>
-              {job.hamDosyaLink && <a href={job.hamDosyaLink} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: C.accentText, textDecoration: "none" }}><Link2 size={13} /> Ham Dosyalar</a>}
-              {job.editliDosyaLink && <a href={job.editliDosyaLink} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: C.accentText, textDecoration: "none" }}><Link2 size={13} /> Editlenmiş Dosyalar</a>}
+            <div style={{ marginBottom: 16 }}>
+              {dosyaDuzenle ? (
+                <div style={{ background: C.panelAlt, borderRadius: 10, padding: 12 }}>
+                  <label style={labelStyle}>Ham Dosya Klasör Bağlantısı</label>
+                  <input style={{ ...inputStyle, marginBottom: 10 }} value={dosyaTaslak.hamDosyaLink} onChange={(e) => setDosyaTaslak((s) => ({ ...s, hamDosyaLink: e.target.value }))} placeholder="Google Drive / WeTransfer linki" />
+                  <label style={labelStyle}>Editlenmiş Dosya Bağlantısı</label>
+                  <input style={{ ...inputStyle, marginBottom: 12 }} value={dosyaTaslak.editliDosyaLink} onChange={(e) => setDosyaTaslak((s) => ({ ...s, editliDosyaLink: e.target.value }))} placeholder="Google Drive / WeTransfer linki" />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button style={btnGhost} onClick={() => { setDosyaDuzenle(false); setDosyaTaslak({ hamDosyaLink: job.hamDosyaLink || "", editliDosyaLink: job.editliDosyaLink || "" }); }}>İptal</button>
+                    <button style={btnPrimary} onClick={dosyaLinkleriniKaydet}>Kaydet</button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                  {job.hamDosyaLink && <a href={job.hamDosyaLink} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: C.accentText, textDecoration: "none" }}><Link2 size={13} /> Ham Dosyalar</a>}
+                  {job.editliDosyaLink && <a href={job.editliDosyaLink} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: C.accentText, textDecoration: "none" }}><Link2 size={13} /> Editlenmiş Dosyalar</a>}
+                  {yetkili && (
+                    <button style={{ background: "none", border: "none", color: C.textFaint, fontSize: 11.5, cursor: "pointer", padding: 0, textDecoration: "underline", fontFamily: "inherit" }} onClick={() => setDosyaDuzenle(true)}>
+                      {job.hamDosyaLink || job.editliDosyaLink ? "Dosya bağlantılarını düzenle" : "+ Dosya bağlantısı ekle"}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {yetkili && (

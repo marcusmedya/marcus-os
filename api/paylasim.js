@@ -107,6 +107,42 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, gunlukKontrol: data.gunlukKontrol, stoklar: data.stoklar, paylasimGecmisi: data.paylasimGecmisi });
     }
 
+    // ŞUBELER: bir markanın birden fazla şubesi/lokasyonu varsa her biri kendi adıyla
+    // eklenir. Şube stoğu değiştirildiğinde HEM o şubenin kendi stoğu HEM de markanın
+    // genel (toplam) stoğu aynı anda güncellenir — böylece Günlük Kontrol, Haftalık Plan
+    // ve bildirimler gibi diğer tüm bölümler hiçbir değişiklik gerekmeden doğru toplamı görür.
+    if (action === "subeEkle") {
+      const { clientId, ad } = body;
+      if (!ad || !ad.trim()) return res.status(400).json({ error: "Şube adı gerekli." });
+      const liste = data.subeler || [];
+      const yeni = { id: nid(), clientId, ad: ad.trim() };
+      data.subeler = [...liste, yeni];
+      await kv.set(KEY, data);
+      return res.status(200).json({ ok: true, subeler: data.subeler });
+    }
+
+    if (action === "subeSil") {
+      const { subeId } = body;
+      data.subeler = (data.subeler || []).filter((s) => s.id !== subeId);
+      await kv.set(KEY, data);
+      return res.status(200).json({ ok: true, subeler: data.subeler });
+    }
+
+    if (action === "subeStokDegistir") {
+      const { clientId, subeId, tur, delta } = body;
+      const sube = (data.subeler || []).find((s) => s.id === subeId);
+      const subeAdi = sube ? sube.ad : "";
+      const subeKey = `${clientId}_${subeId}_${tur}`;
+      const mevcutSube = (data.stoklar || {})[subeKey] || 0;
+      const yeniSube = Math.max(0, mevcutSube + delta);
+      data.stoklar = { ...(data.stoklar || {}), [subeKey]: yeniSube };
+      // Genel (toplam) stok da aynı miktarda değişir.
+      stokDegistirDahili(data, clientId, tur, delta);
+      gecmiseEkle(data, clientId, `${markaAdi(clientId)}${subeAdi ? " (" + subeAdi + ")" : ""}`, tur, delta < 0 ? "paylasim" : "cekim");
+      await kv.set(KEY, data);
+      return res.status(200).json({ ok: true, stoklar: data.stoklar, paylasimGecmisi: data.paylasimGecmisi });
+    }
+
     return res.status(400).json({ error: "Geçersiz işlem." });
   } catch (e) {
     return res.status(500).json({ error: "Sunucu hatası: " + e.message });
