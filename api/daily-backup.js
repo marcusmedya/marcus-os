@@ -41,7 +41,7 @@ export default async function handler(req, res) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Marcus OS <onboarding@resend.dev>",
+        from: "Marcus OS <bildirim@marcusmedya.com>",
         to: [toEmail],
         subject: `Marcus OS Günlük Yedek — ${today}`,
         text: `Merhaba,\n\nEkte ${today} tarihli Marcus OS tam veri yedeğin bulunuyor. Bu e-postayı ve ekindeki dosyayı sakla — bir sorun olursa Ayarlar sayfasından bu dosyayı geri yükleyebilirsin.\n\nMarcus OS`,

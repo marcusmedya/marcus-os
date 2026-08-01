@@ -46,7 +46,7 @@ export default async function handler(req, res) {
       method: "POST",
       headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: "Marcus OS <onboarding@resend.dev>",
+        from: "Marcus OS <bildirim@marcusmedya.com>",
         to: [email],
         subject: `Yeni İş: ${marka || ""} — ${icerikTuru || ""}`,
         html,
@@ -55,7 +55,8 @@ export default async function handler(req, res) {
 
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
-      return res.status(200).json({ skipped: true, reason: "E-posta gönderilemedi.", detail: err });
+      const gercekMesaj = err.message || err.error || JSON.stringify(err);
+      return res.status(200).json({ skipped: true, reason: `E-posta gönderilemedi: ${gercekMesaj}`, detail: err });
     }
 
     return res.status(200).json({ ok: true, to: email });
