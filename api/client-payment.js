@@ -22,7 +22,7 @@ async function yetkiliMi(req) {
     if (hesap) {
       const hash = crypto.scryptSync(password, hesap.sifreSalt, 64).toString("hex");
       if (hash === hesap.sifreHash) {
-        const perms = hesap.izinler || (data && data.staffPermissions) || {};
+        const perms = (data && data.staffPermissions) || {};
         return perms.odemeTakvimi === true || perms.musteriler === true || perms.finans === true || perms.dashboard === true;
       }
     }

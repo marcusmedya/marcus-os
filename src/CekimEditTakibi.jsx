@@ -111,7 +111,7 @@ function IsKarti({ job, onClick, draggable, onDragStart }) {
 /* ------------------------------------------------------------------ */
 /* Yeni İş Formu                                                         */
 /* ------------------------------------------------------------------ */
-function YeniIsFormu({ clients, personelRosteri, varsayilanKategori, onSubmit, onCancel }) {
+function YeniIsFormu({ clients, varsayilanKategori, onSubmit, onCancel }) {
   const [v, setV] = useState({
     kategori: varsayilanKategori || "Video",
     marka: "", icerikTuru: "", cekimTarihi: bugunISO(), teslimTarihi: bugunISO(),
@@ -138,8 +138,8 @@ function YeniIsFormu({ clients, personelRosteri, varsayilanKategori, onSubmit, o
         <div><label style={labelStyle}>İçerik / Talep Türü</label><input style={inputStyle} placeholder={video ? "örn. Reels, Ürün Fotoğrafı" : "örn. Post Tasarımı, Banner"} value={v.icerikTuru} onChange={(e) => set("icerikTuru", e.target.value)} /></div>
         {video && <div><label style={labelStyle}>Çekim Tarihi</label><input type="date" style={inputStyle} value={v.cekimTarihi} onChange={(e) => set("cekimTarihi", e.target.value)} /></div>}
         <div><label style={labelStyle}>Teslim Tarihi</label><input type="date" style={inputStyle} value={v.teslimTarihi} onChange={(e) => set("teslimTarihi", e.target.value)} /></div>
-        {video && <div><label style={labelStyle}>Sorumlu Kameraman</label><input list="personel-listesi" style={inputStyle} value={v.kameraman} onChange={(e) => set("kameraman", e.target.value)} placeholder="Kayıtlı personel adını seç ya da yaz" /></div>}
-        <div><label style={labelStyle}>{video ? "Sorumlu Editör" : "Sorumlu Tasarımcı"}</label><input list="personel-listesi" style={inputStyle} value={v.editor} onChange={(e) => set("editor", e.target.value)} placeholder="Kayıtlı personel adını seç ya da yaz" /></div>
+        {video && <div><label style={labelStyle}>Sorumlu Kameraman</label><input style={inputStyle} value={v.kameraman} onChange={(e) => set("kameraman", e.target.value)} /></div>}
+        <div><label style={labelStyle}>{video ? "Sorumlu Editör" : "Sorumlu Tasarımcı"}</label><input style={inputStyle} value={v.editor} onChange={(e) => set("editor", e.target.value)} /></div>
         <div>
           <label style={labelStyle}>Öncelik</label>
           <select style={inputStyle} value={v.oncelik} onChange={(e) => set("oncelik", e.target.value)}>
@@ -148,7 +148,6 @@ function YeniIsFormu({ clients, personelRosteri, varsayilanKategori, onSubmit, o
         </div>
         <div><label style={labelStyle}>İstenen Adet</label><input style={inputStyle} value={v.istenenAdet} onChange={(e) => set("istenenAdet", e.target.value)} placeholder={video ? "örn. 6 Reels + 10 Post" : "örn. 4 Post + 2 Banner"} /></div>
       </div>
-      <datalist id="personel-listesi">{(personelRosteri || []).map((p) => <option key={p.ad} value={p.ad} />)}</datalist>
       <label style={labelStyle}>Brief / Notlar</label>
       <textarea style={{ ...inputStyle, marginBottom: 12 }} rows={3} value={v.brief} onChange={(e) => set("brief", e.target.value)} />
       <datalist id="marka-listesi">{(clients || []).map((c) => <option key={c.id} value={c.ad} />)}</datalist>
@@ -455,7 +454,7 @@ function YoneticiIstatistik({ jobs }) {
 /* ------------------------------------------------------------------ */
 /* ANA BİLEŞEN                                                           */
 /* ------------------------------------------------------------------ */
-export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, onAddJob, onUpdateJob, onDeleteJob, girisYapanAd }) {
+export default function CekimEditTakibi({ role, clients, jobs, onAddJob, onUpdateJob, onDeleteJob, girisYapanAd }) {
   const [staffName, setStaffNameState] = useState(girisYapanAd || getStaffName());
   const [view, setView] = useState(role === "staff" ? "panom" : "pano");
   const [panoKategori, setPanoKategori] = useState("Video");
@@ -506,7 +505,7 @@ export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, 
         </div>
       )}
 
-      {adding && <YeniIsFormu clients={clients} personelRosteri={personelRosteri} varsayilanKategori={view === "pano" ? panoKategori : "Video"} onCancel={() => setAdding(false)} onSubmit={(v) => { onAddJob(v); setAdding(false); }} />}
+      {adding && <YeniIsFormu clients={clients} varsayilanKategori={view === "pano" ? panoKategori : "Video"} onCancel={() => setAdding(false)} onSubmit={(v) => { onAddJob(v); setAdding(false); }} />}
 
       {view === "panom" && role === "staff" && <PersonelPaneli jobs={isler} staffName={staffName} onOpen={setAcikIs} />}
 

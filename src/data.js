@@ -9,7 +9,6 @@ export const DEFAULT_DATA = {
   paylasimGecmisi: [],
   cekimIsleri: [],
   gunlukKontrol: null,
-  haftalikPaylasimlar: [],
   hesaplar: [{ id: "ana", ad: "Marcus Medya", anaHesap: true }],
   hesapTransferleri: [],
   staffPermissions: {
