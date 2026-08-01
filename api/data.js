@@ -2,12 +2,34 @@ import { kv } from "@vercel/kv";
 import crypto from "crypto";
 
 const KEY = "marcus-os-data";
-// Her alanın hangi izin anahtarına bağlı olduğu (CEO Paneli'nden açılıp kapatılabilir).
-const STAFF_FIELD_PERMISSIONS = {
-  reklamlar: "reklamlar",
-  stoklar: "paylasimlar",
-  paylasimGecmisi: "paylasimlar",
-  cekimIsleri: "cekimEdit",
+
+// Her izin, personel görürse hangi veri alanlarına ihtiyaç duyacağını belirler.
+// CEO Paneli'nden bu izinlerden hangileri açıksa, personelin GET yanıtına o alanlar dahil edilir
+// ve POST ile o alanlara yazması kabul edilir. Ayarlar bilerek bu listede YOK — personel hesap
+// yönetimi, şifre koruması gibi güvenlik ayarlarına personelin asla erişimi olmaz.
+const PERMISSION_DATA_FIELDS = {
+  dashboard: ["clients", "monthly", "gelirKalemleri", "giderKalemleri", "ofisGiderleri", "bekleyenTahsilatlar", "personel", "vergiTakvimi", "hesaplar", "hesapTransferleri"],
+  musteriler: ["clients", "bekleyenTahsilatlar", "hesaplar"],
+  finans: ["gelirKalemleri", "giderKalemleri", "ofisGiderleri", "bekleyenTahsilatlar", "monthly", "vergiTakvimi", "clients", "personel", "hesaplar", "hesapTransferleri"],
+  takvim: ["clients", "vergiTakvimi"],
+  odemeTakvimi: ["clients", "hesaplar", "hesapTransferleri"],
+  teklif: ["teklifler", "teklifSablonlari", "sozlesmeSablonlari", "markaKimligiGorseli"],
+  reklamlar: ["reklamlar"],
+  paylasimlar: ["stoklar", "paylasimGecmisi", "gunlukKontrol", "clients"],
+  cekimEdit: ["cekimIsleri", "clients"],
+  personel: ["personel"],
+  birikim: ["birikimler"],
+};
+const FULL_CLIENT_PERMS = ["dashboard", "musteriler", "finans", "takvim", "odemeTakvimi"];
+const DEFAULT_FIELD_VALUES = {
+  clients: [], monthly: [], gelirKalemleri: [], giderKalemleri: [], ofisGiderleri: [], bekleyenTahsilatlar: [],
+  personel: [], vergiTakvimi: [], hesaplar: [{ id: "ana", ad: "Marcus Medya", anaHesap: true }], hesapTransferleri: [],
+  teklifler: [], teklifSablonlari: [], sozlesmeSablonlari: [], markaKimligiGorseli: null,
+  reklamlar: [], stoklar: {}, paylasimGecmisi: [], gunlukKontrol: null, cekimIsleri: [], birikimler: [],
+};
+const DEFAULT_PERMS = {
+  dashboard: false, musteriler: false, finans: false, takvim: false, odemeTakvimi: false,
+  teklif: false, reklamlar: true, paylasimlar: true, cekimEdit: true, personel: false, birikim: false,
 };
 
 function hashSifre(sifre, salt) {
@@ -22,14 +44,12 @@ async function resolveRole(req) {
   const provided = req.headers["x-site-password"];
 
   if (!ownerPw && !staffPwLegacy) {
-    // Hiçbir koruma ayarlanmadıysa (ilk kurulum) tam yetki ver.
     const username = req.headers["x-staff-username"];
     if (!username) return { role: "owner" };
   }
   if (ownerPw && provided === ownerPw) return { role: "owner" };
   if (staffPwLegacy && provided === staffPwLegacy) return { role: "staff", staffId: null, staffName: null };
 
-  // Kişiye özel personel hesabı (Ayarlar > Personel Hesapları'ndan oluşturulur).
   const username = req.headers["x-staff-username"];
   const password = req.headers["x-staff-password"];
   if (username && password) {
@@ -52,18 +72,22 @@ export default async function handler(req, res) {
     if (req.method === "GET") {
       const data = await kv.get(KEY);
       if (role === "staff") {
-        // Personel sadece kendi alanlarını görsün; müşteri listesi de sadece marka kartlarını
-        // gösterebilmek için isim/durum ile sınırlı gider — finans/maliyet bilgisi hiç gönderilmez.
-        // Şifre hash'leri (personelHesaplari) hiçbir zaman bu yanıta dahil edilmez.
-        const perms = (data && data.staffPermissions) || { reklamlar: true, paylasimlar: true, cekimEdit: true };
-        const restricted = {
-          staffPermissions: perms,
-          reklamlar: (data && data.reklamlar) || [],
-          stoklar: (data && data.stoklar) || {},
-          paylasimGecmisi: (data && data.paylasimGecmisi) || [],
-          cekimIsleri: (data && data.cekimIsleri) || [],
-          clients: ((data && data.clients) || []).map((c) => ({ id: c.id, ad: c.ad, durum: c.durum })),
-        };
+        const perms = { ...DEFAULT_PERMS, ...((data && data.staffPermissions) || {}) };
+        const restricted = { staffPermissions: perms, firmaAdi: (data && data.firmaAdi) || "Marcus Medya" };
+
+        // Hangi izinler açıksa, o izne bağlı alanları gerçek veriyle dolduruyoruz.
+        Object.entries(PERMISSION_DATA_FIELDS).forEach(([permKey, fields]) => {
+          if (perms[permKey] !== true) return;
+          fields.forEach((f) => { restricted[f] = (data && data[f] !== undefined) ? data[f] : DEFAULT_FIELD_VALUES[f]; });
+        });
+
+        // clients alanı: geniş kapsamlı bir izin varsa TAM veri, sadece paylasimlar/cekimEdit gibi
+        // dar izinler varsa sadece marka kartları için isim/durum ile sınırlı veri gönderilir.
+        const genisIzinVarMi = FULL_CLIENT_PERMS.some((p) => perms[p] === true);
+        if (!genisIzinVarMi && restricted.clients) {
+          restricted.clients = ((data && data.clients) || []).map((c) => ({ id: c.id, ad: c.ad, durum: c.durum }));
+        }
+
         return res.status(200).json({ data: restricted, role, staffId, staffName });
       }
       // Sahibe (owner) bile şifre hash'lerini asla gönderme — ayrı, korumalı bir uçtan yönetiliyor.
@@ -76,14 +100,14 @@ export default async function handler(req, res) {
       if (!data) return res.status(400).json({ error: "data eksik" });
 
       // PERSONEL: sadece izin verilen alanları değiştirebilir, geri kalan veri sunucuda
-      // korunur ve gönderilen içerik ne olursa olsun yok sayılır. CEO Paneli'nden bir
-      // yetki kapatılmışsa (örn. cekimEdit: false), o alana yazma da reddedilir.
+      // korunur ve gönderilen içerik ne olursa olsun yok sayılır.
       if (role === "staff") {
         const existing = (await kv.get(KEY)) || {};
-        const perms = existing.staffPermissions || { reklamlar: true, paylasimlar: true, cekimEdit: true };
+        const perms = { ...DEFAULT_PERMS, ...(existing.staffPermissions || {}) };
         const merged = { ...existing };
-        Object.entries(STAFF_FIELD_PERMISSIONS).forEach(([field, permKey]) => {
-          if (perms[permKey] !== false && data[field] !== undefined) merged[field] = data[field];
+        Object.entries(PERMISSION_DATA_FIELDS).forEach(([permKey, fields]) => {
+          if (perms[permKey] !== true) return;
+          fields.forEach((f) => { if (data[f] !== undefined) merged[f] = data[f]; });
         });
         await kv.set(KEY, merged);
         return res.status(200).json({ ok: true });
@@ -113,12 +137,9 @@ export default async function handler(req, res) {
       const finalData = { ...data, personelHesaplari: (existingFull && existingFull.personelHesaplari) || [] };
       await kv.set(KEY, finalData);
 
-      // Her kayıtta o günün otomatik yedeğini de al (aynı gün içindeki kayıtlar üzerine yazar,
-      // yani her günün son hali yedeklenmiş olur).
       const today = new Date().toISOString().slice(0, 10);
       await kv.set(`marcus-os-snapshot-${today}`, finalData);
 
-      // Ara sıra (her kayıtta değil, maliyeti düşük tutmak için) 30 günden eski yedekleri temizle.
       if (Math.random() < 0.08) {
         try {
           const keys = await kv.keys("marcus-os-snapshot-*");
@@ -129,7 +150,7 @@ export default async function handler(req, res) {
             if (new Date(d) < cutoff) await kv.del(k);
           }
         } catch (e) {
-          // temizlik hatası kritik değil, kayıt işlemini engellemesin
+          // temizlik hatası kritik değil
         }
       }
 

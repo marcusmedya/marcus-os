@@ -8,7 +8,13 @@ export const DEFAULT_DATA = {
   stoklar: {},
   paylasimGecmisi: [],
   cekimIsleri: [],
-  staffPermissions: { reklamlar: true, paylasimlar: true, cekimEdit: true },
+  gunlukKontrol: null,
+  hesaplar: [{ id: "ana", ad: "Marcus Medya", anaHesap: true }],
+  hesapTransferleri: [],
+  staffPermissions: {
+    dashboard: false, musteriler: false, finans: false, takvim: false, odemeTakvimi: false,
+    teklif: false, reklamlar: true, paylasimlar: true, cekimEdit: true, personel: false, birikim: false,
+  },
   monthly: [
     { id: 1, ay: "Şub", yil: 2026, ciro: 168000, gider: 98000, net: 70000 },
     { id: 2, ay: "Mar", yil: 2026, ciro: 182000, gider: 101000, net: 81000 },

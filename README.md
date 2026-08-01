@@ -199,6 +199,24 @@ Kurulumdan sonra Ayarlar sayfasındaki **"Şimdi Test Et"** butonuyla hemen dene
 
 - **Dashboard'daki "Tahsil Edilen" rakamı artık gerçek ödeme kayıtlarından hesaplanıyor**, önceki gibi ciro'dan bekleyeni çıkararak tahmin edilmiyor. Eski yöntem, ödeme günü henüz gelmemiş müşterileri de "tahsil edildi" sayıyordu — örneğin ayın 1'inde, hiç ödeme alınmamışken bile "Tahsil Edilen" büyük bir rakam gösterebiliyordu. Artık sadece Ödeme Takvimi'nden gerçekten "ödendi" olarak işaretlenmiş/kaydedilmiş tutarlar sayılıyor.
 
+## Güncelleme 9: Günlük Marka Kontrol
+
+- **Yeni sekme: "Günlük Kontrol"**. Müşteriler'deki aktif/yeni her marka için ayrı bir satır — o markanın Paylaşımlar'daki güncel stok durumu (Görsel/Video/Reels/Story/Carousel) ve en son ne zaman paylaşım yapıldığı görünür.
+- Her markanın yanında bir işaret kutusu var — "bugün kontrol ettim" demek için tıklıyorsun. Üstte "X / Y kontrol edildi" ilerlemesi var.
+- **Liste her gün gece yarısı otomatik sıfırlanır** — yeni güne her zaman temiz bir liste ile başlarsın.
+- Personel de (izin verilmişse) bu sekmeyi görüp işaretleyebiliyor.
+
+## Güncelleme 10: Ödeme Takvimi Veri Kaybı Düzeltmesi, Hesap Sistemi, Tam Personel Yetkileri
+
+- **Ödeme Takvimi veri kaybı kök nedeniyle düzeltildi.** Ödeme ekleme/silme ve ödeme günü girme artık sunucuda doğrudan, hedefe yönelik çalışan ayrı bir uç noktadan (`api/client-payment.js`) geçiyor — tarayıcıdaki verinin bayat olması artık bu işlemler için veri kaybına yol açamaz.
+- **Hesap/Banka sistemi**: Ödeme Takvimi ve Finans'a "Hesap Bakiyeleri" kartı eklendi. İstediğin kadar hesap tanımlayabilirsin (örn. "Aynur Akyalçın"), ödeme kaydederken hangi hesaba geldiğini seçersin, her hesabın bakiyesi otomatik hesaplanır. "Ana Hesaba Aktar" ile o hesaptaki bakiyeyi Marcus Medya'ya aktarabilirsin.
+- **CEO Paneli artık TÜM sekmeleri kapsıyor**: Dashboard, Müşteriler, Finans, Takvim, Ödeme Takvimi, Teklif & Sözleşme, Personel, Birikim de dahil (Reklamlar/Paylaşımlar/Operasyon zaten vardı). Hepsi **varsayılan kapalı** — sadece açtığın sekmeyi personel görebilir. **Tek istisna: Ayarlar** — güvenlik ayarları (şifreler, personel hesapları) hiçbir zaman personele açılmaz, bilerek listede yok.
+- Sunucu (api/data.js) bu yeni izin sistemine göre tamamen yeniden yazıldı — hangi sekme kapalıysa o verinin karşılığı personelin tarayıcısına hiç gönderilmiyor.
+
+### Bilmen gereken sınırlamalar
+- Personelin hâlâ ayrı "yetki seviyesi" (owner/staff) var ama **her yetkili sekmedeki tüm işlemleri yapabiliyor** (örn. Müşteriler açıksan, personel müşteri silme dahil her şeyi yapabilir) — sekme bazında ayrım var, işlem bazında ince ayrım yok.
+- Dashboard'u personele açarsan, AI CEO Özeti/Sohbeti kısmı onlar için pasif kalır (sadece senin şifrenle çalışıyor) — bu bilgi artık nazikçe "kapalı" olarak gösteriliyor, hata vermiyor.
+
 ## Notlar
 - Uygulama şu an örnek (demo) verilerle geliyor. Gerçek verilerini bağlamak istediğinde `src/App.jsx` içindeki `clients`, `monthly`, `operasyonlar` gibi listeleri kendi verilerinle değiştirebiliriz, ya da bir sonraki adımda bunları düzenleyebileceğin bir veri giriş ekranı ekleyebiliriz.
 - API anahtarın hiçbir zaman tarayıcıya gönderilmiyor; `api/chat.js` sunucu tarafında çalışıyor.
