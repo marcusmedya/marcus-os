@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Wallet, Settings, Sparkles,
   ArrowUpRight, ArrowDownRight, X, Send, Plus, Pencil, Trash2, Check,
   ChevronRight,
-  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp, Menu, Calendar, ChevronLeft, ListChecks, FileText, Megaphone, Share2, Lock, Camera, Shield, ClipboardCheck, Video, Copy, KeyRound, Eye, EyeOff
+  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp, Menu, Calendar, ChevronLeft, ListChecks, FileText, Megaphone, Share2, Lock, Camera, Shield, ClipboardCheck, Video
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
@@ -2104,64 +2104,45 @@ function CekimListesi({ clients, stoklar, subeler, gecmis }) {
     return kayitlar.length ? kayitlar[kayitlar.length - 1].tarih : null;
   };
 
-  // Her marka için TÜM türlerin TOPLAMI (genel stok) hesaplanır — tek tek tür değil,
-  // toplam stok eşiğin altına/eşit düşünce marka listeye girer.
-  const gruplar = [];
-  aktifMarkalar.forEach((c) => {
-    const turler = PAYLASIM_TURLERI.map((tur) => ({ tur, adet: stoklarObj[stokAnahtari(c.id, tur)] || 0, sonCekim: sonCekimTarihi(c.id, tur) }));
-    const toplam = turler.reduce((s, x) => s + x.adet, 0);
-    if (toplam <= ESIK) {
-      gruplar.push({ anahtar: `${c.ad}__`, marka: c.ad, sube: null, toplam, turler: turler.filter((x) => x.adet > 0) });
-    }
-  });
+  // Marka bazlı (genel) düşük stok satırları.
+  const genelListe = aktifMarkalar.flatMap((c) =>
+    PAYLASIM_TURLERI
+      .map((tur) => ({ marka: c.ad, sube: null, tur, adet: stoklarObj[stokAnahtari(c.id, tur)] || 0, sonCekim: sonCekimTarihi(c.id, tur) }))
+      .filter((x) => x.adet <= ESIK)
+  );
 
-  // Şubeler kendi toplam stoklarıyla ayrı ayrı değerlendirilir (varsa).
-  (subeler || []).forEach((s) => {
+  // Şube bazlı düşük stok satırları (varsa).
+  const subeListe = (subeler || []).flatMap((s) => {
     const c = aktifMarkalar.find((x) => x.id === s.clientId);
-    if (!c) return;
-    const turler = PAYLASIM_TURLERI.map((tur) => ({ tur, adet: stoklarObj[`${s.clientId}_${s.id}_${tur}`] || 0, sonCekim: null }));
-    const toplam = turler.reduce((sum, x) => sum + x.adet, 0);
-    if (toplam <= ESIK) {
-      gruplar.push({ anahtar: `${c.ad}__${s.ad}`, marka: c.ad, sube: s.ad, toplam, turler: turler.filter((x) => x.adet > 0) });
-    }
+    if (!c) return [];
+    return PAYLASIM_TURLERI
+      .map((tur) => ({ marka: c.ad, sube: s.ad, tur, adet: stoklarObj[`${s.clientId}_${s.id}_${tur}`] || 0, sonCekim: null }))
+      .filter((x) => x.adet <= ESIK);
   });
 
-  // En acil (toplam stoğu en düşük) markalar en üstte.
-  gruplar.forEach((g) => g.turler.sort((a, b) => a.adet - b.adet));
-  gruplar.sort((a, b) => a.toplam - b.toplam);
+  const tumListe = [...genelListe, ...subeListe].sort((a, b) => a.adet - b.adet);
 
   return (
     <div>
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 22 }}>
-        <KpiCard label="ÇEKİM GEREKEN MARKA" value={gruplar.length} mono={false} accent={gruplar.length > 0 ? T.danger : T.success} />
+        <KpiCard label="ÇEKİM GEREKEN" value={tumListe.length} mono={false} accent={tumListe.length > 0 ? T.danger : T.success} />
       </div>
 
-      {gruplar.length === 0 ? (
+      {tumListe.length === 0 ? (
         <Card style={{ padding: "24px", textAlign: "center" }}>
-          <div style={{ color: T.success, fontSize: 13, fontFamily: "Inter", fontWeight: 600 }}>🎉 Şu an stoğu {ESIK} ve altına düşen marka yok — çekim gereken bir şey görünmüyor.</div>
+          <div style={{ color: T.success, fontSize: 13, fontFamily: "Inter", fontWeight: 600 }}>🎉 Şu an stoğu {ESIK} ve altına düşen marka/tür yok — çekim gereken bir şey görünmüyor.</div>
         </Card>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {gruplar.map((g) => {
-            const kenarRenk = g.toplam <= 1 ? T.danger : g.toplam <= 2 ? T.warning : T.border;
+          {tumListe.map((x, i) => {
+            const renk = x.adet <= 1 ? T.danger : x.adet <= 2 ? T.warning : T.textDim;
             return (
-              <Card key={g.anahtar} style={{ padding: "14px 16px", border: `1px solid ${kenarRenk}` }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: g.turler.length > 0 ? 8 : 0 }}>
-                  <div style={{ fontSize: 14, color: T.text, fontWeight: 700, fontFamily: "Inter" }}>{g.marka}{g.sube ? ` — ${g.sube}` : ""}</div>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: kenarRenk, fontFamily: "'IBM Plex Mono', monospace", background: T.surfaceRaised, padding: "2px 9px", borderRadius: 999 }}>Toplam: {g.toplam}</span>
+              <Card key={i} style={{ padding: "12px 16px", border: `1px solid ${x.adet <= 1 ? T.danger : T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontSize: 13.5, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{x.marka}{x.sube ? ` — ${x.sube}` : ""}</div>
+                  <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>{x.tur}{x.sonCekim ? ` · Son çekim: ${x.sonCekim}` : ""}</div>
                 </div>
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {g.turler.map((x) => {
-                    const renk = x.adet <= 1 ? T.danger : x.adet <= 2 ? T.warning : T.textDim;
-                    const soft = x.adet <= 1 ? T.dangerSoft : x.adet <= 2 ? T.warningSoft : T.surfaceRaised;
-                    return (
-                      <span key={x.tur} title={x.sonCekim ? `Son çekim: ${x.sonCekim}` : undefined} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 999, background: soft, fontSize: 12, fontFamily: "Inter" }}>
-                        <span style={{ color: T.textDim }}>{x.tur}</span>
-                        <span style={{ color: renk, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace" }}>{x.adet}</span>
-                      </span>
-                    );
-                  })}
-                </div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: renk, fontFamily: "'IBM Plex Mono', monospace" }}>{x.adet}</div>
               </Card>
             );
           })}
@@ -2169,7 +2150,7 @@ function CekimListesi({ clients, stoklar, subeler, gecmis }) {
       )}
 
       <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 12 }}>
-        Bir markanın (ya da şubesinin) TÜM türlerinin toplamı {ESIK} ve altına düşünce burada listelenir — en düşük toplamdan yükseğe sıralanır. Çekim yapıp Paylaşımlar sekmesinden stoğa ekleyince buradan otomatik kalkar.
+        Stoğu {ESIK} ve altına düşen her marka/tür (ve varsa şube) burada listelenir — en düşükten yükseğe sıralanır. Çekim yapıp Paylaşımlar sekmesinden stoğa ekleyince buradan otomatik kalkar.
       </div>
     </div>
   );
@@ -2580,210 +2561,6 @@ function TebligSablonuKart({ firmaAdi, tebligSablonu, onSave }) {
   );
 }
 
-/** Bu sayfaya girmek için sahibin şifresini TEKRAR ister — sayfadan her çıkıp girişte
- * (sekme değişince bileşen yeniden monte olduğu için) yeniden sorulur. Sadece owner
- * şifresi kabul edilir; girilen şifre sunucuya doğrulatılır, hiçbir yerde saklanmaz. */
-function SifreGateli({ children }) {
-  const [dogrulandi, setDogrulandi] = useState(false);
-  const [sifre, setSifre] = useState("");
-  const [hata, setHata] = useState("");
-  const [kontrolEdiliyor, setKontrolEdiliyor] = useState(false);
-
-  const dogrula = () => {
-    if (!sifre) return;
-    setKontrolEdiliyor(true);
-    setHata("");
-    fetch("/api/kasa", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ action: "dogrula", sifre }),
-    })
-      .then((r) => r.json())
-      .then((res) => {
-        if (res.ok) setDogrulandi(true);
-        else setHata(res.error || "Şifre yanlış.");
-      })
-      .catch(() => setHata("Bağlantı hatası — tekrar dene."))
-      .finally(() => setKontrolEdiliyor(false));
-  };
-
-  if (dogrulandi) return children;
-
-  return (
-    <div style={{ maxWidth: 340, margin: "60px auto", textAlign: "center" }}>
-      <div style={{ width: 44, height: 44, borderRadius: 12, background: T.surfaceRaised, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-        <Lock size={20} color={T.textFaint} />
-      </div>
-      <div style={{ fontSize: 14, color: T.text, fontWeight: 600, fontFamily: "Inter", marginBottom: 6 }}>Bu sayfa ekstra korumalı</div>
-      <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 18 }}>Müşteri hesap bilgilerini görmek için kasa şifresini gir.</div>
-      <input
-        type="password"
-        autoFocus
-        value={sifre}
-        onChange={(e) => setSifre(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && dogrula()}
-        placeholder="Kasa Şifresi"
-        style={{ ...inputStyle, textAlign: "center", marginBottom: 12 }}
-      />
-      <button onClick={dogrula} disabled={kontrolEdiliyor} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", opacity: kontrolEdiliyor ? 0.6 : 1 }}>
-        {kontrolEdiliyor ? "Kontrol ediliyor…" : "Devam Et"}
-      </button>
-      {hata && <div style={{ color: T.danger, fontSize: 12.5, fontFamily: "Inter", marginTop: 10 }}>{hata}</div>}
-    </div>
-  );
-}
-
-const SOSYAL_PLATFORMLAR = [
-  { key: "instagram", label: "Instagram" },
-  { key: "tiktok", label: "TikTok" },
-  { key: "youtube", label: "YouTube" },
-  { key: "facebook", label: "Facebook" },
-  { key: "google", label: "Google" },
-  { key: "linkedin", label: "LinkedIn" },
-];
-
-function KopyalanabilirAlan({ label, value, onChange, gizli }) {
-  const [gosterildi, setGosterildi] = useState(false);
-  const kopyala = () => {
-    if (!value) return;
-    navigator.clipboard.writeText(value).catch(() => {});
-  };
-  return (
-    <div style={{ marginBottom: 8 }}>
-      <label style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 3 }}>{label}</label>
-      <div style={{ display: "flex", gap: 6 }}>
-        <input
-          type={gizli && !gosterildi ? "password" : "text"}
-          value={value || ""}
-          onChange={(e) => onChange(e.target.value)}
-          autoComplete="off"
-          style={{ ...inputStyle, flex: 1, padding: "7px 10px", fontSize: 12.5 }}
-        />
-        {gizli && (
-          <button type="button" onClick={() => setGosterildi((v) => !v)} title={gosterildi ? "Gizle" : "Göster"} style={{ ...iconBtnStyle, width: 30, height: 30 }}>
-            {gosterildi ? <EyeOff size={13} color={T.textFaint} /> : <Eye size={13} color={T.textFaint} />}
-          </button>
-        )}
-        <button type="button" onClick={kopyala} title="Kopyala" style={{ ...iconBtnStyle, width: 30, height: 30 }}>
-          <Copy size={13} color={T.textFaint} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function MusteriGirisleriIcerik({ clients, girisler, onUpdate }) {
-  const [acikId, setAcikId] = useState(null);
-  const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
-  const veri = girisler || {};
-
-  return (
-    <div>
-      <Card style={{ padding: "14px 18px", marginBottom: 16, background: T.warningSoft }}>
-        <div style={{ fontSize: 12.5, color: T.warning, fontFamily: "Inter", lineHeight: 1.6 }}>
-          <strong>Bu bilgiler sadece sana (CEO) görünür</strong> — personelin izinlerinden bağımsız olarak, kişisel hesabıyla giren hiçbir personel bu sayfayı hiç göremez.
-        </div>
-      </Card>
-
-      {aktifMarkalar.length === 0 ? (
-        <Card style={{ padding: "24px", textAlign: "center" }}>
-          <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Aktif ya da yeni müşteri yok.</div>
-        </Card>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {aktifMarkalar.map((c) => {
-            const g = veri[c.id] || {};
-            const acik = acikId === c.id;
-            const doluSayisi = SOSYAL_PLATFORMLAR.filter((p) => g[p.key] && (g[p.key].kullanici || g[p.key].sifre)).length;
-            return (
-              <Card key={c.id} style={{ padding: "14px 16px" }}>
-                <button onClick={() => setAcikId(acik ? null : c.id)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-                  <span style={{ fontSize: 13.5, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{c.ad}</span>
-                  <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{doluSayisi > 0 ? `${doluSayisi} hesap kayıtlı` : "Kayıt yok"} {acik ? "▲" : "▼"}</span>
-                </button>
-                {acik && (
-                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${T.borderSoft}`, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }} className="marcus-field-grid">
-                    {SOSYAL_PLATFORMLAR.map((p) => {
-                      const pv = g[p.key] || { kullanici: "", sifre: "" };
-                      return (
-                        <div key={p.key}>
-                          <div style={{ fontSize: 12, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 8 }}>{p.label}</div>
-                          <KopyalanabilirAlan label="Kullanıcı Adı" value={pv.kullanici} onChange={(val) => onUpdate(c.id, p.key, "kullanici", val)} />
-                          <KopyalanabilirAlan label="Şifre" value={pv.sifre} onChange={(val) => onUpdate(c.id, p.key, "sifre", val)} gizli />
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </Card>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MusteriGirisleri(props) {
-  return (
-    <SifreGateli>
-      <MusteriGirisleriIcerik {...props} />
-    </SifreGateli>
-  );
-}
-
-function KasaSifresiKarti() {
-  const [acik, setAcik] = useState(false);
-  const [yeniSifre, setYeniSifre] = useState("");
-  const [tekrar, setTekrar] = useState("");
-  const [hata, setHata] = useState("");
-  const [basari, setBasari] = useState(false);
-  const [kaydediliyor, setKaydediliyor] = useState(false);
-
-  const kaydet = () => {
-    setHata(""); setBasari(false);
-    if (yeniSifre.length < 4) { setHata("Şifre en az 4 karakter olmalı."); return; }
-    if (yeniSifre !== tekrar) { setHata("Şifreler eşleşmiyor."); return; }
-    setKaydediliyor(true);
-    fetch("/api/kasa", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Site-Password": getPw() },
-      body: JSON.stringify({ action: "degistir", yeniSifre }),
-    })
-      .then((r) => r.json())
-      .then((res) => {
-        if (res.ok) { setBasari(true); setYeniSifre(""); setTekrar(""); setAcik(false); }
-        else setHata(res.error || "Bir sorun oluştu.");
-      })
-      .catch(() => setHata("Bağlantı hatası."))
-      .finally(() => setKaydediliyor(false));
-  };
-
-  return (
-    <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
-      <SectionTitle>Şifre Kasası Şifresi</SectionTitle>
-      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
-        Şifre Kasası'na (müşteri sosyal medya girişleri) girerken artık kendi şifrenle değil, buradan belirlediğin
-        <strong> ayrı bir kasa şifresiyle</strong> doğrulama yapılıyor. Henüz belirlemediysen, ilk seferde kendi şifren geçici olarak kabul edilir.
-      </p>
-      {basari && <div style={{ color: T.success, fontSize: 12.5, fontFamily: "Inter", marginBottom: 10 }}>Kasa şifresi güncellendi.</div>}
-      {acik ? (
-        <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 14px" }}>
-          <input type="password" autoComplete="new-password" placeholder="Yeni kasa şifresi" value={yeniSifre} onChange={(e) => setYeniSifre(e.target.value)} style={{ ...inputStyle, marginBottom: 10 }} />
-          <input type="password" autoComplete="new-password" placeholder="Yeni kasa şifresi (tekrar)" value={tekrar} onChange={(e) => setTekrar(e.target.value)} style={{ ...inputStyle, marginBottom: 10 }} />
-          {hata && <div style={{ color: T.danger, fontSize: 12, fontFamily: "Inter", marginBottom: 8 }}>{hata}</div>}
-          <div style={{ display: "flex", gap: 8 }}>
-            <button style={cancelBtnStyle} onClick={() => { setAcik(false); setYeniSifre(""); setTekrar(""); setHata(""); }}>İptal</button>
-            <button style={saveBtnStyle} onClick={kaydet} disabled={kaydediliyor}>{kaydediliyor ? "Kaydediliyor…" : "Kaydet"}</button>
-          </div>
-        </div>
-      ) : (
-        <button style={addBtnStyle} onClick={() => setAcik(true)}><KeyRound size={13} /> Kasa Şifresini Değiştir</button>
-      )}
-    </Card>
-  );
-}
-
 function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu, onSaveTeblig, staffPermissions, onUpdatePermissions, markaKimligiGorseli, onSaveMarkaKimligi, onRosterChange }) {
   const fileInputRef = useRef(null);
   const rows = [
@@ -2884,7 +2661,6 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
       </Card>
 
       <PersonelHesaplariKart onRosterChange={onRosterChange} />
-      <KasaSifresiKarti />
 
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>CEO Paneli — Personel Yetkileri</SectionTitle>
@@ -2907,7 +2683,6 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
             { key: "cekimEdit", label: "Operasyon (Video/Grafik Tasarım)", varsayilan: true },
             { key: "personel", label: "Personel", varsayilan: false },
             { key: "birikim", label: "Birikim", varsayilan: false },
-            { key: "sifreKasasi", label: "Şifre Kasası (yine de her girişte owner şifresi ister)", varsayilan: false },
           ].map((m) => (
             <label key={m.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: T.surfaceRaised, borderRadius: 10, cursor: "pointer" }}>
               <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{m.label}</span>
@@ -2966,7 +2741,6 @@ function PersonelHesaplariKart({ onRosterChange }) {
     { key: "cekimEdit", label: "Operasyon" },
     { key: "personel", label: "Personel" },
     { key: "birikim", label: "Birikim" },
-    { key: "sifreKasasi", label: "Şifre Kasası (yine de owner şifresi ister)" },
   ];
 
   const yukle = () => {
@@ -3380,7 +3154,6 @@ const NAV = [
   { key: "cekim-edit", label: "Operasyon", icon: Camera },
   { key: "personel", label: "Personel", icon: Briefcase },
   { key: "birikim", label: "Birikim", icon: PiggyBank },
-  { key: "musteri-girisleri", label: "Şifre Kasası", icon: KeyRound },
   { key: "ayarlar", label: "Ayarlar", icon: Settings },
 ];
 
@@ -3507,29 +3280,7 @@ export default function MarcusOS() {
   };
 
   // ---- CRUD handlers ----
-  /** Yeni bir marka eklendiğinde otomatik olarak açılan markalaşma görev şablonu. */
-  const MARKALASMA_SABLON = [
-    "Instagram sayfası açıldı",
-    "Instagram profil fotoğrafı kondu",
-    "Instagram öne çıkanlar (highlights) hazırlandı",
-    "Instagram profil biyografisi tamamlandı",
-    "Facebook sayfası açıldı",
-    "Meta Business Suite bağlantısı yapıldı",
-    "Google İşletme Profili (konum) açıldı",
-  ];
-
-  const addClient = (c) => setData((d) => {
-    const yeniClient = { ...c, maliyetler: [], odemeler: [], id: nextId(d.clients) };
-    const yeniSurec = {
-      id: nextId(d.markalasmaSurecleri || []),
-      clientId: yeniClient.id,
-      marka: yeniClient.ad,
-      yonetici: "",
-      olusturmaTarihi: new Date().toLocaleDateString("tr-TR"),
-      gorevler: MARKALASMA_SABLON.map((ad, i) => ({ id: i + 1, ad, tamamlandi: false, tamamlanmaTarihi: null })),
-    };
-    return { ...d, clients: [...d.clients, yeniClient], markalasmaSurecleri: [...(d.markalasmaSurecleri || []), yeniSurec] };
-  });
+  const addClient = (c) => setData((d) => ({ ...d, clients: [...d.clients, { ...c, maliyetler: [], odemeler: [], id: nextId(d.clients) }] }));
   const updateClient = (id, patch) => setData((d) => ({ ...d, clients: d.clients.map((c) => (c.id === id ? { ...c, ...patch } : c)) }));
   const deleteClient = (id) => setData((d) => ({ ...d, clients: d.clients.filter((c) => c.id !== id) }));
 
@@ -3596,13 +3347,6 @@ export default function MarcusOS() {
   const saveMarkaKimligi = (gorsel) => setData((d) => ({ ...d, markaKimligiGorseli: gorsel }));
   const updateStaffPermissions = (perms) => setData((d) => ({ ...d, staffPermissions: perms }));
 
-  const updateMusteriGiris = (clientId, platform, field, value) => setData((d) => {
-    const mevcut = d.musteriGirisleri || {};
-    const clientData = mevcut[clientId] || {};
-    const platformData = clientData[platform] || {};
-    return { ...d, musteriGirisleri: { ...mevcut, [clientId]: { ...clientData, [platform]: { ...platformData, [field]: value } } } };
-  });
-
   const addCekimIsi = (job) => {
     setData((d) => ({ ...d, cekimIsleri: [...(d.cekimIsleri || []), { ...job, id: nextId(d.cekimIsleri || []), asama: job.kategori === "Grafik Tasarım" ? "Talep Alındı" : "Çekim Planlandı", yorumlar: [], gecmis: [{ id: nextId([]), tarih: new Date().toLocaleString("tr-TR"), yazan: "Yönetici", aciklama: "İş oluşturuldu" }] }] }));
 
@@ -3631,29 +3375,6 @@ export default function MarcusOS() {
   const updateCekimIsi = (id, patch) => setData((d) => ({ ...d, cekimIsleri: (d.cekimIsleri || []).map((j) => (j.id === id ? { ...j, ...patch } : j)) }));
   const deleteCekimIsi = (id) => setData((d) => ({ ...d, cekimIsleri: (d.cekimIsleri || []).filter((j) => j.id !== id) }));
   const deleteSablon = (id) => setData((d) => ({ ...d, teklifSablonlari: (d.teklifSablonlari || []).filter((s) => s.id !== id) }));
-
-  const toggleMarkalasmaGorev = (surecId, gorevId) => setData((d) => ({
-    ...d,
-    markalasmaSurecleri: (d.markalasmaSurecleri || []).map((s) => (s.id !== surecId ? s : {
-      ...s,
-      gorevler: s.gorevler.map((g) => (g.id === gorevId ? { ...g, tamamlandi: !g.tamamlandi, tamamlanmaTarihi: !g.tamamlandi ? new Date().toLocaleDateString("tr-TR") : null } : g)),
-    })),
-  }));
-
-  const setMarkalasmaYonetici = (surecId, yonetici) => {
-    setData((d) => ({ ...d, markalasmaSurecleri: (d.markalasmaSurecleri || []).map((s) => (s.id === surecId ? { ...s, yonetici } : s)) }));
-    if (!yonetici) return;
-    const surec = (data.markalasmaSurecleri || []).find((s) => s.id === surecId);
-    const roster = data.personelRosteri || [];
-    const kisi = roster.find((p) => p.ad.trim().toLocaleLowerCase("tr") === yonetici.trim().toLocaleLowerCase("tr"));
-    if (kisi && kisi.email && surec) {
-      fetch("/api/notify-job", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ email: kisi.email, ad: kisi.ad, marka: surec.marka, icerikTuru: "Markalaşma Süreci Yönetimi", teslimTarihi: "", firmaAdi: data.firmaAdi }),
-      }).catch(() => {});
-    }
-  };
 
   const addReklam = (r) => setData((d) => ({ ...d, reklamlar: [...(d.reklamlar || []), { ...r, id: nextId(d.reklamlar || []) }] }));
   const updateReklam = (id, patch) => setData((d) => ({ ...d, reklamlar: (d.reklamlar || []).map((r) => (r.id === id ? { ...r, ...patch } : r)) }));
@@ -3946,7 +3667,7 @@ export default function MarcusOS() {
     else setTab("finans");
   };
 
-  const titles = { dashboard: "Dashboard", musteriler: "Müşteriler", finans: "Finans", takvim: "Takvim", "odeme-takvimi": "Ödeme Takvimi", teklif: "Teklif & Sözleşme", reklamlar: "Reklamlar", paylasimlar: "Paylaşımlar", "gunluk-kontrol": "Günlük Kontrol", "cekim-listesi": "Çekim", "cekim-edit": "Operasyon", personel: "Personel", birikim: "Birikim", "musteri-girisleri": "Şifre Kasası", ayarlar: "Ayarlar" };
+  const titles = { dashboard: "Dashboard", musteriler: "Müşteriler", finans: "Finans", takvim: "Takvim", "odeme-takvimi": "Ödeme Takvimi", teklif: "Teklif & Sözleşme", reklamlar: "Reklamlar", paylasimlar: "Paylaşımlar", "gunluk-kontrol": "Günlük Kontrol", "cekim-listesi": "Çekim", "cekim-edit": "Operasyon", personel: "Personel", birikim: "Birikim", ayarlar: "Ayarlar" };
   const todayLabel = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
 
   if (needsAuth) {
@@ -4006,7 +3727,7 @@ export default function MarcusOS() {
   }
 
   if (role === "staff") {
-    const izinler = { dashboard: false, musteriler: false, finans: false, takvim: false, odemeTakvimi: false, teklif: false, reklamlar: true, paylasimlar: true, cekimEdit: true, personel: false, birikim: false, cekimListesi: false, sifreKasasi: false, ...(data.staffPermissions || {}) };
+    const izinler = { dashboard: false, musteriler: false, finans: false, takvim: false, odemeTakvimi: false, teklif: false, reklamlar: true, paylasimlar: true, cekimEdit: true, personel: false, birikim: false, cekimListesi: false, ...(data.staffPermissions || {}) };
     const staffNavAll = [
       { key: "dashboard", label: "Dashboard", izin: izinler.dashboard },
       { key: "musteriler", label: "Müşteriler", izin: izinler.musteriler },
@@ -4021,7 +3742,6 @@ export default function MarcusOS() {
       { key: "cekim-edit", label: "Operasyon", izin: izinler.cekimEdit },
       { key: "personel", label: "Personel", izin: izinler.personel },
       { key: "birikim", label: "Birikim", izin: izinler.birikim },
-      { key: "musteri-girisleri", label: "Şifre Kasası", izin: izinler.sifreKasasi },
     ].filter((x) => x.izin === true);
     const staffTab = staffNavAll.some((x) => x.key === tab) ? tab : (staffNavAll[0] ? staffNavAll[0].key : null);
     return (
@@ -4129,7 +3849,7 @@ export default function MarcusOS() {
           {staffTab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} />}
           {staffTab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} kontrol={data.gunlukKontrol} onToggle={toggleGunlukKontrol} />}
           {staffTab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} />}
-          {staffTab === "cekim-edit" && <CekimEditTakibi role="staff" clients={data.clients || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} girisYapanAd={loggedStaffName} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} />}
+          {staffTab === "cekim-edit" && <CekimEditTakibi role="staff" clients={data.clients || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} girisYapanAd={loggedStaffName} />}
           {staffTab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} />}
           {staffTab === "birikim" && (
             <Birikim
@@ -4139,9 +3859,6 @@ export default function MarcusOS() {
               onAddHareket={addFonHareket}
               onDeleteHareket={deleteFonHareket}
             />
-          )}
-          {staffTab === "musteri-girisleri" && (
-            <MusteriGirisleri clients={data.clients || []} girisler={data.musteriGirisleri || {}} onUpdate={updateMusteriGiris} />
           )}
         </div>
       </div>
@@ -4358,7 +4075,7 @@ export default function MarcusOS() {
           {tab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} />}
           {tab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} kontrol={data.gunlukKontrol} onToggle={toggleGunlukKontrol} />}
           {tab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} />}
-          {tab === "cekim-edit" && <CekimEditTakibi role="owner" clients={data.clients || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} />}
+          {tab === "cekim-edit" && <CekimEditTakibi role="owner" clients={data.clients || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} />}
           {tab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} />}
           {tab === "birikim" && (
             <Birikim
@@ -4368,9 +4085,6 @@ export default function MarcusOS() {
               onAddHareket={addFonHareket}
               onDeleteHareket={deleteFonHareket}
             />
-          )}
-          {tab === "musteri-girisleri" && (
-            <MusteriGirisleri clients={data.clients || []} girisler={data.musteriGirisleri || {}} onUpdate={updateMusteriGiris} />
           )}
           {tab === "ayarlar" && (
             <Ayarlar

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import {
   Camera, Plus, X, Clock, AlertTriangle, CheckCircle2, User, Link2,
-  MessageSquare, History, ChevronRight, Pencil, Trash2, LayoutGrid, BarChart3, ListTodo, Rocket,
+  MessageSquare, History, ChevronRight, Pencil, Trash2, LayoutGrid, BarChart3, ListTodo,
 } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
@@ -517,7 +517,7 @@ function YoneticiIstatistik({ jobs }) {
 /* ------------------------------------------------------------------ */
 /* ANA BİLEŞEN                                                           */
 /* ------------------------------------------------------------------ */
-export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, onRefreshRoster, onAddJob, onUpdateJob, onDeleteJob, girisYapanAd, markalasmaSurecleri, onToggleMarkalasmaGorev, onSetMarkalasmaYonetici }) {
+export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, onRefreshRoster, onAddJob, onUpdateJob, onDeleteJob, girisYapanAd }) {
   const [staffName, setStaffNameState] = useState(girisYapanAd || getStaffName());
   const [view, setView] = useState(role === "staff" ? "panom" : "pano");
   const [panoKategori, setPanoKategori] = useState("Video");
@@ -553,12 +553,11 @@ export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, 
             <button onClick={() => setView("panom")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "none", background: view === "panom" ? C.accentSoft : "transparent", color: view === "panom" ? C.accentText : C.textDim, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><ListTodo size={14} /> Panom</button>
           )}
           <button onClick={() => setView("pano")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "none", background: view === "pano" ? C.accentSoft : "transparent", color: view === "pano" ? C.accentText : C.textDim, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><LayoutGrid size={14} /> Tüm İşler</button>
-          <button onClick={() => setView("markalasma")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "none", background: view === "markalasma" ? C.accentSoft : "transparent", color: view === "markalasma" ? C.accentText : C.textDim, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><Rocket size={14} /> Markalaşma</button>
           {role === "owner" && (
             <button onClick={() => setView("istatistik")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "none", background: view === "istatistik" ? C.accentSoft : "transparent", color: view === "istatistik" ? C.accentText : C.textDim, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><BarChart3 size={14} /> İstatistikler</button>
           )}
         </div>
-        {view !== "markalasma" && <button style={btnPrimary} onClick={() => { setAdding((v) => !v); if (onRefreshRoster) onRefreshRoster(); }}><Plus size={14} /> Yeni İş</button>}
+        <button style={btnPrimary} onClick={() => { setAdding((v) => !v); if (onRefreshRoster) onRefreshRoster(); }}><Plus size={14} /> Yeni İş</button>
       </div>
 
       {view === "pano" && (
@@ -574,17 +573,6 @@ export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, 
       {view === "panom" && role === "staff" && <PersonelPaneli jobs={isler} staffName={staffName} onOpen={setAcikIs} />}
 
       {view === "istatistik" && role === "owner" && <YoneticiIstatistik jobs={isler} />}
-
-      {view === "markalasma" && (
-        <MarkalasmaGorunumu
-          surecler={markalasmaSurecleri}
-          clients={clients}
-          personelRosteri={personelRosteri}
-          role={role}
-          onToggleGorev={onToggleMarkalasmaGorev}
-          onSetYonetici={onSetMarkalasmaYonetici}
-        />
-      )}
 
       {view === "pano" && (
         <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8 }}>
@@ -615,73 +603,6 @@ export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, 
           onUpdate={onUpdateJob}
           onDelete={(id) => { onDeleteJob(id); setAcikIs(null); }}
         />
-      )}
-    </div>
-  );
-}
-
-/** Yeni marka eklendiğinde otomatik açılan markalaşma sürecini (Instagram/Facebook/Meta/Google
- * kurulum görevleri) gösterir. Her sürece bir yönetici atanabilir — atandığında o kişiye
- * (kayıtlıysa ve e-postası varsa) otomatik bildirim gider. */
-function MarkalasmaGorunumu({ surecler, clients, personelRosteri, role, onToggleGorev, onSetYonetici }) {
-  const liste = surecler || [];
-  const tamamlanmaOrani = (s) => {
-    if (!s.gorevler || s.gorevler.length === 0) return 0;
-    return Math.round((s.gorevler.filter((g) => g.tamamlandi).length / s.gorevler.length) * 100);
-  };
-  const sirali = [...liste].sort((a, b) => tamamlanmaOrani(a) - tamamlanmaOrani(b));
-
-  return (
-    <div>
-      {sirali.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "40px 20px", color: C.textFaint, fontSize: 13 }}>
-          Henüz markalaşma süreci yok. Müşteriler'e yeni bir marka eklediğinde burada otomatik açılır.
-        </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {sirali.map((s) => {
-            const oran = tamamlanmaOrani(s);
-            const bitti = oran === 100;
-            return (
-              <div key={s.id} style={{ background: C.panel, border: `1px solid ${bitti ? C.success : C.border}`, borderRadius: 14, padding: 16 }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{s.marka}</div>
-                    <div style={{ fontSize: 11, color: C.textFaint }}>Açıldı: {s.olusturmaTarihi}</div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: bitti ? C.success : C.accentText, fontFamily: "monospace" }}>%{oran}</span>
-                    {role === "owner" ? (
-                      <div style={{ width: 180 }}>
-                        <PersonelSecici value={s.yonetici} onChange={(val) => onSetYonetici(s.id, val)} personelRosteri={personelRosteri} />
-                      </div>
-                    ) : (
-                      <span style={{ fontSize: 11.5, color: C.textDim }}>{s.yonetici ? `Yönetici: ${s.yonetici}` : "Yönetici atanmadı"}</span>
-                    )}
-                  </div>
-                </div>
-                <div style={{ height: 5, borderRadius: 999, background: C.panelAlt, overflow: "hidden", marginBottom: 12 }}>
-                  <div style={{ width: `${oran}%`, height: "100%", background: bitti ? C.success : C.accent, borderRadius: 999 }} />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {s.gorevler.map((g) => (
-                    <button
-                      key={g.id}
-                      onClick={() => onToggleGorev(s.id, g.id)}
-                      style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", padding: "4px 0", textAlign: "left" }}
-                    >
-                      <span style={{ width: 18, height: 18, borderRadius: 5, border: `1.5px solid ${g.tamamlandi ? C.success : C.border}`, background: g.tamamlandi ? C.success : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                        {g.tamamlandi && <CheckCircle2 size={12} color="#fff" />}
-                      </span>
-                      <span style={{ fontSize: 12.5, color: g.tamamlandi ? C.textFaint : C.text, textDecoration: g.tamamlandi ? "line-through" : "none" }}>{g.ad}</span>
-                      {g.tamamlandi && g.tamamlanmaTarihi && <span style={{ fontSize: 10.5, color: C.textFaint, marginLeft: "auto" }}>{g.tamamlanmaTarihi}</span>}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
       )}
     </div>
   );
