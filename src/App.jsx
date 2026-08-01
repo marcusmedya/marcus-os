@@ -2404,7 +2404,7 @@ function TebligSablonuKart({ firmaAdi, tebligSablonu, onSave }) {
   );
 }
 
-function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu, onSaveTeblig, staffPermissions, onUpdatePermissions, markaKimligiGorseli, onSaveMarkaKimligi }) {
+function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu, onSaveTeblig, staffPermissions, onUpdatePermissions, markaKimligiGorseli, onSaveMarkaKimligi, onRosterChange }) {
   const fileInputRef = useRef(null);
   const rows = [
     { label: "İşletme Adı", value: "Marcus Medya" },
@@ -2503,7 +2503,7 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
         </p>
       </Card>
 
-      <PersonelHesaplariKart />
+      <PersonelHesaplariKart onRosterChange={onRosterChange} />
 
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>CEO Paneli — Personel Yetkileri</SectionTitle>
@@ -2550,7 +2550,7 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
   );
 }
 
-function PersonelHesaplariKart() {
+function PersonelHesaplariKart({ onRosterChange }) {
   const [hesaplar, setHesaplar] = useState(null); // null = yüklenmedi
   const [ekleAcik, setEkleAcik] = useState(false);
   const [yeniAd, setYeniAd] = useState("");
@@ -2562,6 +2562,13 @@ function PersonelHesaplariKart() {
   const [acikId, setAcikId] = useState(null); // yetki/e-posta düzenleme paneli açık olan hesap
   const [taslakEmail, setTaslakEmail] = useState("");
   const [taslakIzin, setTaslakIzin] = useState({});
+
+  // hesaplar değiştikçe (ekleme/güncelleme/silme sonrası), ana uygulamadaki isim/e-posta
+  // listesini de anında güncel tut — sayfa yenilenmeden Operasyon'daki bildirim çalışsın diye.
+  useEffect(() => {
+    if (hesaplar && onRosterChange) onRosterChange(hesaplar.map((h) => ({ ad: h.ad, email: h.email || "" })));
+    // eslint-disable-next-line
+  }, [hesaplar]);
 
   const IZIN_LISTESI = [
     { key: "dashboard", label: "Dashboard" },
@@ -3193,7 +3200,13 @@ export default function MarcusOS() {
           method: "POST",
           headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify({ email: kisi.email, ad: kisi.ad, marka: job.marka, icerikTuru: job.icerikTuru, teslimTarihi: job.teslimTarihi, firmaAdi: data.firmaAdi }),
-        }).catch(() => {});
+        })
+          .then((r) => r.json())
+          .then((res) => {
+            if (res.skipped) window.alert(`${kisi.ad} için bildirim e-postası gönderilemedi: ${res.reason}`);
+            else if (res.error) window.alert(`${kisi.ad} için bildirim e-postası gönderilemedi: ${res.error}`);
+          })
+          .catch(() => window.alert(`${kisi.ad} için bildirim e-postası gönderilirken bağlantı hatası oluştu.`));
       }
     });
   };
@@ -3855,6 +3868,7 @@ export default function MarcusOS() {
               onUpdatePermissions={updateStaffPermissions}
               markaKimligiGorseli={data.markaKimligiGorseli}
               onSaveMarkaKimligi={saveMarkaKimligi}
+              onRosterChange={(roster) => setData((d) => ({ ...d, personelRosteri: roster }))}
             />
           )}
         </div>
