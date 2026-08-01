@@ -211,7 +211,16 @@ export default async function handler(req, res) {
         }
       }
 
-      const finalData = { ...data, personelHesaplari: (existingFull && existingFull.personelHesaplari) || [] };
+      // Owner'ın yerel kopyasında ASLA bulunmayan (GET'te hiç gönderilmeyen) alanlar burada
+      // sunucudaki mevcut değerleriyle geri eklenir — yoksa her kayıtta sessizce silinirler.
+      // personelHesaplari için bu zaten yapılıyordu; kasaSifresiHash/Salt de AYNI kategoride
+      // olduğu halde unutulmuştu — bu da "kasa şifresi kendiliğinden sıfırlanıyor" hatasının sebebiydi.
+      const finalData = {
+        ...data,
+        personelHesaplari: (existingFull && existingFull.personelHesaplari) || [],
+        kasaSifresiHash: existingFull ? existingFull.kasaSifresiHash : undefined,
+        kasaSifresiSalt: existingFull ? existingFull.kasaSifresiSalt : undefined,
+      };
       await kv.set(KEY, finalData);
 
       const today = new Date().toISOString().slice(0, 10);
