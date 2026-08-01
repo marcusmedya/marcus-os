@@ -149,7 +149,7 @@ export default async function handler(req, res) {
         return res.status(200).json({ data: restricted, role, staffId, staffName });
       }
       // Sahibe (owner) bile şifre hash'lerini asla gönderme — ayrı, korumalı bir uçtan yönetiliyor.
-      const { personelHesaplari, ...safeData } = data || {};
+      const { personelHesaplari, kasaSifresiHash, kasaSifresiSalt, ...safeData } = data || {};
       const personelRosteri = (personelHesaplari || []).map((h) => ({ ad: h.ad, email: h.email || "" }));
       return res.status(200).json({ data: data ? { ...safeData, personelRosteri } : null, role });
     }

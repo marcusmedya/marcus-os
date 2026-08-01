@@ -2593,11 +2593,15 @@ function SifreGateli({ children }) {
     if (!sifre) return;
     setKontrolEdiliyor(true);
     setHata("");
-    fetch("/api/data", { headers: { "X-Site-Password": sifre } })
+    fetch("/api/kasa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ action: "dogrula", sifre }),
+    })
       .then((r) => r.json())
       .then((res) => {
-        if (res.role === "owner") setDogrulandi(true);
-        else setHata("Şifre yanlış.");
+        if (res.ok) setDogrulandi(true);
+        else setHata(res.error || "Şifre yanlış.");
       })
       .catch(() => setHata("Bağlantı hatası — tekrar dene."))
       .finally(() => setKontrolEdiliyor(false));
@@ -2611,14 +2615,14 @@ function SifreGateli({ children }) {
         <Lock size={20} color={T.textFaint} />
       </div>
       <div style={{ fontSize: 14, color: T.text, fontWeight: 600, fontFamily: "Inter", marginBottom: 6 }}>Bu sayfa ekstra korumalı</div>
-      <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 18 }}>Müşteri hesap bilgilerini görmek için şifreni tekrar gir.</div>
+      <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 18 }}>Müşteri hesap bilgilerini görmek için kasa şifresini gir.</div>
       <input
         type="password"
         autoFocus
         value={sifre}
         onChange={(e) => setSifre(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && dogrula()}
-        placeholder="Şifre"
+        placeholder="Kasa Şifresi"
         style={{ ...inputStyle, textAlign: "center", marginBottom: 12 }}
       />
       <button onClick={dogrula} disabled={kontrolEdiliyor} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", opacity: kontrolEdiliyor ? 0.6 : 1 }}>
@@ -2634,6 +2638,8 @@ const SOSYAL_PLATFORMLAR = [
   { key: "tiktok", label: "TikTok" },
   { key: "youtube", label: "YouTube" },
   { key: "facebook", label: "Facebook" },
+  { key: "google", label: "Google" },
+  { key: "linkedin", label: "LinkedIn" },
 ];
 
 function KopyalanabilirAlan({ label, value, onChange, gizli }) {
@@ -2723,6 +2729,58 @@ function MusteriGirisleri(props) {
     <SifreGateli>
       <MusteriGirisleriIcerik {...props} />
     </SifreGateli>
+  );
+}
+
+function KasaSifresiKarti() {
+  const [acik, setAcik] = useState(false);
+  const [yeniSifre, setYeniSifre] = useState("");
+  const [tekrar, setTekrar] = useState("");
+  const [hata, setHata] = useState("");
+  const [basari, setBasari] = useState(false);
+  const [kaydediliyor, setKaydediliyor] = useState(false);
+
+  const kaydet = () => {
+    setHata(""); setBasari(false);
+    if (yeniSifre.length < 4) { setHata("Şifre en az 4 karakter olmalı."); return; }
+    if (yeniSifre !== tekrar) { setHata("Şifreler eşleşmiyor."); return; }
+    setKaydediliyor(true);
+    fetch("/api/kasa", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Site-Password": getPw() },
+      body: JSON.stringify({ action: "degistir", yeniSifre }),
+    })
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.ok) { setBasari(true); setYeniSifre(""); setTekrar(""); setAcik(false); }
+        else setHata(res.error || "Bir sorun oluştu.");
+      })
+      .catch(() => setHata("Bağlantı hatası."))
+      .finally(() => setKaydediliyor(false));
+  };
+
+  return (
+    <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+      <SectionTitle>Şifre Kasası Şifresi</SectionTitle>
+      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
+        Şifre Kasası'na (müşteri sosyal medya girişleri) girerken artık kendi şifrenle değil, buradan belirlediğin
+        <strong> ayrı bir kasa şifresiyle</strong> doğrulama yapılıyor. Henüz belirlemediysen, ilk seferde kendi şifren geçici olarak kabul edilir.
+      </p>
+      {basari && <div style={{ color: T.success, fontSize: 12.5, fontFamily: "Inter", marginBottom: 10 }}>Kasa şifresi güncellendi.</div>}
+      {acik ? (
+        <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 14px" }}>
+          <input type="password" autoComplete="new-password" placeholder="Yeni kasa şifresi" value={yeniSifre} onChange={(e) => setYeniSifre(e.target.value)} style={{ ...inputStyle, marginBottom: 10 }} />
+          <input type="password" autoComplete="new-password" placeholder="Yeni kasa şifresi (tekrar)" value={tekrar} onChange={(e) => setTekrar(e.target.value)} style={{ ...inputStyle, marginBottom: 10 }} />
+          {hata && <div style={{ color: T.danger, fontSize: 12, fontFamily: "Inter", marginBottom: 8 }}>{hata}</div>}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button style={cancelBtnStyle} onClick={() => { setAcik(false); setYeniSifre(""); setTekrar(""); setHata(""); }}>İptal</button>
+            <button style={saveBtnStyle} onClick={kaydet} disabled={kaydediliyor}>{kaydediliyor ? "Kaydediliyor…" : "Kaydet"}</button>
+          </div>
+        </div>
+      ) : (
+        <button style={addBtnStyle} onClick={() => setAcik(true)}><KeyRound size={13} /> Kasa Şifresini Değiştir</button>
+      )}
+    </Card>
   );
 }
 
@@ -2826,6 +2884,7 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
       </Card>
 
       <PersonelHesaplariKart onRosterChange={onRosterChange} />
+      <KasaSifresiKarti />
 
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>CEO Paneli — Personel Yetkileri</SectionTitle>
