@@ -32,9 +32,38 @@ async function yetkiliMi(req) {
   return null;
 }
 
+const RATE_LIMIT_ESIK = 20;
+const RATE_LIMIT_PENCERE_SN = 900;
+function istekIP(req) {
+  return (req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "bilinmeyen").split(",")[0].trim();
+}
+async function rateLimitAsildiMi(req) {
+  try {
+    const sayac = (await kv.get(`login-fail-${istekIP(req)}`)) || 0;
+    return sayac >= RATE_LIMIT_ESIK;
+  } catch (e) {
+    return false;
+  }
+}
+async function basarisizGirisiKaydet(req) {
+  try {
+    const key = `login-fail-${istekIP(req)}`;
+    const sayac = (await kv.get(key)) || 0;
+    await kv.set(key, sayac + 1, { ex: RATE_LIMIT_PENCERE_SN });
+  } catch (e) {
+    // sessizce geç
+  }
+}
+
 export default async function handler(req, res) {
+  if (await rateLimitAsildiMi(req)) {
+    return res.status(429).json({ error: "Çok fazla başarısız giriş denemesi. 15 dakika sonra tekrar dene." });
+  }
   const auth = await yetkiliMi(req);
-  if (!auth) return res.status(401).json({ error: "Yetkisiz." });
+  if (!auth) {
+    await basarisizGirisiKaydet(req);
+    return res.status(401).json({ error: "Yetkisiz." });
+  }
 
   if (req.method === "GET") {
     // Sadece "özel bir kasa şifresi ayarlanmış mı" bilgisini döner — hash/salt asla gönderilmez.

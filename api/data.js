@@ -198,6 +198,8 @@ export default async function handler(req, res) {
       // GÜVENLİK FRENİ: müşteri sayısı mevcut veriye göre çarpıcı biçimde azalıyorsa
       // (örn. bir hata sonucu boş/demo veri yazılmaya çalışılıyorsa) kaydı reddet.
       // Bilinçli bir toplu silme durumunda ön yüz "force: true" ile tekrar dener.
+      // Aynı fren, Personel (İK) kayıtları için de geçerli — sadece müşteri verisi değil,
+      // ekip kayıtlarının da yanlışlıkla toplu silinmesine karşı korunuyor.
       if (!force) {
         const existingCount = existingFull && Array.isArray(existingFull.clients) ? existingFull.clients.length : 0;
         const newCount = Array.isArray(data.clients) ? data.clients.length : 0;
@@ -207,6 +209,17 @@ export default async function handler(req, res) {
             error: `Güvenlik freni: mevcut ${existingCount} müşteriden ${newCount}'a düşen bir kayıt engellendi. Bu istenmeyen bir veri kaybı olabilir.`,
             existingCount,
             newCount,
+          });
+        }
+        const existingPersonelCount = existingFull && Array.isArray(existingFull.personel) ? existingFull.personel.length : 0;
+        const newPersonelCount = Array.isArray(data.personel) ? data.personel.length : 0;
+        if (existingPersonelCount >= 2 && newPersonelCount < existingPersonelCount * 0.6) {
+          return res.status(409).json({
+            blocked: true,
+            error: `Güvenlik freni: mevcut ${existingPersonelCount} personel kaydından ${newPersonelCount}'a düşen bir kayıt engellendi. Bu istenmeyen bir veri kaybı olabilir.`,
+            existingCount: existingPersonelCount,
+            newCount: newPersonelCount,
+            alan: "personel",
           });
         }
       }

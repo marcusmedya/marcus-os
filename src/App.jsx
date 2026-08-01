@@ -2868,14 +2868,33 @@ function yukleJsPDF() {
   });
 }
 
+/** Bir data-URL görselin doğal (piksel) genişlik/yükseklik oranını öğrenir — PDF'e eklerken
+ * oranı bozmadan (sıkıştırıp/uzatmadan) yerleştirebilmek için. */
+function gorselOraniniAl(dataUrl) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ w: img.naturalWidth || 1, h: img.naturalHeight || 1 });
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+
 function hesapBilgileriPdfOlustur(marka, firmaAdi, girisListesi, driveLinki, logo) {
-  return yukleJsPDF().then(({ jsPDF }) => {
+  return yukleJsPDF().then(async ({ jsPDF }) => {
     const doc = new jsPDF();
     let baslikY = 20;
     if (logo) {
       try {
+        const oran = await gorselOraniniAl(logo);
+        const MAKS_GENISLIK = 40, MAKS_YUKSEKLIK = 20;
+        let w = MAKS_GENISLIK, h = MAKS_YUKSEKLIK;
+        if (oran && oran.w && oran.h) {
+          const olcek = Math.min(MAKS_GENISLIK / oran.w, MAKS_YUKSEKLIK / oran.h);
+          w = oran.w * olcek;
+          h = oran.h * olcek;
+        }
         const format = logo.includes("image/png") ? "PNG" : "JPEG";
-        doc.addImage(logo, format, 14, 10, 32, 20);
+        doc.addImage(logo, format, 14, 10, w, h);
         baslikY = 42;
       } catch (e) {
         // logo eklenemezse (bozuk/desteklenmeyen format) PDF'in geri kalanı yine de oluşsun
@@ -3836,12 +3855,12 @@ function SaveBlockedModal({ info, onCancel, onForce }) {
         </div>
         <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16.5, fontWeight: 600, color: T.text, margin: "0 0 8px", textAlign: "center" }}>Kayıt güvenlik nedeniyle durduruldu</h2>
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, textAlign: "center", margin: "0 0 18px" }}>
-          Kaydetmeye çalıştığın veri, mevcut kayıtlı veriden çok daha az müşteri içeriyor
+          Kaydetmeye çalıştığın veri, mevcut kayıtlı veriden çok daha az {info.alan === "personel" ? "personel kaydı" : "müşteri"} içeriyor
           (<strong style={{ color: T.text }}>{info.existingCount}</strong> → <strong style={{ color: T.text }}>{info.newCount}</strong>).
           Bu, istenmeyen bir veri kaybı olabilir diye otomatik olarak durduruldu.
         </p>
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12.5, color: T.textFaint, lineHeight: 1.6, textAlign: "center", margin: "0 0 20px" }}>
-          Eğer bilerek birden fazla müşteri sildiysen "Evet, devam et" diyebilirsin. Emin değilsen "İptal" de ve Ayarlar'daki günlük yedeklerden verinin son sağlam halini kontrol et.
+          Eğer bilerek birden fazla {info.alan === "personel" ? "personel kaydı" : "müşteri"} sildiysen "Evet, devam et" diyebilirsin. Emin değilsen "İptal" de ve Ayarlar'daki günlük yedeklerden verinin son sağlam halini kontrol et.
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <button onClick={onCancel} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center" }}>İptal — verimi koru</button>
@@ -4439,6 +4458,14 @@ export default function MarcusOS() {
         const kalanGun = Math.round(stok / gunlukHiz);
         if (kalanGun <= 7) items.push({ text: `${c.ad}: ${tur} stoğu ~${kalanGun} gün içinde bitecek (${stok} adet kaldı)`, level: kalanGun <= 3 ? "danger" : "warning" });
       });
+    });
+    // Operasyon: teslim tarihi geçmiş ve henüz "Teslim Edildi" aşamasına gelmemiş işler.
+    const bugunGeceYarisi = new Date(); bugunGeceYarisi.setHours(0, 0, 0, 0);
+    (data.cekimIsleri || []).forEach((j) => {
+      if (j.asama === "Teslim Edildi" || !j.teslimTarihi) return;
+      const fark = Math.round((new Date(j.teslimTarihi) - bugunGeceYarisi) / 86400000);
+      if (fark < 0) items.push({ text: `Operasyon: ${j.marka || ""} — "${j.icerikTuru || j.kategori || "iş"}" teslim tarihi ${Math.abs(fark)} gün geçti (${j.asama || ""})`, level: "danger" });
+      else if (fark <= 1) items.push({ text: `Operasyon: ${j.marka || ""} — "${j.icerikTuru || j.kategori || "iş"}" teslimi yaklaşıyor (${j.teslimTarihi})`, level: "warning" });
     });
     return items;
   }, [data, role]);

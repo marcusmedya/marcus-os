@@ -13,6 +13,32 @@ function checkOwner(req) {
   return req.headers["x-site-password"] === required;
 }
 
+// data.js'teki ile AYNI IP bazlı sayaç kullanılır — owner şifresi bu uç noktadan da
+// denenebildiği için, brute-force sayacının uç noktalar arasında PAYLAŞILMASI gerekir;
+// yoksa biri /api/data'da engellenip buradan denemeye devam edebilirdi.
+const RATE_LIMIT_ESIK = 20;
+const RATE_LIMIT_PENCERE_SN = 900;
+function istekIP(req) {
+  return (req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "bilinmeyen").split(",")[0].trim();
+}
+async function rateLimitAsildiMi(req) {
+  try {
+    const sayac = (await kv.get(`login-fail-${istekIP(req)}`)) || 0;
+    return sayac >= RATE_LIMIT_ESIK;
+  } catch (e) {
+    return false;
+  }
+}
+async function basarisizGirisiKaydet(req) {
+  try {
+    const key = `login-fail-${istekIP(req)}`;
+    const sayac = (await kv.get(key)) || 0;
+    await kv.set(key, sayac + 1, { ex: RATE_LIMIT_PENCERE_SN });
+  } catch (e) {
+    // sessizce geç
+  }
+}
+
 function hashSifre(sifre, salt) {
   return crypto.scryptSync(sifre, salt, 64).toString("hex");
 }
@@ -27,7 +53,13 @@ function guvenliListe(hesaplar) {
 }
 
 export default async function handler(req, res) {
-  if (!checkOwner(req)) return res.status(401).json({ error: "Yetkisiz. Sadece yönetici bu sayfayı kullanabilir." });
+  if (await rateLimitAsildiMi(req)) {
+    return res.status(429).json({ error: "Çok fazla başarısız giriş denemesi. 15 dakika sonra tekrar dene." });
+  }
+  if (!checkOwner(req)) {
+    await basarisizGirisiKaydet(req);
+    return res.status(401).json({ error: "Yetkisiz. Sadece yönetici bu sayfayı kullanabilir." });
+  }
 
   try {
     const data = (await kv.get(KEY)) || {};

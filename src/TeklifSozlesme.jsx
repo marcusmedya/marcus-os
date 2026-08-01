@@ -98,8 +98,8 @@ function yazdirMetin(baslik, govdeMetni, logoKendi, logoMusteri, kimlikGorseli) 
     .join("\n");
   const logoHtml = (logoKendi || logoMusteri)
     ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:36px;">
-         <div>${logoKendi ? `<img src="${logoKendi}" style="max-height:60px;max-width:200px;" />` : ""}</div>
-         <div>${logoMusteri ? `<img src="${logoMusteri}" style="max-height:60px;max-width:200px;" />` : ""}</div>
+         <div>${logoKendi ? `<img src="${logoKendi}" style="max-height:80px;max-width:260px;" />` : ""}</div>
+         <div>${logoMusteri ? `<img src="${logoMusteri}" style="max-height:80px;max-width:260px;" />` : ""}</div>
        </div>`
     : "";
   const kimlikHtml = kimlikGorseli ? `<div style="margin-top:60px;text-align:center;"><img src="${kimlikGorseli}" style="max-width:100%;max-height:160px;object-fit:contain;" /></div>` : "";
@@ -135,8 +135,8 @@ function yazdirTeklifGorsel(musteri, secilenListe, toplamFiyat, kdvEkle, firmaAd
 
   const logoHtml = (logoKendi || logoMusteri)
     ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:32px;">
-         <div>${logoKendi ? `<img src="${logoKendi}" style="max-height:56px;max-width:190px;" />` : ""}</div>
-         <div>${logoMusteri ? `<img src="${logoMusteri}" style="max-height:56px;max-width:190px;" />` : ""}</div>
+         <div>${logoKendi ? `<img src="${logoKendi}" style="max-height:76px;max-width:250px;" />` : ""}</div>
+         <div>${logoMusteri ? `<img src="${logoMusteri}" style="max-height:76px;max-width:250px;" />` : ""}</div>
        </div>` : "";
   const kimlikHtml = kimlikGorseli ? `<div style="margin-top:56px;text-align:center;border-top:1px solid #eee;padding-top:24px;"><img src="${kimlikGorseli}" style="max-width:100%;max-height:150px;object-fit:contain;" /></div>` : "";
 
