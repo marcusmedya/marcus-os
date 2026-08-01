@@ -344,6 +344,15 @@ function AySeciciAlan({ value, onChange }) {
 
   const guncelle = (yeniYil, yeniAy) => onChange(`${yeniYil}-${String(yeniAy).padStart(2, "0")}`);
 
+  // Gelen değer boş/hatalı formattaysa (örn. eski kayıtlardan kalma "" ya da "2026-08-01" gibi
+  // gün içeren bozuk bir değer), sadece EKRANDA doğru ayı göstermekle kalma — asıl form
+  // durumunu da hemen düzelt. Yoksa kullanıcı hiç dokunmadan "Kaydet"e basınca bozuk/boş
+  // değer sessizce kaydedilmeye devam ediyordu ("yeniden kaydetsem de işlemiyor" sorunu buydu).
+  useEffect(() => {
+    if (!gecerli) guncelle(yil, ay);
+    // eslint-disable-next-line
+  }, []);
+
   return (
     <div style={{ display: "flex", gap: 8 }}>
       <select value={ay} onChange={(e) => guncelle(yil, Number(e.target.value))} style={{ ...inputStyle, flex: 1.4 }}>
@@ -1523,7 +1532,7 @@ function AyOdemeModal({ client, ayObj, hesaplar, onAddKaydi, onDeleteKaydi, onCl
         )}
 
         <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 8 }}>{kalan > 0 ? "ÖDEME EKLE" : "EK ÖDEME EKLE (opsiyonel)"}</div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+        <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
           <div>
             <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Tutar (₺)</label>
             <input type="number" value={tutar} onChange={(e) => setTutar(e.target.value)} style={inputStyle} />

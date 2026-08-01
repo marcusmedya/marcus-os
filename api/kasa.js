@@ -59,7 +59,10 @@ export default async function handler(req, res) {
       if (!yeniSifre || yeniSifre.length < 4) return res.status(400).json({ error: "Şifre en az 4 karakter olmalı." });
       const salt = crypto.randomBytes(16).toString("hex");
       const hash = hashSifre(yeniSifre, salt);
-      await kv.set(KEY, { ...data, kasaSifresiHash: hash, kasaSifresiSalt: salt });
+      const yeniVeri = { ...data, kasaSifresiHash: hash, kasaSifresiSalt: salt };
+      await kv.set(KEY, yeniVeri);
+      const bugun = new Date().toISOString().slice(0, 10);
+      await kv.set(`marcus-os-snapshot-${bugun}`, yeniVeri);
       return res.status(200).json({ ok: true });
     }
 
