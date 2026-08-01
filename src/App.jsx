@@ -112,14 +112,21 @@ function isMonthPaid(client, key) {
 function clientPaymentStatus(client) {
   if (!client.odemeGunu) return null;
   const today = new Date();
-  const curKey = monthKey(today);
-  if (isMonthPaid(client, curKey)) return { status: "odendi", label: "Bu ay ödendi" };
   const dueDay = Number(client.odemeGunu);
   const todayDay = today.getDate();
+  const pesin = client.odemeSekli !== "sonra";
+
+  // Peşin: bu ayın ödemesi bu ayın ödeme gününde beklenir.
+  // Sonra: bu ayın hizmeti henüz devam ediyor sayılır, değerlendirilen borç ayı BİR ÖNCEKİ takvim ayıdır,
+  // vadesi ise yine bu ayın ödeme günündedir (yani geçen ayın hizmeti, bu ay içinde ödenir).
+  const degerlendirilenAy = pesin ? today : new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  const key = monthKey(degerlendirilenAy);
+
+  if (isMonthPaid(client, key)) return { status: "odendi", label: pesin ? "Bu ay ödendi" : "Geçen ay ödendi" };
   if (todayDay < dueDay) return { status: "yaklasiyor", label: `Ödeme günü: ayın ${dueDay}'i` };
   const gecikenGun = todayDay - dueDay;
-  const kalan = monthRemaining(client, curKey);
-  const kismiNot = monthPaidAmount(client, curKey) > 0 ? ` — kalan ${fmt(kalan)}` : "";
+  const kalan = monthRemaining(client, key);
+  const kismiNot = monthPaidAmount(client, key) > 0 ? ` — kalan ${fmt(kalan)}` : "";
   if (gecikenGun >= 7) return { status: "gecikti", label: `${gecikenGun} gün gecikti${kismiNot}` };
   return { status: "bekliyor", label: `Ödeme günü geçti (ayın ${dueDay}'i)${kismiNot}` };
 }
@@ -129,6 +136,7 @@ function clientPaymentStatus(client) {
 function clientOverdueMonths(client) {
   if (!client.odemeGunu) return 0;
   const now = new Date();
+  const pesin = client.odemeSekli !== "sonra";
   let baslangicKey = null;
   if (client.baslangic && /^\d{4}-\d{1,2}$/.test(client.baslangic.trim())) {
     const [by, bm] = client.baslangic.trim().split("-").map(Number);
@@ -139,7 +147,9 @@ function clientOverdueMonths(client) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const key = monthKey(d);
     if (baslangicKey && key < baslangicKey) break; // müşterinin başlangıcından öncesini sayma
-    if (i === 0 && now.getDate() < Number(client.odemeGunu)) continue; // bu ayın vadesi henüz gelmedi
+    if (pesin && i === 0 && now.getDate() < Number(client.odemeGunu)) continue; // peşin: bu ayın vadesi henüz gelmedi
+    if (!pesin && i === 0) continue; // sonra: bu ayın hizmeti henüz bitmedi, hiç vadesi gelmedi
+    if (!pesin && i === 1 && now.getDate() < Number(client.odemeGunu)) continue; // sonra: geçen ayın vadesi bu ayın ödeme gününe kadar gelmez
     if (isMonthPaid(client, key)) break;
     count++;
   }
@@ -327,6 +337,7 @@ function FieldForm({ fields, initial, onSubmit, onCancel, submitLabel = "Kaydet"
       if (initial && initial[f.key] !== undefined) { v[f.key] = initial[f.key]; return; }
       if (f.type === "number") { v[f.key] = 0; return; }
       if (f.type === "select") { v[f.key] = f.options[0].value; return; }
+      if (f.type === "month") { v[f.key] = new Date().toISOString().slice(0, 7); return; }
       v[f.key] = "";
     });
     return v;
@@ -342,7 +353,7 @@ function FieldForm({ fields, initial, onSubmit, onCancel, submitLabel = "Kaydet"
             </select>
           ) : (
             <input
-              type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
+              type={f.type === "number" ? "number" : f.type === "date" ? "date" : f.type === "month" ? "month" : "text"}
               value={values[f.key]}
               placeholder={f.placeholder}
               onChange={(e) => setValues((v) => ({ ...v, [f.key]: f.type === "number" ? Number(e.target.value) : e.target.value }))}
@@ -519,7 +530,8 @@ const CLIENT_FIELDS = [
   { key: "karMarji", label: "Kâr Marjı (%) — müşteri detayında maliyet eklersen otomatik hesaplanır", type: "number" },
   { key: "odemeGunu", label: "Ödeme Günü (ayın kaçı — opsiyonel, örn. 5)", type: "number" },
   { key: "faturaliTutar", label: "Faturalı Tutar (₺/ay) — aylık ücretin ne kadarı faturalı? Kalanı otomatik faturasız sayılır", type: "number" },
-  { key: "baslangic", label: "Başlangıç (YYYY-AA)", type: "text", placeholder: "2026-07" },
+  { key: "baslangic", label: "Başlangıç Ayı (ne zaman çalışmaya başladınız)", type: "month" },
+  { key: "odemeSekli", label: "Ödeme Şekli", type: "select", options: [{ value: "pesin", label: "Peşin (ay başında/önceden)" }, { value: "sonra", label: "Sonra (ay sonunda/hizmet sonrası)" }] },
   { key: "not", label: "Not (opsiyonel)", type: "text" },
 ];
 
@@ -1527,7 +1539,15 @@ function OdemeTakvimi({ clients, hesaplar, transferler, onUpdateClient, onAddOde
     if (tamOdendi) return "odendi";
     if (odenen > 0) return "kismi";
     if (ayObj.key > bugunKey) return "gelecek";
-    if (ayObj.key === bugunKey && bugunGun < Number(client.odemeGunu)) return "gelecek";
+    const pesin = client.odemeSekli !== "sonra";
+    if (pesin) {
+      if (ayObj.key === bugunKey && bugunGun < Number(client.odemeGunu)) return "gelecek";
+    } else {
+      if (ayObj.key === bugunKey) return "gelecek"; // sonra: bu ayın hizmeti bitmeden vadesi hiç gelmez
+      const oncekiAy = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1);
+      const oncekiKey = monthKey(oncekiAy);
+      if (ayObj.key === oncekiKey && bugunGun < Number(client.odemeGunu)) return "gelecek";
+    }
     if (client.baslangic && /^\d{4}-\d{1,2}$/.test(client.baslangic.trim())) {
       const [by, bm] = client.baslangic.trim().split("-").map(Number);
       const baslangicKey = `${by}-${String(bm).padStart(2, "0")}`;
