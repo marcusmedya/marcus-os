@@ -2104,45 +2104,64 @@ function CekimListesi({ clients, stoklar, subeler, gecmis }) {
     return kayitlar.length ? kayitlar[kayitlar.length - 1].tarih : null;
   };
 
-  // Marka bazlı (genel) düşük stok satırları.
-  const genelListe = aktifMarkalar.flatMap((c) =>
-    PAYLASIM_TURLERI
-      .map((tur) => ({ marka: c.ad, sube: null, tur, adet: stoklarObj[stokAnahtari(c.id, tur)] || 0, sonCekim: sonCekimTarihi(c.id, tur) }))
-      .filter((x) => x.adet <= ESIK)
-  );
-
-  // Şube bazlı düşük stok satırları (varsa).
-  const subeListe = (subeler || []).flatMap((s) => {
-    const c = aktifMarkalar.find((x) => x.id === s.clientId);
-    if (!c) return [];
-    return PAYLASIM_TURLERI
-      .map((tur) => ({ marka: c.ad, sube: s.ad, tur, adet: stoklarObj[`${s.clientId}_${s.id}_${tur}`] || 0, sonCekim: null }))
-      .filter((x) => x.adet <= ESIK);
+  // Her marka için TÜM türlerin TOPLAMI (genel stok) hesaplanır — tek tek tür değil,
+  // toplam stok eşiğin altına/eşit düşünce marka listeye girer.
+  const gruplar = [];
+  aktifMarkalar.forEach((c) => {
+    const turler = PAYLASIM_TURLERI.map((tur) => ({ tur, adet: stoklarObj[stokAnahtari(c.id, tur)] || 0, sonCekim: sonCekimTarihi(c.id, tur) }));
+    const toplam = turler.reduce((s, x) => s + x.adet, 0);
+    if (toplam <= ESIK) {
+      gruplar.push({ anahtar: `${c.ad}__`, marka: c.ad, sube: null, toplam, turler: turler.filter((x) => x.adet > 0) });
+    }
   });
 
-  const tumListe = [...genelListe, ...subeListe].sort((a, b) => a.adet - b.adet);
+  // Şubeler kendi toplam stoklarıyla ayrı ayrı değerlendirilir (varsa).
+  (subeler || []).forEach((s) => {
+    const c = aktifMarkalar.find((x) => x.id === s.clientId);
+    if (!c) return;
+    const turler = PAYLASIM_TURLERI.map((tur) => ({ tur, adet: stoklarObj[`${s.clientId}_${s.id}_${tur}`] || 0, sonCekim: null }));
+    const toplam = turler.reduce((sum, x) => sum + x.adet, 0);
+    if (toplam <= ESIK) {
+      gruplar.push({ anahtar: `${c.ad}__${s.ad}`, marka: c.ad, sube: s.ad, toplam, turler: turler.filter((x) => x.adet > 0) });
+    }
+  });
+
+  // En acil (toplam stoğu en düşük) markalar en üstte.
+  gruplar.forEach((g) => g.turler.sort((a, b) => a.adet - b.adet));
+  gruplar.sort((a, b) => a.toplam - b.toplam);
 
   return (
     <div>
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 22 }}>
-        <KpiCard label="ÇEKİM GEREKEN" value={tumListe.length} mono={false} accent={tumListe.length > 0 ? T.danger : T.success} />
+        <KpiCard label="ÇEKİM GEREKEN MARKA" value={gruplar.length} mono={false} accent={gruplar.length > 0 ? T.danger : T.success} />
       </div>
 
-      {tumListe.length === 0 ? (
+      {gruplar.length === 0 ? (
         <Card style={{ padding: "24px", textAlign: "center" }}>
-          <div style={{ color: T.success, fontSize: 13, fontFamily: "Inter", fontWeight: 600 }}>🎉 Şu an stoğu {ESIK} ve altına düşen marka/tür yok — çekim gereken bir şey görünmüyor.</div>
+          <div style={{ color: T.success, fontSize: 13, fontFamily: "Inter", fontWeight: 600 }}>🎉 Şu an stoğu {ESIK} ve altına düşen marka yok — çekim gereken bir şey görünmüyor.</div>
         </Card>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {tumListe.map((x, i) => {
-            const renk = x.adet <= 1 ? T.danger : x.adet <= 2 ? T.warning : T.textDim;
+          {gruplar.map((g) => {
+            const kenarRenk = g.toplam <= 1 ? T.danger : g.toplam <= 2 ? T.warning : T.border;
             return (
-              <Card key={i} style={{ padding: "12px 16px", border: `1px solid ${x.adet <= 1 ? T.danger : T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-                <div>
-                  <div style={{ fontSize: 13.5, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{x.marka}{x.sube ? ` — ${x.sube}` : ""}</div>
-                  <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>{x.tur}{x.sonCekim ? ` · Son çekim: ${x.sonCekim}` : ""}</div>
+              <Card key={g.anahtar} style={{ padding: "14px 16px", border: `1px solid ${kenarRenk}` }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: g.turler.length > 0 ? 8 : 0 }}>
+                  <div style={{ fontSize: 14, color: T.text, fontWeight: 700, fontFamily: "Inter" }}>{g.marka}{g.sube ? ` — ${g.sube}` : ""}</div>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: kenarRenk, fontFamily: "'IBM Plex Mono', monospace", background: T.surfaceRaised, padding: "2px 9px", borderRadius: 999 }}>Toplam: {g.toplam}</span>
                 </div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: renk, fontFamily: "'IBM Plex Mono', monospace" }}>{x.adet}</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {g.turler.map((x) => {
+                    const renk = x.adet <= 1 ? T.danger : x.adet <= 2 ? T.warning : T.textDim;
+                    const soft = x.adet <= 1 ? T.dangerSoft : x.adet <= 2 ? T.warningSoft : T.surfaceRaised;
+                    return (
+                      <span key={x.tur} title={x.sonCekim ? `Son çekim: ${x.sonCekim}` : undefined} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 999, background: soft, fontSize: 12, fontFamily: "Inter" }}>
+                        <span style={{ color: T.textDim }}>{x.tur}</span>
+                        <span style={{ color: renk, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace" }}>{x.adet}</span>
+                      </span>
+                    );
+                  })}
+                </div>
               </Card>
             );
           })}
@@ -2150,7 +2169,7 @@ function CekimListesi({ clients, stoklar, subeler, gecmis }) {
       )}
 
       <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 12 }}>
-        Stoğu {ESIK} ve altına düşen her marka/tür (ve varsa şube) burada listelenir — en düşükten yükseğe sıralanır. Çekim yapıp Paylaşımlar sekmesinden stoğa ekleyince buradan otomatik kalkar.
+        Bir markanın (ya da şubesinin) TÜM türlerinin toplamı {ESIK} ve altına düşünce burada listelenir — en düşük toplamdan yükseğe sıralanır. Çekim yapıp Paylaşımlar sekmesinden stoğa ekleyince buradan otomatik kalkar.
       </div>
     </div>
   );
