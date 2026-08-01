@@ -217,6 +217,21 @@ Kurulumdan sonra Ayarlar sayfasındaki **"Şimdi Test Et"** butonuyla hemen dene
 - Personelin hâlâ ayrı "yetki seviyesi" (owner/staff) var ama **her yetkili sekmedeki tüm işlemleri yapabiliyor** (örn. Müşteriler açıksan, personel müşteri silme dahil her şeyi yapabilir) — sekme bazında ayrım var, işlem bazında ince ayrım yok.
 - Dashboard'u personele açarsan, AI CEO Özeti/Sohbeti kısmı onlar için pasif kalır (sadece senin şifrenle çalışıyor) — bu bilgi artık nazikçe "kapalı" olarak gösteriliyor, hata vermiyor.
 
+## Güncelleme 11: KRİTİK — Personel Yazımı Müşteri Verisini Eziyordu (Düzeltildi)
+
+- **Bulunan hata**: Reklamlar/Paylaşımlar/Operasyon iznine sahip personel, kendi işini yaparken (örn. bir stok işaretlerken), arka planda sadeleştirilmiş (sadece isim) müşteri listesini de sunucuya "kaydet" olarak gönderiyordu — sunucu bunu gerçek, zengin müşteri verisinin (ödeme bilgileri, vergi bilgileri, maliyetler vb.) üzerine yazıyordu.
+- **Düzeltme**: Artık "clients" (müşteri) verisi sadece Müşteriler/Finans/Takvim/Ödeme Takvimi/Dashboard gibi geniş yetkilerden yazılabiliyor. Reklamlar/Paylaşımlar/Operasyon izni olan personel müşteri isimlerini görmeye devam ediyor ama bu veriyi asla geri yazamıyor. Ayrıca personel yazımlarına da (owner'da zaten olan) müşteri sayısı güvenlik freni eklendi.
+
+### ⚠️ Eğer veri kaybı yaşadıysan
+Ayarlar → **Otomatik Günlük Yedekler**'e bak. Bu hatanın ortaya çıkmasından **önceki bir tarih** varsa (dünkü ya da daha öncesi), oradan geri yükleyebilirsin. Bugünün yedeği de etkilenmiş olabilir, dikkatli kontrol et.
+
+## Güncelleme 12: Doğru Personel Eşleşmesi, Kişi Bazlı Yetki, İş Bildirimi, Haftalık Paylaşım Planı
+
+- **Operasyon'da iş atama artık doğru eşleşiyor**: Kameraman/Editör alanları artık kayıtlı personel hesaplarından seçilebiliyor (yazarken öneri çıkıyor) — böylece isim yazım hatası/tutarsızlığı yüzünden işin personelin "Panom" ekranına düşmemesi sorunu ortadan kalktı.
+- **Kişi bazlı yetkiler**: Ayarlar → Personel Hesapları'nda her hesabın yanındaki "Yetkiler / E-posta" ile artık **her kişiye ayrı ayrı** hangi sekmeleri göreceğini belirleyebiliyorsun (CEO Paneli'ndeki genel ayarın yerine geçer).
+- **İş atama e-posta bildirimi**: Aynı panelden bir kişiye e-posta ekleyip Operasyon'da ona bir iş atadığında (kameraman/editör olarak seçtiğinde), otomatik bir bildirim e-postası gidiyor.
+- **Paylaşımlar'a Haftalık Paylaşım Planı eklendi**: Her marka için haftanın günlerine (Pzt-Paz) paylaşım planlayabiliyorsun (tür seçerek). Plan yapıldığında güne tıklayınca **yeşil ✓** işareti çıkıyor. Hafta ileri/geri gezinebiliyorsun.
+
 ## Notlar
 - Uygulama şu an örnek (demo) verilerle geliyor. Gerçek verilerini bağlamak istediğinde `src/App.jsx` içindeki `clients`, `monthly`, `operasyonlar` gibi listeleri kendi verilerinle değiştirebiliriz, ya da bir sonraki adımda bunları düzenleyebileceğin bir veri giriş ekranı ekleyebiliriz.
 - API anahtarın hiçbir zaman tarayıcıya gönderilmiyor; `api/chat.js` sunucu tarafında çalışıyor.

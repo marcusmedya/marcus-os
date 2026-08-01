@@ -1,0 +1,114 @@
+import { kv } from "@vercel/kv";
+
+const KEY = "marcus-os-data";
+const nid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const stokAnahtari = (clientId, tur) => `${clientId}_${tur}`;
+const bugunTR = () => new Date().toLocaleDateString("tr-TR");
+const bugunISO = () => new Date().toISOString().slice(0, 10);
+
+/** Owner her zaman yetkili. Personel ise "paylasimlar" iznine sahipse yetkilidir. */
+async function yetkiliMi(req) {
+  const ownerPw = process.env.SITE_PASSWORD;
+  const staffPwLegacy = process.env.STAFF_PASSWORD;
+  const provided = req.headers["x-site-password"];
+  if (ownerPw && provided === ownerPw) return true;
+  if (!ownerPw && !staffPwLegacy && !req.headers["x-staff-username"]) return true;
+  if (staffPwLegacy && provided === staffPwLegacy) return true;
+
+  const username = req.headers["x-staff-username"];
+  const password = req.headers["x-staff-password"];
+  if (username && password) {
+    const crypto = await import("crypto");
+    const data = await kv.get(KEY);
+    const hesap = ((data && data.personelHesaplari) || []).find((h) => h.kullaniciAdi === username);
+    if (hesap) {
+      const hash = crypto.scryptSync(password, hesap.sifreSalt, 64).toString("hex");
+      if (hash === hesap.sifreHash) {
+        const perms = hesap.izinler || (data && data.staffPermissions) || {};
+        return perms.paylasimlar === true;
+      }
+    }
+  }
+  return false;
+}
+
+function stokDegistirDahili(data, clientId, tur, delta) {
+  const key = stokAnahtari(clientId, tur);
+  const mevcut = (data.stoklar || {})[key] || 0;
+  const yeni = Math.max(0, mevcut + delta);
+  data.stoklar = { ...(data.stoklar || {}), [key]: yeni };
+  return yeni;
+}
+
+function gecmiseEkle(data, clientId, marka, tur, tip) {
+  const liste = data.paylasimGecmisi || [];
+  data.paylasimGecmisi = [...liste, { id: nid(), clientId, marka, tur, tip, tarih: bugunTR() }];
+}
+
+export default async function handler(req, res) {
+  if (req.method !== "POST") return res.status(405).json({ error: "Sadece POST kabul edilir." });
+  if (!(await yetkiliMi(req))) return res.status(401).json({ error: "Yetkisiz." });
+
+  try {
+    const body = req.body || {};
+    const { action } = body;
+    const data = (await kv.get(KEY)) || {};
+    const clients = data.clients || [];
+    const markaAdi = (clientId) => (clients.find((c) => c.id === clientId) || {}).ad || "";
+
+    if (action === "stokDegistir") {
+      const { clientId, tur, delta } = body;
+      stokDegistirDahili(data, clientId, tur, delta);
+      gecmiseEkle(data, clientId, markaAdi(clientId), tur, delta < 0 ? "paylasim" : "cekim");
+      await kv.set(KEY, data);
+      return res.status(200).json({ ok: true, stoklar: data.stoklar, paylasimGecmisi: data.paylasimGecmisi });
+    }
+
+    if (action === "haftalikEkle") {
+      const { clientId, gun, haftaKey, tur } = body;
+      const liste = data.haftalikPaylasimlar || [];
+      const yeni = { id: nid(), clientId, gun, haftaKey, tur, yapildi: false, yapildigiTarih: null };
+      data.haftalikPaylasimlar = [...liste, yeni];
+      await kv.set(KEY, data);
+      return res.status(200).json({ ok: true, haftalikPaylasimlar: data.haftalikPaylasimlar });
+    }
+
+    if (action === "haftalikSil") {
+      const { planId } = body;
+      data.haftalikPaylasimlar = (data.haftalikPaylasimlar || []).filter((p) => p.id !== planId);
+      await kv.set(KEY, data);
+      return res.status(200).json({ ok: true, haftalikPaylasimlar: data.haftalikPaylasimlar });
+    }
+
+    if (action === "haftalikToggle") {
+      const { planId } = body;
+      const liste = data.haftalikPaylasimlar || [];
+      const plan = liste.find((p) => p.id === planId);
+      if (!plan) return res.status(404).json({ error: "Plan bulunamadı — sayfayı yenileyip tekrar dene." });
+      const yeniYapildi = !plan.yapildi;
+      data.haftalikPaylasimlar = liste.map((p) => (p.id === planId ? { ...p, yapildi: yeniYapildi, yapildigiTarih: yeniYapildi ? bugunTR() : null } : p));
+      stokDegistirDahili(data, plan.clientId, plan.tur, yeniYapildi ? -1 : 1);
+      gecmiseEkle(data, plan.clientId, markaAdi(plan.clientId), plan.tur, yeniYapildi ? "paylasim" : "cekim");
+      await kv.set(KEY, data);
+      return res.status(200).json({ ok: true, haftalikPaylasimlar: data.haftalikPaylasimlar, stoklar: data.stoklar, paylasimGecmisi: data.paylasimGecmisi });
+    }
+
+    if (action === "gunlukToggle") {
+      const { clientId, tur } = body;
+      const bugun = bugunISO();
+      const kontrol = data.gunlukKontrol && data.gunlukKontrol.tarih === bugun ? data.gunlukKontrol : { tarih: bugun, yapilanlar: [] };
+      const itemKey = `${clientId}_${tur}`;
+      const varMi = kontrol.yapilanlar.includes(itemKey);
+      const yeniYapilanlar = varMi ? kontrol.yapilanlar.filter((k) => k !== itemKey) : [...kontrol.yapilanlar, itemKey];
+      data.gunlukKontrol = { tarih: bugun, yapilanlar: yeniYapilanlar };
+      stokDegistirDahili(data, clientId, tur, varMi ? 1 : -1);
+      gecmiseEkle(data, clientId, markaAdi(clientId), tur, varMi ? "cekim" : "paylasim");
+      await kv.set(KEY, data);
+      return res.status(200).json({ ok: true, gunlukKontrol: data.gunlukKontrol, stoklar: data.stoklar, paylasimGecmisi: data.paylasimGecmisi });
+    }
+
+    return res.status(400).json({ error: "Geçersiz işlem." });
+  } catch (e) {
+    return res.status(500).json({ error: "Sunucu hatası: " + e.message });
+  }
+}

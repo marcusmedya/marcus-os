@@ -68,8 +68,8 @@ export const setStaffName = (n) => { try { localStorage.setItem(STAFF_NAME_KEY, 
 function duzenleyebilirMi(job, role, staffName) {
   if (role === "owner") return true;
   if (!staffName) return false;
-  const n = staffName.trim().toLowerCase();
-  return (job.kameraman || "").trim().toLowerCase() === n || (job.editor || "").trim().toLowerCase() === n;
+  const n = staffName.trim().toLocaleLowerCase("tr");
+  return (job.kameraman || "").trim().toLocaleLowerCase("tr") === n || (job.editor || "").trim().toLocaleLowerCase("tr") === n;
 }
 
 const inputStyle = { width: "100%", background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 9, padding: "9px 11px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none" };
@@ -111,7 +111,41 @@ function IsKarti({ job, onClick, draggable, onDragStart }) {
 /* ------------------------------------------------------------------ */
 /* Yeni İş Formu                                                         */
 /* ------------------------------------------------------------------ */
-function YeniIsFormu({ clients, varsayilanKategori, onSubmit, onCancel }) {
+/** Kayıtlı personelden gerçek bir <select> ile seçim yaptırır (datalist bazı tarayıcılarda,
+ * özellikle Safari'de, güvenilir açılmadığı için kullanılmıyor). Listede olmayan biri için
+ * "Diğer (elle yaz)" seçeneği açılır bir metin kutusuna dönüşür. */
+function PersonelSecici({ value, onChange, personelRosteri }) {
+  const roster = personelRosteri || [];
+  const kayitliMi = roster.some((p) => p.ad === value);
+  const [elleYaz, setElleYaz] = useState(value !== "" && !kayitliMi);
+
+  if (elleYaz || roster.length === 0) {
+    return (
+      <div>
+        <input style={inputStyle} value={value} onChange={(e) => onChange(e.target.value)} placeholder="Adı yaz" autoFocus={elleYaz} />
+        {roster.length > 0 && (
+          <button type="button" onClick={() => { setElleYaz(false); onChange(""); }} style={{ background: "none", border: "none", color: C.accentText, fontSize: 11.5, cursor: "pointer", padding: "4px 0 0", fontFamily: "inherit" }}>
+            ← Kayıtlı listeden seç
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <select
+      style={inputStyle}
+      value={value}
+      onChange={(e) => { if (e.target.value === "__ELLE__") { setElleYaz(true); onChange(""); } else onChange(e.target.value); }}
+    >
+      <option value="">— Seç —</option>
+      {roster.map((p) => <option key={p.ad} value={p.ad}>{p.ad}</option>)}
+      <option value="__ELLE__">Diğer (elle yaz)…</option>
+    </select>
+  );
+}
+
+function YeniIsFormu({ clients, personelRosteri, varsayilanKategori, onSubmit, onCancel }) {
   const [v, setV] = useState({
     kategori: varsayilanKategori || "Video",
     marka: "", icerikTuru: "", cekimTarihi: bugunISO(), teslimTarihi: bugunISO(),
@@ -138,8 +172,8 @@ function YeniIsFormu({ clients, varsayilanKategori, onSubmit, onCancel }) {
         <div><label style={labelStyle}>İçerik / Talep Türü</label><input style={inputStyle} placeholder={video ? "örn. Reels, Ürün Fotoğrafı" : "örn. Post Tasarımı, Banner"} value={v.icerikTuru} onChange={(e) => set("icerikTuru", e.target.value)} /></div>
         {video && <div><label style={labelStyle}>Çekim Tarihi</label><input type="date" style={inputStyle} value={v.cekimTarihi} onChange={(e) => set("cekimTarihi", e.target.value)} /></div>}
         <div><label style={labelStyle}>Teslim Tarihi</label><input type="date" style={inputStyle} value={v.teslimTarihi} onChange={(e) => set("teslimTarihi", e.target.value)} /></div>
-        {video && <div><label style={labelStyle}>Sorumlu Kameraman</label><input style={inputStyle} value={v.kameraman} onChange={(e) => set("kameraman", e.target.value)} /></div>}
-        <div><label style={labelStyle}>{video ? "Sorumlu Editör" : "Sorumlu Tasarımcı"}</label><input style={inputStyle} value={v.editor} onChange={(e) => set("editor", e.target.value)} /></div>
+        {video && <div><label style={labelStyle}>Sorumlu Kameraman</label><PersonelSecici value={v.kameraman} onChange={(val) => set("kameraman", val)} personelRosteri={personelRosteri} /></div>}
+        <div><label style={labelStyle}>{video ? "Sorumlu Editör" : "Sorumlu Tasarımcı"}</label><PersonelSecici value={v.editor} onChange={(val) => set("editor", val)} personelRosteri={personelRosteri} /></div>
         <div>
           <label style={labelStyle}>Öncelik</label>
           <select style={inputStyle} value={v.oncelik} onChange={(e) => set("oncelik", e.target.value)}>
@@ -162,7 +196,7 @@ function YeniIsFormu({ clients, varsayilanKategori, onSubmit, onCancel }) {
 /* ------------------------------------------------------------------ */
 /* İş Detay Modalı                                                       */
 /* ------------------------------------------------------------------ */
-function IsDetayModal({ job, role, staffName, onClose, onUpdate, onDelete }) {
+function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate, onDelete }) {
   const [yorum, setYorum] = useState("");
   const [revizeMetni, setRevizeMetni] = useState("");
   const [revizeAciliyor, setRevizeAciliyor] = useState(false);
@@ -188,6 +222,7 @@ function IsDetayModal({ job, role, staffName, onClose, onUpdate, onDelete }) {
   const kategori = job.kategori === "Grafik Tasarım" ? "Grafik Tasarım" : "Video";
   const asamalar = asamaListesi(kategori);
   const editiTamamla = () => asamaGecir("Kontrol Bekliyor", TAMAMLADIM_ETIKETI[kategori]);
+  const revizeyiTamamla = () => asamaGecir("Kontrol Bekliyor", "Revize Tamamlandı");
   const onayla = () => asamaGecir("Onaylandı");
   const teslimEt = () => asamaGecir("Teslim Edildi");
   const revizeGonder = () => {
@@ -242,8 +277,8 @@ function IsDetayModal({ job, role, staffName, onClose, onUpdate, onDelete }) {
               <div><label style={labelStyle}>İçerik Türü</label><input style={inputStyle} value={taslak.icerikTuru} onChange={(e) => setTaslak((s) => ({ ...s, icerikTuru: e.target.value }))} /></div>
               {taslak.kategori !== "Grafik Tasarım" && <div><label style={labelStyle}>Çekim Tarihi</label><input type="date" style={inputStyle} value={taslak.cekimTarihi} onChange={(e) => setTaslak((s) => ({ ...s, cekimTarihi: e.target.value }))} /></div>}
               <div><label style={labelStyle}>Teslim Tarihi</label><input type="date" style={inputStyle} value={taslak.teslimTarihi} onChange={(e) => setTaslak((s) => ({ ...s, teslimTarihi: e.target.value }))} /></div>
-              {taslak.kategori !== "Grafik Tasarım" && <div><label style={labelStyle}>Kameraman</label><input style={inputStyle} value={taslak.kameraman} onChange={(e) => setTaslak((s) => ({ ...s, kameraman: e.target.value }))} /></div>}
-              <div><label style={labelStyle}>{taslak.kategori !== "Grafik Tasarım" ? "Editör" : "Tasarımcı"}</label><input style={inputStyle} value={taslak.editor} onChange={(e) => setTaslak((s) => ({ ...s, editor: e.target.value }))} /></div>
+              {taslak.kategori !== "Grafik Tasarım" && <div><label style={labelStyle}>Kameraman</label><PersonelSecici value={taslak.kameraman} onChange={(val) => setTaslak((s) => ({ ...s, kameraman: val }))} personelRosteri={personelRosteri} /></div>}
+              <div><label style={labelStyle}>{taslak.kategori !== "Grafik Tasarım" ? "Editör" : "Tasarımcı"}</label><PersonelSecici value={taslak.editor} onChange={(val) => setTaslak((s) => ({ ...s, editor: val }))} personelRosteri={personelRosteri} /></div>
               <div>
                 <label style={labelStyle}>Öncelik</label>
                 <select style={inputStyle} value={taslak.oncelik} onChange={(e) => setTaslak((s) => ({ ...s, oncelik: e.target.value }))}>
@@ -296,7 +331,8 @@ function IsDetayModal({ job, role, staffName, onClose, onUpdate, onDelete }) {
             {yetkili && (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
                 {job.asama === YAPILIYOR_ASAMASI[kategori] && <button style={btnPrimary} onClick={editiTamamla}><CheckCircle2 size={14} /> {TAMAMLADIM_ETIKETI[kategori]}</button>}
-                {job.asama !== YAPILIYOR_ASAMASI[kategori] && ileriAsama && !["Onaylandı", "Teslim Edildi"].includes(ileriAsama) && (
+                {job.asama === "Revize İstendi" && <button style={btnPrimary} onClick={revizeyiTamamla}><CheckCircle2 size={14} /> Revizeyi Tamamladım</button>}
+                {job.asama !== YAPILIYOR_ASAMASI[kategori] && job.asama !== "Revize İstendi" && ileriAsama && !["Onaylandı", "Teslim Edildi"].includes(ileriAsama) && (
                   <button style={btnGhost} onClick={() => asamaGecir(ileriAsama)}><ChevronRight size={14} /> Sonraki Aşamaya Geçir: {ileriAsama}</button>
                 )}
                 {job.asama === "Kontrol Bekliyor" && !revizeAciliyor && <button style={{ ...btnGhost, color: C.danger, borderColor: C.danger }} onClick={() => setRevizeAciliyor(true)}>Revize İste</button>}
@@ -356,8 +392,8 @@ function IsDetayModal({ job, role, staffName, onClose, onUpdate, onDelete }) {
 /* ------------------------------------------------------------------ */
 function PersonelPaneli({ jobs, staffName, onOpen }) {
   const benim = jobs.filter((j) => {
-    const n = staffName.trim().toLowerCase();
-    return (j.kameraman || "").trim().toLowerCase() === n || (j.editor || "").trim().toLowerCase() === n;
+    const n = staffName.trim().toLocaleLowerCase("tr");
+    return (j.kameraman || "").trim().toLocaleLowerCase("tr") === n || (j.editor || "").trim().toLocaleLowerCase("tr") === n;
   });
   const bugun = bugunISO();
   const bugunYapilacaklar = benim.filter((j) => j.cekimTarihi === bugun && j.asama !== "Teslim Edildi");
@@ -454,7 +490,7 @@ function YoneticiIstatistik({ jobs }) {
 /* ------------------------------------------------------------------ */
 /* ANA BİLEŞEN                                                           */
 /* ------------------------------------------------------------------ */
-export default function CekimEditTakibi({ role, clients, jobs, onAddJob, onUpdateJob, onDeleteJob, girisYapanAd }) {
+export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, onRefreshRoster, onAddJob, onUpdateJob, onDeleteJob, girisYapanAd }) {
   const [staffName, setStaffNameState] = useState(girisYapanAd || getStaffName());
   const [view, setView] = useState(role === "staff" ? "panom" : "pano");
   const [panoKategori, setPanoKategori] = useState("Video");
@@ -494,7 +530,7 @@ export default function CekimEditTakibi({ role, clients, jobs, onAddJob, onUpdat
             <button onClick={() => setView("istatistik")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "none", background: view === "istatistik" ? C.accentSoft : "transparent", color: view === "istatistik" ? C.accentText : C.textDim, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><BarChart3 size={14} /> İstatistikler</button>
           )}
         </div>
-        <button style={btnPrimary} onClick={() => setAdding((v) => !v)}><Plus size={14} /> Yeni İş</button>
+        <button style={btnPrimary} onClick={() => { setAdding((v) => !v); if (onRefreshRoster) onRefreshRoster(); }}><Plus size={14} /> Yeni İş</button>
       </div>
 
       {view === "pano" && (
@@ -505,7 +541,7 @@ export default function CekimEditTakibi({ role, clients, jobs, onAddJob, onUpdat
         </div>
       )}
 
-      {adding && <YeniIsFormu clients={clients} varsayilanKategori={view === "pano" ? panoKategori : "Video"} onCancel={() => setAdding(false)} onSubmit={(v) => { onAddJob(v); setAdding(false); }} />}
+      {adding && <YeniIsFormu clients={clients} personelRosteri={personelRosteri} varsayilanKategori={view === "pano" ? panoKategori : "Video"} onCancel={() => setAdding(false)} onSubmit={(v) => { onAddJob(v); setAdding(false); }} />}
 
       {view === "panom" && role === "staff" && <PersonelPaneli jobs={isler} staffName={staffName} onOpen={setAcikIs} />}
 
@@ -535,6 +571,7 @@ export default function CekimEditTakibi({ role, clients, jobs, onAddJob, onUpdat
           job={isler.find((j) => j.id === acikIs.id) || acikIs}
           role={role}
           staffName={staffName}
+          personelRosteri={personelRosteri}
           onClose={() => setAcikIs(null)}
           onUpdate={onUpdateJob}
           onDelete={(id) => { onDeleteJob(id); setAcikIs(null); }}
