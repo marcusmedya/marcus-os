@@ -2372,8 +2372,11 @@ function GunlukKontrol({ clients, stoklar, gecmis, kontrol, onToggle }) {
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 22 }}>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 12 }}>
         <KpiCard label="BUGÜN TAMAMLANAN MARKA" value={`${tamamlananMarkaSayisi} / ${paylasilacakBirSeyOlanlar}`} mono={false} accent={paylasilacakBirSeyOlanlar > 0 && tamamlananMarkaSayisi === paylasilacakBirSeyOlanlar ? T.success : T.warning} />
+      </div>
+      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 10 }}>
+        Bu sayfa sadece bir gösterge — işaretlemek için <strong>Paylaşımlar &gt; Haftalık Paylaşım Planı</strong>'nı kullan.
       </div>
 
       {paylasilacakBirSeyOlanlar > 0 && tamamlananMarkaSayisi === paylasilacakBirSeyOlanlar && (
@@ -2404,17 +2407,17 @@ function GunlukKontrol({ clients, stoklar, gecmis, kontrol, onToggle }) {
               ) : (
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {turler.map((t) => (
-                    <button
+                    <span
                       key={t.tur}
-                      onClick={() => onToggle(c.id, t.tur)}
+                      title="İşaretlemek için Paylaşımlar > Haftalık Paylaşım Planı'nı kullan"
                       style={{
-                        display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, border: "none", cursor: "pointer",
+                        display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, border: "none",
                         background: t.yapildi ? T.successSoft : T.surfaceRaised, color: t.yapildi ? T.success : T.text, fontSize: 12, fontFamily: "Inter", fontWeight: 600,
                       }}
                     >
                       {t.yapildi ? <Check size={13} strokeWidth={3} /> : null}
                       {t.tur} ({t.adet})
-                    </button>
+                    </span>
                   ))}
                 </div>
               )}
