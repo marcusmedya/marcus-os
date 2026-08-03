@@ -109,8 +109,20 @@ export default async function handler(req, res) {
       data.haftalikPaylasimlar = liste.map((p) => (p.id === planId ? { ...p, yapildi: yeniYapildi, yapildigiTarih: yeniYapildi ? bugunTR() : null } : p));
       stokDegistirDahili(data, plan.clientId, plan.tur, yeniYapildi ? -1 : 1);
       gecmiseEkle(data, plan.clientId, markaAdi(plan.clientId), plan.tur, yeniYapildi ? "paylasim" : "cekim");
+      // Haftalık Plan'dan bir paylaşım "yapıldı" işaretlenince, Günlük Kontrol paneli de
+      // bunu bugün için otomatik "yapıldı" saysın — aksi halde iki panel birbirinden habersiz
+      // ilerleyip çelişen bir görünüm veriyordu (stokDegistir eyleminde zaten yapmıştık,
+      // haftalikToggle burada ayrı bir yol izlediği için o zaman atlanmıştı).
+      if (yeniYapildi) {
+        const bugun = bugunISO();
+        const kontrol = data.gunlukKontrol && data.gunlukKontrol.tarih === bugun ? data.gunlukKontrol : { tarih: bugun, yapilanlar: [] };
+        const itemKey = `${plan.clientId}_${plan.tur}`;
+        if (!kontrol.yapilanlar.includes(itemKey)) {
+          data.gunlukKontrol = { tarih: bugun, yapilanlar: [...kontrol.yapilanlar, itemKey] };
+        }
+      }
       await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, haftalikPaylasimlar: data.haftalikPaylasimlar, stoklar: data.stoklar, paylasimGecmisi: data.paylasimGecmisi });
+      return res.status(200).json({ ok: true, haftalikPaylasimlar: data.haftalikPaylasimlar, stoklar: data.stoklar, paylasimGecmisi: data.paylasimGecmisi, gunlukKontrol: data.gunlukKontrol });
     }
 
     if (action === "gunlukToggle") {
