@@ -2356,7 +2356,7 @@ function GunlukKontrol({ clients, stoklar, gecmis, kontrol, onToggle }) {
       .map((t) => ({ tur: t, adet: stoklarObj[stokAnahtari(c.id, t)] || 0, yapildi: yapilanlar.includes(`${c.id}_${t}`) }))
       .filter((x) => x.adet > 0 || x.yapildi);
     const tamamlanan = turler.filter((t) => t.yapildi).length;
-    const tamamlandiMi = turler.length > 0 && tamamlanan === turler.length;
+    const tamamlandiMi = tamamlanan > 0;
     return { client: c, turler, tamamlanan, tamamlandiMi, sonTarih: sonPaylasimTarihi(c.id) };
   });
 
