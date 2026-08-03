@@ -367,17 +367,19 @@ function AySeciciAlan({ value, onChange }) {
 
 /** Bir kayıt (müşteri, personel, reklam, iş vb.) düzenleme ekranı açıkken, başka biri de aynı
  * kaydı açtıysa erken uyarı verir. Kilit sunucuda kısa ömürlü (TTL'li) tutulur, ekran açık
- * olduğu sürece periyodik "tazelenir"; ekran kapanınca kilit bırakılır. */
+ * olduğu sürece periyodik "tazelenir"; ekran kapanınca kilit bırakılır. Vercel'in Hobby
+ * planındaki 12 fonksiyon sınırına takılmamak için ayrı bir uç nokta yerine /api/data
+ * üzerinden (kilitAction alanıyla) çalışır. */
 function useDuzenlemeKilidi(tur, id, aktifMi, benKimim) {
   const [kilitleyen, setKilitleyen] = useState(null);
   useEffect(() => {
     if (!aktifMi || !id || !benKimim) { setKilitleyen(null); return; }
     let iptal = false;
     const kilitAl = () => {
-      fetch("/api/kilit", {
+      fetch("/api/data", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ action: "al", tur, id, kisi: benKimim }),
+        body: JSON.stringify({ kilitAction: "al", tur, id, kisi: benKimim }),
       })
         .then((r) => r.json())
         .then((res) => { if (!iptal) setKilitleyen(res.kilitli ? res.kilitleyen : null); })
@@ -388,10 +390,10 @@ function useDuzenlemeKilidi(tur, id, aktifMi, benKimim) {
     return () => {
       iptal = true;
       clearInterval(interval);
-      fetch("/api/kilit", {
+      fetch("/api/data", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ action: "birak", tur, id, kisi: benKimim }),
+        body: JSON.stringify({ kilitAction: "birak", tur, id, kisi: benKimim }),
       }).catch(() => {});
     };
     // eslint-disable-next-line

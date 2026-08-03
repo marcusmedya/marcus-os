@@ -155,7 +155,32 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "POST") {
-      const { data, force } = req.body || {};
+      const { data, force, kilitAction } = req.body || {};
+
+      // Düzenleme kilidi (eşzamanlı düzenleme uyarısı) — ayrı bir uç noktaydı, Vercel'in
+      // Hobby planındaki 12 fonksiyon sınırına takılmamak için buraya taşındı. Owner ya da
+      // HERHANGİ bir geçerli personel girişi kullanabilir (özel bir izin gerektirmez —
+      // amaç sadece "bu kaydı başka biri de açtı" diye erken uyarı vermek).
+      if (kilitAction) {
+        const { tur, id, kisi } = req.body || {};
+        if (!tur || !id) return res.status(400).json({ error: "tur ve id gerekli." });
+        const kilitKey = `marcus-os-kilit:${tur}:${id}`;
+        if (kilitAction === "al") {
+          const mevcut = await kv.get(kilitKey);
+          if (mevcut && mevcut.kisi && mevcut.kisi !== kisi) {
+            return res.status(200).json({ kilitli: true, kilitleyen: mevcut.kisi });
+          }
+          await kv.set(kilitKey, { kisi, zaman: Date.now() }, { ex: 90 });
+          return res.status(200).json({ kilitli: false });
+        }
+        if (kilitAction === "birak") {
+          const mevcut = await kv.get(kilitKey);
+          if (mevcut && mevcut.kisi === kisi) await kv.del(kilitKey);
+          return res.status(200).json({ ok: true });
+        }
+        return res.status(400).json({ error: "Geçersiz kilit işlemi." });
+      }
+
       if (!data) return res.status(400).json({ error: "data eksik" });
 
       // PERSONEL: sadece izin verilen alanları değiştirebilir, geri kalan veri sunucuda

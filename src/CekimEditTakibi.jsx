@@ -65,10 +65,10 @@ function useDuzenlemeKilidi(tur, id, aktifMi, benKimim) {
     if (!aktifMi || !id || !benKimim) { setKilitleyen(null); return; }
     let iptal = false;
     const kilitAl = () => {
-      fetch("/api/kilit", {
+      fetch("/api/data", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeadersLokal() },
-        body: JSON.stringify({ action: "al", tur, id, kisi: benKimim }),
+        body: JSON.stringify({ kilitAction: "al", tur, id, kisi: benKimim }),
       })
         .then((r) => r.json())
         .then((res) => { if (!iptal) setKilitleyen(res.kilitli ? res.kilitleyen : null); })
@@ -79,10 +79,10 @@ function useDuzenlemeKilidi(tur, id, aktifMi, benKimim) {
     return () => {
       iptal = true;
       clearInterval(interval);
-      fetch("/api/kilit", {
+      fetch("/api/data", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeadersLokal() },
-        body: JSON.stringify({ action: "birak", tur, id, kisi: benKimim }),
+        body: JSON.stringify({ kilitAction: "birak", tur, id, kisi: benKimim }),
       }).catch(() => {});
     };
     // eslint-disable-next-line
