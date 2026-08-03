@@ -157,9 +157,27 @@ export default async function handler(req, res) {
 
         if (musteriAction === "onayla") {
           data.musteriIcerikleri = data.musteriIcerikleri.map((i) => (i.id === icerikId ? { ...i, durum: "onaylandi", revizeNotu: null, yanitTarihi: new Date().toLocaleDateString("tr-TR") } : i));
+          // Bağlı bir Operasyon işi varsa (Kontrol Bekliyor'dan otomatik düşmüşse), müşteri
+          // onaylayınca o iş de "Teslim Edildi" olarak işaretlenir — döngü kapanır.
+          if (icerik.kaynakIsId && data.cekimIsleri) {
+            data.cekimIsleri = data.cekimIsleri.map((j) => {
+              if (j.id !== icerik.kaynakIsId) return j;
+              const not = { id: (j.gecmis || []).length + 1, tarih: new Date().toLocaleString("tr-TR"), yazan: "Müşteri", aciklama: "Müşteri içeriği onayladı." };
+              return { ...j, asama: "Teslim Edildi", gecmis: [...(j.gecmis || []), not] };
+            });
+          }
         } else if (musteriAction === "revizeIste") {
           if (!revizeNotu || !revizeNotu.trim()) return res.status(400).json({ error: "Revize notu boş olamaz." });
           data.musteriIcerikleri = data.musteriIcerikleri.map((i) => (i.id === icerikId ? { ...i, durum: "revize", revizeNotu: revizeNotu.trim(), yanitTarihi: new Date().toLocaleDateString("tr-TR") } : i));
+          // Bağlı bir Operasyon işi varsa, otomatik olarak "Revize İstendi" aşamasına döner ve
+          // müşterinin notu işin geçmişine düşer — ekip ekstra bir yere bakmadan görsün.
+          if (icerik.kaynakIsId && data.cekimIsleri) {
+            data.cekimIsleri = data.cekimIsleri.map((j) => {
+              if (j.id !== icerik.kaynakIsId) return j;
+              const not = { id: (j.gecmis || []).length + 1, tarih: new Date().toLocaleString("tr-TR"), yazan: "Müşteri", aciklama: `Müşteri revize istedi: "${revizeNotu.trim()}"` };
+              return { ...j, asama: "Revize İstendi", gecmis: [...(j.gecmis || []), not] };
+            });
+          }
         } else {
           return res.status(400).json({ error: "Geçersiz işlem." });
         }
