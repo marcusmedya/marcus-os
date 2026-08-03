@@ -95,9 +95,19 @@ export default async function handler(req, res) {
 
     if (action === "haftalikSil") {
       const { planId } = body;
+      const silinen = (data.haftalikPaylasimlar || []).find((p) => p.id === planId);
       data.haftalikPaylasimlar = (data.haftalikPaylasimlar || []).filter((p) => p.id !== planId);
+      // Silinen plan "yapıldı" işaretliyse, Günlük Kontrol'den de kaldırılır — aksi halde
+      // silinmiş bir planın izi orada asılı kalır.
+      if (silinen && silinen.yapildi) {
+        const bugun = bugunISO();
+        const itemKey = `${silinen.clientId}_${silinen.tur}`;
+        if (data.gunlukKontrol && data.gunlukKontrol.tarih === bugun && data.gunlukKontrol.yapilanlar.includes(itemKey)) {
+          data.gunlukKontrol = { tarih: bugun, yapilanlar: data.gunlukKontrol.yapilanlar.filter((k) => k !== itemKey) };
+        }
+      }
       await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, haftalikPaylasimlar: data.haftalikPaylasimlar });
+      return res.status(200).json({ ok: true, haftalikPaylasimlar: data.haftalikPaylasimlar, gunlukKontrol: data.gunlukKontrol });
     }
 
     if (action === "haftalikToggle") {
@@ -112,13 +122,18 @@ export default async function handler(req, res) {
       // Haftalık Plan'dan bir paylaşım "yapıldı" işaretlenince, Günlük Kontrol paneli de
       // bunu bugün için otomatik "yapıldı" saysın — aksi halde iki panel birbirinden habersiz
       // ilerleyip çelişen bir görünüm veriyordu (stokDegistir eyleminde zaten yapmıştık,
-      // haftalikToggle burada ayrı bir yol izlediği için o zaman atlanmıştı).
+      // haftalikToggle burada ayrı bir yol izlediği için o zaman atlanmıştı). Aynı şekilde,
+      // tik GERİ alınırsa (yeniden "yapılmadı" durumuna dönerse), Günlük Kontrol'den de kaldırılır.
+      const bugun = bugunISO();
+      const itemKey = `${plan.clientId}_${plan.tur}`;
+      const kontrol = data.gunlukKontrol && data.gunlukKontrol.tarih === bugun ? data.gunlukKontrol : { tarih: bugun, yapilanlar: [] };
       if (yeniYapildi) {
-        const bugun = bugunISO();
-        const kontrol = data.gunlukKontrol && data.gunlukKontrol.tarih === bugun ? data.gunlukKontrol : { tarih: bugun, yapilanlar: [] };
-        const itemKey = `${plan.clientId}_${plan.tur}`;
         if (!kontrol.yapilanlar.includes(itemKey)) {
           data.gunlukKontrol = { tarih: bugun, yapilanlar: [...kontrol.yapilanlar, itemKey] };
+        }
+      } else {
+        if (kontrol.yapilanlar.includes(itemKey)) {
+          data.gunlukKontrol = { tarih: bugun, yapilanlar: kontrol.yapilanlar.filter((k) => k !== itemKey) };
         }
       }
       await kaydetVeYedekle(data);
