@@ -896,7 +896,7 @@ function MusteriIcerikYonetimi({ clientId, icerikler, onAdd, onDelete }) {
   const [gorselUrl, setGorselUrl] = useState(null);
   const [gorselHata, setGorselHata] = useState("");
 
-  const kendiListesi = (icerikler || []).filter((i) => i.clientId === clientId).sort((a, b) => (a.durum === "bekliyor" ? -1 : 1));
+  const kendiListesi = (icerikler || []).filter((i) => String(i.clientId) === String(clientId)).sort((a, b) => (a.durum === "bekliyor" ? -1 : 1));
 
   const ekle = () => {
     if (tur === "gorsel" && !gorselUrl) { setGorselHata("Bir görsel seç."); return; }
@@ -3762,7 +3762,7 @@ function MusteriHesaplariKart({ clients }) {
       .catch(() => {});
   };
 
-  const markaAdi = (clientId) => (aktifMarkalar.find((c) => c.id === clientId) || {}).ad || "(marka silinmiş)";
+  const markaAdi = (clientId) => (aktifMarkalar.find((c) => String(c.id) === String(clientId)) || {}).ad || "(marka silinmiş)";
 
   return (
     <Card style={{ padding: "18px 22px", marginBottom: 16 }}>

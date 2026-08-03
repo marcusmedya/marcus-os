@@ -137,8 +137,8 @@ export default async function handler(req, res) {
   if (role === "musteri") {
     try {
       const data = (await kv.get(KEY)) || {};
-      const kendiIcerikleri = (data.musteriIcerikleri || []).filter((i) => i.clientId === musteriClientId);
-      const kendiMarka = (data.clients || []).find((c) => c.id === musteriClientId);
+      const kendiIcerikleri = (data.musteriIcerikleri || []).filter((i) => String(i.clientId) === String(musteriClientId));
+      const kendiMarka = (data.clients || []).find((c) => String(c.id) === String(musteriClientId));
 
       if (req.method === "GET") {
         return res.status(200).json({
@@ -152,7 +152,7 @@ export default async function handler(req, res) {
 
       if (req.method === "POST") {
         const { musteriAction, icerikId, revizeNotu } = req.body || {};
-        const icerik = (data.musteriIcerikleri || []).find((i) => i.id === icerikId && i.clientId === musteriClientId);
+        const icerik = (data.musteriIcerikleri || []).find((i) => i.id === icerikId && String(i.clientId) === String(musteriClientId));
         if (!icerik) return res.status(404).json({ error: "İçerik bulunamadı." });
 
         if (musteriAction === "onayla") {
