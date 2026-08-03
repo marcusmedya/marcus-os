@@ -1896,6 +1896,7 @@ function Reklamlar({ reklamlar, clients, onAdd, onUpdate, onDelete, duzenleyenAd
 /* PAYLAŞIMLAR                                                           */
 /* ------------------------------------------------------------------ */
 const PAYLASIM_TURLERI = ["Görsel", "Video", "Reels", "Story", "Carousel"];
+const TUR_HARFI = { "Görsel": "G", "Video": "V", "Reels": "R", "Story": "S", "Carousel": "C" };
 const stokAnahtari = (clientId, tur) => `${clientId}_${tur}`;
 
 function MarkaStokKarti({ client, stoklar, gecmis, subeler, onStokDegis, onAddSube, onDeleteSube, onSubeStokDegis }) {
@@ -2089,7 +2090,7 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, onAddPlan, onToggleYapi
                               cursor: "pointer", fontSize: 13, fontWeight: 700,
                             }}
                           >
-                            {p.yapildi ? "✓" : p.tur.slice(0, 2)}
+                            {TUR_HARFI[p.tur] || p.tur.slice(0, 1)}
                           </button>
                         )}
                       </td>
@@ -2103,7 +2104,7 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, onAddPlan, onToggleYapi
       )}
 
       <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 10 }}>
-        <span style={{ color: T.warning }}>■</span> planlandı (henüz paylaşılmadı) · <span style={{ color: T.success }}>✓</span> paylaşıldı. Bir güne tıklayıp tür seçerek plan ekle; planlı güne tıklayınca "paylaşıldı" işaretlenir, çift tıklayınca silinir.
+        <span style={{ color: T.warning }}>■</span> planlandı (henüz paylaşılmadı) · <span style={{ color: T.success }}>■</span> paylaşıldı (G=Görsel, V=Video, R=Reels, S=Story, C=Carousel). Bir güne tıklayıp tür seçerek plan ekle; planlı güne tıklayınca "paylaşıldı" işaretlenir (o markanın kartından o birim düşer), çift tıklayınca silinir.
       </div>
 
       {secim && (

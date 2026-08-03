@@ -5,6 +5,13 @@ const nid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 
 const stokAnahtari = (clientId, tur) => `${clientId}_${tur}`;
 const bugunTR = () => new Date().toLocaleDateString("tr-TR");
 const bugunISO = () => new Date().toISOString().slice(0, 10);
+/** Haftalık Plan'daki bir hücrenin (haftaKey + gun) gerçek takvim tarihini (YYYY-MM-DD) hesaplar —
+ * Günlük Kontrol'ün SADECE o hücrenin gerçekten "bugün" olduğu durumda etkilenmesi için. */
+const planTarihiISO = (haftaKey, gun) => {
+  const d = new Date(haftaKey);
+  d.setDate(d.getDate() + Number(gun));
+  return d.toISOString().slice(0, 10);
+};
 
 /** Owner her zaman yetkili. Personel ise "paylasimlar" iznine sahipse yetkilidir. */
 async function yetkiliMi(req) {
@@ -97,12 +104,16 @@ export default async function handler(req, res) {
       const { planId } = body;
       const silinen = (data.haftalikPaylasimlar || []).find((p) => p.id === planId);
       data.haftalikPaylasimlar = (data.haftalikPaylasimlar || []).filter((p) => p.id !== planId);
-      // Silinen plan "yapıldı" işaretliyse, Günlük Kontrol'den de kaldırılır — aksi halde
-      // silinmiş bir planın izi orada asılı kalır.
-      if (silinen && silinen.yapildi) {
+      // Silinen plan "yapıldı" işaretliyse VE gerçekten BUGÜNE aitse, Günlük Kontrol'den de
+      // kaldırılır. Başka bir güne (geçmiş/gelecek) ait bir planın silinmesi, bugünün
+      // Günlük Kontrol durumunu hiç etkilemez — çünkü zaten hiç etkilememişti.
+      if (silinen && silinen.yapildi && planTarihiISO(silinen.haftaKey, silinen.gun) === bugunISO()) {
         const bugun = bugunISO();
         const itemKey = `${silinen.clientId}_${silinen.tur}`;
-        if (data.gunlukKontrol && data.gunlukKontrol.tarih === bugun && data.gunlukKontrol.yapilanlar.includes(itemKey)) {
+        const baskaIsaretliPlanVarMi = data.haftalikPaylasimlar.some(
+          (p) => p.clientId === silinen.clientId && p.tur === silinen.tur && p.yapildi === true && planTarihiISO(p.haftaKey, p.gun) === bugun
+        );
+        if (!baskaIsaretliPlanVarMi && data.gunlukKontrol && data.gunlukKontrol.tarih === bugun && data.gunlukKontrol.yapilanlar.includes(itemKey)) {
           data.gunlukKontrol = { tarih: bugun, yapilanlar: data.gunlukKontrol.yapilanlar.filter((k) => k !== itemKey) };
         }
       }
@@ -120,20 +131,27 @@ export default async function handler(req, res) {
       stokDegistirDahili(data, plan.clientId, plan.tur, yeniYapildi ? -1 : 1);
       gecmiseEkle(data, plan.clientId, markaAdi(plan.clientId), plan.tur, yeniYapildi ? "paylasim" : "cekim");
       // Haftalık Plan'dan bir paylaşım "yapıldı" işaretlenince, Günlük Kontrol paneli de
-      // bunu bugün için otomatik "yapıldı" saysın — aksi halde iki panel birbirinden habersiz
-      // ilerleyip çelişen bir görünüm veriyordu (stokDegistir eyleminde zaten yapmıştık,
-      // haftalikToggle burada ayrı bir yol izlediği için o zaman atlanmıştı). Aynı şekilde,
-      // tik GERİ alınırsa (yeniden "yapılmadı" durumuna dönerse), Günlük Kontrol'den de kaldırılır.
+      // bunu otomatik yansıtsın — AMA SADECE işaretlenen hücre gerçekten BUGÜNE aitse.
+      // Günlük Kontrol zaten sadece "bugünü" gösteriyor; geçmiş/gelecek bir güne planlanmış
+      // bir hücrenin işaretlenmesi/geri alınması bugünün durumunu hiç etkilememeli.
       const bugun = bugunISO();
-      const itemKey = `${plan.clientId}_${plan.tur}`;
-      const kontrol = data.gunlukKontrol && data.gunlukKontrol.tarih === bugun ? data.gunlukKontrol : { tarih: bugun, yapilanlar: [] };
-      if (yeniYapildi) {
-        if (!kontrol.yapilanlar.includes(itemKey)) {
-          data.gunlukKontrol = { tarih: bugun, yapilanlar: [...kontrol.yapilanlar, itemKey] };
-        }
-      } else {
-        if (kontrol.yapilanlar.includes(itemKey)) {
-          data.gunlukKontrol = { tarih: bugun, yapilanlar: kontrol.yapilanlar.filter((k) => k !== itemKey) };
+      const planinGercekTarihi = planTarihiISO(plan.haftaKey, plan.gun);
+      if (planinGercekTarihi === bugun) {
+        const itemKey = `${plan.clientId}_${plan.tur}`;
+        const kontrol = data.gunlukKontrol && data.gunlukKontrol.tarih === bugun ? data.gunlukKontrol : { tarih: bugun, yapilanlar: [] };
+        if (yeniYapildi) {
+          if (!kontrol.yapilanlar.includes(itemKey)) {
+            data.gunlukKontrol = { tarih: bugun, yapilanlar: [...kontrol.yapilanlar, itemKey] };
+          }
+        } else {
+          // Aynı marka+tür için, yine BUGÜNE ait BAŞKA işaretli bir plan daha varsa
+          // (aynı gün içinde iki ayrı satır gibi bir durum olursa), kaldırma.
+          const baskaIsaretliPlanVarMi = data.haftalikPaylasimlar.some(
+            (p) => p.id !== planId && p.clientId === plan.clientId && p.tur === plan.tur && p.yapildi === true && planTarihiISO(p.haftaKey, p.gun) === bugun
+          );
+          if (!baskaIsaretliPlanVarMi && kontrol.yapilanlar.includes(itemKey)) {
+            data.gunlukKontrol = { tarih: bugun, yapilanlar: kontrol.yapilanlar.filter((k) => k !== itemKey) };
+          }
         }
       }
       await kaydetVeYedekle(data);
