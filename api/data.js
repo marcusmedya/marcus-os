@@ -74,7 +74,7 @@ const DEFAULT_FIELD_VALUES = {
 };
 const DEFAULT_PERMS = {
   dashboard: false, musteriler: false, finans: false, takvim: false, odemeTakvimi: false,
-  teklif: false, reklamlar: true, paylasimlar: true, cekimListesi: false, cekimEdit: true, personel: false, birikim: false, sifreKasasi: false,
+  teklif: false, reklamlar: true, paylasimlar: true, cekimListesi: false, cekimEdit: true, markaYoneticisi: false, personel: false, birikim: false, sifreKasasi: false,
 };
 
 function hashSifre(sifre, salt) {

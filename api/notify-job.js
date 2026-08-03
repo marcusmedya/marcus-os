@@ -1,8 +1,8 @@
-async function yetkiliMi(req) {
+async function yetkiKontrol(req) {
   const ownerPw = process.env.SITE_PASSWORD;
   const provided = req.headers["x-site-password"];
-  if (!ownerPw) return true;
-  if (provided === ownerPw) return true;
+  if (!ownerPw) return { yetkili: true, owner: true, markaYoneticisi: true };
+  if (provided === ownerPw) return { yetkili: true, owner: true, markaYoneticisi: true };
 
   const username = req.headers["x-staff-username"];
   const password = req.headers["x-staff-password"];
@@ -15,26 +15,45 @@ async function yetkiliMi(req) {
       const hash = crypto.scryptSync(password, hesap.sifreSalt, 64).toString("hex");
       if (hash === hesap.sifreHash) {
         const perms = hesap.izinler || (data && data.staffPermissions) || {};
-        return perms.cekimEdit === true;
+        if (perms.cekimEdit === true) return { yetkili: true, owner: false, markaYoneticisi: perms.markaYoneticisi === true };
       }
     }
   }
-  return false;
+  return { yetkili: false, owner: false, markaYoneticisi: false };
 }
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Sadece POST kabul edilir." });
-  if (!(await yetkiliMi(req))) return res.status(401).json({ error: "Yetkisiz." });
+  const yetki = await yetkiKontrol(req);
+  if (!yetki.yetkili) return res.status(401).json({ error: "Yetkisiz." });
 
   try {
-    const { email, ad, marka, icerikTuru, teslimTarihi, firmaAdi } = req.body || {};
+    const { email, ad, marka, icerikTuru, teslimTarihi, firmaAdi, mod, asama, kategori } = req.body || {};
     const resendKey = process.env.RESEND_API_KEY;
     if (!email) return res.status(200).json({ skipped: true, reason: "Bu kişinin kayıtlı bir e-posta adresi yok." });
     if (!resendKey) return res.status(200).json({ skipped: true, reason: "RESEND_API_KEY tanımlı değil." });
 
-    const html = `
+    // "durum" modu (bir iş kartından elle gönderilen durum bildirimi) sadece owner ya da
+    // "Marka Yöneticisi" iznine sahip personel tarafından tetiklenebilir.
+    if (mod === "durum" && !yetki.owner && !yetki.markaYoneticisi) {
+      return res.status(403).json({ error: "Bu bildirimi göndermek için Marka Yöneticisi yetkisi gerekiyor." });
+    }
+
+    const durumBildirimi = mod === "durum";
+    const baslik = durumBildirimi ? "İş Durumu Bildirimi" : "Yeni İş Ataması";
+    const html = durumBildirimi ? `
       <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-        <h2 style="color:#1a1a1a;">Yeni İş Ataması</h2>
+        <h2 style="color:#1a1a1a;">${baslik}</h2>
+        <p style="color:#333; line-height:1.6;">Merhaba ${ad || ""},</p>
+        <p style="color:#333; line-height:1.6;"><strong>${marka || ""}</strong> — <strong>${icerikTuru || ""}</strong>${kategori ? ` (${kategori})` : ""} işinin şu anki durumu:</p>
+        <p style="color:#333; font-size:16px; font-weight:600; background:#f5f5f7; padding:10px 14px; border-radius:8px;">${asama || ""}</p>
+        ${asama === "Talep Alındı" ? `<p style="color:#b45309; line-height:1.6; background:#fff8e1; padding:10px 14px; border-radius:8px;">Lütfen işi görüp gördüğünü/başladığını onaylamak için sistemde <strong>"Talep Alındı"</strong>ya tıkla.</p>` : ""}
+        ${teslimTarihi ? `<p style="color:#333;">Teslim tarihi: <strong>${teslimTarihi}</strong></p>` : ""}
+        <p style="font-size:12px;color:#999;margin-top:24px;">${firmaAdi || "Marcus OS"} — Operasyon panelinden gönderildi.</p>
+      </div>
+    ` : `
+      <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+        <h2 style="color:#1a1a1a;">${baslik}</h2>
         <p style="color:#333; line-height:1.6;">Merhaba ${ad || ""},</p>
         <p style="color:#333; line-height:1.6;"><strong>${marka || ""}</strong> için <strong>${icerikTuru || "bir iş"}</strong> sana atandı.</p>
         ${teslimTarihi ? `<p style="color:#333;">Teslim tarihi: <strong>${teslimTarihi}</strong></p>` : ""}
@@ -48,7 +67,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         from: "Marcus OS <bildirim@marcusmedya.com>",
         to: [email],
-        subject: `Yeni İş: ${marka || ""} — ${icerikTuru || ""}`,
+        subject: durumBildirimi ? `İş Durumu: ${marka || ""} — ${asama || ""}` : `Yeni İş: ${marka || ""} — ${icerikTuru || ""}`,
         html,
       }),
     });

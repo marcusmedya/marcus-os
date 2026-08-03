@@ -45,6 +45,61 @@ const gunFarki = (tarihISO) => {
   return Math.round((t - bugun) / 86400000);
 };
 
+// App.jsx'teki ile aynı localStorage anahtarları — bu dosya App.jsx'ten bağımsız çalıştığı
+// için kimlik bilgilerini kendi başına aynı yerden okuyor.
+const authHeadersLokal = () => {
+  try {
+    const pw = localStorage.getItem("marcus-os-pw");
+    if (pw) return { "X-Site-Password": pw };
+    const kullaniciAdi = localStorage.getItem("marcus-os-staff-user");
+    const sifre = localStorage.getItem("marcus-os-staff-pw");
+    if (kullaniciAdi && sifre) return { "X-Staff-Username": kullaniciAdi, "X-Staff-Password": sifre };
+  } catch (e) { /* localStorage erişilemezse sessizce geç */ }
+  return {};
+};
+
+/** Bir kayıt (iş) düzenleme ekranı açıkken, başka biri de aynı kaydı açtıysa erken uyarı verir. */
+function useDuzenlemeKilidi(tur, id, aktifMi, benKimim) {
+  const [kilitleyen, setKilitleyen] = useState(null);
+  useEffect(() => {
+    if (!aktifMi || !id || !benKimim) { setKilitleyen(null); return; }
+    let iptal = false;
+    const kilitAl = () => {
+      fetch("/api/kilit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeadersLokal() },
+        body: JSON.stringify({ action: "al", tur, id, kisi: benKimim }),
+      })
+        .then((r) => r.json())
+        .then((res) => { if (!iptal) setKilitleyen(res.kilitli ? res.kilitleyen : null); })
+        .catch(() => {});
+    };
+    kilitAl();
+    const interval = setInterval(kilitAl, 45000);
+    return () => {
+      iptal = true;
+      clearInterval(interval);
+      fetch("/api/kilit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeadersLokal() },
+        body: JSON.stringify({ action: "birak", tur, id, kisi: benKimim }),
+      }).catch(() => {});
+    };
+    // eslint-disable-next-line
+  }, [tur, id, aktifMi]);
+  return kilitleyen;
+}
+
+function KilitUyarisi({ kisi }) {
+  if (!kisi) return null;
+  return (
+    <div style={{ background: "#3a2e12", color: "#e8b84b", padding: "10px 14px", borderRadius: 10, fontSize: 12.5, display: "flex", alignItems: "flex-start", gap: 8, lineHeight: 1.5, marginBottom: 12 }}>
+      <span>⚠️</span>
+      <span><strong>{kisi}</strong> şu anda bu işi düzenliyor olabilir. Aynı anda ikiniz kaydederseniz, son kaydeden diğerinizin değişikliğini fark ettirmeden silebilir.</span>
+    </div>
+  );
+}
+
 function aciliyetDurumu(job) {
   if (job.asama === "Teslim Edildi") return "tamam";
   const fark = gunFarki(job.teslimTarihi);
@@ -196,7 +251,7 @@ function YeniIsFormu({ clients, personelRosteri, varsayilanKategori, onSubmit, o
 /* ------------------------------------------------------------------ */
 /* İş Detay Modalı                                                       */
 /* ------------------------------------------------------------------ */
-function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate, onDelete }) {
+function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate, onDelete, kilitleyen, markaYoneticisiMi, firmaAdi }) {
   const [yorum, setYorum] = useState("");
   const [revizeMetni, setRevizeMetni] = useState("");
   const [revizeAciliyor, setRevizeAciliyor] = useState(false);
@@ -248,6 +303,42 @@ function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate
     setDuzenle(false);
   };
 
+  const [durumGonderiliyor, setDurumGonderiliyor] = useState(false);
+  const [durumSonuc, setDurumSonuc] = useState("");
+
+  const durumBildirimiGonder = () => {
+    const trKucult = (s) => (s || "").trim().toLocaleLowerCase("tr");
+    const atananlar = [job.kameraman, job.editor].filter(Boolean);
+    const roster = personelRosteri || [];
+    const kisiler = atananlar
+      .map((ad) => roster.find((p) => trKucult(p.ad) === trKucult(ad)))
+      .filter((k) => k && k.email);
+    if (kisiler.length === 0) {
+      setDurumSonuc("Atanan kişi(ler) için kayıtlı e-posta bulunamadı.");
+      return;
+    }
+    setDurumGonderiliyor(true);
+    setDurumSonuc("");
+    Promise.all(
+      kisiler.map((kisi) =>
+        fetch("/api/notify-job", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeadersLokal() },
+          body: JSON.stringify({ email: kisi.email, ad: kisi.ad, marka: job.marka, icerikTuru: job.icerikTuru, kategori: job.kategori, asama: job.asama, teslimTarihi: job.teslimTarihi, firmaAdi, mod: "durum" }),
+        }).then((r) => r.json()).then((res) => ({ kisi: kisi.ad, ...res }))
+      )
+    )
+      .then((sonuclar) => {
+        const basarili = sonuclar.filter((s) => s.ok).map((s) => s.kisi);
+        const basarisiz = sonuclar.filter((s) => !s.ok);
+        let mesaj = basarili.length ? `Gönderildi: ${basarili.join(", ")}.` : "";
+        if (basarisiz.length) mesaj += ` Gönderilemedi: ${basarisiz.map((s) => `${s.kisi} (${s.error || s.reason || "bilinmeyen hata"})`).join(", ")}.`;
+        setDurumSonuc(mesaj.trim());
+      })
+      .catch(() => setDurumSonuc("Bağlantı hatası — gönderilemedi."))
+      .finally(() => setDurumGonderiliyor(false));
+  };
+
   const suankiIndex = asamalar.indexOf(job.asama);
   const ileriAsama = suankiIndex >= 0 && suankiIndex < asamalar.length - 1 ? asamalar[suankiIndex + 1] : null;
 
@@ -264,6 +355,20 @@ function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate
           </div>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer" }}><X size={18} color={C.textFaint} /></button>
         </div>
+
+        <KilitUyarisi kisi={kilitleyen} />
+
+        {markaYoneticisiMi && (
+          <div style={{ background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 14px", marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+              <span style={{ fontSize: 12, color: C.textDim }}>Atanan kişiye şu anki durumu ("{job.asama}") e-postayla bildir.</span>
+              <button onClick={durumBildirimiGonder} disabled={durumGonderiliyor} style={{ ...btnGhost, fontSize: 12, padding: "6px 12px" }}>
+                {durumGonderiliyor ? "Gönderiliyor…" : "📧 Durum Bildirimi Gönder"}
+              </button>
+            </div>
+            {durumSonuc && <div style={{ fontSize: 11.5, color: C.textFaint, marginTop: 6 }}>{durumSonuc}</div>}
+          </div>
+        )}
 
         {!yetkili && (
           <div style={{ fontSize: 12, color: C.textFaint, background: C.panelAlt, borderRadius: 9, padding: "8px 11px", marginBottom: 14 }}>
@@ -517,12 +622,14 @@ function YoneticiIstatistik({ jobs }) {
 /* ------------------------------------------------------------------ */
 /* ANA BİLEŞEN                                                           */
 /* ------------------------------------------------------------------ */
-export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, onRefreshRoster, onAddJob, onUpdateJob, onDeleteJob, girisYapanAd, markalasmaSurecleri, onToggleMarkalasmaGorev, onSetMarkalasmaYonetici, onAddMarkalasmaGorev, onCompleteMarkalasmaSureci, onDeleteMarkalasmaSureci }) {
+export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, onRefreshRoster, onAddJob, onUpdateJob, onDeleteJob, girisYapanAd, markalasmaSurecleri, onToggleMarkalasmaGorev, onSetMarkalasmaYonetici, onAddMarkalasmaGorev, onCompleteMarkalasmaSureci, onDeleteMarkalasmaSureci, markaYoneticisiMi, firmaAdi }) {
   const [staffName, setStaffNameState] = useState(girisYapanAd || getStaffName());
   const [view, setView] = useState(role === "staff" ? "panom" : "pano");
   const [panoKategori, setPanoKategori] = useState("Video");
   const [adding, setAdding] = useState(false);
   const [acikIs, setAcikIs] = useState(null);
+  const duzenleyenAdi = role === "owner" ? "Yönetici (CEO)" : (staffName || "Personel");
+  const isKilitleyen = useDuzenlemeKilidi("operasyon-is", acikIs && acikIs.id, !!acikIs, duzenleyenAdi);
 
   useEffect(() => { setStaffNameState(girisYapanAd || getStaffName()); }, [girisYapanAd]);
 
@@ -616,6 +723,9 @@ export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, 
           personelRosteri={personelRosteri}
           onClose={() => setAcikIs(null)}
           onUpdate={onUpdateJob}
+          kilitleyen={isKilitleyen}
+          markaYoneticisiMi={markaYoneticisiMi}
+          firmaAdi={firmaAdi}
           onDelete={(id) => { onDeleteJob(id); setAcikIs(null); }}
         />
       )}

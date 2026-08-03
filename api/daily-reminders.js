@@ -50,38 +50,51 @@ export default async function handler(req, res) {
       return kisi && kisi.email ? kisi.email : null;
     };
 
-    // ---- 1) Operasyon: gecikmiş işler ----
+    // ---- 1) Operasyon: gecikmiş işler VE "Talep Alındı" aşamasında bekleyen (henüz başlanmadığı
+    // anlaşılan) işler. "Talep Alındı" özellikle her zaman bu hatırlatmaya dahil edilir — CEO'nun
+    // kişinin işi görüp göremediğini/başlayıp başlamadığını anlayabilmesi için.
     const gecikmisIsler = (data.cekimIsleri || []).filter((j) => {
       if (j.asama === "Teslim Edildi" || !j.teslimTarihi) return false;
       return new Date(j.teslimTarihi) < bugun;
     });
-    // Kişi başına grupla (aynı kişiye tek e-posta, iş iş listelenir).
+    const talepAlindiIsleri = (data.cekimIsleri || []).filter((j) => j.asama === "Talep Alındı");
+    // Kişi başına grupla (aynı kişiye tek e-posta, iş iş listelenir) — iki liste de dahil, tekrar etmesin.
     const kisiBazliListe = {};
-    gecikmisIsler.forEach((j) => {
+    const kisiyeEkle = (j, tip) => {
       [j.kameraman, j.editor].filter(Boolean).forEach((kisi) => {
-        if (!kisiBazliListe[kisi]) kisiBazliListe[kisi] = [];
-        kisiBazliListe[kisi].push(j);
+        if (!kisiBazliListe[kisi]) kisiBazliListe[kisi] = { gecikmis: [], talepAlindi: [] };
+        kisiBazliListe[kisi][tip].push(j);
       });
-    });
-    for (const [kisi, isler] of Object.entries(kisiBazliListe)) {
+    };
+    gecikmisIsler.forEach((j) => kisiyeEkle(j, "gecikmis"));
+    talepAlindiIsleri.forEach((j) => kisiyeEkle(j, "talepAlindi"));
+    for (const [kisi, gruplar] of Object.entries(kisiBazliListe)) {
       const email = emailBul(kisi);
       if (!email) continue;
-      const videoIsler = isler.filter((j) => j.kategori !== "Grafik Tasarım");
-      const grafikIsler = isler.filter((j) => j.kategori === "Grafik Tasarım");
-      const satirYap = (j) => `<li>${j.marka || ""} — ${j.icerikTuru || "iş"} (teslim: ${j.teslimTarihi}, aşama: ${j.asama || ""})</li>`;
+      const { gecikmis, talepAlindi } = gruplar;
+      const satirYap = (j) => `<li>${j.marka || ""} — ${j.icerikTuru || "iş"} (teslim: ${j.teslimTarihi || "—"}, aşama: ${j.asama || ""})</li>`;
+      const kategoriBolumu = (liste) => {
+        const video = liste.filter((j) => j.kategori !== "Grafik Tasarım");
+        const grafik = liste.filter((j) => j.kategori === "Grafik Tasarım");
+        return [
+          video.length ? `<h4 style="color:#1a1a1a;font-size:13.5px;margin:10px 0 4px;">🎬 Video</h4><ul style="color:#333;line-height:1.8;margin:0;">${video.map(satirYap).join("")}</ul>` : "",
+          grafik.length ? `<h4 style="color:#1a1a1a;font-size:13.5px;margin:10px 0 4px;">🎨 Grafik Tasarım</h4><ul style="color:#333;line-height:1.8;margin:0;">${grafik.map(satirYap).join("")}</ul>` : "",
+        ].join("");
+      };
       const bolumler = [
-        videoIsler.length ? `<h3 style="color:#1a1a1a;font-size:15px;margin:16px 0 6px;">🎬 Video</h3><ul style="color:#333;line-height:1.8;margin:0;">${videoIsler.map(satirYap).join("")}</ul>` : "",
-        grafikIsler.length ? `<h3 style="color:#1a1a1a;font-size:15px;margin:16px 0 6px;">🎨 Grafik Tasarım</h3><ul style="color:#333;line-height:1.8;margin:0;">${grafikIsler.map(satirYap).join("")}</ul>` : "",
+        gecikmis.length ? `<h3 style="color:#c0392b;font-size:15px;margin:16px 0 6px;">⏰ Teslim Tarihi Geçmiş</h3>${kategoriBolumu(gecikmis)}` : "",
+        talepAlindi.length ? `<h3 style="color:#b45309;font-size:15px;margin:16px 0 6px;">📥 Talep Alındı — Henüz Başlanmadı</h3><p style="color:#666;font-size:12.5px;margin:0 0 6px;">Lütfen işi gördüğünde/başladığında sistemde <strong>"Talep Alındı"</strong>ya tıklayarak onaylamayı unutma.</p>${kategoriBolumu(talepAlindi)}` : "",
       ].join("");
+      const toplamSayi = gecikmis.length + talepAlindi.length;
       const html = `
         <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-          <h2 style="color:#1a1a1a;">Gecikmiş İş Hatırlatması</h2>
-          <p style="color:#333;line-height:1.6;">Merhaba ${kisi}, aşağıdaki işlerin teslim tarihi geçti:</p>
+          <h2 style="color:#1a1a1a;">İş Hatırlatması</h2>
+          <p style="color:#333;line-height:1.6;">Merhaba ${kisi},</p>
           ${bolumler}
           <p style="font-size:12px;color:#999;margin-top:20px;">Marcus OS — Operasyon</p>
         </div>`;
-      const ok = await epostaGonder(resendKey, email, `Gecikmiş İş Hatırlatması (${isler.length} iş)`, html, backupEmail);
-      sonuc.operasyonHatirlatma.push({ kisi, email, isSayisi: isler.length, video: videoIsler.length, grafik: grafikIsler.length, gonderildi: ok });
+      const ok = await epostaGonder(resendKey, email, `İş Hatırlatması (${toplamSayi} iş)`, html, backupEmail);
+      sonuc.operasyonHatirlatma.push({ kisi, email, gecikmis: gecikmis.length, talepAlindi: talepAlindi.length, gonderildi: ok });
     }
 
     // ---- 1b) Markalaşma: yöneticisine atanmış, henüz tamamlanmamış süreçler ----
