@@ -411,7 +411,41 @@ function KilitUyarisi({ kisi }) {
   );
 }
 
-function FieldForm({ fields, initial, onSubmit, onCancel, submitLabel = "Kaydet" }) {
+/** Reklam eklerken/düzenlerken marka adını elle yazmak yerine Müşteriler listesinden seçebilmek
+ * için — ama listede olmayan bir isim gerekiyorsa (henüz müşteri olarak eklenmemiş bir marka
+ * için reklam girecekse) "Diğer (elle yaz)" ile serbest metne de geçilebiliyor. */
+function MarkaSecici({ value, onChange, clientList }) {
+  const liste = clientList || [];
+  const listedeVarMi = liste.some((c) => c.ad === value);
+  const [serbest, setSerbest] = useState(!!value && !listedeVarMi);
+  return (
+    <div>
+      <select
+        value={serbest ? "__diger__" : (value || "")}
+        onChange={(e) => {
+          if (e.target.value === "__diger__") { setSerbest(true); onChange(""); }
+          else { setSerbest(false); onChange(e.target.value); }
+        }}
+        style={inputStyle}
+      >
+        <option value="">Seç…</option>
+        {liste.map((c) => <option key={c.id} value={c.ad}>{c.ad}</option>)}
+        <option value="__diger__">Diğer (elle yaz)</option>
+      </select>
+      {serbest && (
+        <input
+          autoFocus
+          value={value || ""}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Marka adını yaz"
+          style={{ ...inputStyle, marginTop: 6 }}
+        />
+      )}
+    </div>
+  );
+}
+
+function FieldForm({ fields, initial, onSubmit, onCancel, submitLabel = "Kaydet", clientList }) {
   const [values, setValues] = useState(() => {
     const v = {};
     fields.forEach((f) => {
@@ -434,6 +468,8 @@ function FieldForm({ fields, initial, onSubmit, onCancel, submitLabel = "Kaydet"
             </select>
           ) : f.type === "month" ? (
             <AySeciciAlan value={values[f.key]} onChange={(val) => setValues((v) => ({ ...v, [f.key]: val }))} />
+          ) : f.type === "client-select" ? (
+            <MarkaSecici value={values[f.key]} onChange={(val) => setValues((v) => ({ ...v, [f.key]: val }))} clientList={clientList} />
           ) : (
             <input
               type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
@@ -1772,7 +1808,7 @@ function OdemeTakvimi({ clients, hesaplar, transferler, onUpdateClient, onAddOde
 /* REKLAMLAR                                                             */
 /* ------------------------------------------------------------------ */
 const REKLAM_FIELDS = [
-  { key: "marka", label: "Marka / Müşteri", type: "text" },
+  { key: "marka", label: "Marka / Müşteri", type: "client-select" },
   { key: "reklamAdi", label: "Reklam / Kampanya Adı", type: "text" },
   { key: "baslangicTarihi", label: "Başlangıç Tarihi", type: "date" },
   { key: "bitisTarihi", label: "Bitiş Tarihi", type: "date" },
@@ -1790,11 +1826,12 @@ function reklamDurumu(r) {
   return "aktif";
 }
 
-function Reklamlar({ reklamlar, onAdd, onUpdate, onDelete, duzenleyenAdi }) {
+function Reklamlar({ reklamlar, clients, onAdd, onUpdate, onDelete, duzenleyenAdi }) {
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [filter, setFilter] = useState("hepsi");
   const kilitleyen = useDuzenlemeKilidi("reklam", editingId, !!editingId, duzenleyenAdi);
+  const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
 
   const siraliListe = [...reklamlar].sort((a, b) => (a.bitisTarihi || "").localeCompare(b.bitisTarihi || ""));
   const filtered = siraliListe.filter((r) => (filter === "hepsi" ? true : reklamDurumu(r) === filter));
@@ -1820,14 +1857,14 @@ function Reklamlar({ reklamlar, onAdd, onUpdate, onDelete, duzenleyenAdi }) {
         <button style={addBtnStyle} onClick={() => { setAdding(true); setEditingId(null); }}><Plus size={14} /> Reklam Ekle</button>
       </Card>
 
-      {adding && <div style={{ marginBottom: 16 }}><FieldForm fields={REKLAM_FIELDS} onSubmit={(v) => { onAdd(v); setAdding(false); }} onCancel={() => setAdding(false)} submitLabel="Reklamı Ekle" /></div>}
+      {adding && <div style={{ marginBottom: 16 }}><FieldForm fields={REKLAM_FIELDS} clientList={aktifMarkalar} onSubmit={(v) => { onAdd(v); setAdding(false); }} onCancel={() => setAdding(false)} submitLabel="Reklamı Ekle" /></div>}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {filtered.map((r) =>
           editingId === r.id ? (
             <Card key={r.id} style={{ padding: "12px 14px" }}>
               <KilitUyarisi kisi={kilitleyen} />
-              <FieldForm fields={REKLAM_FIELDS} initial={r} onSubmit={(v) => { onUpdate(r.id, v); setEditingId(null); }} onCancel={() => setEditingId(null)} />
+              <FieldForm fields={REKLAM_FIELDS} clientList={aktifMarkalar} initial={r} onSubmit={(v) => { onUpdate(r.id, v); setEditingId(null); }} onCancel={() => setEditingId(null)} />
             </Card>
           ) : (
             <Card key={r.id} style={{ padding: "13px 16px" }}>
@@ -4794,7 +4831,7 @@ export default function MarcusOS() {
               onDeleteSozlesmeSablonu={deleteSozlesmeSablonu}
             />
           )}
-          {staffTab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} duzenleyenAdi={loggedStaffName || "Personel"} />}
+          {staffTab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} clients={data.clients || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} duzenleyenAdi={loggedStaffName || "Personel"} />}
           {staffTab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} />}
           {staffTab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} kontrol={data.gunlukKontrol} onToggle={toggleGunlukKontrol} />}
           {staffTab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} />}
@@ -5024,7 +5061,7 @@ export default function MarcusOS() {
               onDeleteSozlesmeSablonu={deleteSozlesmeSablonu}
             />
           )}
-          {tab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} duzenleyenAdi="Yönetici (CEO)" />}
+          {tab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} clients={data.clients || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} duzenleyenAdi="Yönetici (CEO)" />}
           {tab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} />}
           {tab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} kontrol={data.gunlukKontrol} onToggle={toggleGunlukKontrol} />}
           {tab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} />}

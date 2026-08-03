@@ -39,7 +39,7 @@ const PERMISSION_DATA_FIELDS = {
   takvim: ["clients", "vergiTakvimi"],
   odemeTakvimi: ["clients", "hesaplar", "hesapTransferleri"],
   teklif: ["teklifler", "teklifSablonlari", "sozlesmeSablonlari", "markaKimligiGorseli"],
-  reklamlar: ["reklamlar"],
+  reklamlar: ["reklamlar", "clients"],
   paylasimlar: ["stoklar", "paylasimGecmisi", "gunlukKontrol", "clients", "haftalikPaylasimlar", "subeler"],
   cekimListesi: ["stoklar", "paylasimGecmisi", "clients", "subeler"],
   cekimEdit: ["cekimIsleri", "clients", "markalasmaSurecleri"],
