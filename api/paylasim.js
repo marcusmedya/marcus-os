@@ -5,13 +5,6 @@ const nid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 
 const stokAnahtari = (clientId, tur) => `${clientId}_${tur}`;
 const bugunTR = () => new Date().toLocaleDateString("tr-TR");
 const bugunISO = () => new Date().toISOString().slice(0, 10);
-/** Haftalık Plan'daki bir hücrenin (haftaKey + gun) gerçek takvim tarihini (YYYY-MM-DD) hesaplar —
- * Günlük Kontrol'ün SADECE o hücrenin gerçekten "bugün" olduğu durumda etkilenmesi için. */
-const planTarihiISO = (haftaKey, gun) => {
-  const d = new Date(haftaKey);
-  d.setDate(d.getDate() + Number(gun));
-  return d.toISOString().slice(0, 10);
-};
 
 /** Owner her zaman yetkili. Personel ise "paylasimlar" iznine sahipse yetkilidir. */
 async function yetkiliMi(req) {
@@ -104,14 +97,16 @@ export default async function handler(req, res) {
       const { planId } = body;
       const silinen = (data.haftalikPaylasimlar || []).find((p) => p.id === planId);
       data.haftalikPaylasimlar = (data.haftalikPaylasimlar || []).filter((p) => p.id !== planId);
-      // Silinen plan "yapıldı" işaretliyse VE gerçekten BUGÜNE aitse, Günlük Kontrol'den de
-      // kaldırılır. Başka bir güne (geçmiş/gelecek) ait bir planın silinmesi, bugünün
-      // Günlük Kontrol durumunu hiç etkilemez — çünkü zaten hiç etkilememişti.
-      if (silinen && silinen.yapildi && planTarihiISO(silinen.haftaKey, silinen.gun) === bugunISO()) {
+      // Silinen plan "yapıldı" işaretliyse, o an Günlük Kontrol'de duran kaydı da temizlenir.
+      // (Hangi güne planlandığına bakan bir kontrol denemiştik ama saat dilimi hesaplamasına
+      // bağımlı olduğu için kırılgandı — silme her zaman geçerli bir "geri al" sinyalidir,
+      // basit ve güvenilir olsun diye o kontrolü kaldırdık.) Aynı marka+tür için başka
+      // işaretli bir plan daha varsa (gün fark etmeksizin), o hâlâ geçerli sayılır, kaldırmayız.
+      if (silinen && silinen.yapildi) {
         const bugun = bugunISO();
         const itemKey = `${silinen.clientId}_${silinen.tur}`;
         const baskaIsaretliPlanVarMi = data.haftalikPaylasimlar.some(
-          (p) => p.clientId === silinen.clientId && p.tur === silinen.tur && p.yapildi === true && planTarihiISO(p.haftaKey, p.gun) === bugun
+          (p) => p.clientId === silinen.clientId && p.tur === silinen.tur && p.yapildi === true
         );
         if (!baskaIsaretliPlanVarMi && data.gunlukKontrol && data.gunlukKontrol.tarih === bugun && data.gunlukKontrol.yapilanlar.includes(itemKey)) {
           data.gunlukKontrol = { tarih: bugun, yapilanlar: data.gunlukKontrol.yapilanlar.filter((k) => k !== itemKey) };
@@ -130,28 +125,25 @@ export default async function handler(req, res) {
       data.haftalikPaylasimlar = liste.map((p) => (p.id === planId ? { ...p, yapildi: yeniYapildi, yapildigiTarih: yeniYapildi ? bugunTR() : null } : p));
       stokDegistirDahili(data, plan.clientId, plan.tur, yeniYapildi ? -1 : 1);
       gecmiseEkle(data, plan.clientId, markaAdi(plan.clientId), plan.tur, yeniYapildi ? "paylasim" : "cekim");
-      // Haftalık Plan'dan bir paylaşım "yapıldı" işaretlenince, Günlük Kontrol paneli de
-      // bunu otomatik yansıtsın — AMA SADECE işaretlenen hücre gerçekten BUGÜNE aitse.
-      // Günlük Kontrol zaten sadece "bugünü" gösteriyor; geçmiş/gelecek bir güne planlanmış
-      // bir hücrenin işaretlenmesi/geri alınması bugünün durumunu hiç etkilememeli.
+      // Haftalık Plan'dan bir paylaşım "yapıldı" işaretlenince/geri alınınca, Günlük Kontrol
+      // paneli de bunu otomatik yansıtır. (Önceden "sadece bugüne aitse" diye ek bir kontrol
+      // vardı ama saat dilimi hesaplamasına bağımlı olduğu için kırılgandı ve bazen hiç
+      // yansımamasına yol açıyordu — kaldırıldı, basit ve güvenilir olsun istiyoruz.)
       const bugun = bugunISO();
-      const planinGercekTarihi = planTarihiISO(plan.haftaKey, plan.gun);
-      if (planinGercekTarihi === bugun) {
-        const itemKey = `${plan.clientId}_${plan.tur}`;
-        const kontrol = data.gunlukKontrol && data.gunlukKontrol.tarih === bugun ? data.gunlukKontrol : { tarih: bugun, yapilanlar: [] };
-        if (yeniYapildi) {
-          if (!kontrol.yapilanlar.includes(itemKey)) {
-            data.gunlukKontrol = { tarih: bugun, yapilanlar: [...kontrol.yapilanlar, itemKey] };
-          }
-        } else {
-          // Aynı marka+tür için, yine BUGÜNE ait BAŞKA işaretli bir plan daha varsa
-          // (aynı gün içinde iki ayrı satır gibi bir durum olursa), kaldırma.
-          const baskaIsaretliPlanVarMi = data.haftalikPaylasimlar.some(
-            (p) => p.id !== planId && p.clientId === plan.clientId && p.tur === plan.tur && p.yapildi === true && planTarihiISO(p.haftaKey, p.gun) === bugun
-          );
-          if (!baskaIsaretliPlanVarMi && kontrol.yapilanlar.includes(itemKey)) {
-            data.gunlukKontrol = { tarih: bugun, yapilanlar: kontrol.yapilanlar.filter((k) => k !== itemKey) };
-          }
+      const itemKey = `${plan.clientId}_${plan.tur}`;
+      const kontrol = data.gunlukKontrol && data.gunlukKontrol.tarih === bugun ? data.gunlukKontrol : { tarih: bugun, yapilanlar: [] };
+      if (yeniYapildi) {
+        if (!kontrol.yapilanlar.includes(itemKey)) {
+          data.gunlukKontrol = { tarih: bugun, yapilanlar: [...kontrol.yapilanlar, itemKey] };
+        }
+      } else {
+        // Aynı marka+tür için başka işaretli bir plan daha varsa (gün fark etmeksizin),
+        // o hâlâ geçerli sayılır, Günlük Kontrol'den kaldırmayız.
+        const baskaIsaretliPlanVarMi = data.haftalikPaylasimlar.some(
+          (p) => p.id !== planId && p.clientId === plan.clientId && p.tur === plan.tur && p.yapildi === true
+        );
+        if (!baskaIsaretliPlanVarMi && kontrol.yapilanlar.includes(itemKey)) {
+          data.gunlukKontrol = { tarih: bugun, yapilanlar: kontrol.yapilanlar.filter((k) => k !== itemKey) };
         }
       }
       await kaydetVeYedekle(data);
