@@ -2560,7 +2560,8 @@ function EmailYedekTest({ endpoint = "/api/daily-backup" }) {
           if (res.to) setMessage(`Gönderildi: ${res.to}`);
           else if (res.operasyonHatirlatma !== undefined) {
             const opSayisi = res.operasyonHatirlatma.filter((x) => x.gonderildi).length;
-            setMessage(`${opSayisi} kişiye Operasyon hatırlatması, Günlük Kontrol özeti: ${res.gunlukKontrolOzeti ? "gönderildi" : "eksik yok / gönderilmedi"}.`);
+            const markaSayisi = (res.markalasmaHatirlatma || []).filter((x) => x.gonderildi).length;
+            setMessage(`${opSayisi} kişiye Operasyon, ${markaSayisi} yöneticiye Markalaşma hatırlatması gitti. Günlük Kontrol özeti: ${res.gunlukKontrolOzeti ? "gönderildi" : "eksik yok / gönderilmedi"}.`);
           } else setMessage("Tamamlandı.");
           setStatus("ok");
         }
@@ -3381,9 +3382,12 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
         <SectionTitle>Operasyon & Günlük Kontrol Hatırlatmaları</SectionTitle>
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
           Her gün akşam 18:00'de otomatik çalışır: teslim tarihi geçmiş ve "Teslim Edildi" olmayan Operasyon işleri için,
-          o işe atanan kişiye (kayıtlı e-postası varsa) hatırlatma gider. Ayrıca o gün stokta içerik olduğu halde
+          o işe atanan kişiye (kayıtlı e-postası varsa) hatırlatma gider — <strong>Video</strong> ve <strong>Grafik Tasarım</strong> işleri
+          e-postada ayrı ayrı başlıklar altında listelenir. Markalaşma süreçlerinde de, henüz tamamlanmamış görevi olan
+          markanın atanmış yöneticisine ayrı bir hatırlatma gider. Ayrıca o gün stokta içerik olduğu halde
           henüz Günlük Kontrol'den paylaşılmamış görünen markalar varsa, bunların özeti sana (BACKUP_EMAIL) gider.
-          Ek bir kurulum gerekmiyor — yukarıdaki RESEND_API_KEY zaten yeterli.
+          <strong> Ayrıca kime giderse gitsin, her hatırlatmanın bir kopyası (CC) otomatik olarak sana da gelir</strong> —
+          kimin ne aldığını her zaman görebilirsin. Ek bir kurulum gerekmiyor — yukarıdaki RESEND_API_KEY zaten yeterli.
         </p>
         <EmailYedekTest endpoint="/api/daily-reminders" />
       </Card>
