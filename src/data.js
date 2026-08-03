@@ -14,6 +14,7 @@ export const DEFAULT_DATA = {
   subeler: [],
   musteriGirisleri: {},
   markalasmaSurecleri: [],
+  musteriIcerikleri: [],
   hesaplar: [{ id: "ana", ad: "Marcus Medya", anaHesap: true }],
   hesapTransferleri: [],
   staffPermissions: {

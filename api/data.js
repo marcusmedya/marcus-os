@@ -34,7 +34,7 @@ async function basarisizGirisiKaydet(req) {
 // yönetimi, şifre koruması gibi güvenlik ayarlarına personelin asla erişimi olmaz.
 const PERMISSION_DATA_FIELDS = {
   dashboard: ["clients", "monthly", "gelirKalemleri", "giderKalemleri", "ofisGiderleri", "bekleyenTahsilatlar", "personel", "vergiTakvimi", "hesaplar", "hesapTransferleri"],
-  musteriler: ["clients", "bekleyenTahsilatlar", "hesaplar"],
+  musteriler: ["clients", "bekleyenTahsilatlar", "hesaplar", "musteriIcerikleri"],
   finans: ["gelirKalemleri", "giderKalemleri", "ofisGiderleri", "bekleyenTahsilatlar", "monthly", "vergiTakvimi", "clients", "personel", "hesaplar", "hesapTransferleri"],
   takvim: ["clients", "vergiTakvimi"],
   odemeTakvimi: ["clients", "hesaplar", "hesapTransferleri"],
@@ -42,7 +42,7 @@ const PERMISSION_DATA_FIELDS = {
   reklamlar: ["reklamlar", "clients"],
   paylasimlar: ["stoklar", "paylasimGecmisi", "gunlukKontrol", "clients", "haftalikPaylasimlar", "subeler"],
   cekimListesi: ["stoklar", "paylasimGecmisi", "clients", "subeler"],
-  cekimEdit: ["cekimIsleri", "clients", "markalasmaSurecleri"],
+  cekimEdit: ["cekimIsleri", "clients", "markalasmaSurecleri", "musteriIcerikleri"],
   personel: ["personel"],
   birikim: ["birikimler"],
   sifreKasasi: ["musteriGirisleri", "clients"],
@@ -52,7 +52,7 @@ const PERMISSION_DATA_FIELDS = {
 // verisinin bu sadeleştirilmiş haliyle EZİLMEMESİ için o izinlerden clients YAZILAMAZ.
 const PERMISSION_WRITE_FIELDS = {
   dashboard: ["clients", "monthly", "gelirKalemleri", "giderKalemleri", "ofisGiderleri", "bekleyenTahsilatlar", "personel", "vergiTakvimi", "hesaplar", "hesapTransferleri"],
-  musteriler: ["clients", "bekleyenTahsilatlar", "hesaplar"],
+  musteriler: ["clients", "bekleyenTahsilatlar", "hesaplar", "musteriIcerikleri"],
   finans: ["gelirKalemleri", "giderKalemleri", "ofisGiderleri", "bekleyenTahsilatlar", "monthly", "vergiTakvimi", "clients", "personel", "hesaplar", "hesapTransferleri"],
   takvim: ["clients", "vergiTakvimi"],
   odemeTakvimi: ["clients", "hesaplar", "hesapTransferleri"],
@@ -60,7 +60,7 @@ const PERMISSION_WRITE_FIELDS = {
   reklamlar: ["reklamlar"],
   paylasimlar: ["stoklar", "paylasimGecmisi", "gunlukKontrol", "haftalikPaylasimlar", "subeler"],
   cekimListesi: [],
-  cekimEdit: ["cekimIsleri", "markalasmaSurecleri"],
+  cekimEdit: ["cekimIsleri", "markalasmaSurecleri", "musteriIcerikleri"],
   personel: ["personel"],
   birikim: ["birikimler"],
   sifreKasasi: ["musteriGirisleri"],
@@ -70,7 +70,7 @@ const DEFAULT_FIELD_VALUES = {
   clients: [], monthly: [], gelirKalemleri: [], giderKalemleri: [], ofisGiderleri: [], bekleyenTahsilatlar: [],
   personel: [], vergiTakvimi: [], hesaplar: [{ id: "ana", ad: "Marcus Medya", anaHesap: true }], hesapTransferleri: [],
   teklifler: [], teklifSablonlari: [], sozlesmeSablonlari: [], markaKimligiGorseli: null,
-  reklamlar: [], stoklar: {}, paylasimGecmisi: [], gunlukKontrol: null, cekimIsleri: [], birikimler: [], haftalikPaylasimlar: [], subeler: [], markalasmaSurecleri: [],
+  reklamlar: [], stoklar: {}, paylasimGecmisi: [], gunlukKontrol: null, cekimIsleri: [], birikimler: [], haftalikPaylasimlar: [], subeler: [], markalasmaSurecleri: [], musteriIcerikleri: [],
 };
 const DEFAULT_PERMS = {
   dashboard: false, musteriler: false, finans: false, takvim: false, odemeTakvimi: false,
@@ -105,6 +105,19 @@ async function resolveRole(req) {
       if (hash === hesap.sifreHash) return { role: "staff", staffId: hesap.id, staffName: hesap.ad, staffPerms: hesap.izinler || null, staffEmail: hesap.email || "" };
     }
   }
+
+  // Müşteri Paneli girişi — tamamen ayrı bir kullanıcı adı/şifre çifti kullanır,
+  // personel/owner girişleriyle hiç karışmaz. Sadece KENDİ marka bilgisine erişebilir.
+  const musteriUsername = req.headers["x-musteri-username"];
+  const musteriPassword = req.headers["x-musteri-password"];
+  if (musteriUsername && musteriPassword) {
+    const data = await kv.get(KEY);
+    const hesap = ((data && data.musteriHesaplari) || []).find((h) => h.kullaniciAdi === musteriUsername);
+    if (hesap) {
+      const hash = hashSifre(musteriPassword, hesap.sifreSalt);
+      if (hash === hesap.sifreHash) return { role: "musteri", musteriId: hesap.id, musteriClientId: hesap.clientId, musteriAd: hesap.ad };
+    }
+  }
   return null;
 }
 
@@ -117,7 +130,50 @@ export default async function handler(req, res) {
     await basarisizGirisiKaydet(req);
     return res.status(401).json({ error: "Yetkisiz. Şifre gerekli." });
   }
-  const { role, staffId, staffName, staffPerms, staffEmail } = auth;
+  const { role, staffId, staffName, staffPerms, staffEmail, musteriId, musteriClientId, musteriAd } = auth;
+
+  // Müşteri Paneli — tamamen izole bir akış. Owner/personel akışının hiçbir parçasına
+  // dokunmaz; müşteri SADECE kendi marka bilgisine ve SADECE kendi içerik onaylarına erişebilir.
+  if (role === "musteri") {
+    try {
+      const data = (await kv.get(KEY)) || {};
+      const kendiIcerikleri = (data.musteriIcerikleri || []).filter((i) => i.clientId === musteriClientId);
+      const kendiMarka = (data.clients || []).find((c) => c.id === musteriClientId);
+
+      if (req.method === "GET") {
+        return res.status(200).json({
+          role: "musteri",
+          musteriAd,
+          marka: kendiMarka ? kendiMarka.ad : "",
+          firmaAdi: data.firmaAdi || "Marcus Medya",
+          icerikler: kendiIcerikleri,
+        });
+      }
+
+      if (req.method === "POST") {
+        const { musteriAction, icerikId, revizeNotu } = req.body || {};
+        const icerik = (data.musteriIcerikleri || []).find((i) => i.id === icerikId && i.clientId === musteriClientId);
+        if (!icerik) return res.status(404).json({ error: "İçerik bulunamadı." });
+
+        if (musteriAction === "onayla") {
+          data.musteriIcerikleri = data.musteriIcerikleri.map((i) => (i.id === icerikId ? { ...i, durum: "onaylandi", revizeNotu: null, yanitTarihi: new Date().toLocaleDateString("tr-TR") } : i));
+        } else if (musteriAction === "revizeIste") {
+          if (!revizeNotu || !revizeNotu.trim()) return res.status(400).json({ error: "Revize notu boş olamaz." });
+          data.musteriIcerikleri = data.musteriIcerikleri.map((i) => (i.id === icerikId ? { ...i, durum: "revize", revizeNotu: revizeNotu.trim(), yanitTarihi: new Date().toLocaleDateString("tr-TR") } : i));
+        } else {
+          return res.status(400).json({ error: "Geçersiz işlem." });
+        }
+        await kv.set(KEY, data);
+        const bugunYedek = new Date().toISOString().slice(0, 10);
+        await kv.set(`marcus-os-snapshot-${bugunYedek}`, data);
+        return res.status(200).json({ ok: true });
+      }
+
+      return res.status(405).json({ error: "Desteklenmeyen istek." });
+    } catch (e) {
+      return res.status(500).json({ error: "Sunucu hatası: " + e.message });
+    }
+  }
 
   try {
     if (req.method === "GET") {
@@ -149,9 +205,10 @@ export default async function handler(req, res) {
         return res.status(200).json({ data: restricted, role, staffId, staffName });
       }
       // Sahibe (owner) bile şifre hash'lerini asla gönderme — ayrı, korumalı bir uçtan yönetiliyor.
-      const { personelHesaplari, kasaSifresiHash, kasaSifresiSalt, ...safeData } = data || {};
+      const { personelHesaplari, kasaSifresiHash, kasaSifresiSalt, musteriHesaplari, ...safeData } = data || {};
       const personelRosteri = (personelHesaplari || []).map((h) => ({ ad: h.ad, email: h.email || "" }));
-      return res.status(200).json({ data: data ? { ...safeData, personelRosteri } : null, role });
+      const musteriRosteri = (musteriHesaplari || []).map((h) => ({ id: h.id, clientId: h.clientId, ad: h.ad, kullaniciAdi: h.kullaniciAdi }));
+      return res.status(200).json({ data: data ? { ...safeData, personelRosteri, musteriRosteri } : null, role });
     }
 
     if (req.method === "POST") {
@@ -256,6 +313,7 @@ export default async function handler(req, res) {
       const finalData = {
         ...data,
         personelHesaplari: (existingFull && existingFull.personelHesaplari) || [],
+        musteriHesaplari: (existingFull && existingFull.musteriHesaplari) || [],
         kasaSifresiHash: existingFull ? existingFull.kasaSifresiHash : undefined,
         kasaSifresiSalt: existingFull ? existingFull.kasaSifresiSalt : undefined,
       };

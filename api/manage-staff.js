@@ -52,6 +52,12 @@ function guvenliListe(hesaplar) {
   return (hesaplar || []).map((h) => ({ id: h.id, ad: h.ad, kullaniciAdi: h.kullaniciAdi, email: h.email || "", izinler: { ...DEFAULT_PERMS, ...(h.izinler || {}) } }));
 }
 
+/** Müşteri hesapları personel hesaplarından ayrı bir alanda (musteriHesaplari) tutulur —
+ * izin sistemi yok, sadece hangi markaya (clientId) bağlı olduğu bilgisi var. */
+function guvenliMusteriListesi(hesaplar) {
+  return (hesaplar || []).map((h) => ({ id: h.id, clientId: h.clientId, ad: h.ad, kullaniciAdi: h.kullaniciAdi }));
+}
+
 export default async function handler(req, res) {
   if (await rateLimitAsildiMi(req)) {
     return res.status(429).json({ error: "Çok fazla başarısız giriş denemesi. 15 dakika sonra tekrar dene." });
@@ -63,26 +69,33 @@ export default async function handler(req, res) {
 
   try {
     const data = (await kv.get(KEY)) || {};
-    const hesaplar = data.personelHesaplari || [];
+    const hesapTuru = (req.body && req.body.hesapTuru) || (req.query && req.query.hesapTuru) || "personel";
+    const musteriMi = hesapTuru === "musteri";
+    const alanAdi = musteriMi ? "musteriHesaplari" : "personelHesaplari";
+    const hesaplar = data[alanAdi] || [];
+    const listeGoster = musteriMi ? guvenliMusteriListesi : guvenliListe;
 
     if (req.method === "GET") {
-      return res.status(200).json({ hesaplar: guvenliListe(hesaplar) });
+      return res.status(200).json({ hesaplar: listeGoster(hesaplar) });
     }
 
     if (req.method === "POST") {
-      const { action, id, ad, kullaniciAdi, sifre, email, izinler } = req.body || {};
+      const { action, id, ad, kullaniciAdi, sifre, email, izinler, clientId } = req.body || {};
 
       if (action === "ekle") {
         if (!ad || !kullaniciAdi || !sifre) return res.status(400).json({ error: "Ad, kullanıcı adı ve şifre gerekli." });
         if (sifre.length < 4) return res.status(400).json({ error: "Şifre en az 4 karakter olmalı." });
+        if (musteriMi && !clientId) return res.status(400).json({ error: "Bu hesabın bağlı olduğu marka (clientId) gerekli." });
         if (hesaplar.some((h) => h.kullaniciAdi.toLowerCase() === kullaniciAdi.toLowerCase())) {
           return res.status(409).json({ error: "Bu kullanıcı adı zaten kullanılıyor." });
         }
         const salt = crypto.randomBytes(16).toString("hex");
-        const yeni = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ad, kullaniciAdi, email: email || "", izinler: { ...DEFAULT_PERMS }, sifreHash: hashSifre(sifre, salt), sifreSalt: salt };
+        const yeni = musteriMi
+          ? { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ad, kullaniciAdi, clientId, sifreHash: hashSifre(sifre, salt), sifreSalt: salt }
+          : { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ad, kullaniciAdi, email: email || "", izinler: { ...DEFAULT_PERMS }, sifreHash: hashSifre(sifre, salt), sifreSalt: salt };
         const guncel = [...hesaplar, yeni];
-        const yeniVeri = { ...data, personelHesaplari: guncel }; await kv.set(KEY, yeniVeri); await yedekle(yeniVeri);
-        return res.status(200).json({ ok: true, hesaplar: guvenliListe(guncel) });
+        const yeniVeri = { ...data, [alanAdi]: guncel }; await kv.set(KEY, yeniVeri); await yedekle(yeniVeri);
+        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel) });
       }
 
       if (action === "sifreSifirla") {
@@ -90,8 +103,8 @@ export default async function handler(req, res) {
         if (sifre.length < 4) return res.status(400).json({ error: "Şifre en az 4 karakter olmalı." });
         const salt = crypto.randomBytes(16).toString("hex");
         const guncel = hesaplar.map((h) => (h.id === id ? { ...h, sifreHash: hashSifre(sifre, salt), sifreSalt: salt } : h));
-        const yeniVeri = { ...data, personelHesaplari: guncel }; await kv.set(KEY, yeniVeri); await yedekle(yeniVeri);
-        return res.status(200).json({ ok: true, hesaplar: guvenliListe(guncel) });
+        const yeniVeri = { ...data, [alanAdi]: guncel }; await kv.set(KEY, yeniVeri); await yedekle(yeniVeri);
+        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel) });
       }
 
       if (action === "guncelle") {
@@ -99,19 +112,24 @@ export default async function handler(req, res) {
         const guncel = hesaplar.map((h) => {
           if (h.id !== id) return h;
           const yeni = { ...h };
-          if (email !== undefined) yeni.email = email;
-          if (izinler !== undefined) yeni.izinler = { ...DEFAULT_PERMS, ...izinler };
+          if (musteriMi) {
+            if (ad !== undefined) yeni.ad = ad;
+            if (clientId !== undefined) yeni.clientId = clientId;
+          } else {
+            if (email !== undefined) yeni.email = email;
+            if (izinler !== undefined) yeni.izinler = { ...DEFAULT_PERMS, ...izinler };
+          }
           return yeni;
         });
-        const yeniVeri = { ...data, personelHesaplari: guncel }; await kv.set(KEY, yeniVeri); await yedekle(yeniVeri);
-        return res.status(200).json({ ok: true, hesaplar: guvenliListe(guncel) });
+        const yeniVeri = { ...data, [alanAdi]: guncel }; await kv.set(KEY, yeniVeri); await yedekle(yeniVeri);
+        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel) });
       }
 
       if (action === "sil") {
         if (!id) return res.status(400).json({ error: "id gerekli." });
         const guncel = hesaplar.filter((h) => h.id !== id);
-        const yeniVeri = { ...data, personelHesaplari: guncel }; await kv.set(KEY, yeniVeri); await yedekle(yeniVeri);
-        return res.status(200).json({ ok: true, hesaplar: guvenliListe(guncel) });
+        const yeniVeri = { ...data, [alanAdi]: guncel }; await kv.set(KEY, yeniVeri); await yedekle(yeniVeri);
+        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel) });
       }
 
       return res.status(400).json({ error: "Geçersiz işlem." });

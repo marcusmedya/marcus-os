@@ -257,10 +257,19 @@ const STAFF_PW_KEY = "marcus-os-staff-pw";
 const getStaffCreds = () => (typeof window !== "undefined" ? { kullaniciAdi: localStorage.getItem(STAFF_USER_KEY) || "", sifre: localStorage.getItem(STAFF_PW_KEY) || "" } : { kullaniciAdi: "", sifre: "" });
 const setStaffCreds = (kullaniciAdi, sifre) => { if (typeof window !== "undefined") { localStorage.setItem(STAFF_USER_KEY, kullaniciAdi); localStorage.setItem(STAFF_PW_KEY, sifre); } };
 const clearStaffCreds = () => { if (typeof window !== "undefined") { localStorage.removeItem(STAFF_USER_KEY); localStorage.removeItem(STAFF_PW_KEY); } };
+
+/** Müşteri Paneli girişi — personelden tamamen ayrı bir kimlik. */
+const MUSTERI_USER_KEY = "marcus-os-musteri-user";
+const MUSTERI_PW_KEY = "marcus-os-musteri-pw";
+const getMusteriCreds = () => (typeof window !== "undefined" ? { kullaniciAdi: localStorage.getItem(MUSTERI_USER_KEY) || "", sifre: localStorage.getItem(MUSTERI_PW_KEY) || "" } : { kullaniciAdi: "", sifre: "" });
+const setMusteriCreds = (kullaniciAdi, sifre) => { if (typeof window !== "undefined") { localStorage.setItem(MUSTERI_USER_KEY, kullaniciAdi); localStorage.setItem(MUSTERI_PW_KEY, sifre); } };
+const clearMusteriCreds = () => { if (typeof window !== "undefined") { localStorage.removeItem(MUSTERI_USER_KEY); localStorage.removeItem(MUSTERI_PW_KEY); } };
+
 /** /api/data isteklerine hem olası tek-şifre hem de kişisel personel kimliğini ekler. */
 const authHeaders = () => {
   const staff = getStaffCreds();
-  return { "X-Site-Password": getPw(), "X-Staff-Username": staff.kullaniciAdi, "X-Staff-Password": staff.sifre };
+  const musteri = getMusteriCreds();
+  return { "X-Site-Password": getPw(), "X-Staff-Username": staff.kullaniciAdi, "X-Staff-Password": staff.sifre, "X-Musteri-Username": musteri.kullaniciAdi, "X-Musteri-Password": musteri.sifre };
 };
 
 /** Ekran genişliğine göre mobil/masaüstü ayrımı yapar; pencere yeniden boyutlandırıldığında güncellenir. */
@@ -661,7 +670,7 @@ const CLIENT_DURUM = {
   ayrildi: { label: "Ayrıldı", color: T.textFaint, soft: T.borderSoft },
 };
 
-function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, onAdd, onUpdate, onDelete, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, openClient, onOpenClientHandled, duzenleyenAdi }) {
+function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, onAdd, onUpdate, onDelete, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, openClient, onOpenClientHandled, duzenleyenAdi, musteriIcerikleri, onAddIcerik, onDeleteIcerik }) {
   const [filter, setFilter] = useState("hepsi");
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -840,6 +849,9 @@ function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, onAdd, onUpdate, o
           onClose={() => setDetailClientId(null)}
           duzenleyenAdi={duzenleyenAdi}
           detailClientId={detailClientId}
+          musteriIcerikleri={musteriIcerikleri}
+          onAddIcerik={onAddIcerik}
+          onDeleteIcerik={onDeleteIcerik}
         />
       )}
     </div>
@@ -857,7 +869,111 @@ const COST_FIELDS = [
   { key: "tutar", label: "Tutar (₺/ay)", type: "number" },
 ];
 
-function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, onClose, kilitleyen }) {
+/** Base64'e çevrilebilecek makul boyutta bir görsel — çok büyük dosyalarda tarayıcıyı ve
+ * veritabanını zorlamamak için basit bir boyut uyarısı (2MB üstü) veriliyor. */
+function gorseliBase64eCevir(file, onDone, onHata) {
+  if (file.size > 2 * 1024 * 1024) { onHata("Görsel 2MB'tan büyük — daha küçük bir dosya seçmen gerekiyor."); return; }
+  const reader = new FileReader();
+  reader.onload = () => onDone(reader.result);
+  reader.onerror = () => onHata("Dosya okunamadı.");
+  reader.readAsDataURL(file);
+}
+
+const MUSTERI_DURUM_ETIKET = {
+  bekliyor: { label: "Bekliyor", color: T.warning, bg: T.warningSoft },
+  onaylandi: { label: "Onaylandı ✓", color: T.success, bg: T.successSoft },
+  revize: { label: "Revize İstendi", color: T.danger, bg: T.dangerSoft },
+};
+
+/** Bir markanın Müşteri Paneli'nde göreceği içerikleri (görsel/video) ekleyip listeleyen,
+ * ClientDetail içine gömülü, kendi başına açılıp kapanan bir bölüm. */
+function MusteriIcerikYonetimi({ clientId, icerikler, onAdd, onDelete }) {
+  const [acik, setAcik] = useState(false);
+  const [ekleAcik, setEkleAcik] = useState(false);
+  const [tur, setTur] = useState("gorsel");
+  const [aciklama, setAciklama] = useState("");
+  const [driveLinki, setDriveLinki] = useState("");
+  const [gorselUrl, setGorselUrl] = useState(null);
+  const [gorselHata, setGorselHata] = useState("");
+
+  const kendiListesi = (icerikler || []).filter((i) => i.clientId === clientId).sort((a, b) => (a.durum === "bekliyor" ? -1 : 1));
+
+  const ekle = () => {
+    if (tur === "gorsel" && !gorselUrl) { setGorselHata("Bir görsel seç."); return; }
+    if (tur === "video" && !driveLinki.trim()) { setGorselHata("Video için bir Drive linki gir."); return; }
+    onAdd(clientId, { tur, aciklama: aciklama.trim(), tarih: new Date().toLocaleDateString("tr-TR"), gorselUrl: tur === "gorsel" ? gorselUrl : null, driveLinki: tur === "video" ? driveLinki.trim() : null });
+    setAciklama(""); setDriveLinki(""); setGorselUrl(null); setGorselHata(""); setEkleAcik(false);
+  };
+
+  return (
+    <Card style={{ padding: "14px 18px", marginBottom: 16 }}>
+      <button onClick={() => setAcik((v) => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+        <span style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter" }}>Müşteri Paneli İçerikleri</span>
+        <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{kendiListesi.length > 0 ? `${kendiListesi.length} kayıt` : "Kayıt yok"} {acik ? "▲" : "▼"}</span>
+      </button>
+
+      {acik && (
+        <div style={{ marginTop: 14 }}>
+          {kendiListesi.length === 0 ? (
+            <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginBottom: 12 }}>Bu markaya henüz müşteri panelinde gösterilecek bir içerik eklenmedi.</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+              {kendiListesi.map((i) => {
+                const etiket = MUSTERI_DURUM_ETIKET[i.durum] || MUSTERI_DURUM_ETIKET.bekliyor;
+                return (
+                  <div key={i.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: T.surfaceRaised, borderRadius: 9, padding: "8px 12px" }}>
+                    <div>
+                      <div style={{ fontSize: 12, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{i.aciklama || (i.tur === "gorsel" ? "Görsel" : "Video")} <span style={{ color: T.textFaint, fontWeight: 400 }}>· {i.tarih}</span></div>
+                      {i.revizeNotu && <div style={{ fontSize: 11, color: T.danger, fontFamily: "Inter", fontStyle: "italic" }}>"{i.revizeNotu}"</div>}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 600, color: etiket.color, background: etiket.bg, padding: "2px 8px", borderRadius: 999, fontFamily: "Inter" }}>{etiket.label}</span>
+                      <button onClick={() => { if (window.confirm("Bu içerik silinsin mi?")) onDelete(i.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><Trash2 size={12} color={T.textFaint} /></button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {ekleAcik ? (
+            <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: 12 }}>
+              <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                <button onClick={() => { setTur("gorsel"); setGorselHata(""); }} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: tur === "gorsel" ? T.accent : T.surface, color: tur === "gorsel" ? "#fff" : T.textDim, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "Inter" }}>Görsel</button>
+                <button onClick={() => { setTur("video"); setGorselHata(""); }} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: tur === "video" ? T.accent : T.surface, color: tur === "video" ? "#fff" : T.textDim, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "Inter" }}>Video (Drive linki)</button>
+              </div>
+              <input type="text" placeholder="Açıklama (opsiyonel — örn. Ağustos Reels 1)" value={aciklama} onChange={(e) => setAciklama(e.target.value)} style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "7px 10px" }} />
+              {tur === "gorsel" ? (
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files && e.target.files[0];
+                    if (!file) return;
+                    setGorselHata("");
+                    gorseliBase64eCevir(file, setGorselUrl, setGorselHata);
+                  }}
+                  style={{ ...inputStyle, marginBottom: 8, fontSize: 12, padding: "7px 10px" }}
+                />
+              ) : (
+                <input type="text" placeholder="https://drive.google.com/..." value={driveLinki} onChange={(e) => setDriveLinki(e.target.value)} style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "7px 10px" }} />
+              )}
+              {gorselHata && <div style={{ color: T.danger, fontSize: 11.5, fontFamily: "Inter", marginBottom: 8 }}>{gorselHata}</div>}
+              <div style={{ display: "flex", gap: 8 }}>
+                <button style={cancelBtnStyle} onClick={() => { setEkleAcik(false); setGorselHata(""); }}>İptal</button>
+                <button style={saveBtnStyle} onClick={ekle}>Müşteri Paneline Ekle</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setEkleAcik(true)} style={{ background: "none", border: "none", color: T.accentText, fontSize: 11.5, cursor: "pointer", padding: 0, fontFamily: "Inter" }}>+ İçerik Ekle</button>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, onClose, kilitleyen, musteriIcerikleri, onAddIcerik, onDeleteIcerik }) {
   const [addingCost, setAddingCost] = useState(false);
   const [odemeModalOpen, setOdemeModalOpen] = useState(false);
   if (!client) return null;
@@ -880,6 +996,8 @@ function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, onAddCost, onDele
         </div>
 
         <KilitUyarisi kisi={kilitleyen} />
+
+        <MusteriIcerikYonetimi clientId={client.id} icerikler={musteriIcerikleri} onAdd={onAddIcerik} onDelete={onDeleteIcerik} />
 
         <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
           <Pill color={cd.color} soft={cd.soft}>{cd.label}</Pill>
@@ -3414,7 +3532,7 @@ function KasaSifresiKarti() {
   );
 }
 
-function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu, onSaveTeblig, staffPermissions, onUpdatePermissions, markaKimligiGorseli, onSaveMarkaKimligi, onRosterChange }) {
+function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu, onSaveTeblig, staffPermissions, onUpdatePermissions, markaKimligiGorseli, onSaveMarkaKimligi, onRosterChange, clients }) {
   const fileInputRef = useRef(null);
   const rows = [
     { label: "İşletme Adı", value: "Marcus Medya" },
@@ -3528,6 +3646,7 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
         </p>
       </Card>
 
+      <MusteriHesaplariKart clients={clients} />
       <PersonelHesaplariKart onRosterChange={onRosterChange} />
       <KasaSifresiKarti />
 
@@ -3576,6 +3695,130 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
         <MarkaKimligiYukleyici value={markaKimligiGorseli} onChange={onSaveMarkaKimligi} />
       </Card>
     </div>
+  );
+}
+
+/** Müşteri Paneli giriş hesapları — PersonelHesaplariKart ile aynı sunucu uç noktasını
+ * (hesapTuru: "musteri" ile) kullanır, izin sistemi yok, sadece hangi markaya bağlı olduğu var. */
+function MusteriHesaplariKart({ clients }) {
+  const [hesaplar, setHesaplar] = useState(null);
+  const [ekleAcik, setEkleAcik] = useState(false);
+  const [yeniAd, setYeniAd] = useState("");
+  const [yeniClientId, setYeniClientId] = useState("");
+  const [yeniKullanici, setYeniKullanici] = useState("");
+  const [yeniSifre, setYeniSifre] = useState("");
+  const [hata, setHata] = useState("");
+  const [sifirlanan, setSifirlanan] = useState(null);
+  const [yeniSifreDeger, setYeniSifreDeger] = useState("");
+
+  const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
+
+  const yukle = () => {
+    fetch("/api/manage-staff?hesapTuru=musteri", { headers: { "X-Site-Password": getPw() } })
+      .then((r) => r.json())
+      .then((res) => setHesaplar(res.hesaplar || []))
+      .catch(() => setHesaplar([]));
+  };
+  useEffect(() => { yukle(); }, []);
+
+  const ekle = () => {
+    setHata("");
+    if (!yeniAd.trim() || !yeniKullanici.trim() || !yeniSifre.trim() || !yeniClientId) { setHata("Marka, ad, kullanıcı adı ve şifre gerekli."); return; }
+    fetch("/api/manage-staff", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Site-Password": getPw() },
+      body: JSON.stringify({ hesapTuru: "musteri", action: "ekle", ad: yeniAd.trim(), kullaniciAdi: yeniKullanici.trim(), sifre: yeniSifre, clientId: yeniClientId }),
+    })
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.error) { setHata(res.error); return; }
+        setHesaplar(res.hesaplar);
+        setYeniAd(""); setYeniKullanici(""); setYeniSifre(""); setYeniClientId(""); setEkleAcik(false);
+      })
+      .catch(() => setHata("Bağlantı hatası."));
+  };
+
+  const sifreSifirla = (id) => {
+    if (!yeniSifreDeger.trim() || yeniSifreDeger.length < 4) { setHata("Yeni şifre en az 4 karakter olmalı."); return; }
+    fetch("/api/manage-staff", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Site-Password": getPw() },
+      body: JSON.stringify({ hesapTuru: "musteri", action: "sifreSifirla", id, sifre: yeniSifreDeger }),
+    })
+      .then((r) => r.json())
+      .then((res) => { if (res.hesaplar) { setHesaplar(res.hesaplar); setSifirlanan(null); setYeniSifreDeger(""); setHata(""); } })
+      .catch(() => setHata("Bağlantı hatası."));
+  };
+
+  const sil = (id, ad) => {
+    if (!window.confirm(`"${ad}" müşteri hesabı silinsin mi? Bu kişi artık panele giriş yapamaz.`)) return;
+    fetch("/api/manage-staff", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Site-Password": getPw() },
+      body: JSON.stringify({ hesapTuru: "musteri", action: "sil", id }),
+    })
+      .then((r) => r.json())
+      .then((res) => { if (res.hesaplar) setHesaplar(res.hesaplar); })
+      .catch(() => {});
+  };
+
+  const markaAdi = (clientId) => (aktifMarkalar.find((c) => c.id === clientId) || {}).ad || "(marka silinmiş)";
+
+  return (
+    <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+      <SectionTitle>Müşteri Hesapları</SectionTitle>
+      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
+        Her markaya, sadece o markanın içeriklerini görüp onaylayabileceği/revize isteyebileceği ayrı bir kullanıcı adı/şifre verebilirsin.
+        Bu, personel ya da senin girişinle hiç karışmaz, tamamen izole bir panele açılır.
+      </p>
+
+      {hesaplar === null ? (
+        <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Yükleniyor…</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+          {hesaplar.length === 0 && <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Henüz müşteri hesabı yok.</div>}
+          {hesaplar.map((h) => (
+            <div key={h.id} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "10px 14px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                <div>
+                  <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{h.ad} <span style={{ color: T.textFaint, fontWeight: 400 }}>· {markaAdi(h.clientId)}</span></div>
+                  <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>Kullanıcı adı: {h.kullaniciAdi}</div>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button style={{ ...iconBtnStyle, width: "auto", padding: "6px 10px", fontSize: 11.5 }} onClick={() => { setSifirlanan(sifirlanan === h.id ? null : h.id); setYeniSifreDeger(""); setHata(""); }}>Şifre Sıfırla</button>
+                  <button style={iconBtnStyle} onClick={() => sil(h.id, h.ad)}><Trash2 size={13} color={T.danger} /></button>
+                </div>
+              </div>
+              {sifirlanan === h.id && (
+                <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                  <input type="text" autoComplete="off" placeholder="Yeni şifre" value={yeniSifreDeger} onChange={(e) => setYeniSifreDeger(e.target.value)} style={{ ...inputStyle, flex: 1, padding: "7px 10px", fontSize: 12.5 }} />
+                  <button style={{ ...saveBtnStyle, padding: "7px 12px", fontSize: 12 }} onClick={() => sifreSifirla(h.id)}>Kaydet</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {ekleAcik ? (
+        <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: 14 }}>
+          <select value={yeniClientId} onChange={(e) => setYeniClientId(e.target.value)} style={{ ...inputStyle, marginBottom: 8 }}>
+            <option value="">Marka seç…</option>
+            {aktifMarkalar.map((c) => <option key={c.id} value={c.id}>{c.ad}</option>)}
+          </select>
+          <input type="text" placeholder="Yetkili kişinin adı (örn. Ahmet Bey)" value={yeniAd} onChange={(e) => setYeniAd(e.target.value)} style={{ ...inputStyle, marginBottom: 8 }} />
+          <input type="text" autoComplete="off" placeholder="Kullanıcı Adı" value={yeniKullanici} onChange={(e) => setYeniKullanici(e.target.value)} style={{ ...inputStyle, marginBottom: 8 }} />
+          <input type="text" autoComplete="off" placeholder="Şifre" value={yeniSifre} onChange={(e) => setYeniSifre(e.target.value)} style={{ ...inputStyle, marginBottom: 10 }} />
+          {hata && <div style={{ color: T.danger, fontSize: 12, fontFamily: "Inter", marginBottom: 8 }}>{hata}</div>}
+          <div style={{ display: "flex", gap: 8 }}>
+            <button style={cancelBtnStyle} onClick={() => { setEkleAcik(false); setHata(""); }}>İptal</button>
+            <button style={saveBtnStyle} onClick={ekle}>Hesap Oluştur</button>
+          </div>
+        </div>
+      ) : (
+        <button style={addBtnStyle} onClick={() => setEkleAcik(true)}><Plus size={13} /> Müşteri Hesabı Oluştur</button>
+      )}
+    </Card>
   );
 }
 
@@ -3866,11 +4109,13 @@ function AiPanel({ open, onClose, initialQuestion, data }) {
 /* ------------------------------------------------------------------ */
 /* ŞİFRE EKRANI                                                          */
 /* ------------------------------------------------------------------ */
-function LockScreen({ onSubmit, onStaffSubmit, error, checking }) {
-  const [mode, setMode] = useState("sifre"); // "sifre" | "personel"
+function LockScreen({ onSubmit, onStaffSubmit, onMusteriSubmit, error, checking }) {
+  const [mode, setMode] = useState("sifre"); // "sifre" | "personel" | "musteri"
   const [value, setValue] = useState("");
   const [kullaniciAdi, setKullaniciAdi] = useState("");
   const [personelSifre, setPersonelSifre] = useState("");
+  const [musteriKullaniciAdi, setMusteriKullaniciAdi] = useState("");
+  const [musteriSifre, setMusteriSifre] = useState("");
 
   return (
     <div style={{ background: T.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
@@ -3878,11 +4123,12 @@ function LockScreen({ onSubmit, onStaffSubmit, error, checking }) {
       <div style={{ width: 320, textAlign: "center" }}>
         <div style={{ width: 44, height: 44, borderRadius: 12, background: T.accent, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: "#fff", fontSize: 18, margin: "0 auto 18px" }}>M</div>
         <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 600, color: T.text, margin: "0 0 6px" }}>Marcus OS</h1>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, margin: "0 0 18px" }}>{mode === "sifre" ? "Devam etmek için şifreni gir." : "Kullanıcı adın ve şifrenle giriş yap."}</p>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, margin: "0 0 18px" }}>{mode === "sifre" ? "Devam etmek için şifreni gir." : mode === "personel" ? "Kullanıcı adın ve şifrenle giriş yap." : "Marka giriş bilgilerinle içeriklerini görüntüle."}</p>
 
         <div style={{ display: "flex", gap: 6, marginBottom: 16, background: T.surfaceRaised, borderRadius: 10, padding: 3 }}>
-          <button onClick={() => setMode("sifre")} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: mode === "sifre" ? T.accent : "transparent", color: mode === "sifre" ? "#fff" : T.textDim, fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}>Şifreyle Gir</button>
-          <button onClick={() => setMode("personel")} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: mode === "personel" ? T.accent : "transparent", color: mode === "personel" ? "#fff" : T.textDim, fontSize: 12.5, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}>Personel Girişi</button>
+          <button onClick={() => setMode("sifre")} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: mode === "sifre" ? T.accent : "transparent", color: mode === "sifre" ? "#fff" : T.textDim, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}>Şifreyle Gir</button>
+          <button onClick={() => setMode("personel")} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: mode === "personel" ? T.accent : "transparent", color: mode === "personel" ? "#fff" : T.textDim, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}>Personel</button>
+          <button onClick={() => setMode("musteri")} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: mode === "musteri" ? T.accent : "transparent", color: mode === "musteri" ? "#fff" : T.textDim, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}>Müşteri</button>
         </div>
 
         {mode === "sifre" ? (
@@ -3902,7 +4148,7 @@ function LockScreen({ onSubmit, onStaffSubmit, error, checking }) {
               {checking ? "Kontrol ediliyor…" : "Giriş Yap"}
             </button>
           </>
-        ) : (
+        ) : mode === "personel" ? (
           <>
             <input
               type="text"
@@ -3928,8 +4174,191 @@ function LockScreen({ onSubmit, onStaffSubmit, error, checking }) {
               {checking ? "Kontrol ediliyor…" : "Giriş Yap"}
             </button>
           </>
+        ) : (
+          <>
+            <input
+              type="text"
+              name="musteri-username"
+              autoComplete="username"
+              autoFocus
+              value={musteriKullaniciAdi}
+              onChange={(e) => setMusteriKullaniciAdi(e.target.value)}
+              placeholder="Kullanıcı Adı"
+              style={{ ...inputStyle, textAlign: "center", marginBottom: 10, padding: "11px 12px" }}
+            />
+            <input
+              type="password"
+              name="musteri-password"
+              autoComplete="current-password"
+              value={musteriSifre}
+              onChange={(e) => setMusteriSifre(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && onMusteriSubmit(musteriKullaniciAdi, musteriSifre)}
+              placeholder="Şifre"
+              style={{ ...inputStyle, textAlign: "center", marginBottom: 12, padding: "11px 12px" }}
+            />
+            <button onClick={() => onMusteriSubmit(musteriKullaniciAdi, musteriSifre)} disabled={checking} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", padding: "11px 12px", opacity: checking ? 0.6 : 1 }}>
+              {checking ? "Kontrol ediliyor…" : "Giriş Yap"}
+            </button>
+          </>
         )}
         {error && <div style={{ color: T.danger, fontSize: 12.5, fontFamily: "Inter", marginTop: 12 }}>{error}</div>}
+      </div>
+    </div>
+  );
+}
+
+/** Google Drive paylaşım linkini, sayfa içinde doğrudan oynatılabilir (gömülü) önizleme
+ * formatına çevirir. Dönüştürülemezse null döner, o zaman normal link olarak gösterilir. */
+function driveEmbedUrl(link) {
+  if (!link) return null;
+  const m = link.match(/\/d\/([a-zA-Z0-9_-]+)/) || link.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (!m) return null;
+  return `https://drive.google.com/file/d/${m[1]}/preview`;
+}
+
+/** Müşteri Paneli — owner/personel arayüzünden tamamen izole, sade bir onay ekranı.
+ * Sadece kendi markasının içeriklerini görür; her içeriği onaylayabilir ya da revize isteyebilir. */
+function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
+  const [icerikler, setIcerikler] = useState(musteriData.icerikler);
+  const [revizeAcikId, setRevizeAcikId] = useState(null);
+  const [revizeMetni, setRevizeMetni] = useState("");
+  const [gonderiliyor, setGonderiliyor] = useState(null);
+
+  const istekAt = (musteriAction, icerikId, revizeNotu) => {
+    setGonderiliyor(icerikId);
+    fetch("/api/data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ musteriAction, icerikId, revizeNotu }),
+    })
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.ok) {
+          setIcerikler((liste) => liste.map((i) => (i.id === icerikId
+            ? { ...i, durum: musteriAction === "onayla" ? "onaylandi" : "revize", revizeNotu: musteriAction === "onayla" ? null : revizeNotu }
+            : i)));
+          setRevizeAcikId(null);
+          setRevizeMetni("");
+          if (onIslemSonrasi) onIslemSonrasi();
+        } else {
+          window.alert(res.error || "Bir sorun oluştu.");
+        }
+      })
+      .catch(() => window.alert("Bağlantı hatası — tekrar dene."))
+      .finally(() => setGonderiliyor(null));
+  };
+
+  const DURUM_STIL = {
+    bekliyor: { label: "İncelemeni Bekliyor", color: T.warning, bg: T.warningSoft },
+    onaylandi: { label: "Onayladın ✓", color: T.success, bg: T.successSoft },
+    revize: { label: "Revize İstedin", color: T.danger, bg: T.dangerSoft },
+  };
+
+  const bekleyenler = icerikler.filter((i) => i.durum === "bekliyor");
+  const gecmis = icerikler.filter((i) => i.durum !== "bekliyor");
+
+  return (
+    <div style={{ background: T.bg, minHeight: "100vh" }}>
+      <style>{FONTS}</style>
+      <div style={{ maxWidth: 640, margin: "0 auto", padding: "24px 18px 60px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+          <div>
+            <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter" }}>{musteriData.firmaAdi}</div>
+            <div style={{ fontSize: 19, color: T.text, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif" }}>{musteriData.marka}</div>
+          </div>
+          <button onClick={onCikis} style={{ ...cancelBtnStyle, fontSize: 12 }}>Çıkış Yap</button>
+        </div>
+
+        <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 10 }}>
+          İncelemeni Bekleyenler {bekleyenler.length > 0 && `(${bekleyenler.length})`}
+        </div>
+
+        {bekleyenler.length === 0 ? (
+          <Card style={{ padding: "24px", textAlign: "center", marginBottom: 28 }}>
+            <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Şu an incelemen gereken bir içerik yok.</div>
+          </Card>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 28 }}>
+            {bekleyenler.map((icerik) => {
+              const embed = driveEmbedUrl(icerik.driveLinki);
+              return (
+                <Card key={icerik.id} style={{ padding: 16, border: `1px solid ${T.warning}` }}>
+                  <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter", marginBottom: 4 }}>{icerik.aciklama || icerik.tur}</div>
+                  <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginBottom: 12 }}>{icerik.tarih}</div>
+
+                  {icerik.gorselUrl && (
+                    <img src={icerik.gorselUrl} alt={icerik.aciklama || ""} style={{ width: "100%", borderRadius: 10, marginBottom: 12, display: "block" }} />
+                  )}
+                  {!icerik.gorselUrl && embed && (
+                    <iframe src={embed} title={icerik.aciklama || "içerik"} style={{ width: "100%", height: 280, border: "none", borderRadius: 10, marginBottom: 12 }} allow="autoplay" />
+                  )}
+                  {!icerik.gorselUrl && !embed && icerik.driveLinki && (
+                    <a href={icerik.driveLinki} target="_blank" rel="noreferrer" style={{ display: "block", marginBottom: 12, color: T.accentText, fontSize: 12.5, fontFamily: "Inter" }}>İçeriği Görüntüle ↗</a>
+                  )}
+
+                  {revizeAcikId === icerik.id ? (
+                    <div>
+                      <textarea
+                        autoFocus
+                        value={revizeMetni}
+                        onChange={(e) => setRevizeMetni(e.target.value)}
+                        placeholder="Neyin değişmesini istiyorsun?"
+                        rows={3}
+                        style={{ ...inputStyle, width: "100%", resize: "vertical", marginBottom: 10, fontFamily: "Inter" }}
+                      />
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button style={cancelBtnStyle} onClick={() => { setRevizeAcikId(null); setRevizeMetni(""); }}>İptal</button>
+                        <button
+                          style={{ ...saveBtnStyle, background: T.danger }}
+                          disabled={gonderiliyor === icerik.id || !revizeMetni.trim()}
+                          onClick={() => istekAt("revizeIste", icerik.id, revizeMetni)}
+                        >
+                          {gonderiliyor === icerik.id ? "Gönderiliyor…" : "Revize İsteğini Gönder"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        style={{ ...saveBtnStyle, flex: 1, justifyContent: "center" }}
+                        disabled={gonderiliyor === icerik.id}
+                        onClick={() => istekAt("onayla", icerik.id)}
+                      >
+                        {gonderiliyor === icerik.id ? "…" : "✓ Onayla"}
+                      </button>
+                      <button style={{ ...cancelBtnStyle, flex: 1, justifyContent: "center" }} onClick={() => { setRevizeAcikId(icerik.id); setRevizeMetni(""); }}>
+                        Revize İste
+                      </button>
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        {gecmis.length > 0 && (
+          <>
+            <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 10 }}>Geçmiş</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {gecmis.map((icerik) => {
+                const stil = DURUM_STIL[icerik.durum] || DURUM_STIL.bekliyor;
+                return (
+                  <Card key={icerik.id} style={{ padding: "12px 16px" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: icerik.revizeNotu ? 6 : 0 }}>
+                      <div>
+                        <div style={{ fontSize: 12.5, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{icerik.aciklama || icerik.tur}</div>
+                        <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter" }}>{icerik.tarih}</div>
+                      </div>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: stil.color, background: stil.bg, padding: "3px 10px", borderRadius: 999, fontFamily: "Inter" }}>{stil.label}</span>
+                    </div>
+                    {icerik.revizeNotu && <div style={{ fontSize: 12, color: T.textDim, fontFamily: "Inter", fontStyle: "italic" }}>"{icerik.revizeNotu}"</div>}
+                  </Card>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -4040,8 +4469,9 @@ export default function MarcusOS() {
   const [saveStatus, setSaveStatus] = useState("idle");
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [needsAuth, setNeedsAuth] = useState(false);
-  const [role, setRole] = useState(null); // "owner" | "staff"
+  const [role, setRole] = useState(null); // "owner" | "staff" | "musteri"
   const [loggedStaffName, setLoggedStaffName] = useState("");
+  const [musteriData, setMusteriData] = useState(null);
   const [authError, setAuthError] = useState("");
   const [authChecking, setAuthChecking] = useState(false);
   const [search, setSearch] = useState("");
@@ -4074,6 +4504,15 @@ export default function MarcusOS() {
           return;
         }
         const res = await r.json();
+        // Müşteri Paneli girişi tamamen ayrı bir veri şekli döner — normal data/needsSeedConfirm
+        // akışına hiç girmez, kendi state'inde tutulur.
+        if (res.role === "musteri") {
+          setRole("musteri");
+          setMusteriData({ musteriAd: res.musteriAd, marka: res.marka, firmaAdi: res.firmaAdi, icerikler: res.icerikler || [] });
+          setNeedsAuth(false);
+          setAuthError("");
+          return;
+        }
         if (res.role) setRole(res.role);
         if (res.staffName) setLoggedStaffName(res.staffName);
         if (res.data) {
@@ -4151,6 +4590,12 @@ export default function MarcusOS() {
   const handleStaffAuthSubmit = (kullaniciAdi, sifre) => {
     setPw("");
     setStaffCreds(kullaniciAdi, sifre);
+    loadData(true);
+  };
+  const handleMusteriAuthSubmit = (kullaniciAdi, sifre) => {
+    setPw("");
+    clearStaffCreds();
+    setMusteriCreds(kullaniciAdi, sifre);
     loadData(true);
   };
 
@@ -4324,7 +4769,37 @@ export default function MarcusOS() {
         .catch(() => window.alert(`${kisi.ad} için bildirim e-postası gönderilirken bağlantı hatası oluştu.`));
     });
   };
-  const updateCekimIsi = (id, patch) => setData((d) => ({ ...d, cekimIsleri: (d.cekimIsleri || []).map((j) => (j.id === id ? { ...j, ...patch } : j)) }));
+  const updateCekimIsi = (id, patch) => setData((d) => {
+    const eskiIs = (d.cekimIsleri || []).find((j) => j.id === id);
+    const yeniIsler = (d.cekimIsleri || []).map((j) => (j.id === id ? { ...j, ...patch } : j));
+    let musteriIcerikleri = d.musteriIcerikleri || [];
+    // "Kontrol Bekliyor" aşamasına YENİ geçildiyse (önceden başka bir aşamadaysa), otomatik
+    // olarak müşteri panelinde onay bekleyen bir kayıt oluşturulur — CEO ekstra bir şey
+    // yapmadan, iş bu aşamaya gelince müşteri direkt görebilsin diye.
+    if (patch.asama === "Kontrol Bekliyor" && eskiIs && eskiIs.asama !== "Kontrol Bekliyor") {
+      const musteri = (d.clients || []).find((c) => c.ad === eskiIs.marka);
+      const dosyaLinki = eskiIs.editliDosyaLink || patch.editliDosyaLink || eskiIs.hamDosyaLink || patch.hamDosyaLink || "";
+      if (musteri && dosyaLinki) {
+        const zatenVarMi = musteriIcerikleri.some((i) => i.kaynakIsId === id && i.durum === "bekliyor");
+        if (!zatenVarMi) {
+          musteriIcerikleri = [...musteriIcerikleri, {
+            id: nextId(musteriIcerikleri),
+            clientId: musteri.id,
+            tur: (eskiIs.kategori === "Grafik Tasarım" ? "gorsel" : "video"),
+            driveLinki: dosyaLinki,
+            gorselUrl: null,
+            aciklama: eskiIs.icerikTuru || "",
+            tarih: new Date().toLocaleDateString("tr-TR"),
+            durum: "bekliyor",
+            revizeNotu: null,
+            kaynakIsId: id,
+            olusturmaTarihi: new Date().toLocaleDateString("tr-TR"),
+          }];
+        }
+      }
+    }
+    return { ...d, cekimIsleri: yeniIsler, musteriIcerikleri };
+  });
   const deleteCekimIsi = (id) => setData((d) => ({ ...d, cekimIsleri: (d.cekimIsleri || []).filter((j) => j.id !== id) }));
   const deleteSablon = (id) => setData((d) => ({ ...d, teklifSablonlari: (d.teklifSablonlari || []).filter((s) => s.id !== id) }));
 
@@ -4371,6 +4846,12 @@ export default function MarcusOS() {
   }));
 
   const deleteMarkalasmaSureci = (surecId) => setData((d) => ({ ...d, markalasmaSurecleri: (d.markalasmaSurecleri || []).filter((s) => s.id !== surecId) }));
+
+  const addMusteriIcerik = (clientId, icerik) => setData((d) => ({
+    ...d,
+    musteriIcerikleri: [...(d.musteriIcerikleri || []), { ...icerik, id: nextId(d.musteriIcerikleri || []), clientId, durum: "bekliyor", revizeNotu: null, kaynakIsId: null, olusturmaTarihi: new Date().toLocaleDateString("tr-TR") }],
+  }));
+  const deleteMusteriIcerik = (icerikId) => setData((d) => ({ ...d, musteriIcerikleri: (d.musteriIcerikleri || []).filter((i) => i.id !== icerikId) }));
 
   const addReklam = (r) => setData((d) => ({ ...d, reklamlar: [...(d.reklamlar || []), { ...r, id: nextId(d.reklamlar || []) }] }));
   const updateReklam = (id, patch) => setData((d) => ({ ...d, reklamlar: (d.reklamlar || []).map((r) => (r.id === id ? { ...r, ...patch } : r)) }));
@@ -4667,6 +5148,19 @@ export default function MarcusOS() {
     data.gelirKalemleri.forEach((g) => { if (g.kalem.toLowerCase().includes(q)) results.push({ type: "finans", label: g.kalem, sub: "Gelir · " + fmt(g.tutar), ref: g }); });
     data.giderKalemleri.forEach((g) => { if (g.kalem.toLowerCase().includes(q)) results.push({ type: "finans", label: g.kalem, sub: "Gider · " + fmt(g.tutar), ref: g }); });
     (data.personel || []).forEach((p) => { if (p.ad.toLowerCase().includes(q) || (p.pozisyon || "").toLowerCase().includes(q)) results.push({ type: "personel", label: p.ad, sub: p.pozisyon, ref: p }); });
+    (data.cekimIsleri || []).forEach((j) => {
+      if ((j.marka || "").toLowerCase().includes(q) || (j.icerikTuru || "").toLowerCase().includes(q) || (j.kameraman || "").toLowerCase().includes(q) || (j.editor || "").toLowerCase().includes(q)) {
+        results.push({ type: "operasyon", label: `${j.marka || ""} — ${j.icerikTuru || "iş"}`, sub: `${j.kategori || ""} · ${j.asama || ""}`, ref: j });
+      }
+    });
+    (data.markalasmaSurecleri || []).forEach((s) => {
+      if ((s.marka || "").toLowerCase().includes(q) || (s.yonetici || "").toLowerCase().includes(q)) {
+        results.push({ type: "markalasma", label: s.marka, sub: s.yonetici ? `Yönetici: ${s.yonetici}` : "Yönetici atanmadı", ref: s });
+      }
+    });
+    (data.hesaplar || []).forEach((h) => {
+      if ((h.ad || "").toLowerCase().includes(q)) results.push({ type: "hesap", label: h.ad, sub: "Hesap Bakiyesi", ref: h });
+    });
     return results.slice(0, 8);
   }, [data, search, role]);
 
@@ -4674,6 +5168,9 @@ export default function MarcusOS() {
     setSearch(""); setSearchOpen(false);
     if (r.type === "musteri") { setTab("musteriler"); setDetailClientFromSearch(r.ref); }
     else if (r.type === "personel") setTab("personel");
+    else if (r.type === "operasyon") setTab("cekim-edit");
+    else if (r.type === "markalasma") setTab("cekim-edit");
+    else if (r.type === "hesap") setTab("odeme-takvimi");
     else setTab("finans");
   };
 
@@ -4681,7 +5178,17 @@ export default function MarcusOS() {
   const todayLabel = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
 
   if (needsAuth) {
-    return <LockScreen onSubmit={handleAuthSubmit} onStaffSubmit={handleStaffAuthSubmit} error={authError} checking={authChecking} />;
+    return <LockScreen onSubmit={handleAuthSubmit} onStaffSubmit={handleStaffAuthSubmit} onMusteriSubmit={handleMusteriAuthSubmit} error={authError} checking={authChecking} />;
+  }
+
+  if (role === "musteri" && musteriData) {
+    return (
+      <MusteriPaneli
+        musteriData={musteriData}
+        onCikis={() => { clearMusteriCreds(); setMusteriData(null); setRole(null); setNeedsAuth(true); }}
+        onIslemSonrasi={() => loadData(true)}
+      />
+    );
   }
 
   if (loadError) {
@@ -4812,6 +5319,9 @@ export default function MarcusOS() {
               openClient={detailClientFromSearch}
               onOpenClientHandled={() => setDetailClientFromSearch(null)}
               duzenleyenAdi={loggedStaffName || "Personel"}
+              musteriIcerikleri={data.musteriIcerikleri || []}
+              onAddIcerik={addMusteriIcerik}
+              onDeleteIcerik={deleteMusteriIcerik}
             />
           )}
           {staffTab === "finans" && (
@@ -4983,7 +5493,7 @@ export default function MarcusOS() {
                   onChange={(e) => { setSearch(e.target.value); setSearchOpen(true); }}
                   onFocus={() => setSearchOpen(true)}
                   onBlur={() => setTimeout(() => setSearchOpen(false), 150)}
-                  placeholder="Müşteri, iş, kalem ara…"
+                  placeholder="Müşteri, iş, personel, marka ara…"
                   style={{ border: "none", outline: "none", background: "transparent", color: T.text, fontSize: 12.5, fontFamily: "Inter, sans-serif", width: "100%" }}
                 />
               </div>
@@ -5043,6 +5553,9 @@ export default function MarcusOS() {
               openClient={detailClientFromSearch}
               onOpenClientHandled={() => setDetailClientFromSearch(null)}
               duzenleyenAdi="Yönetici (CEO)"
+              musteriIcerikleri={data.musteriIcerikleri || []}
+              onAddIcerik={addMusteriIcerik}
+              onDeleteIcerik={deleteMusteriIcerik}
             />
           )}
           {tab === "finans" && (
@@ -5117,6 +5630,7 @@ export default function MarcusOS() {
               markaKimligiGorseli={data.markaKimligiGorseli}
               onSaveMarkaKimligi={saveMarkaKimligi}
               onRosterChange={(roster) => setData((d) => ({ ...d, personelRosteri: roster }))}
+              clients={data.clients || []}
             />
           )}
         </div>
