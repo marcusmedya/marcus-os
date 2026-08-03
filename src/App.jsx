@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Wallet, Settings, Sparkles,
   ArrowUpRight, ArrowDownRight, X, Send, Plus, Pencil, Trash2, Check,
   ChevronRight,
-  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp, Menu, Calendar, ChevronLeft, ListChecks, FileText, Megaphone, Share2, Lock, Camera, Shield, ClipboardCheck, Video, Copy, KeyRound, Eye, EyeOff
+  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp, Menu, Calendar, ChevronLeft, ListChecks, FileText, Megaphone, Share2, Lock, Camera, Shield, ClipboardCheck, Video, Copy, KeyRound, Eye, EyeOff, RefreshCw
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
@@ -2340,7 +2340,12 @@ function CekimListesi({ clients, stoklar, subeler, gecmis }) {
   );
 }
 
-function GunlukKontrol({ clients, stoklar, gecmis, kontrol, onToggle }) {
+function GunlukKontrol({ clients, stoklar, gecmis, kontrol, onToggle, onYenile }) {
+  const [yenileniyor, setYenileniyor] = useState(false);
+  const tikla = () => {
+    setYenileniyor(true);
+    Promise.resolve(onYenile ? onYenile() : null).finally(() => setTimeout(() => setYenileniyor(false), 400));
+  };
   const bugun = bugunISO();
   const yapilanlar = kontrol && kontrol.tarih === bugun ? kontrol.yapilanlar : [];
   const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
@@ -2373,11 +2378,15 @@ function GunlukKontrol({ clients, stoklar, gecmis, kontrol, onToggle }) {
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 12 }}>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 12, alignItems: "center", justifyContent: "space-between" }}>
         <KpiCard label="BUGÜN TAMAMLANAN MARKA" value={`${tamamlananMarkaSayisi} / ${paylasilacakBirSeyOlanlar}`} mono={false} accent={paylasilacakBirSeyOlanlar > 0 && tamamlananMarkaSayisi === paylasilacakBirSeyOlanlar ? T.success : T.warning} />
+        <button onClick={tikla} disabled={yenileniyor} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: `1px solid ${T.border}`, background: T.surfaceRaised, color: T.text, fontSize: 12.5, fontWeight: 600, fontFamily: "Inter", cursor: yenileniyor ? "default" : "pointer", opacity: yenileniyor ? 0.6 : 1 }}>
+          <RefreshCw size={13} style={yenileniyor ? { animation: "marcus-spin 0.8s linear infinite" } : undefined} />
+          {yenileniyor ? "Yenileniyor…" : "Yenile"}
+        </button>
       </div>
       <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 10 }}>
-        Bu sayfa sadece bir gösterge — işaretlemek için <strong>Paylaşımlar &gt; Haftalık Paylaşım Planı</strong>'nı kullan.
+        Bu sayfa sadece bir gösterge — işaretlemek için <strong>Paylaşımlar &gt; Haftalık Paylaşım Planı</strong>'nı kullan. "Yenile" ile Haftalık Plan'daki en güncel listeye göre anlık senkronlar.
       </div>
 
       {paylasilacakBirSeyOlanlar > 0 && tamamlananMarkaSayisi === paylasilacakBirSeyOlanlar && (
@@ -4093,20 +4102,29 @@ export default function MarcusOS() {
   useEffect(() => { dataVarMi.current = !!data; }, [data]);
   useEffect(() => { saveStatusRef.current = saveStatus; }, [saveStatus]);
 
+  // Hem arka plan (sessiz, periyodik) yenilemede hem de kullanıcının elle bastığı "Yenile"
+  // butonlarında kullanılan ortak fonksiyon — sunucudaki en güncel veriyi çekip local state'e
+  // uygular. Bekleyen/aktif bir kayıt varsa üzerine yazmaz (kendi değişikliğini kaybetmesin).
+  const veriyiYenile = () => {
+    if (saveTimer.current || saveStatusRef.current === "saving") return Promise.resolve(false);
+    return fetch("/api/data", { headers: authHeaders() })
+      .then(async (r) => {
+        if (!r.ok) return false;
+        const res = await r.json();
+        if (res.data) {
+          skipNextSave.current = true;
+          setData(res.data);
+          return true;
+        }
+        return false;
+      })
+      .catch(() => false);
+  };
+
   useEffect(() => {
     const sessizYenile = () => {
       if (!dataVarMi.current) return; // ilk yükleme henüz tamamlanmadıysa karışma
-      if (saveTimer.current || saveStatusRef.current === "saving") return; // bekleyen/aktif kayıt varken üzerine yazma
-      fetch("/api/data", { headers: authHeaders() })
-        .then(async (r) => {
-          if (!r.ok) return; // sessizce geç — kullanıcıyı arka plan hatasıyla rahatsız etme
-          const res = await r.json();
-          if (res.data) {
-            skipNextSave.current = true;
-            setData(res.data);
-          }
-        })
-        .catch(() => {}); // ağ hatası — sessizce geç, bir sonraki turda tekrar denenir
+      veriyiYenile();
     };
 
     const interval = setInterval(sessizYenile, 25000); // 25 saniyede bir
@@ -4119,7 +4137,8 @@ export default function MarcusOS() {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
     };
-  }, []);
+    // eslint-disable-next-line
+  }, [])
 
   const handleAuthSubmit = (pw) => {
     setPw(pw);
@@ -4737,6 +4756,7 @@ export default function MarcusOS() {
       <div style={{ background: T.bg, minHeight: "100vh", fontFamily: "Inter, sans-serif" }}>
         <style>{FONTS}{`
           * { box-sizing: border-box; }
+          @keyframes marcus-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
           ::-webkit-scrollbar { width: 8px; height: 8px; }
           ::-webkit-scrollbar-thumb { background: ${T.border}; border-radius: 8px; }
           input:focus, select:focus { border-color: ${T.accent} !important; }
@@ -4837,7 +4857,7 @@ export default function MarcusOS() {
           )}
           {staffTab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} clients={data.clients || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} duzenleyenAdi={loggedStaffName || "Personel"} />}
           {staffTab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} />}
-          {staffTab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} kontrol={data.gunlukKontrol} onToggle={toggleGunlukKontrol} />}
+          {staffTab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} kontrol={data.gunlukKontrol} onToggle={toggleGunlukKontrol} onYenile={veriyiYenile} />}
           {staffTab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} />}
           {staffTab === "cekim-edit" && <CekimEditTakibi role="staff" clients={data.clients || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} girisYapanAd={loggedStaffName} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={izinler.markaYoneticisi} firmaAdi={data.firmaAdi} />}
           {staffTab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} duzenleyenAdi={loggedStaffName || "Personel"} />}
@@ -4862,6 +4882,7 @@ export default function MarcusOS() {
     <div style={{ background: T.bg, minHeight: "100vh", display: "flex", fontFamily: "Inter, sans-serif", overflowX: "hidden" }}>
       <style>{FONTS}{`
         * { box-sizing: border-box; }
+        @keyframes marcus-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-thumb { background: ${T.border}; border-radius: 8px; }
         input:focus, select:focus { border-color: ${T.accent} !important; }
@@ -5067,7 +5088,7 @@ export default function MarcusOS() {
           )}
           {tab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} clients={data.clients || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} duzenleyenAdi="Yönetici (CEO)" />}
           {tab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} />}
-          {tab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} kontrol={data.gunlukKontrol} onToggle={toggleGunlukKontrol} />}
+          {tab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} kontrol={data.gunlukKontrol} onToggle={toggleGunlukKontrol} onYenile={veriyiYenile} />}
           {tab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} />}
           {tab === "cekim-edit" && <CekimEditTakibi role="owner" clients={data.clients || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={true} firmaAdi={data.firmaAdi} />}
           {tab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} duzenleyenAdi="Yönetici (CEO)" />}
