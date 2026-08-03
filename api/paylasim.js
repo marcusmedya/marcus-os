@@ -69,8 +69,19 @@ export default async function handler(req, res) {
       const { clientId, tur, delta } = body;
       stokDegistirDahili(data, clientId, tur, delta);
       gecmiseEkle(data, clientId, markaAdi(clientId), tur, delta < 0 ? "paylasim" : "cekim");
+      // Paylaşımlar'dan "Paylaşıldı" ile bir şey paylaşıldıysa, Günlük Kontrol paneli de
+      // bunu bugün için otomatik "yapıldı" işaretlesin — iki panel birbirinden habersiz
+      // ilerleyip birbiriyle çelişen bir görünüm vermesin.
+      if (delta < 0) {
+        const bugun = bugunISO();
+        const kontrol = data.gunlukKontrol && data.gunlukKontrol.tarih === bugun ? data.gunlukKontrol : { tarih: bugun, yapilanlar: [] };
+        const itemKey = `${clientId}_${tur}`;
+        if (!kontrol.yapilanlar.includes(itemKey)) {
+          data.gunlukKontrol = { tarih: bugun, yapilanlar: [...kontrol.yapilanlar, itemKey] };
+        }
+      }
       await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, stoklar: data.stoklar, paylasimGecmisi: data.paylasimGecmisi });
+      return res.status(200).json({ ok: true, stoklar: data.stoklar, paylasimGecmisi: data.paylasimGecmisi, gunlukKontrol: data.gunlukKontrol });
     }
 
     if (action === "haftalikEkle") {

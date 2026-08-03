@@ -2556,7 +2556,14 @@ function EmailYedekTest({ endpoint = "/api/daily-backup" }) {
     fetch(endpoint, { headers: { "X-Site-Password": getPw() } })
       .then((r) => r.json())
       .then((res) => {
-        if (res.ok) { setStatus("ok"); setMessage(`Gönderildi: ${res.to}`); }
+        if (res.ok) {
+          if (res.to) setMessage(`Gönderildi: ${res.to}`);
+          else if (res.operasyonHatirlatma !== undefined) {
+            const opSayisi = res.operasyonHatirlatma.filter((x) => x.gonderildi).length;
+            setMessage(`${opSayisi} kişiye Operasyon hatırlatması, Günlük Kontrol özeti: ${res.gunlukKontrolOzeti ? "gönderildi" : "eksik yok / gönderilmedi"}.`);
+          } else setMessage("Tamamlandı.");
+          setStatus("ok");
+        }
         else if (res.skipped) { setStatus("error"); setMessage(res.reason); }
         else { setStatus("error"); setMessage(res.error || "Bilinmeyen hata"); }
       })
@@ -3368,6 +3375,17 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
           (AI CEO sohbeti için daha önce aldığın anahtar).
         </p>
         <EmailYedekTest endpoint="/api/daily-summary" />
+      </Card>
+
+      <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+        <SectionTitle>Operasyon & Günlük Kontrol Hatırlatmaları</SectionTitle>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
+          Her gün akşam 18:00'de otomatik çalışır: teslim tarihi geçmiş ve "Teslim Edildi" olmayan Operasyon işleri için,
+          o işe atanan kişiye (kayıtlı e-postası varsa) hatırlatma gider. Ayrıca o gün stokta içerik olduğu halde
+          henüz Günlük Kontrol'den paylaşılmamış görünen markalar varsa, bunların özeti sana (BACKUP_EMAIL) gider.
+          Ek bir kurulum gerekmiyor — yukarıdaki RESEND_API_KEY zaten yeterli.
+        </p>
+        <EmailYedekTest endpoint="/api/daily-reminders" />
       </Card>
 
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
