@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Wallet, Settings, Sparkles,
   ArrowUpRight, ArrowDownRight, X, Send, Plus, Pencil, Trash2, Check,
   ChevronRight,
-  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp, Menu, Calendar, ChevronLeft, ListChecks, FileText, Megaphone, Share2, Lock, Camera, Shield, ClipboardCheck, Video, Copy, KeyRound, Eye, EyeOff, RefreshCw
+  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp, Menu, Calendar, ChevronLeft, ListChecks, FileText, Megaphone, Share2, Lock, Camera, Shield, ClipboardCheck, Video, Copy, KeyRound, Eye, EyeOff, RefreshCw, CreditCard
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
@@ -2752,6 +2752,77 @@ function FonCard({ fon, onDelete, onAddHareket, onDeleteHareket }) {
   );
 }
 
+const UYELIK_FIELDS = [
+  { key: "ad", label: "Hizmet Adı", type: "text", placeholder: "örn. Canva Pro, Adobe CC, ChatGPT" },
+  { key: "tutar", label: "Tutar (₺)", type: "number" },
+  { key: "periyot", label: "Periyot", type: "select", options: [{ value: "aylik", label: "Aylık" }, { value: "yillik", label: "Yıllık" }] },
+  { key: "yenilenmeTarihi", label: "Yenilenme Tarihi (opsiyonel)", type: "date" },
+  { key: "not", label: "Not (opsiyonel)", type: "text" },
+];
+
+function Uyelikler({ uyelikler, onAdd, onDelete }) {
+  const [adding, setAdding] = useState(false);
+  const liste = uyelikler || [];
+  const aylikToplam = liste.reduce((s, u) => s + (u.periyot === "yillik" ? (Number(u.tutar) || 0) / 12 : (Number(u.tutar) || 0)), 0);
+  const yillikToplam = aylikToplam * 12;
+
+  const yakindaYenilenecek = (tarih) => {
+    if (!tarih) return false;
+    const fark = Math.round((new Date(tarih) - new Date()) / 86400000);
+    return fark >= 0 && fark <= 7;
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 22 }}>
+        <KpiCard label="AYLIK TOPLAM (TAHMİNİ)" value={fmt(aylikToplam)} accent={T.warning} />
+        <KpiCard label="YILLIK TOPLAM (TAHMİNİ)" value={fmt(yillikToplam)} mono={false} />
+        <KpiCard label="ÜYELİK SAYISI" value={liste.length} mono={false} />
+      </div>
+
+      <Card style={{ padding: "10px 12px", marginBottom: 16, display: "flex", justifyContent: "flex-end" }}>
+        <button style={addBtnStyle} onClick={() => setAdding(true)}><Plus size={14} /> Yeni Üyelik Ekle</button>
+      </Card>
+
+      {adding && (
+        <div style={{ marginBottom: 16 }}>
+          <FieldForm fields={UYELIK_FIELDS} onSubmit={(v) => { onAdd(v); setAdding(false); }} onCancel={() => setAdding(false)} submitLabel="Üyeliği Ekle" />
+        </div>
+      )}
+
+      {liste.length === 0 ? (
+        <Card style={{ padding: "24px", textAlign: "center" }}>
+          <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Henüz üyelik eklenmedi. Canva, Adobe, ChatGPT gibi Marcus Medya adına ödenen tüm abonelikleri buraya ekleyebilirsin.</div>
+        </Card>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {liste.map((u) => {
+            const yakinda = yakindaYenilenecek(u.yenilenmeTarihi);
+            return (
+              <Card key={u.id} style={{ padding: "14px 18px", border: yakinda ? `1px solid ${T.warning}` : undefined }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 13.5, color: T.text, fontWeight: 600, fontFamily: "Inter", display: "flex", alignItems: "center", gap: 8 }}>
+                      {u.ad}
+                      {yakinda && <span style={{ fontSize: 10.5, color: T.warning, background: T.warningSoft, padding: "2px 8px", borderRadius: 999, fontWeight: 600 }}>7 gün içinde yenilenecek</span>}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>
+                      {fmt(u.tutar)} / {u.periyot === "yillik" ? "yıl" : "ay"}
+                      {u.yenilenmeTarihi && ` · Yenilenme: ${new Date(u.yenilenmeTarihi).toLocaleDateString("tr-TR")}`}
+                      {u.not && ` · ${u.not}`}
+                    </div>
+                  </div>
+                  <button style={iconBtnStyle} onClick={() => { if (window.confirm(`"${u.ad}" üyeliği silinsin mi?`)) onDelete(u.id); }}><Trash2 size={14} color={T.danger} /></button>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Birikim({ birikimler, onAddFon, onDeleteFon, onAddHareket, onDeleteHareket }) {
   const [adding, setAdding] = useState(false);
   const toplam = birikimler.reduce((s, f) => s + (f.bakiye || 0), 0);
@@ -3712,6 +3783,7 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
             { key: "markaYoneticisi", label: "Marka Yöneticisi (Operasyon'da durum bildirimi e-postası gönderebilir)", varsayilan: false },
             { key: "personel", label: "Personel", varsayilan: false },
             { key: "birikim", label: "Birikim", varsayilan: false },
+            { key: "uyelikler", label: "Üyelikler (abonelikler)", varsayilan: false },
             { key: "sifreKasasi", label: "Şifre Kasası (yine de her girişte owner şifresi ister)", varsayilan: false },
           ].map((m) => (
             <label key={m.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: T.surfaceRaised, borderRadius: 10, cursor: "pointer" }}>
@@ -3896,6 +3968,7 @@ function PersonelHesaplariKart({ onRosterChange }) {
     { key: "markaYoneticisi", label: "Marka Yöneticisi (durum bildirimi e-postası gönderebilir)" },
     { key: "personel", label: "Personel" },
     { key: "birikim", label: "Birikim" },
+    { key: "uyelikler", label: "Üyelikler (abonelikler)" },
     { key: "sifreKasasi", label: "Şifre Kasası (yine de owner şifresi ister)" },
   ];
 
@@ -4496,6 +4569,7 @@ const NAV = [
   { key: "cekim-edit", label: "Operasyon", icon: Camera },
   { key: "personel", label: "Personel", icon: Briefcase },
   { key: "birikim", label: "Birikim", icon: PiggyBank },
+  { key: "uyelikler", label: "Üyelikler", icon: CreditCard },
   { key: "musteri-girisleri", label: "Şifre Kasası", icon: KeyRound },
   { key: "ayarlar", label: "Ayarlar", icon: Settings },
 ];
@@ -4904,6 +4978,9 @@ export default function MarcusOS() {
   }));
   const deleteMusteriIcerik = (icerikId) => setData((d) => ({ ...d, musteriIcerikleri: (d.musteriIcerikleri || []).filter((i) => i.id !== icerikId) }));
 
+  const addUyelik = (u) => setData((d) => ({ ...d, uyelikler: [...(d.uyelikler || []), { ...u, id: nextId(d.uyelikler || []) }] }));
+  const deleteUyelik = (id) => setData((d) => ({ ...d, uyelikler: (d.uyelikler || []).filter((u) => u.id !== id) }));
+
   const addReklam = (r) => setData((d) => ({ ...d, reklamlar: [...(d.reklamlar || []), { ...r, id: nextId(d.reklamlar || []) }] }));
   const updateReklam = (id, patch) => setData((d) => ({ ...d, reklamlar: (d.reklamlar || []).map((r) => (r.id === id ? { ...r, ...patch } : r)) }));
   const deleteReklam = (id) => setData((d) => ({ ...d, reklamlar: (d.reklamlar || []).filter((r) => r.id !== id) }));
@@ -5225,7 +5302,7 @@ export default function MarcusOS() {
     else setTab("finans");
   };
 
-  const titles = { dashboard: "Dashboard", musteriler: "Müşteriler", finans: "Finans", takvim: "Takvim", "odeme-takvimi": "Ödeme Takvimi", teklif: "Teklif & Sözleşme", reklamlar: "Reklamlar", paylasimlar: "Paylaşımlar", "gunluk-kontrol": "Günlük Kontrol", "cekim-listesi": "Çekim", "cekim-edit": "Operasyon", personel: "Personel", birikim: "Birikim", "musteri-girisleri": "Şifre Kasası", ayarlar: "Ayarlar" };
+  const titles = { dashboard: "Dashboard", musteriler: "Müşteriler", finans: "Finans", takvim: "Takvim", "odeme-takvimi": "Ödeme Takvimi", teklif: "Teklif & Sözleşme", reklamlar: "Reklamlar", paylasimlar: "Paylaşımlar", "gunluk-kontrol": "Günlük Kontrol", "cekim-listesi": "Çekim", "cekim-edit": "Operasyon", personel: "Personel", birikim: "Birikim", uyelikler: "Üyelikler", "musteri-girisleri": "Şifre Kasası", ayarlar: "Ayarlar" };
   const todayLabel = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
 
   if (needsAuth) {
@@ -5295,7 +5372,7 @@ export default function MarcusOS() {
   }
 
   if (role === "staff") {
-    const izinler = { dashboard: false, musteriler: false, finans: false, takvim: false, odemeTakvimi: false, teklif: false, reklamlar: true, paylasimlar: true, cekimEdit: true, personel: false, birikim: false, cekimListesi: false, sifreKasasi: false, markaYoneticisi: false, ...(data.staffPermissions || {}) };
+    const izinler = { dashboard: false, musteriler: false, finans: false, takvim: false, odemeTakvimi: false, teklif: false, reklamlar: true, paylasimlar: true, cekimEdit: true, personel: false, birikim: false, cekimListesi: false, sifreKasasi: false, markaYoneticisi: false, uyelikler: false, ...(data.staffPermissions || {}) };
     const staffNavAll = [
       { key: "dashboard", label: "Dashboard", izin: izinler.dashboard },
       { key: "musteriler", label: "Müşteriler", izin: izinler.musteriler },
@@ -5310,6 +5387,7 @@ export default function MarcusOS() {
       { key: "cekim-edit", label: "Operasyon", izin: izinler.cekimEdit },
       { key: "personel", label: "Personel", izin: izinler.personel },
       { key: "birikim", label: "Birikim", izin: izinler.birikim },
+      { key: "uyelikler", label: "Üyelikler", izin: izinler.uyelikler },
       { key: "musteri-girisleri", label: "Şifre Kasası", izin: izinler.sifreKasasi },
     ].filter((x) => x.izin === true);
     const staffTab = staffNavAll.some((x) => x.key === tab) ? tab : (staffNavAll[0] ? staffNavAll[0].key : null);
@@ -5433,6 +5511,9 @@ export default function MarcusOS() {
               onAddHareket={addFonHareket}
               onDeleteHareket={deleteFonHareket}
             />
+          )}
+          {staffTab === "uyelikler" && (
+            <Uyelikler uyelikler={data.uyelikler || []} onAdd={addUyelik} onDelete={deleteUyelik} />
           )}
           {staffTab === "musteri-girisleri" && (
             <MusteriGirisleri clients={data.clients || []} girisler={data.musteriGirisleri || {}} onUpdate={updateMusteriGiris} firmaAdi={data.firmaAdi} logo={data.markaKimligiGorseli} />
@@ -5667,6 +5748,9 @@ export default function MarcusOS() {
               onAddHareket={addFonHareket}
               onDeleteHareket={deleteFonHareket}
             />
+          )}
+          {tab === "uyelikler" && (
+            <Uyelikler uyelikler={data.uyelikler || []} onAdd={addUyelik} onDelete={deleteUyelik} />
           )}
           {tab === "musteri-girisleri" && (
             <MusteriGirisleri clients={data.clients || []} girisler={data.musteriGirisleri || {}} onUpdate={updateMusteriGiris} firmaAdi={data.firmaAdi} logo={data.markaKimligiGorseli} />
