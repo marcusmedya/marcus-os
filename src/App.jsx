@@ -5088,9 +5088,9 @@ export default function MarcusOS() {
   }));
   const deleteMusteriIcerik = (icerikId) => setData((d) => ({ ...d, musteriIcerikleri: (d.musteriIcerikleri || []).filter((i) => i.id !== icerikId) }));
 
-  const addUyelik = (u) => setData((d) => ({ ...d, uyelikler: [...(d.uyelikler || []), { ...u, id: nextId(d.uyelikler || []) }] }));
-  const deleteUyelik = (id) => setData((d) => ({ ...d, uyelikler: (d.uyelikler || []).filter((u) => u.id !== id) }));
-  const updateUyelik = (id, patch) => setData((d) => ({ ...d, uyelikler: (d.uyelikler || []).map((u) => (u.id === id ? { ...u, ...patch } : u)) }));
+  const addUyelik = (u) => paylasimIstek({ action: "uyelikEkle", uyelik: u }, "Bağlantı hatası — üyelik eklenemedi, tekrar dene.");
+  const deleteUyelik = (id) => paylasimIstek({ action: "uyelikSil", uyelikId: id }, "Bağlantı hatası — üyelik silinemedi, tekrar dene.");
+  const updateUyelik = (id, patch) => paylasimIstek({ action: "uyelikGuncelle", uyelikId: id, patch }, "Bağlantı hatası — üyelik güncellenemedi, tekrar dene.");
 
   const addReklam = (r) => setData((d) => ({ ...d, reklamlar: [...(d.reklamlar || []), { ...r, id: nextId(d.reklamlar || []) }] }));
   const updateReklam = (id, patch) => setData((d) => ({ ...d, reklamlar: (d.reklamlar || []).map((r) => (r.id === id ? { ...r, ...patch } : r)) }));

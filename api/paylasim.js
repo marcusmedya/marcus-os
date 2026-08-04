@@ -34,7 +34,7 @@ async function yetkiliMi(req) {
       const hash = crypto.scryptSync(password, hesap.sifreSalt, 64).toString("hex");
       if (hash === hesap.sifreHash) {
         const perms = hesap.izinler || (data && data.staffPermissions) || {};
-        return perms.paylasimlar === true;
+        return perms.paylasimlar === true || perms.uyelikler === true;
       }
     }
   }
@@ -206,6 +206,29 @@ export default async function handler(req, res) {
       gecmiseEkle(data, clientId, `${markaAdi(clientId)}${subeAdi ? " (" + subeAdi + ")" : ""}`, tur, delta < 0 ? "paylasim" : "cekim");
       await kaydetVeYedekle(data);
       return res.status(200).json({ ok: true, stoklar: data.stoklar, paylasimGecmisi: data.paylasimGecmisi });
+    }
+
+    if (action === "uyelikEkle") {
+      const { uyelik } = body;
+      const liste = data.uyelikler || [];
+      const yeni = { ...uyelik, id: nid() };
+      data.uyelikler = [...liste, yeni];
+      await kaydetVeYedekle(data);
+      return res.status(200).json({ ok: true, uyelikler: data.uyelikler });
+    }
+
+    if (action === "uyelikGuncelle") {
+      const { uyelikId, patch } = body;
+      data.uyelikler = (data.uyelikler || []).map((u) => (u.id === uyelikId ? { ...u, ...patch } : u));
+      await kaydetVeYedekle(data);
+      return res.status(200).json({ ok: true, uyelikler: data.uyelikler });
+    }
+
+    if (action === "uyelikSil") {
+      const { uyelikId } = body;
+      data.uyelikler = (data.uyelikler || []).filter((u) => u.id !== uyelikId);
+      await kaydetVeYedekle(data);
+      return res.status(200).json({ ok: true, uyelikler: data.uyelikler });
     }
 
     return res.status(400).json({ error: "Geçersiz işlem." });
