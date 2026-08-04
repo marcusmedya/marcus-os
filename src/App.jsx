@@ -182,6 +182,32 @@ function clientOverdueMonths(client) {
   return count;
 }
 
+/** clientOverdueMonths ile AYNI ayları tarar ama sayı yerine, her ayın kısmi ödemesi düşülmüş
+ * GERÇEK kalan bakiyesini toplar — "3 aydır ödenmedi" derken biri o aylardan birine kısmi ödeme
+ * yapmışsa, bu fonksiyon o kısmi ödemeyi düşerek doğru toplamı verir. */
+function clientOverdueBalance(client) {
+  if (!client.odemeGunu) return 0;
+  const now = new Date();
+  const pesin = client.odemeSekli !== "sonra";
+  let baslangicKey = null;
+  if (client.baslangic && /^\d{4}-\d{1,2}$/.test(client.baslangic.trim())) {
+    const [by, bm] = client.baslangic.trim().split("-").map(Number);
+    baslangicKey = `${by}-${String(bm).padStart(2, "0")}`;
+  }
+  let toplam = 0;
+  for (let i = 0; i < 24; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = monthKey(d);
+    if (baslangicKey && key < baslangicKey) break;
+    if (pesin && i === 0 && now.getDate() < Number(client.odemeGunu)) continue;
+    if (!pesin && i === 0) continue;
+    if (!pesin && i === 1 && now.getDate() < Number(client.odemeGunu)) continue;
+    if (isMonthPaid(client, key)) break;
+    toplam += monthRemaining(client, key);
+  }
+  return toplam;
+}
+
 const DEFAULT_TEBLIG_SABLONU = `Sayın {musteri} Yetkilisi,
 
 Firmanız ile aramızda devam etmekte olan hizmet ilişkisi kapsamında, aylık {aylikUcret} tutarındaki hizmet bedelinin {ay} aydır tarafımıza ödenmediği tespit edilmiştir.
@@ -890,8 +916,8 @@ function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, onAdd, onUpdate, o
 /** ClientDetail'i açarken/kapatırken düzenleme kilidini de yönetir. */
 /** Ödemesi geciken/bekleyen bir müşteriye e-posta ve/veya WhatsApp ile nazik bir hatırlatma
  * göndermek için — DevirTeslimFormu ile aynı /api/notify-job uç noktasını (mod: "odemeHatirlatma") kullanır. */
-function OdemeHatirlatmasiGonder({ client, tutar, ayAdi, firmaAdi }) {
-  const [acik, setAcik] = useState(false);
+function OdemeHatirlatmasiGonder({ client, tutar, ayAdi, firmaAdi, baslangictaAcik }) {
+  const [acik, setAcik] = useState(!!baslangictaAcik);
   const [email, setEmail] = useState(client.email || "");
   const [telefon, setTelefon] = useState(client.telefon || "");
   const [gonderiliyor, setGonderiliyor] = useState(false);
@@ -1142,16 +1168,16 @@ function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, onAddCost, onDele
                     <div style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{fmt(client.aylikUcret)}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter" }}>KALAN BAKİYE (TOPLAM)</div>
-                    <div style={{ fontSize: 13, color: T.danger, fontFamily: "Inter", fontWeight: 700 }}>{fmt((Number(client.aylikUcret) || 0) * overdueMonths)}</div>
+                    <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter" }}>KALAN BAKİYE (kısmi ödemeler düşülmüş)</div>
+                    <div style={{ fontSize: 13, color: T.danger, fontFamily: "Inter", fontWeight: 700 }}>{fmt(clientOverdueBalance(client))}</div>
                   </div>
                 </div>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button style={saveBtnStyle} onClick={() => onOpenTeblig(client, overdueMonths, (Number(client.aylikUcret) || 0) * overdueMonths)}>Tebliğ Oluştur / Düzenle</button>
+                <button style={saveBtnStyle} onClick={() => onOpenTeblig(client, overdueMonths, clientOverdueBalance(client))}>Tebliğ Oluştur / Düzenle</button>
               </div>
             </div>
-            <OdemeHatirlatmasiGonder client={client} tutar={(Number(client.aylikUcret) || 0) * overdueMonths} ayAdi={new Date().toLocaleDateString("tr-TR", { month: "long", year: "numeric" })} firmaAdi={firmaAdi} />
+            <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 8 }}>Ödeme hatırlatması göndermek için <strong>Ödeme Takvimi</strong> sekmesini kullan.</div>
           </div>
         )}
 
@@ -1877,9 +1903,10 @@ function AyOdemeModal({ client, ayObj, hesaplar, onAddKaydi, onDeleteKaydi, onCl
   );
 }
 
-function OdemeTakvimi({ clients, hesaplar, transferler, onUpdateClient, onAddOdemeKaydi, onDeleteOdemeKaydi, onTransfer, onAddHesap, onDeleteHesap }) {
+function OdemeTakvimi({ clients, hesaplar, transferler, onUpdateClient, onAddOdemeKaydi, onDeleteOdemeKaydi, onTransfer, onAddHesap, onDeleteHesap, firmaAdi }) {
   const [ayCount, setAyCount] = useState(6);
   const [activeCell, setActiveCell] = useState(null); // { client, ayObj }
+  const [hatirlatmaClient, setHatirlatmaClient] = useState(null);
   const izlenenler = clients.filter((c) => c.durum !== "ayrildi" && c.durum !== "donduruldu");
   const aylar = sonAylar(ayCount);
   const bugunKey = monthKey();
@@ -1916,6 +1943,12 @@ function OdemeTakvimi({ clients, hesaplar, transferler, onUpdateClient, onAddOde
       return s;
     }, 0);
     return sum + ayBorcu;
+  }, 0);
+
+  const borcHesapla = (c) => aylar.reduce((s, a) => {
+    const durum = hucreDurumu(c, a);
+    if (durum === "odenmedi" || durum === "kismi") return s + monthRemaining(c, a.key);
+    return s;
   }, 0);
 
   const gunTanimliSayisi = izlenenler.filter((c) => c.odemeGunu).length;
@@ -1961,11 +1994,7 @@ function OdemeTakvimi({ clients, hesaplar, transferler, onUpdateClient, onAddOde
               </thead>
               <tbody>
                 {izlenenler.map((c) => {
-                  const borc = aylar.reduce((s, a) => {
-                    const durum = hucreDurumu(c, a);
-                    if (durum === "odenmedi" || durum === "kismi") return s + monthRemaining(c, a.key);
-                    return s;
-                  }, 0);
+                  const borc = borcHesapla(c);
                   return (
                     <tr key={c.id} style={{ borderBottom: `1px solid ${T.borderSoft}` }}>
                       <td style={{ padding: "10px 16px", fontSize: 13, color: T.text, fontWeight: 600, position: "sticky", left: 0, background: T.surface }}>{c.ad}</td>
@@ -2000,7 +2029,16 @@ function OdemeTakvimi({ clients, hesaplar, transferler, onUpdateClient, onAddOde
                           </td>
                         );
                       })}
-                      <td style={{ padding: "10px 16px", textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: borc > 0 ? T.danger : T.textFaint, fontWeight: 600 }}>{fmt(borc)}</td>
+                      <td style={{ padding: "10px 16px", textAlign: "right" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
+                          <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: borc > 0 ? T.danger : T.textFaint, fontWeight: 600 }}>{fmt(borc)}</span>
+                          {borc > 0 && (
+                            <button onClick={() => setHatirlatmaClient(c)} title="Ödeme Hatırlatması Gönder" style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>
+                              <Send size={13} color={T.textFaint} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
@@ -2023,6 +2061,19 @@ function OdemeTakvimi({ clients, hesaplar, transferler, onUpdateClient, onAddOde
           onDeleteKaydi={(kayitId) => onDeleteOdemeKaydi(activeCell.client.id, kayitId)}
           onClose={() => setActiveCell(null)}
         />
+      )}
+
+      {hatirlatmaClient && (
+        <div onClick={() => setHatirlatmaClient(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: T.surface, borderRadius: 16, padding: 22, width: 380, maxWidth: "100%" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+              <div style={{ fontSize: 15, color: T.text, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif" }}>{hatirlatmaClient.ad}</div>
+              <button onClick={() => setHatirlatmaClient(null)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><X size={17} color={T.textFaint} /></button>
+            </div>
+            <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginBottom: 14 }}>Kalan bakiye: <strong style={{ color: T.danger }}>{fmt(borcHesapla(hatirlatmaClient))}</strong></div>
+            <OdemeHatirlatmasiGonder client={hatirlatmaClient} tutar={borcHesapla(hatirlatmaClient)} ayAdi={new Date().toLocaleDateString("tr-TR", { month: "long", year: "numeric" })} firmaAdi={firmaAdi} baslangictaAcik />
+          </div>
+        </div>
       )}
     </div>
   );
@@ -5772,6 +5823,7 @@ export default function MarcusOS() {
               onTransfer={transferEt}
               onAddHesap={addHesap}
               onDeleteHesap={deleteHesap}
+              firmaAdi={data.firmaAdi}
             />
           )}
           {staffTab === "takvim" && <Takvim data={data} />}
@@ -5786,6 +5838,7 @@ export default function MarcusOS() {
               onTransfer={transferEt}
               onAddHesap={addHesap}
               onDeleteHesap={deleteHesap}
+              firmaAdi={data.firmaAdi}
             />
           )}
           {staffTab === "teklif" && (
@@ -6010,6 +6063,7 @@ export default function MarcusOS() {
               onTransfer={transferEt}
               onAddHesap={addHesap}
               onDeleteHesap={deleteHesap}
+              firmaAdi={data.firmaAdi}
             />
           )}
           {tab === "takvim" && <Takvim data={data} />}
@@ -6024,6 +6078,7 @@ export default function MarcusOS() {
               onTransfer={transferEt}
               onAddHesap={addHesap}
               onDeleteHesap={deleteHesap}
+              firmaAdi={data.firmaAdi}
             />
           )}
           {tab === "teklif" && (
