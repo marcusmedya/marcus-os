@@ -680,6 +680,8 @@ const CLIENT_FIELDS = [
   { key: "ad", label: "Müşteri Adı", type: "text" },
   { key: "kategori", label: "Kategori", type: "text" },
   { key: "durum", label: "Durum", type: "select", options: [{ value: "aktif", label: "Aktif" }, { value: "yeni", label: "Yeni" }, { value: "donduruldu", label: "Donduruldu" }, { value: "ayrildi", label: "Ayrıldı" }] },
+  { key: "email", label: "Yetkili E-postası (opsiyonel — ödeme hatırlatması için)", type: "text", placeholder: "yetkili@marka.com" },
+  { key: "telefon", label: "Yetkili Telefonu (opsiyonel — WhatsApp için, ülke koduyla)", type: "text", placeholder: "905XXXXXXXXX" },
   { key: "aylikUcret", label: "Aylık Ücret (₺)", type: "number" },
   { key: "karMarji", label: "Kâr Marjı (%) — müşteri detayında maliyet eklersen otomatik hesaplanır", type: "number" },
   { key: "odemeGunu", label: "Ödeme Günü (ayın kaçı — opsiyonel, örn. 5)", type: "number" },
@@ -696,7 +698,7 @@ const CLIENT_DURUM = {
   ayrildi: { label: "Ayrıldı", color: T.textFaint, soft: T.borderSoft },
 };
 
-function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, onAdd, onUpdate, onDelete, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, openClient, onOpenClientHandled, duzenleyenAdi, musteriIcerikleri, onAddIcerik, onDeleteIcerik }) {
+function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, onAdd, onUpdate, onDelete, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, openClient, onOpenClientHandled, duzenleyenAdi, musteriIcerikleri, onAddIcerik, onDeleteIcerik, firmaAdi }) {
   const [filter, setFilter] = useState("hepsi");
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -877,6 +879,7 @@ function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, onAdd, onUpdate, o
           detailClientId={detailClientId}
           musteriIcerikleri={musteriIcerikleri}
           onAddIcerik={onAddIcerik}
+          firmaAdi={firmaAdi}
           onDeleteIcerik={onDeleteIcerik}
         />
       )}
@@ -885,6 +888,64 @@ function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, onAdd, onUpdate, o
 }
 
 /** ClientDetail'i açarken/kapatırken düzenleme kilidini de yönetir. */
+/** Ödemesi geciken/bekleyen bir müşteriye e-posta ve/veya WhatsApp ile nazik bir hatırlatma
+ * göndermek için — DevirTeslimFormu ile aynı /api/notify-job uç noktasını (mod: "odemeHatirlatma") kullanır. */
+function OdemeHatirlatmasiGonder({ client, tutar, ayAdi, firmaAdi }) {
+  const [acik, setAcik] = useState(false);
+  const [email, setEmail] = useState(client.email || "");
+  const [telefon, setTelefon] = useState(client.telefon || "");
+  const [gonderiliyor, setGonderiliyor] = useState(false);
+  const [sonuc, setSonuc] = useState("");
+
+  const mesajMetni = () => {
+    let m = `Sayın ${client.ad} yetkilisi,\n\n${ayAdi ? `${ayAdi} dönemine ait` : "Güncel"} ödemenizle ilgili nazik bir hatırlatma yapmak isteriz.`;
+    if (tutar) m += `\n\nTutar: ₺${tutar}`;
+    if (client.odemeGunu) m += `\nÖdeme günü: Ayın ${client.odemeGunu}'i`;
+    m += `\n\nÖdemenizi zaten gerçekleştirdiyseniz bu mesajı dikkate almayınız.\n\nİyi çalışmalar dileriz.\n${firmaAdi || "Marcus Medya App"}`;
+    return m;
+  };
+
+  const epostaGonder = () => {
+    if (!email.trim()) { setSonuc("E-posta adresi gerekli."); return; }
+    setGonderiliyor(true);
+    setSonuc("");
+    fetch("/api/notify-job", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ email: email.trim(), marka: client.ad, tutar, ayAdi, odemeGunu: client.odemeGunu, firmaAdi, mod: "odemeHatirlatma" }),
+    })
+      .then((r) => r.json())
+      .then((res) => setSonuc(res.ok ? "✅ E-posta gönderildi." : "❌ " + (res.reason || res.error || "Gönderilemedi.")))
+      .catch(() => setSonuc("❌ Bağlantı hatası."))
+      .finally(() => setGonderiliyor(false));
+  };
+
+  const whatsappAc = () => {
+    if (!telefon.trim()) { setSonuc("WhatsApp için telefon numarası gerekli (ülke koduyla, örn. 90532...)."); return; }
+    const numara = telefon.replace(/[^0-9]/g, "");
+    window.open(`https://wa.me/${numara}?text=${encodeURIComponent(mesajMetni())}`, "_blank");
+  };
+
+  if (!acik) {
+    return <button onClick={() => setAcik(true)} style={{ ...cancelBtnStyle, fontSize: 12 }}>✉️ Ödeme Hatırlatması Gönder</button>;
+  }
+
+  return (
+    <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: 12, marginTop: 10 }}>
+      <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+        <input type="text" placeholder="Müşteri e-postası" value={email} onChange={(e) => setEmail(e.target.value)} style={{ ...inputStyle, fontSize: 12.5, padding: "7px 10px" }} />
+        <input type="text" placeholder="WhatsApp telefonu (905XXXXXXXXX)" value={telefon} onChange={(e) => setTelefon(e.target.value)} style={{ ...inputStyle, fontSize: 12.5, padding: "7px 10px" }} />
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button style={saveBtnStyle} onClick={epostaGonder} disabled={gonderiliyor}>{gonderiliyor ? "Gönderiliyor…" : "E-posta Gönder"}</button>
+        <button style={{ ...saveBtnStyle, background: "#25D366" }} onClick={whatsappAc}>WhatsApp'ta Aç</button>
+        <button style={cancelBtnStyle} onClick={() => setAcik(false)}>Kapat</button>
+      </div>
+      {sonuc && <div style={{ fontSize: 12, color: sonuc.startsWith("✅") ? T.success : T.danger, marginTop: 8 }}>{sonuc}</div>}
+    </div>
+  );
+}
+
 function ClientDetailKilitli({ detailClientId, duzenleyenAdi, ...props }) {
   const kilitleyen = useDuzenlemeKilidi("client", detailClientId, true, duzenleyenAdi);
   return <ClientDetail {...props} kilitleyen={kilitleyen} />;
@@ -999,7 +1060,7 @@ function MusteriIcerikYonetimi({ clientId, icerikler, onAdd, onDelete }) {
   );
 }
 
-function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, onClose, kilitleyen, musteriIcerikleri, onAddIcerik, onDeleteIcerik }) {
+function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, onClose, kilitleyen, musteriIcerikleri, onAddIcerik, onDeleteIcerik, firmaAdi }) {
   const [addingCost, setAddingCost] = useState(false);
   const [odemeModalOpen, setOdemeModalOpen] = useState(false);
   if (!client) return null;
@@ -1045,14 +1106,19 @@ function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, onAddCost, onDele
         )}
 
         {paymentStatus && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 20, padding: "12px 14px", background: T.surfaceRaised, borderRadius: 12, border: `1px solid ${T.border}` }}>
-            <div>
-              <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 3 }}>BU AYIN ÖDEMESİ</div>
-              <div style={{ fontSize: 13.5, fontFamily: "Inter", fontWeight: 600, color: paymentStatus.status === "odendi" ? T.success : paymentStatus.status === "gecikti" ? T.danger : paymentStatus.status === "bekliyor" ? T.warning : T.textDim }}>
-                {paymentStatus.label}
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "12px 14px", background: T.surfaceRaised, borderRadius: 12, border: `1px solid ${T.border}` }}>
+              <div>
+                <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 3 }}>BU AYIN ÖDEMESİ</div>
+                <div style={{ fontSize: 13.5, fontFamily: "Inter", fontWeight: 600, color: paymentStatus.status === "odendi" ? T.success : paymentStatus.status === "gecikti" ? T.danger : paymentStatus.status === "bekliyor" ? T.warning : T.textDim }}>
+                  {paymentStatus.label}
+                </div>
               </div>
+              <button style={saveBtnStyle} onClick={() => setOdemeModalOpen(true)}>Ödemeleri Yönet</button>
             </div>
-            <button style={saveBtnStyle} onClick={() => setOdemeModalOpen(true)}>Ödemeleri Yönet</button>
+            {paymentStatus.status !== "odendi" && (
+              <OdemeHatirlatmasiGonder client={client} tutar={bekleyenToplam || client.aylikUcret} ayAdi={new Date().toLocaleDateString("tr-TR", { month: "long", year: "numeric" })} firmaAdi={firmaAdi} />
+            )}
           </div>
         )}
         {!paymentStatus && (
@@ -5678,6 +5744,7 @@ export default function MarcusOS() {
               musteriIcerikleri={data.musteriIcerikleri || []}
               onAddIcerik={addMusteriIcerik}
               onDeleteIcerik={deleteMusteriIcerik}
+              firmaAdi={data.firmaAdi}
             />
           )}
           {staffTab === "finans" && (
@@ -5915,6 +5982,7 @@ export default function MarcusOS() {
               musteriIcerikleri={data.musteriIcerikleri || []}
               onAddIcerik={addMusteriIcerik}
               onDeleteIcerik={deleteMusteriIcerik}
+              firmaAdi={data.firmaAdi}
             />
           )}
           {tab === "finans" && (

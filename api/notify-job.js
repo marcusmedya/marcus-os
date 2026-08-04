@@ -16,6 +16,7 @@ async function yetkiKontrol(req) {
       if (hash === hesap.sifreHash) {
         const perms = hesap.izinler || (data && data.staffPermissions) || {};
         if (perms.cekimEdit === true || perms.uyelikler === true) return { yetkili: true, owner: false, markaYoneticisi: perms.markaYoneticisi === true };
+        if (perms.musteriler === true || perms.finans === true || perms.odemeTakvimi === true) return { yetkili: true, owner: false, markaYoneticisi: false, odemeYetkisi: true };
       }
     }
   }
@@ -28,10 +29,40 @@ export default async function handler(req, res) {
   if (!yetki.yetkili) return res.status(401).json({ error: "Yetkisiz." });
 
   try {
-    const { email, ad, marka, icerikTuru, teslimTarihi, firmaAdi, mod, asama, kategori, kullaniciAdi, sifre } = req.body || {};
+    const { email, ad, marka, icerikTuru, teslimTarihi, firmaAdi, mod, asama, kategori, kullaniciAdi, sifre, tutar, odemeGunu, ayAdi } = req.body || {};
     const resendKey = process.env.RESEND_API_KEY;
     if (!email) return res.status(200).json({ skipped: true, reason: "Bu kişinin kayıtlı bir e-posta adresi yok." });
     if (!resendKey) return res.status(200).json({ skipped: true, reason: "RESEND_API_KEY tanımlı değil." });
+
+    if (mod === "odemeHatirlatma") {
+      if (!yetki.owner && !yetki.odemeYetkisi) {
+        return res.status(403).json({ error: "Bu hatırlatmayı göndermek için Müşteriler, Finans ya da Ödeme Takvimi yetkisi gerekiyor." });
+      }
+      const html = `
+        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+          <h2 style="color:#1a1a1a;">Ödeme Hatırlatması</h2>
+          <p style="color:#333; line-height:1.6;">Sayın <strong>${marka || ""}</strong> yetkilisi,</p>
+          <p style="color:#333; line-height:1.6;">${ayAdi ? `${ayAdi} dönemine ait` : "Güncel"} ödemenizle ilgili nazik bir hatırlatma yapmak isteriz.</p>
+          <div style="margin:16px 0;padding:14px 16px;background:#f5f5f7;border-radius:10px;">
+            ${tutar ? `<p style="margin:0 0 6px;font-size:15px;font-weight:600;">Tutar: ₺${tutar}</p>` : ""}
+            ${odemeGunu ? `<p style="margin:0;font-size:13px;color:#555;">Ödeme günü: Ayın ${odemeGunu}'i</p>` : ""}
+          </div>
+          <p style="color:#333; line-height:1.6;">Ödemenizi zaten gerçekleştirdiyseniz bu e-postayı dikkate almamanızı rica ederiz. Herhangi bir sorunuz olursa bize ulaşabilirsiniz.</p>
+          <p style="color:#333; line-height:1.6; margin-top:16px;">İyi çalışmalar dileriz.</p>
+          <p style="font-size:12px;color:#999;margin-top:24px;">${firmaAdi || "Marcus Medya App"}</p>
+        </div>
+      `;
+      const r = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ from: "Marcus Medya App <bildirim@marcusmedya.com>", to: [email], subject: `Ödeme Hatırlatması — ${marka || ""}`, html }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        return res.status(200).json({ skipped: true, reason: `E-posta gönderilemedi: ${err.message || err.error || JSON.stringify(err)}` });
+      }
+      return res.status(200).json({ ok: true });
+    }
 
     // "durum" modu (bir iş kartından elle gönderilen durum bildirimi) sadece owner ya da
     // "Marka Yöneticisi" iznine sahip personel tarafından tetiklenebilir.
