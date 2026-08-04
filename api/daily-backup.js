@@ -41,10 +41,10 @@ export default async function handler(req, res) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Marcus OS <bildirim@marcusmedya.com>",
+        from: "Marcus Medya App <bildirim@marcusmedya.com>",
         to: [toEmail],
-        subject: `Marcus OS Günlük Yedek — ${today}`,
-        text: `Merhaba,\n\nEkte ${today} tarihli Marcus OS tam veri yedeğin bulunuyor. Bu e-postayı ve ekindeki dosyayı sakla — bir sorun olursa Ayarlar sayfasından bu dosyayı geri yükleyebilirsin.\n\nMarcus OS`,
+        subject: `Marcus Medya App Günlük Yedek — ${today}`,
+        text: `Merhaba,\n\nEkte ${today} tarihli Marcus Medya App tam veri yedeğin bulunuyor. Bu e-postayı ve ekindeki dosyayı sakla — bir sorun olursa Ayarlar sayfasından bu dosyayı geri yükleyebilirsin.\n\nMarcus Medya App`,
         attachments: [{ filename: `marcus-os-yedek-${today}.json`, content: base64 }],
       }),
     });

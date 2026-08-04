@@ -19,7 +19,7 @@ function yetkiliMi(req) {
 const PAYLASIM_TURLERI = ["Görsel", "Video", "Reels", "Story", "Carousel"];
 
 async function epostaGonder(resendKey, to, subject, html, cc) {
-  const body = { from: "Marcus OS <bildirim@marcusmedya.com>", to: [to], subject, html };
+  const body = { from: "Marcus Medya App <bildirim@marcusmedya.com>", to: [to], subject, html };
   if (cc && cc !== to) body.cc = [cc];
   const r = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -91,7 +91,7 @@ export default async function handler(req, res) {
           <h2 style="color:#1a1a1a;">İş Hatırlatması</h2>
           <p style="color:#333;line-height:1.6;">Merhaba ${kisi},</p>
           ${bolumler}
-          <p style="font-size:12px;color:#999;margin-top:20px;">Marcus OS — Operasyon</p>
+          <p style="font-size:12px;color:#999;margin-top:20px;">Marcus Medya App — Operasyon</p>
         </div>`;
       const ok = await epostaGonder(resendKey, email, `İş Hatırlatması (${toplamSayi} iş)`, html, backupEmail);
       sonuc.operasyonHatirlatma.push({ kisi, email, gecikmis: gecikmis.length, talepAlindi: talepAlindi.length, gonderildi: ok });
@@ -118,7 +118,7 @@ export default async function handler(req, res) {
           <h2 style="color:#1a1a1a;">Markalaşma Süreci Hatırlatması</h2>
           <p style="color:#333;line-height:1.6;">Merhaba ${yonetici}, senin yönettiğin markalaşma sürecinde henüz tamamlanmamış görevler var:</p>
           ${bolumler}
-          <p style="font-size:12px;color:#999;margin-top:20px;">Marcus OS — Operasyon &gt; Markalaşma</p>
+          <p style="font-size:12px;color:#999;margin-top:20px;">Marcus Medya App — Operasyon &gt; Markalaşma</p>
         </div>`;
       const ok = await epostaGonder(resendKey, email, `Markalaşma Süreci Hatırlatması (${surecler.length} marka)`, html, backupEmail);
       sonuc.markalasmaHatirlatma.push({ yonetici, email, markaSayisi: surecler.length, gonderildi: ok });
@@ -146,7 +146,7 @@ export default async function handler(req, res) {
             <h2 style="color:#1a1a1a;">Günlük Kontrol — Tamamlanmamışlar (${bugunTR})</h2>
             <p style="color:#333;line-height:1.6;">Bugün için stokta içerik olduğu halde henüz paylaşılmamış görünen markalar:</p>
             <ul style="color:#333;line-height:1.8;">${satirlar}</ul>
-            <p style="font-size:12px;color:#999;margin-top:20px;">Marcus OS — Günlük Kontrol</p>
+            <p style="font-size:12px;color:#999;margin-top:20px;">Marcus Medya App — Günlük Kontrol</p>
           </div>`;
         sonuc.gunlukKontrolOzeti = await epostaGonder(resendKey, backupEmail, `Günlük Kontrol — ${tamamlanmamis.length} eksik (${bugunTR})`, html);
       }

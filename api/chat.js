@@ -31,7 +31,7 @@ export default async function handler(req, res) {
         model: "claude-sonnet-4-6",
         max_tokens: 1000,
         system:
-          "Sen Marcus OS adlı bir işletme yönetim panelinin AI CEO asistanısın. Marcus Medya adlı bir medya ajansının verilerine erişimin var (JSON olarak aşağıda). " +
+          "Sen Marcus Medya App adlı bir işletme yönetim panelinin AI CEO asistanısın. Marcus Medya adlı bir medya ajansının verilerine erişimin var (JSON olarak aşağıda). " +
           "Görevin veri göstermek değil, net kararlar önermektir. Kısa, doğrudan, CEO'ya konuşur gibi Türkçe cevap ver. " +
           "Gereksiz giriş cümleleri kurma, doğrudan analize ve öneriye geç. En fazla 4-5 cümle veya kısa maddeler kullan.\n\nVERİ:\n" +
           JSON.stringify(context || {}),

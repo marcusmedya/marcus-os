@@ -78,7 +78,7 @@ export default async function handler(req, res) {
         model: "claude-sonnet-4-6",
         max_tokens: 600,
         system:
-          "Sen Marcus OS adlı bir işletme yönetim panelinin AI CEO asistanısın. Sabah e-postası için kısa bir günlük özet hazırlıyorsun. " +
+          "Sen Marcus Medya App adlı bir işletme yönetim panelinin AI CEO asistanısın. Sabah e-postası için kısa bir günlük özet hazırlıyorsun. " +
           "Bu ayki ciro/net/kâr marjı durumuna değin. EĞER bekleyen ya da gecikmiş ödeme varsa isim isim ve tutarlarıyla MUTLAKA belirt — en önemli kısım burası. " +
           "3-5 cümle, doğrudan CEO'ya konuşur gibi Türkçe, gereksiz giriş cümlesi kurma.",
         messages: [{ role: "user", content: "Bugünün özetini hazırla.\n\nVERİ:\n" + JSON.stringify({ ...live, bekleyenMusteriler, manuelBekleyenTahsilatlar: data.bekleyenTahsilatlar }) }],
@@ -90,7 +90,7 @@ export default async function handler(req, res) {
     const today = new Date().toLocaleDateString("tr-TR");
     const html = `
       <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-        <h2 style="color:#1a1a1a;">Marcus OS — Günlük Özet (${today})</h2>
+        <h2 style="color:#1a1a1a;">Marcus Medya App — Günlük Özet (${today})</h2>
         <p style="white-space: pre-wrap; color:#333; line-height:1.6;">${ozet}</p>
         <hr style="border:none;border-top:1px solid #eee;margin:20px 0;" />
         <p style="font-size:12px;color:#999;">Bu e-posta her sabah otomatik gönderilir. Ayarlar sekmesinden kapatabilirsin.</p>
@@ -101,9 +101,9 @@ export default async function handler(req, res) {
       method: "POST",
       headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: "Marcus OS <bildirim@marcusmedya.com>",
+        from: "Marcus Medya App <bildirim@marcusmedya.com>",
         to: [toEmail],
-        subject: `Marcus OS — Günlük Özet (${today})`,
+        subject: `Marcus Medya App — Günlük Özet (${today})`,
         html,
       }),
     });

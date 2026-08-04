@@ -52,13 +52,13 @@ export default async function handler(req, res) {
           <div style="margin-top:16px;padding:12px 14px;background:#fff8e1;border-radius:8px;">
             <p style="line-height:1.6;margin:0;font-size:13px;color:#6b5a00;">🔒 Bu e-posta gizli giriş bilgileri içermektedir. Bilgileri aldıktan sonra bu e-postayı silmen ve şifreyi 3. şahıslarla paylaşmaman önerilir.</p>
           </div>
-          <p style="font-size:12px;color:#999;margin-top:24px;">${firmaAdi || "Marcus OS"} — Üyelikler panelinden gönderildi.</p>
+          <p style="font-size:12px;color:#999;margin-top:24px;">${firmaAdi || "Marcus Medya App"} — Üyelikler panelinden gönderildi.</p>
         </div>
       `;
       const r = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: "Marcus OS <bildirim@marcusmedya.com>", to: [email], subject: `Üyelik Giriş Bilgileri — ${marka || ""}`, html }),
+        body: JSON.stringify({ from: "Marcus Medya App <bildirim@marcusmedya.com>", to: [email], subject: `Üyelik Giriş Bilgileri — ${marka || ""}`, html }),
       });
       if (!r.ok) {
         const err = await r.json().catch(() => ({}));
@@ -77,7 +77,7 @@ export default async function handler(req, res) {
         <p style="color:#333; font-size:16px; font-weight:600; background:#f5f5f7; padding:10px 14px; border-radius:8px;">${asama || ""}</p>
         ${asama === "Talep Alındı" ? `<p style="color:#b45309; line-height:1.6; background:#fff8e1; padding:10px 14px; border-radius:8px;">Lütfen işi görüp gördüğünü/başladığını onaylamak için sistemde <strong>"Talep Alındı"</strong>ya tıkla.</p>` : ""}
         ${teslimTarihi ? `<p style="color:#333;">Teslim tarihi: <strong>${teslimTarihi}</strong></p>` : ""}
-        <p style="font-size:12px;color:#999;margin-top:24px;">${firmaAdi || "Marcus OS"} — Operasyon panelinden gönderildi.</p>
+        <p style="font-size:12px;color:#999;margin-top:24px;">${firmaAdi || "Marcus Medya App"} — Operasyon panelinden gönderildi.</p>
       </div>
     ` : `
       <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
@@ -85,7 +85,7 @@ export default async function handler(req, res) {
         <p style="color:#333; line-height:1.6;">Merhaba ${ad || ""},</p>
         <p style="color:#333; line-height:1.6;"><strong>${marka || ""}</strong> için <strong>${icerikTuru || "bir iş"}</strong> sana atandı.</p>
         ${teslimTarihi ? `<p style="color:#333;">Teslim tarihi: <strong>${teslimTarihi}</strong></p>` : ""}
-        <p style="font-size:12px;color:#999;margin-top:24px;">${firmaAdi || "Marcus OS"} — Operasyon panelinden gönderildi.</p>
+        <p style="font-size:12px;color:#999;margin-top:24px;">${firmaAdi || "Marcus Medya App"} — Operasyon panelinden gönderildi.</p>
       </div>
     `;
 
@@ -93,7 +93,7 @@ export default async function handler(req, res) {
       method: "POST",
       headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: "Marcus OS <bildirim@marcusmedya.com>",
+        from: "Marcus Medya App <bildirim@marcusmedya.com>",
         to: [email],
         subject: durumBildirimi ? `İş Durumu: ${marka || ""} — ${asama || ""}` : `Yeni İş: ${marka || ""} — ${icerikTuru || ""}`,
         html,

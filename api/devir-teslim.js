@@ -98,7 +98,7 @@ export default async function handler(req, res) {
       method: "POST",
       headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: "Marcus OS <bildirim@marcusmedya.com>",
+        from: "Marcus Medya App <bildirim@marcusmedya.com>",
         to: [email],
         subject: `${baslik} — ${marka || ""}`,
         html,
