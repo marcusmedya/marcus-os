@@ -16,6 +16,7 @@ export const DEFAULT_DATA = {
   markalasmaSurecleri: [],
   musteriIcerikleri: [],
   uyelikler: [],
+  ownerKisiselSifreler: [],
   hesaplar: [{ id: "ana", ad: "Marcus Medya", anaHesap: true }],
   hesapTransferleri: [],
   staffPermissions: {

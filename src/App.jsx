@@ -3550,7 +3550,101 @@ function HizliSifreGonderFormu({ client, girisler, firmaAdi, logo, onClose }) {
   );
 }
 
-function MusteriGirisleriIcerik({ clients, girisler, onUpdate, firmaAdi, logo }) {
+/** Owner'a özel, kişisel şifreler — marka/müşteri hesaplarından tamamen ayrı, kendi verisinde
+ * tutulur ve hiçbir izinle personele hiç gönderilmez (server tarafında hiçbir PERMISSION
+ * listesine dahil edilmediği için). */
+function KisiselSifrelerim({ sifreler, onAdd, onUpdate, onDelete }) {
+  const [acik, setAcik] = useState(true);
+  const [ekleAcik, setEkleAcik] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [ad, setAd] = useState("");
+  const [kullaniciAdi, setKullaniciAdi] = useState("");
+  const [sifre, setSifre] = useState("");
+  const [not, setNot] = useState("");
+  const [gosterilenId, setGosterilenId] = useState(null);
+  const liste = sifreler || [];
+
+  const formuSifirla = () => { setAd(""); setKullaniciAdi(""); setSifre(""); setNot(""); setEkleAcik(false); setEditId(null); };
+  const kaydet = () => {
+    if (!ad.trim()) return;
+    if (editId) onUpdate(editId, { ad: ad.trim(), kullaniciAdi: kullaniciAdi.trim(), sifre, not: not.trim() });
+    else onAdd({ ad: ad.trim(), kullaniciAdi: kullaniciAdi.trim(), sifre, not: not.trim() });
+    formuSifirla();
+  };
+  const duzenlemeyeBasla = (s) => { setEditId(s.id); setAd(s.ad || ""); setKullaniciAdi(s.kullaniciAdi || ""); setSifre(s.sifre || ""); setNot(s.not || ""); setEkleAcik(true); };
+  const kopyala = (deger) => { if (deger) navigator.clipboard.writeText(deger).catch(() => {}); };
+
+  return (
+    <Card style={{ padding: "16px 18px", marginBottom: 16, border: `1px solid ${T.accent}` }}>
+      <button onClick={() => setAcik((v) => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+        <span style={{ fontSize: 13.5, color: T.text, fontWeight: 700, fontFamily: "Inter" }}>🔒 Kişisel Şifrelerim <span style={{ color: T.textFaint, fontWeight: 400 }}>(sadece bana özel)</span></span>
+        <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{liste.length > 0 ? `${liste.length} kayıt` : "Kayıt yok"} {acik ? "▲" : "▼"}</span>
+      </button>
+
+      {acik && (
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 12 }}>
+            Bu bölüm marka/müşteri hesaplarından tamamen ayrı — kendi kişisel şifrelerini (e-posta, banka, kişisel hesaplar vb.) saklamak için. Personel bu kısmı hiçbir şekilde göremez.
+          </div>
+
+          {liste.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+              {liste.map((s) => {
+                const sifreGoster = gosterilenId === s.id;
+                return (
+                  <div key={s.id} style={{ background: T.surfaceRaised, borderRadius: 9, padding: "10px 12px" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                      <div style={{ fontSize: 12.5, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{s.ad}</div>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <button onClick={() => duzenlemeyeBasla(s)} style={{ background: "none", border: "none", cursor: "pointer", padding: 3 }}><Pencil size={12} color={T.textFaint} /></button>
+                        <button onClick={() => { if (window.confirm(`"${s.ad}" silinsin mi?`)) onDelete(s.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 3 }}><Trash2 size={12} color={T.danger} /></button>
+                      </div>
+                    </div>
+                    {(s.kullaniciAdi || s.sifre) && (
+                      <div style={{ display: "flex", gap: 14, marginTop: 6, flexWrap: "wrap" }}>
+                        {s.kullaniciAdi && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: T.textDim, fontFamily: "Inter" }}>
+                            <span style={{ color: T.textFaint }}>Kullanıcı:</span> {s.kullaniciAdi}
+                            <button onClick={() => kopyala(s.kullaniciAdi)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><Copy size={11} color={T.textFaint} /></button>
+                          </div>
+                        )}
+                        {s.sifre && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: T.textDim, fontFamily: "Inter" }}>
+                            <span style={{ color: T.textFaint }}>Şifre:</span> {sifreGoster ? s.sifre : "••••••"}
+                            <button onClick={() => setGosterilenId(sifreGoster ? null : s.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>{sifreGoster ? <EyeOff size={11} color={T.textFaint} /> : <Eye size={11} color={T.textFaint} />}</button>
+                            <button onClick={() => kopyala(s.sifre)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><Copy size={11} color={T.textFaint} /></button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {s.not && <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 4, fontStyle: "italic" }}>{s.not}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {ekleAcik ? (
+            <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: 12 }}>
+              <input type="text" placeholder="Hizmet/Hesap Adı (örn. Kişisel Gmail)" value={ad} onChange={(e) => setAd(e.target.value)} style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "7px 10px" }} />
+              <input type="text" autoComplete="off" placeholder="Kullanıcı Adı (opsiyonel)" value={kullaniciAdi} onChange={(e) => setKullaniciAdi(e.target.value)} style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "7px 10px" }} />
+              <input type="text" autoComplete="off" placeholder="Şifre (opsiyonel)" value={sifre} onChange={(e) => setSifre(e.target.value)} style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "7px 10px" }} />
+              <input type="text" placeholder="Not (opsiyonel)" value={not} onChange={(e) => setNot(e.target.value)} style={{ ...inputStyle, marginBottom: 10, fontSize: 12.5, padding: "7px 10px" }} />
+              <div style={{ display: "flex", gap: 8 }}>
+                <button style={cancelBtnStyle} onClick={formuSifirla}>İptal</button>
+                <button style={saveBtnStyle} onClick={kaydet}>{editId ? "Kaydet" : "Ekle"}</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setEkleAcik(true)} style={{ background: "none", border: "none", color: T.accentText, fontSize: 11.5, cursor: "pointer", padding: 0, fontFamily: "Inter" }}>+ Şifre Ekle</button>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function MusteriGirisleriIcerik({ clients, girisler, onUpdate, firmaAdi, logo, role, kisiselSifreler, onAddKisiselSifre, onUpdateKisiselSifre, onDeleteKisiselSifre }) {
   const [acikId, setAcikId] = useState(null);
   const [devirTeslimId, setDevirTeslimId] = useState(null);
   const [hizliGonderId, setHizliGonderId] = useState(null);
@@ -3564,6 +3658,12 @@ function MusteriGirisleriIcerik({ clients, girisler, onUpdate, firmaAdi, logo })
           <strong>Bu bilgiler sadece sana (CEO) görünür</strong> — personelin izinlerinden bağımsız olarak, kişisel hesabıyla giren hiçbir personel bu sayfayı hiç göremez.
         </div>
       </Card>
+
+      {role === "owner" && (
+        <KisiselSifrelerim sifreler={kisiselSifreler} onAdd={onAddKisiselSifre} onUpdate={onUpdateKisiselSifre} onDelete={onDeleteKisiselSifre} />
+      )}
+
+      <div style={{ fontSize: 12, color: T.text, fontWeight: 700, fontFamily: "Inter", margin: "22px 0 10px", textTransform: "uppercase", letterSpacing: 0.3 }}>Marka Hesapları</div>
 
       {tumMarkalar.length === 0 ? (
         <Card style={{ padding: "24px", textAlign: "center" }}>
@@ -5102,6 +5202,10 @@ export default function MarcusOS() {
 
   const addUyelik = (u) => paylasimIstek({ action: "uyelikEkle", uyelik: u }, "Bağlantı hatası — üyelik eklenemedi, tekrar dene.");
   const deleteUyelik = (id) => paylasimIstek({ action: "uyelikSil", uyelikId: id }, "Bağlantı hatası — üyelik silinemedi, tekrar dene.");
+
+  const addKisiselSifre = (s) => setData((d) => ({ ...d, ownerKisiselSifreler: [...(d.ownerKisiselSifreler || []), { ...s, id: nextId(d.ownerKisiselSifreler || []) }] }));
+  const updateKisiselSifre = (id, patch) => setData((d) => ({ ...d, ownerKisiselSifreler: (d.ownerKisiselSifreler || []).map((s) => (s.id === id ? { ...s, ...patch } : s)) }));
+  const deleteKisiselSifre = (id) => setData((d) => ({ ...d, ownerKisiselSifreler: (d.ownerKisiselSifreler || []).filter((s) => s.id !== id) }));
   const updateUyelik = (id, patch) => paylasimIstek({ action: "uyelikGuncelle", uyelikId: id, patch }, "Bağlantı hatası — üyelik güncellenemedi, tekrar dene.");
 
   const addReklam = (r) => setData((d) => ({ ...d, reklamlar: [...(d.reklamlar || []), { ...r, id: nextId(d.reklamlar || []) }] }));
@@ -5639,7 +5743,7 @@ export default function MarcusOS() {
             <Uyelikler uyelikler={data.uyelikler || []} onAdd={addUyelik} onUpdate={updateUyelik} onDelete={deleteUyelik} personelRosteri={data.personelRosteri || []} firmaAdi={data.firmaAdi} />
           )}
           {staffTab === "musteri-girisleri" && (
-            <MusteriGirisleri clients={data.clients || []} girisler={data.musteriGirisleri || {}} onUpdate={updateMusteriGiris} firmaAdi={data.firmaAdi} logo={data.markaKimligiGorseli} />
+            <MusteriGirisleri clients={data.clients || []} girisler={data.musteriGirisleri || {}} onUpdate={updateMusteriGiris} firmaAdi={data.firmaAdi} logo={data.markaKimligiGorseli} role="staff" />
           )}
         </div>
       </div>
@@ -5876,7 +5980,18 @@ export default function MarcusOS() {
             <Uyelikler uyelikler={data.uyelikler || []} onAdd={addUyelik} onUpdate={updateUyelik} onDelete={deleteUyelik} personelRosteri={data.personelRosteri || []} firmaAdi={data.firmaAdi} />
           )}
           {tab === "musteri-girisleri" && (
-            <MusteriGirisleri clients={data.clients || []} girisler={data.musteriGirisleri || {}} onUpdate={updateMusteriGiris} firmaAdi={data.firmaAdi} logo={data.markaKimligiGorseli} />
+            <MusteriGirisleri
+              clients={data.clients || []}
+              girisler={data.musteriGirisleri || {}}
+              onUpdate={updateMusteriGiris}
+              firmaAdi={data.firmaAdi}
+              logo={data.markaKimligiGorseli}
+              role="owner"
+              kisiselSifreler={data.ownerKisiselSifreler || []}
+              onAddKisiselSifre={addKisiselSifre}
+              onUpdateKisiselSifre={updateKisiselSifre}
+              onDeleteKisiselSifre={deleteKisiselSifre}
+            />
           )}
           {tab === "ayarlar" && (
             <Ayarlar
