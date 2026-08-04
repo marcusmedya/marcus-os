@@ -2827,6 +2827,7 @@ function UyelikBilgisiGonder({ uyelik, personelRosteri, firmaAdi, onClose }) {
 
 function Uyelikler({ uyelikler, onAdd, onUpdate, onDelete, personelRosteri, firmaAdi }) {
   const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [gonderAcikId, setGonderAcikId] = useState(null);
   const [gosterilenSifreId, setGosterilenSifreId] = useState(null);
   const liste = uyelikler || [];
@@ -2873,6 +2874,15 @@ function Uyelikler({ uyelikler, onAdd, onUpdate, onDelete, personelRosteri, firm
             const sifreGoster = gosterilenSifreId === u.id;
             return (
               <Card key={u.id} style={{ padding: "14px 18px", border: !aktifMi ? `1px solid ${T.border}` : yakinda ? `1px solid ${T.warning}` : undefined, opacity: aktifMi ? 1 : 0.7 }}>
+                {editingId === u.id ? (
+                  <FieldForm
+                    fields={UYELIK_FIELDS}
+                    initial={u}
+                    onSubmit={(v) => { onUpdate(u.id, v); setEditingId(null); }}
+                    onCancel={() => setEditingId(null)}
+                    submitLabel="Kaydet"
+                  />
+                ) : (
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
                   <div>
                     <div style={{ fontSize: 13.5, color: T.text, fontWeight: 600, fontFamily: "Inter", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -2917,9 +2927,11 @@ function Uyelikler({ uyelikler, onAdd, onUpdate, onDelete, personelRosteri, firm
                   </div>
                   <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
                     <button style={{ ...iconBtnStyle, width: "auto", padding: "6px 10px", fontSize: 11 }} onClick={() => onUpdate(u.id, { aktif: !aktifMi })}>{aktifMi ? "Pasif Et" : "Aktif Et"}</button>
+                    <button style={iconBtnStyle} onClick={() => setEditingId(u.id)}><Pencil size={13} color={T.textFaint} /></button>
                     <button style={iconBtnStyle} onClick={() => { if (window.confirm(`"${u.ad}" üyeliği silinsin mi?`)) onDelete(u.id); }}><Trash2 size={14} color={T.danger} /></button>
                   </div>
                 </div>
+                )}
               </Card>
             );
           })}
