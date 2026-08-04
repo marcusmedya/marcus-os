@@ -60,6 +60,20 @@ const nextId = (arr) => (arr.length ? Math.max(...arr.map((i) => i.id || 0)) + 1
  * Dashboard, Finans ve AI CEO hepsi bu fonksiyonu kullanır, böylece bir sekmede
  * yapılan değişiklik anında diğerlerine yansır.
  */
+/** Bir üyeliğin gider hesabına dahil edilip edilmeyeceğini belirler: elle "Pasif Et" ile
+ * kapatılmışsa YA DA bitiş tarihi geçmişse pasif sayılır (gider pusulasından düşer).
+ * Elle "Aktif Et" ile geri açılırsa (bitiş tarihi geçmiş olsa bile) tekrar dahil edilir —
+ * yani `aktif` alanı, tarih kontrolünün ÜZERİNE yazan kesin bir kullanıcı tercihidir. */
+function uyelikEfektifAktifMi(u) {
+  if (u.aktif === true) return true; // elle aktif edilmiş, tarih geçmiş olsa bile sayılır
+  if (u.aktif === false) return false; // elle pasif edilmiş
+  if (u.bitisTarihi) {
+    const bugun = new Date(); bugun.setHours(0, 0, 0, 0);
+    if (new Date(u.bitisTarihi) < bugun) return false; // süresi dolmuş, otomatik pasif
+  }
+  return true; // varsayılan: aktif
+}
+
 function computeLive(data) {
   const clients = data.clients || [];
   const activeClients = clients.filter((c) => c.durum !== "ayrildi" && c.durum !== "donduruldu");
@@ -77,7 +91,10 @@ function computeLive(data) {
   const ofisGiderToplam = (data.ofisGiderleri || []).reduce((s, g) => s + (Number(g.tutar) || 0), 0);
   const clientCosts = clients.reduce((s, c) => s + (c.maliyetler || []).reduce((s2, m) => s2 + (Number(m.tutar) || 0), 0), 0);
   const personelGideri = (data.personel || []).reduce((s, p) => s + (Number(p.maas) || 0) + (Number(p.sigorta) || 0) + (Number(p.yemek) || 0) + (Number(p.tazminatBirikimi) || 0), 0);
-  const gider = giderKalemToplam + ofisGiderToplam + clientCosts + personelGideri;
+  // Üyelikler (Canva, Adobe, ChatGPT vb.) de aylık gidere dahil edilir — yıllık ödenenler
+  // 12'ye bölünerek aylık karşılığı hesaplanır, böylece "Toplam Gider" gerçek aylık maliyeti yansıtır.
+  const uyelikGideri = (data.uyelikler || []).filter(uyelikEfektifAktifMi).reduce((s, u) => s + (u.periyot === "yillik" ? (Number(u.tutar) || 0) / 12 : (Number(u.tutar) || 0)), 0);
+  const gider = giderKalemToplam + ofisGiderToplam + clientCosts + personelGideri + uyelikGideri;
   const net = ciro - gider;
   const manuelBekleyen = (data.bekleyenTahsilatlar || []).reduce((s, b) => s + (Number(b.tutar) || 0), 0);
   const otomatikBekleyen = activeClients.reduce((s, c) => {
@@ -91,7 +108,7 @@ function computeLive(data) {
   // hiç ödeme alınmamışken bile öyle görünüyordu). Bunun yerine gerçek ödeme kayıtlarından toplanıyor.
   const tahsilEdilen = extra + activeClients.reduce((s, c) => s + monthPaidAmount(c, monthKey()), 0);
   const karMarji = ciro ? Math.round((net / ciro) * 100) : 0;
-  return { recurring, extra, ciro, faturaliCiro, faturasizCiro, kdvTutari, kdvDahilToplamCiro, faturaliKdvDahil, giderKalemToplam, ofisGiderToplam, clientCosts, personelGideri, gider, net, manuelBekleyen, otomatikBekleyen, bekleyenToplam, tahsilEdilen, karMarji };
+  return { recurring, extra, ciro, faturaliCiro, faturasizCiro, kdvTutari, kdvDahilToplamCiro, faturaliKdvDahil, giderKalemToplam, ofisGiderToplam, clientCosts, personelGideri, uyelikGideri, gider, net, manuelBekleyen, otomatikBekleyen, bekleyenToplam, tahsilEdilen, karMarji };
 }
 
 /** Bir müşterinin bu ayki ödeme durumunu, kayıtlı "ödeme günü"ne göre otomatik hesaplar. */
@@ -1280,6 +1297,10 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
           <div>
             <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>Müşteri Maliyetleri <span style={{ opacity: 0.7 }}>(Müşteriler sekmesi)</span></div>
             <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: T.text, marginTop: 3 }}>{fmt(live.clientCosts)}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>Üyelikler <span style={{ opacity: 0.7 }}>(Üyelikler sekmesi, aylık karşılık)</span></div>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: T.text, marginTop: 3 }}>{fmt(live.uyelikGideri)}</div>
           </div>
         </div>
       </Card>
@@ -2756,28 +2777,77 @@ const UYELIK_FIELDS = [
   { key: "ad", label: "Hizmet Adı", type: "text", placeholder: "örn. Canva Pro, Adobe CC, ChatGPT" },
   { key: "tutar", label: "Tutar (₺)", type: "number" },
   { key: "periyot", label: "Periyot", type: "select", options: [{ value: "aylik", label: "Aylık" }, { value: "yillik", label: "Yıllık" }] },
-  { key: "yenilenmeTarihi", label: "Yenilenme Tarihi (opsiyonel)", type: "date" },
+  { key: "kullaniciAdi", label: "Kullanıcı Adı (opsiyonel)", type: "text" },
+  { key: "sifre", label: "Şifre (opsiyonel)", type: "text" },
+  { key: "baslangicTarihi", label: "Başlangıç Tarihi (opsiyonel)", type: "date" },
+  { key: "bitisTarihi", label: "Bitiş Tarihi (opsiyonel)", type: "date" },
   { key: "not", label: "Not (opsiyonel)", type: "text" },
 ];
 
-function Uyelikler({ uyelikler, onAdd, onDelete }) {
+/** Bir üyeliğin kullanıcı adı/şifresini kayıtlı bir personele e-posta ile göndermek için —
+ * DevirTeslimFormu ile aynı /api/notify-job uç noktasını (mod: "uyelik") kullanır. */
+function UyelikBilgisiGonder({ uyelik, personelRosteri, firmaAdi, onClose }) {
+  const [secilenAd, setSecilenAd] = useState("");
+  const [gonderiliyor, setGonderiliyor] = useState(false);
+  const [sonuc, setSonuc] = useState("");
+  const roster = personelRosteri || [];
+
+  const gonder = () => {
+    const kisi = roster.find((p) => p.ad === secilenAd);
+    if (!kisi) { setSonuc("Bir kişi seç."); return; }
+    if (!kisi.email) { setSonuc(`${kisi.ad} için kayıtlı bir e-posta yok.`); return; }
+    setGonderiliyor(true);
+    setSonuc("");
+    fetch("/api/notify-job", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ email: kisi.email, ad: kisi.ad, marka: uyelik.ad, kullaniciAdi: uyelik.kullaniciAdi, sifre: uyelik.sifre, firmaAdi, mod: "uyelik" }),
+    })
+      .then((r) => r.json())
+      .then((res) => setSonuc(res.ok ? "✅ Gönderildi." : "❌ " + (res.reason || res.error || "Gönderilemedi.")))
+      .catch(() => setSonuc("❌ Bağlantı hatası."))
+      .finally(() => setGonderiliyor(false));
+  };
+
+  return (
+    <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: 12, marginTop: 10 }}>
+      <div style={{ fontSize: 12, color: T.text, fontWeight: 600, marginBottom: 8 }}>Kimin e-postasına gönderilsin?</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <select value={secilenAd} onChange={(e) => setSecilenAd(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: 160 }}>
+          <option value="">Kişi seç…</option>
+          {roster.map((p, i) => <option key={i} value={p.ad}>{p.ad}</option>)}
+        </select>
+        <button style={saveBtnStyle} onClick={gonder} disabled={gonderiliyor}>{gonderiliyor ? "Gönderiliyor…" : "Gönder"}</button>
+        <button style={cancelBtnStyle} onClick={onClose}>Kapat</button>
+      </div>
+      {sonuc && <div style={{ fontSize: 12, color: sonuc.startsWith("✅") ? T.success : T.danger, marginTop: 8 }}>{sonuc}</div>}
+    </div>
+  );
+}
+
+function Uyelikler({ uyelikler, onAdd, onUpdate, onDelete, personelRosteri, firmaAdi }) {
   const [adding, setAdding] = useState(false);
+  const [gonderAcikId, setGonderAcikId] = useState(null);
+  const [gosterilenSifreId, setGosterilenSifreId] = useState(null);
   const liste = uyelikler || [];
-  const aylikToplam = liste.reduce((s, u) => s + (u.periyot === "yillik" ? (Number(u.tutar) || 0) / 12 : (Number(u.tutar) || 0)), 0);
+  const aktifListe = liste.filter(uyelikEfektifAktifMi);
+  const aylikToplam = aktifListe.reduce((s, u) => s + (u.periyot === "yillik" ? (Number(u.tutar) || 0) / 12 : (Number(u.tutar) || 0)), 0);
   const yillikToplam = aylikToplam * 12;
 
-  const yakindaYenilenecek = (tarih) => {
+  const yakindaBitecek = (tarih) => {
     if (!tarih) return false;
     const fark = Math.round((new Date(tarih) - new Date()) / 86400000);
     return fark >= 0 && fark <= 7;
   };
 
+  const kopyala = (deger) => { if (deger) navigator.clipboard.writeText(deger).catch(() => {}); };
+
   return (
     <div>
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 22 }}>
-        <KpiCard label="AYLIK TOPLAM (TAHMİNİ)" value={fmt(aylikToplam)} accent={T.warning} />
-        <KpiCard label="YILLIK TOPLAM (TAHMİNİ)" value={fmt(yillikToplam)} mono={false} />
-        <KpiCard label="ÜYELİK SAYISI" value={liste.length} mono={false} />
+        <KpiCard label="AYLIK TOPLAM (SADECE AKTİF)" value={fmt(aylikToplam)} accent={T.warning} />
+        <KpiCard label="YILLIK TOPLAM (SADECE AKTİF)" value={fmt(yillikToplam)} mono={false} />
+        <KpiCard label="ÜYELİK SAYISI" value={`${aktifListe.length} aktif / ${liste.length} toplam`} mono={false} />
       </div>
 
       <Card style={{ padding: "10px 12px", marginBottom: 16, display: "flex", justifyContent: "flex-end" }}>
@@ -2797,28 +2867,68 @@ function Uyelikler({ uyelikler, onAdd, onDelete }) {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {liste.map((u) => {
-            const yakinda = yakindaYenilenecek(u.yenilenmeTarihi);
+            const yakinda = yakindaBitecek(u.bitisTarihi);
+            const aktifMi = uyelikEfektifAktifMi(u);
+            const suresiDolduMu = !aktifMi && u.aktif !== false; // otomatik pasif (tarih geçmiş), elle kapatılmamış
+            const sifreGoster = gosterilenSifreId === u.id;
             return (
-              <Card key={u.id} style={{ padding: "14px 18px", border: yakinda ? `1px solid ${T.warning}` : undefined }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+              <Card key={u.id} style={{ padding: "14px 18px", border: !aktifMi ? `1px solid ${T.border}` : yakinda ? `1px solid ${T.warning}` : undefined, opacity: aktifMi ? 1 : 0.7 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
                   <div>
-                    <div style={{ fontSize: 13.5, color: T.text, fontWeight: 600, fontFamily: "Inter", display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ fontSize: 13.5, color: T.text, fontWeight: 600, fontFamily: "Inter", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       {u.ad}
-                      {yakinda && <span style={{ fontSize: 10.5, color: T.warning, background: T.warningSoft, padding: "2px 8px", borderRadius: 999, fontWeight: 600 }}>7 gün içinde yenilenecek</span>}
+                      {aktifMi ? (
+                        <span style={{ fontSize: 10.5, color: T.success, background: T.successSoft, padding: "2px 8px", borderRadius: 999, fontWeight: 600 }}>Aktif</span>
+                      ) : (
+                        <span style={{ fontSize: 10.5, color: T.textFaint, background: T.borderSoft, padding: "2px 8px", borderRadius: 999, fontWeight: 600 }}>{suresiDolduMu ? "Pasif (süresi doldu)" : "Pasif"}</span>
+                      )}
+                      {aktifMi && yakinda && <span style={{ fontSize: 10.5, color: T.warning, background: T.warningSoft, padding: "2px 8px", borderRadius: 999, fontWeight: 600 }}>7 gün içinde bitecek</span>}
                     </div>
-                    <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>
+                    <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>
                       {fmt(u.tutar)} / {u.periyot === "yillik" ? "yıl" : "ay"}
-                      {u.yenilenmeTarihi && ` · Yenilenme: ${new Date(u.yenilenmeTarihi).toLocaleDateString("tr-TR")}`}
+                      {u.baslangicTarihi && ` · Başlangıç: ${new Date(u.baslangicTarihi).toLocaleDateString("tr-TR")}`}
+                      {u.bitisTarihi && ` · Bitiş: ${new Date(u.bitisTarihi).toLocaleDateString("tr-TR")}`}
                       {u.not && ` · ${u.not}`}
                     </div>
+                    {(u.kullaniciAdi || u.sifre) && (
+                      <div style={{ display: "flex", gap: 14, marginTop: 8, flexWrap: "wrap" }}>
+                        {u.kullaniciAdi && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: T.textDim, fontFamily: "Inter" }}>
+                            <span style={{ color: T.textFaint }}>Kullanıcı:</span> {u.kullaniciAdi}
+                            <button onClick={() => kopyala(u.kullaniciAdi)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><Copy size={11} color={T.textFaint} /></button>
+                          </div>
+                        )}
+                        {u.sifre && (
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: T.textDim, fontFamily: "Inter" }}>
+                            <span style={{ color: T.textFaint }}>Şifre:</span> {sifreGoster ? u.sifre : "••••••"}
+                            <button onClick={() => setGosterilenSifreId(sifreGoster ? null : u.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>{sifreGoster ? <EyeOff size={11} color={T.textFaint} /> : <Eye size={11} color={T.textFaint} />}</button>
+                            <button onClick={() => kopyala(u.sifre)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><Copy size={11} color={T.textFaint} /></button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {(u.kullaniciAdi || u.sifre) && (
+                      gonderAcikId === u.id ? (
+                        <UyelikBilgisiGonder uyelik={u} personelRosteri={personelRosteri} firmaAdi={firmaAdi} onClose={() => setGonderAcikId(null)} />
+                      ) : (
+                        <button onClick={() => setGonderAcikId(u.id)} style={{ background: "none", border: "none", color: T.accentText, fontSize: 11.5, cursor: "pointer", padding: 0, marginTop: 8, fontFamily: "Inter" }}>✉️ Bilgileri Mail Gönder</button>
+                      )
+                    )}
                   </div>
-                  <button style={iconBtnStyle} onClick={() => { if (window.confirm(`"${u.ad}" üyeliği silinsin mi?`)) onDelete(u.id); }}><Trash2 size={14} color={T.danger} /></button>
+                  <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                    <button style={{ ...iconBtnStyle, width: "auto", padding: "6px 10px", fontSize: 11 }} onClick={() => onUpdate(u.id, { aktif: !aktifMi })}>{aktifMi ? "Pasif Et" : "Aktif Et"}</button>
+                    <button style={iconBtnStyle} onClick={() => { if (window.confirm(`"${u.ad}" üyeliği silinsin mi?`)) onDelete(u.id); }}><Trash2 size={14} color={T.danger} /></button>
+                  </div>
                 </div>
               </Card>
             );
           })}
         </div>
       )}
+
+      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 14 }}>
+        Bitiş tarihi geçen bir üyelik otomatik olarak "Pasif" sayılır ve Dashboard'daki Toplam Gider'den düşer. "Aktif Et"e basarsan (yenilediğinde), bitiş tarihi geçmiş olsa bile tekrar gidere dahil edilir — o zaman tarihi de güncellemen iyi olur.
+      </div>
     </div>
   );
 }
@@ -4980,6 +5090,7 @@ export default function MarcusOS() {
 
   const addUyelik = (u) => setData((d) => ({ ...d, uyelikler: [...(d.uyelikler || []), { ...u, id: nextId(d.uyelikler || []) }] }));
   const deleteUyelik = (id) => setData((d) => ({ ...d, uyelikler: (d.uyelikler || []).filter((u) => u.id !== id) }));
+  const updateUyelik = (id, patch) => setData((d) => ({ ...d, uyelikler: (d.uyelikler || []).map((u) => (u.id === id ? { ...u, ...patch } : u)) }));
 
   const addReklam = (r) => setData((d) => ({ ...d, reklamlar: [...(d.reklamlar || []), { ...r, id: nextId(d.reklamlar || []) }] }));
   const updateReklam = (id, patch) => setData((d) => ({ ...d, reklamlar: (d.reklamlar || []).map((r) => (r.id === id ? { ...r, ...patch } : r)) }));
@@ -5513,7 +5624,7 @@ export default function MarcusOS() {
             />
           )}
           {staffTab === "uyelikler" && (
-            <Uyelikler uyelikler={data.uyelikler || []} onAdd={addUyelik} onDelete={deleteUyelik} />
+            <Uyelikler uyelikler={data.uyelikler || []} onAdd={addUyelik} onUpdate={updateUyelik} onDelete={deleteUyelik} personelRosteri={data.personelRosteri || []} firmaAdi={data.firmaAdi} />
           )}
           {staffTab === "musteri-girisleri" && (
             <MusteriGirisleri clients={data.clients || []} girisler={data.musteriGirisleri || {}} onUpdate={updateMusteriGiris} firmaAdi={data.firmaAdi} logo={data.markaKimligiGorseli} />
@@ -5750,7 +5861,7 @@ export default function MarcusOS() {
             />
           )}
           {tab === "uyelikler" && (
-            <Uyelikler uyelikler={data.uyelikler || []} onAdd={addUyelik} onDelete={deleteUyelik} />
+            <Uyelikler uyelikler={data.uyelikler || []} onAdd={addUyelik} onUpdate={updateUyelik} onDelete={deleteUyelik} personelRosteri={data.personelRosteri || []} firmaAdi={data.firmaAdi} />
           )}
           {tab === "musteri-girisleri" && (
             <MusteriGirisleri clients={data.clients || []} girisler={data.musteriGirisleri || {}} onUpdate={updateMusteriGiris} firmaAdi={data.firmaAdi} logo={data.markaKimligiGorseli} />

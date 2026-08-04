@@ -15,7 +15,7 @@ async function yetkiKontrol(req) {
       const hash = crypto.scryptSync(password, hesap.sifreSalt, 64).toString("hex");
       if (hash === hesap.sifreHash) {
         const perms = hesap.izinler || (data && data.staffPermissions) || {};
-        if (perms.cekimEdit === true) return { yetkili: true, owner: false, markaYoneticisi: perms.markaYoneticisi === true };
+        if (perms.cekimEdit === true || perms.uyelikler === true) return { yetkili: true, owner: false, markaYoneticisi: perms.markaYoneticisi === true };
       }
     }
   }
@@ -28,7 +28,7 @@ export default async function handler(req, res) {
   if (!yetki.yetkili) return res.status(401).json({ error: "Yetkisiz." });
 
   try {
-    const { email, ad, marka, icerikTuru, teslimTarihi, firmaAdi, mod, asama, kategori } = req.body || {};
+    const { email, ad, marka, icerikTuru, teslimTarihi, firmaAdi, mod, asama, kategori, kullaniciAdi, sifre } = req.body || {};
     const resendKey = process.env.RESEND_API_KEY;
     if (!email) return res.status(200).json({ skipped: true, reason: "Bu kişinin kayıtlı bir e-posta adresi yok." });
     if (!resendKey) return res.status(200).json({ skipped: true, reason: "RESEND_API_KEY tanımlı değil." });
@@ -37,6 +37,34 @@ export default async function handler(req, res) {
     // "Marka Yöneticisi" iznine sahip personel tarafından tetiklenebilir.
     if (mod === "durum" && !yetki.owner && !yetki.markaYoneticisi) {
       return res.status(403).json({ error: "Bu bildirimi göndermek için Marka Yöneticisi yetkisi gerekiyor." });
+    }
+
+    if (mod === "uyelik") {
+      const html = `
+        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+          <h2 style="color:#1a1a1a;">Üyelik Giriş Bilgileri</h2>
+          <p style="color:#333; line-height:1.6;">Merhaba ${ad || ""},</p>
+          <p style="color:#333; line-height:1.6;"><strong>${marka || ""}</strong> hesabının giriş bilgileri:</p>
+          <table style="border-collapse:collapse;width:100%;margin:12px 0;">
+            <tr><td style="padding:8px 12px;background:#f5f5f7;font-weight:600;">Kullanıcı Adı</td><td style="padding:8px 12px;">${kullaniciAdi || "—"}</td></tr>
+            <tr><td style="padding:8px 12px;background:#f5f5f7;font-weight:600;">Şifre</td><td style="padding:8px 12px;">${sifre || "—"}</td></tr>
+          </table>
+          <div style="margin-top:16px;padding:12px 14px;background:#fff8e1;border-radius:8px;">
+            <p style="line-height:1.6;margin:0;font-size:13px;color:#6b5a00;">🔒 Bu e-posta gizli giriş bilgileri içermektedir. Bilgileri aldıktan sonra bu e-postayı silmen ve şifreyi 3. şahıslarla paylaşmaman önerilir.</p>
+          </div>
+          <p style="font-size:12px;color:#999;margin-top:24px;">${firmaAdi || "Marcus OS"} — Üyelikler panelinden gönderildi.</p>
+        </div>
+      `;
+      const r = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ from: "Marcus OS <bildirim@marcusmedya.com>", to: [email], subject: `Üyelik Giriş Bilgileri — ${marka || ""}`, html }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        return res.status(200).json({ skipped: true, reason: `E-posta gönderilemedi: ${err.message || err.error || JSON.stringify(err)}` });
+      }
+      return res.status(200).json({ ok: true });
     }
 
     const durumBildirimi = mod === "durum";

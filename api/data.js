@@ -217,8 +217,9 @@ export default async function handler(req, res) {
           restricted.clients = ((data && data.clients) || []).map((c) => ({ id: c.id, ad: c.ad, durum: c.durum }));
         }
 
-        // İş atarken kime atadığını seçebilmesi için isim/e-posta listesi (giriş bilgisi YOK).
-        if (perms.cekimEdit === true) {
+        // İş atarken/üyelik bilgisi gönderirken kime gönderdiğini seçebilmesi için
+        // isim/e-posta listesi (giriş bilgisi YOK).
+        if (perms.cekimEdit === true || perms.uyelikler === true) {
           restricted.personelRosteri = ((data && data.personelHesaplari) || []).map((h) => ({ ad: h.ad, email: h.email || "" }));
         }
 
