@@ -1106,19 +1106,14 @@ function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, onAddCost, onDele
         )}
 
         {paymentStatus && (
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "12px 14px", background: T.surfaceRaised, borderRadius: 12, border: `1px solid ${T.border}` }}>
-              <div>
-                <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 3 }}>BU AYIN ÖDEMESİ</div>
-                <div style={{ fontSize: 13.5, fontFamily: "Inter", fontWeight: 600, color: paymentStatus.status === "odendi" ? T.success : paymentStatus.status === "gecikti" ? T.danger : paymentStatus.status === "bekliyor" ? T.warning : T.textDim }}>
-                  {paymentStatus.label}
-                </div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 20, padding: "12px 14px", background: T.surfaceRaised, borderRadius: 12, border: `1px solid ${T.border}` }}>
+            <div>
+              <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 3 }}>BU AYIN ÖDEMESİ</div>
+              <div style={{ fontSize: 13.5, fontFamily: "Inter", fontWeight: 600, color: paymentStatus.status === "odendi" ? T.success : paymentStatus.status === "gecikti" ? T.danger : paymentStatus.status === "bekliyor" ? T.warning : T.textDim }}>
+                {paymentStatus.label}
               </div>
-              <button style={saveBtnStyle} onClick={() => setOdemeModalOpen(true)}>Ödemeleri Yönet</button>
             </div>
-            {paymentStatus.status !== "odendi" && (
-              <OdemeHatirlatmasiGonder client={client} tutar={bekleyenToplam || client.aylikUcret} ayAdi={new Date().toLocaleDateString("tr-TR", { month: "long", year: "numeric" })} firmaAdi={firmaAdi} />
-            )}
+            <button style={saveBtnStyle} onClick={() => setOdemeModalOpen(true)}>Ödemeleri Yönet</button>
           </div>
         )}
         {!paymentStatus && (
@@ -1137,11 +1132,26 @@ function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, onAddCost, onDele
           />
         )}
         {overdueMonths > 0 && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 20, padding: "12px 14px", background: T.dangerSoft, borderRadius: 12, border: `1px solid ${T.danger}` }}>
-            <div style={{ fontSize: 12.5, color: T.danger, fontFamily: "Inter", fontWeight: 600 }}>{overdueMonths} aydır ödenmedi — toplam {fmt((Number(client.aylikUcret) || 0) * overdueMonths)}</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button style={saveBtnStyle} onClick={() => onOpenTeblig(client, overdueMonths, (Number(client.aylikUcret) || 0) * overdueMonths)}>Tebliğ Oluştur / Düzenle</button>
+          <div style={{ marginBottom: 20, padding: "12px 14px", background: T.dangerSoft, borderRadius: 12, border: `1px solid ${T.danger}` }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontSize: 12.5, color: T.danger, fontFamily: "Inter", fontWeight: 600 }}>{overdueMonths} aydır ödenmedi</div>
+                <div style={{ display: "flex", gap: 16, marginTop: 4 }}>
+                  <div>
+                    <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter" }}>YENİ AY ÖDEMESİ</div>
+                    <div style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{fmt(client.aylikUcret)}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter" }}>KALAN BAKİYE (TOPLAM)</div>
+                    <div style={{ fontSize: 13, color: T.danger, fontFamily: "Inter", fontWeight: 700 }}>{fmt((Number(client.aylikUcret) || 0) * overdueMonths)}</div>
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button style={saveBtnStyle} onClick={() => onOpenTeblig(client, overdueMonths, (Number(client.aylikUcret) || 0) * overdueMonths)}>Tebliğ Oluştur / Düzenle</button>
+              </div>
             </div>
+            <OdemeHatirlatmasiGonder client={client} tutar={(Number(client.aylikUcret) || 0) * overdueMonths} ayAdi={new Date().toLocaleDateString("tr-TR", { month: "long", year: "numeric" })} firmaAdi={firmaAdi} />
           </div>
         )}
 
