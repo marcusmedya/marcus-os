@@ -40,7 +40,16 @@ const FONTS = `
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 `;
 
-const fmt = (n) => "₺" + (Number(n) || 0).toLocaleString("tr-TR");
+/** Gizlilik Modu: Ayarlar'dan açılıp kapanan, tüm ₺ tutarlarını "***" olarak gösteren bir
+ * bayrak. fmt() her yerde kullanıldığı için, bunu tek bir global değişkende tutup fmt()'nin
+ * içinde kontrol etmek, uygulamanın her köşesine tek tek dokunmaktan çok daha güvenli/hızlı. */
+let GIZLILIK_MODU = (() => {
+  try { return localStorage.getItem("marcus-os-gizlilik") === "1"; } catch (e) { return false; }
+})();
+const fmt = (n) => {
+  if (GIZLILIK_MODU) return "₺ •••";
+  return "₺" + (Number(n) || 0).toLocaleString("tr-TR");
+};
 const fmtShort = (n) => (n >= 1000 ? (n / 1000).toFixed(0) + "b" : n);
 const nextId = (arr) => (arr.length ? Math.max(...arr.map((i) => i.id || 0)) + 1 : 1);
 
@@ -2127,7 +2136,7 @@ function haftaBaslangici(d = new Date()) {
   const gun = (d.getDay() + 6) % 7; // Pazartesi=0
   const pazartesi = new Date(d);
   pazartesi.setDate(d.getDate() - gun);
-  return pazartesi.toISOString().slice(0, 10);
+  return tarihIso(pazartesi);
 }
 function haftaEkle(haftaKeyStr, adet) {
   const d = new Date(haftaKeyStr);
@@ -2318,7 +2327,20 @@ function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, onAd
 /* ------------------------------------------------------------------ */
 /* GÜNLÜK MARKA KONTROL                                                  */
 /* ------------------------------------------------------------------ */
-const bugunISO = () => new Date().toISOString().slice(0, 10);
+/** "Bugün" hesaplamalarını Türkiye saat dilimine (Europe/Istanbul) göre, sunucunun/tarayıcının
+ * kendi saat dilimi ne olursa olsun DOĞRU şekilde yapar. Önceki `toISOString().slice(0,10)`
+ * yöntemi UTC'ye çeviriyordu — Türkiye UTC+3 olduğu için gece yarısı ile saat 03:00 arasında
+ * sistem hâlâ "dün" sanıyordu (Günlük Kontrol geç sıfırlanıyordu, Haftalık Plan'ın "bugün"
+ * hücresi bazen yanlış haftaya denk geliyordu). Bu fonksiyon o sorunu çözer.
+ */
+function tarihIso(d) {
+  const parcalar = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(d);
+  const y = parcalar.find((p) => p.type === "year").value;
+  const m = parcalar.find((p) => p.type === "month").value;
+  const g = parcalar.find((p) => p.type === "day").value;
+  return `${y}-${m}-${g}`;
+}
+const bugunISO = () => tarihIso(new Date());
 
 /** Bir hesabın güncel bakiyesi: o hesaba kaydedilen tüm ödemeler + gelen transferler - giden transferler. */
 function hesapBakiyesi(hesapId, clients, transferler) {
@@ -3532,7 +3554,7 @@ function KasaSifresiKarti() {
   );
 }
 
-function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu, onSaveTeblig, staffPermissions, onUpdatePermissions, markaKimligiGorseli, onSaveMarkaKimligi, onRosterChange, clients }) {
+function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu, onSaveTeblig, staffPermissions, onUpdatePermissions, markaKimligiGorseli, onSaveMarkaKimligi, onRosterChange, clients, gizlilikModu, onToggleGizlilik }) {
   const fileInputRef = useRef(null);
   const rows = [
     { label: "İşletme Adı", value: "Marcus Medya" },
@@ -3550,6 +3572,24 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
             <span style={{ fontSize: 13.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{r.value}</span>
           </div>
         ))}
+      </Card>
+
+      <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+        <SectionTitle>Gizlilik Modu</SectionTitle>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
+          Açtığında, uygulamadaki <strong>tüm ₺ tutarları</strong> "₺ •••" olarak gizlenir — yanında biri varken ekranını
+          gösterirken rakamların görünmesini istemiyorsan kullanabilirsin. Sadece bu cihazda geçerlidir, kapatana kadar açık kalır.
+        </p>
+        <button
+          onClick={() => onToggleGizlilik(!gizlilikModu)}
+          style={{
+            display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 10, border: "none", cursor: "pointer",
+            background: gizlilikModu ? T.danger : T.accentSoft, color: gizlilikModu ? "#fff" : T.accentText, fontSize: 13, fontWeight: 600, fontFamily: "Inter",
+          }}
+        >
+          <EyeOff size={14} />
+          {gizlilikModu ? "Gizlilik Modu Açık — Kapat" : "Gizlilik Modunu Aç"}
+        </button>
       </Card>
 
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
@@ -4461,7 +4501,18 @@ const NAV = [
 ];
 
 export default function MarcusOS() {
-  const [tab, setTab] = useState("dashboard");
+  const [tab, setTab] = useState(() => {
+    try { return localStorage.getItem("marcus-os-son-sekme") || "dashboard"; } catch (e) { return "dashboard"; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("marcus-os-son-sekme", tab); } catch (e) { /* localStorage erişilemezse sessizce geç */ }
+  }, [tab]);
+  const [gizlilikModu, setGizlilikModuState] = useState(GIZLILIK_MODU);
+  const setGizlilikModu = (deger) => {
+    GIZLILIK_MODU = deger;
+    try { localStorage.setItem("marcus-os-gizlilik", deger ? "1" : "0"); } catch (e) { /* sessizce geç */ }
+    setGizlilikModuState(deger);
+  };
   const [aiOpen, setAiOpen] = useState(false);
   const [aiQuestion, setAiQuestion] = useState(null);
   const [data, setData] = useState(null);
@@ -5631,6 +5682,8 @@ export default function MarcusOS() {
               onSaveMarkaKimligi={saveMarkaKimligi}
               onRosterChange={(roster) => setData((d) => ({ ...d, personelRosteri: roster }))}
               clients={data.clients || []}
+              gizlilikModu={gizlilikModu}
+              onToggleGizlilik={setGizlilikModu}
             />
           )}
         </div>

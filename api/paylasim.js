@@ -4,7 +4,16 @@ const KEY = "marcus-os-data";
 const nid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const stokAnahtari = (clientId, tur) => `${clientId}_${tur}`;
 const bugunTR = () => new Date().toLocaleDateString("tr-TR");
-const bugunISO = () => new Date().toISOString().slice(0, 10);
+/** Sunucu (Vercel) UTC saat diliminde çalışır — bu, gece yarısı ile saat 03:00 arası
+ * (Türkiye UTC+3) "bugün"ün bir gün geriden hesaplanmasına yol açıyordu (Günlük Kontrol
+ * geç sıfırlanıyordu). Artık her zaman Türkiye'nin takvim gününü baz alır. */
+const bugunISO = () => {
+  const parcalar = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const y = parcalar.find((p) => p.type === "year").value;
+  const m = parcalar.find((p) => p.type === "month").value;
+  const g = parcalar.find((p) => p.type === "day").value;
+  return `${y}-${m}-${g}`;
+};
 
 /** Owner her zaman yetkili. Personel ise "paylasimlar" iznine sahipse yetkilidir. */
 async function yetkiliMi(req) {
@@ -50,8 +59,7 @@ function gecmiseEkle(data, clientId, marka, tur, tip) {
  * dahil edilmiyordu, bu da bu verinin bir "bu tarihe dön" işleminde kaybolabileceği anlamına geliyordu. */
 async function kaydetVeYedekle(data) {
   await kv.set(KEY, data);
-  const bugun = new Date().toISOString().slice(0, 10);
-  await kv.set(`marcus-os-snapshot-${bugun}`, data);
+  await kv.set(`marcus-os-snapshot-${bugunISO()}`, data);
 }
 
 export default async function handler(req, res) {
