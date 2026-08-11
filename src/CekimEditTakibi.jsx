@@ -21,19 +21,107 @@ export const KATEGORILER = ["Video", "Grafik Tasarım"];
 /** Google Drive paylaşım linkini, sayfa içinde doğrudan oynatılabilir (gömülü) önizleme
  * formatına çevirir. Dönüştürülemezse null döner, o zaman normal link olarak gösterilir. */
 function driveEmbedUrl(link) {
-  if (!link) return null;
-  const m = link.match(/\/d\/([a-zA-Z0-9_-]+)/) || link.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-  if (!m) return null;
-  return `https://drive.google.com/file/d/${m[1]}/preview`;
+  const id = driveDosyaId(link);
+  if (!id) return null;
+  return `https://drive.google.com/file/d/${id}/preview`;
 }
-/** Grafik Tasarım (görsel) içerikler için — Drive'ın /preview'ı (video amaçlı) tıklama
- * gerektiriyor; görsel için bunun yerine dosyanın DOĞRUDAN görsel URL'sini üretip normal bir
- * <img> olarak gösteriyoruz — hiç tıklamaya gerek kalmadan anında görünür. */
-function driveGorselUrl(link) {
+/** Bir Drive bağlantısından dosya kimliğini (ID) çıkarır. Klasör bağlantılarında null döner —
+ * klasörün bir "dosya kimliği" yoktur, önizlenemez. */
+function driveDosyaId(link) {
   if (!link) return null;
-  const m = link.match(/\/d\/([a-zA-Z0-9_-]+)/) || link.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-  if (!m) return null;
-  return `https://drive.google.com/uc?export=view&id=${m[1]}`;
+  if (driveKlasorMu(link)) return null;
+  const m = link.match(/\/d\/([a-zA-Z0-9_-]{10,})/)
+    || link.match(/[?&]id=([a-zA-Z0-9_-]{10,})/)
+    || link.match(/\/file\/d\/([a-zA-Z0-9_-]{10,})/);
+  return m ? m[1] : null;
+}
+
+/** Bağlantı bir Drive KLASÖRÜ mü? Klasörler tek bir görsel olarak gösterilemez. */
+function driveKlasorMu(link) {
+  return !!link && /\/drive\/(u\/\d+\/)?folders\//.test(link);
+}
+
+/**
+ * Bir görselin gösterilebileceği ADAY adresler, en güvenilirden en az güvenilire.
+ *
+ * Neden birden fazla: Google, eski `uc?export=view` adresini artık çoğu durumda doğrudan
+ * görsel olarak servis etmiyor — bunun yerine bir yönlendirme/onay sayfası dönüyor ve
+ * <img> etiketi sessizce boş kalıyor. `thumbnail` uç noktası bu iş için tasarlandığı
+ * için çok daha güvenilir. Hangisinin çalışacağı dosyaya göre değişebildiği için
+ * sırayla deniyoruz.
+ */
+function driveGorselAdaylari(link) {
+  const id = driveDosyaId(link);
+  if (!id) return [];
+  return [
+    `https://drive.google.com/thumbnail?id=${id}&sz=w1600`,
+    `https://lh3.googleusercontent.com/d/${id}=w1600`,
+    `https://drive.google.com/uc?export=view&id=${id}`,
+  ];
+}
+
+/** Eski isim — kodun geri kalanıyla uyum için ilk adayı döndürür. */
+function driveGorselUrl(link) {
+  const adaylar = driveGorselAdaylari(link);
+  return adaylar.length ? adaylar[0] : null;
+}
+
+/**
+ * Drive görselini gösteren bileşen. Aday adresleri sırayla dener; hepsi başarısız olursa
+ * SESSİZCE KAYBOLMAK YERİNE nedenini açıkça yazar.
+ *
+ * Eskiden `onError` ile görsel gizleniyordu — bu yüzden bir sorun olduğunda ekranda hiçbir
+ * iz kalmıyor, "neden görünmüyor?" sorusunun cevabı hiçbir yerde yazmıyordu.
+ */
+function DriveGorsel({ link, C, yukseklik, kapak, kucuk }) {
+  const adaylar = driveGorselAdaylari(link);
+  const [sira, setSira] = useState(0);
+  useEffect(() => { setSira(0); }, [link]);
+
+  const kutuStili = {
+    width: "100%", borderRadius: kucuk ? 8 : 10, background: C.panelAlt,
+    border: `1px dashed ${C.border}`, padding: kucuk ? "10px 12px" : "14px 16px",
+    marginBottom: kucuk ? 8 : 0, fontSize: kucuk ? 10.5 : 12, color: C.textFaint, lineHeight: 1.6,
+  };
+
+  if (driveKlasorMu(link)) {
+    return (
+      <div style={kutuStili}>
+        Bu bir Drive <strong>klasör</strong> bağlantısı — klasörler önizlenemez.
+        {!kucuk && " Önizleme için tek bir dosyanın bağlantısını yapıştır (dosyaya sağ tık → Bağlantıyı al)."}
+      </div>
+    );
+  }
+  if (adaylar.length === 0) {
+    return (
+      <div style={kutuStili}>
+        Bu bağlantıdan bir Drive dosyası tanınamadı — önizleme yapılamıyor.
+        {!kucuk && " Bağlantının drive.google.com/file/d/... biçiminde olduğundan emin ol."}
+      </div>
+    );
+  }
+  if (sira >= adaylar.length) {
+    return (
+      <div style={kutuStili}>
+        Görsel yüklenemedi. En yaygın sebep: dosyanın paylaşım ayarı kapalı.
+        {!kucuk && " Drive'da dosyaya sağ tık → Paylaş → \"Bağlantıya sahip olan herkes\" → Görüntüleyen olarak ayarla."}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={adaylar[sira]}
+      alt="Editlenmiş görsel önizleme"
+      style={{
+        width: "100%", height: kapak ? yukseklik : undefined, maxHeight: kapak ? undefined : yukseklik,
+        objectFit: kapak ? "cover" : "contain", borderRadius: kucuk ? 8 : 10,
+        background: C.panelAlt, display: "block", marginBottom: kucuk ? 8 : 0,
+      }}
+      referrerPolicy="no-referrer"
+      onError={() => setSira((n) => n + 1)}
+    />
+  );
 }
 
 export const ASAMALAR_VIDEO = [
@@ -175,13 +263,8 @@ function IsKarti({ job, onClick, draggable, onDragStart }) {
         <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{job.marka}</div>
         <span style={{ width: 7, height: 7, borderRadius: 999, background: ONCELIK_RENK[job.oncelik], flexShrink: 0, marginTop: 4 }} title={`Öncelik: ${job.oncelik}`} />
       </div>
-      {job.kategori === "Grafik Tasarım" && job.editliDosyaLink && driveGorselUrl(job.editliDosyaLink) && (
-        <img
-          src={driveGorselUrl(job.editliDosyaLink)}
-          alt=""
-          style={{ width: "100%", height: 110, objectFit: "cover", borderRadius: 8, marginBottom: 8, background: C.panelAlt, display: "block" }}
-          onError={(e) => { e.target.style.display = "none"; }}
-        />
+      {job.kategori === "Grafik Tasarım" && job.editliDosyaLink && (
+        <DriveGorsel link={job.editliDosyaLink} C={C} yukseklik={110} kapak kucuk />
       )}
       <div style={{ fontSize: 11.5, color: C.textDim, marginBottom: 8 }}>{job.icerikTuru}{job.kategori ? ` · ${job.kategori}` : ""}</div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: C.textFaint, marginBottom: 8 }}>
@@ -485,7 +568,7 @@ function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate
                 </div>
               ) : (
                 <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: (job.editliDosyaLink && (driveGorselUrl(job.editliDosyaLink) || driveEmbedUrl(job.editliDosyaLink))) ? 10 : 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: job.editliDosyaLink ? 10 : 0 }}>
                     {job.hamDosyaLink && <a href={job.hamDosyaLink} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: C.accentText, textDecoration: "none" }}><Link2 size={13} /> Ham Dosyalar</a>}
                     {job.editliDosyaLink && <a href={job.editliDosyaLink} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: C.accentText, textDecoration: "none" }}><Link2 size={13} /> Editlenmiş Dosyalar</a>}
                     {yetkili && (
@@ -498,13 +581,15 @@ function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate
                    * anında gösterilir. Video'da ise Drive'ın /preview'ı kullanılır — tarayıcıların
                    * otomatik oynatma kısıtlaması yüzünden oynatmak için bir tık gerekiyor, bu
                    * platform kısıtı, tamamen kaldırılamıyor. */}
-                  {job.editliDosyaLink && kategori === "Grafik Tasarım" && driveGorselUrl(job.editliDosyaLink) && (
-                    <img
-                      src={driveGorselUrl(job.editliDosyaLink)}
-                      alt="Editlenmiş görsel önizleme"
-                      style={{ width: "100%", maxHeight: 420, objectFit: "contain", borderRadius: 10, background: C.panelAlt, display: "block" }}
-                      onError={(e) => { e.target.style.display = "none"; }}
-                    />
+                  {job.editliDosyaLink && kategori === "Grafik Tasarım" && (
+                    <DriveGorsel link={job.editliDosyaLink} C={C} yukseklik={420} />
+                  )}
+                  {job.editliDosyaLink && kategori !== "Grafik Tasarım" && !driveEmbedUrl(job.editliDosyaLink) && (
+                    <div style={{ width: "100%", borderRadius: 10, background: C.panelAlt, border: `1px dashed ${C.border}`, padding: "14px 16px", fontSize: 12, color: C.textFaint, lineHeight: 1.6 }}>
+                      {driveKlasorMu(job.editliDosyaLink)
+                        ? "Bu bir Drive klasör bağlantısı — klasörler oynatıcı olarak gösterilemez. Tek bir video dosyasının bağlantısını yapıştır."
+                        : "Bu bağlantıdan bir Drive dosyası tanınamadı — oynatıcı gösterilemiyor. Bağlantının drive.google.com/file/d/... biçiminde olduğundan emin ol."}
+                    </div>
                   )}
                   {job.editliDosyaLink && kategori !== "Grafik Tasarım" && driveEmbedUrl(job.editliDosyaLink) && (
                     <>

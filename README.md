@@ -292,3 +292,24 @@ ekstra uyarılı bir seçenek olarak duruyor. Ayrıca "Tekrar Dene" en üste al�
 ### 9. Yetim müşteri hesapları otomatik temizleniyor
 Bir marka silindiğinde ona bağlı Müşteri Paneli hesabı bazı yollardan silinmeden kalabiliyordu.
 Artık her kayıtta sunucu tarafında otomatik kontrol edilip temizleniyor.
+
+## Güncelleme 14: Drive Görseli Görünmüyor Sorunu
+
+**Sorun:** Grafik Tasarım işlerinde Drive bağlantısı eklendiği halde görsel hiç görünmüyordu ve
+ekranda bunun sebebini açıklayan HİÇBİR şey yazmıyordu.
+
+**İki ayrı kök neden vardı, ikisi de sessizce başarısız oluyordu:**
+
+1. **Klasör bağlantısı yapıştırılmışsa** hiçbir şey çizilmiyordu. Bir Drive *klasörü* tek bir
+   görsel olarak gösterilemez — ama bu ekranda hiç belirtilmiyordu.
+2. **Adres biçimi artık çalışmıyor.** Google, eski `uc?export=view` adresini çoğu dosya için
+   doğrudan görsel olarak servis etmiyor; bunun yerine bir yönlendirme/onay sayfası dönüyor.
+   Görsel yüklenemeyince kod `onError` ile onu **gizliyordu** — yani hata da görünmüyordu.
+
+**Yapılanlar:**
+- Artık önce Google'ın bu iş için tasarlanmış `thumbnail` adresi deneniyor; olmazsa `lh3` ve
+  eski `uc` adresleri sırayla yedek olarak deneniyor.
+- **Hiçbir durumda sessizce kaybolmuyor.** Görsel gösterilemiyorsa ekranda nedeni yazıyor:
+  klasör bağlantısı mı, tanınmayan bir bağlantı mı, yoksa paylaşım ayarı kapalı mı.
+- Aynı açıklama Video kategorisi için de eklendi (klasör/tanınmayan bağlantı durumunda).
+- Klasör bağlantıları artık dosya sanılmıyor (adres ayrıştırma düzeltildi).
