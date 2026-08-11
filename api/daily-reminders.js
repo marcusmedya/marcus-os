@@ -18,6 +18,17 @@ function yetkiliMi(req) {
 
 const PAYLASIM_TURLERI = ["Görsel", "Video", "Reels", "Story", "Carousel"];
 
+/** Sunucu UTC saat diliminde çalışır — bu, gece yarısı ile saat 03:00 arası (Türkiye UTC+3)
+ * Günlük Kontrol tarihinin yanlış eşleşmesine yol açıyordu. Diğer dosyalarla (App.jsx,
+ * paylasim.js) aynı Türkiye-takvim-günü mantığını kullanır. */
+const bugunISO = () => {
+  const parcalar = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const y = parcalar.find((p) => p.type === "year").value;
+  const m = parcalar.find((p) => p.type === "month").value;
+  const g = parcalar.find((p) => p.type === "day").value;
+  return `${y}-${m}-${g}`;
+};
+
 async function epostaGonder(resendKey, to, subject, html, cc) {
   const body = { from: "Marcus Medya App <bildirim@marcusmedya.com>", to: [to], subject, html };
   if (cc && cc !== to) body.cc = [cc];
@@ -127,7 +138,7 @@ export default async function handler(req, res) {
     // ---- 2) Günlük Kontrol: bugün tamamlanmamış marka/türler ----
     if (backupEmail) {
       const aktifMarkalar = clients.filter((c) => c.durum === "aktif" || c.durum === "yeni");
-      const gunlukKontrol = data.gunlukKontrol && data.gunlukKontrol.tarih === bugun.toISOString().slice(0, 10) ? data.gunlukKontrol : { yapilanlar: [] };
+      const gunlukKontrol = data.gunlukKontrol && data.gunlukKontrol.tarih === bugunISO() ? data.gunlukKontrol : { yapilanlar: [] };
       const stoklar = data.stoklar || {};
       const tamamlanmamis = [];
       aktifMarkalar.forEach((c) => {

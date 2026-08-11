@@ -3974,7 +3974,53 @@ function KasaSifresiKarti() {
   );
 }
 
-function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu, onSaveTeblig, staffPermissions, onUpdatePermissions, markaKimligiGorseli, onSaveMarkaKimligi, onRosterChange, clients, gizlilikModu, onToggleGizlilik }) {
+/** Müşteri/personel/üyelik ekleme-silme, durum değişikliği gibi önemli işlemlerin otomatik
+ * tutulan "kim ne zaman ne yaptı" defteri. Sunucu tarafında her kayıt anında değişiklikleri
+ * karşılaştırarak kendiliğinden dolar — elle bir şey işaretlemene gerek yok. */
+function IslemGecmisiKarti({ kayitlar }) {
+  const [acik, setAcik] = useState(false);
+  const [aramaMetni, setAramaMetni] = useState("");
+  const liste = (kayitlar || []).slice().reverse();
+  const filtreli = aramaMetni.trim()
+    ? liste.filter((k) => (k.aciklama || "").toLocaleLowerCase("tr").includes(aramaMetni.trim().toLocaleLowerCase("tr")) || (k.kisi || "").toLocaleLowerCase("tr").includes(aramaMetni.trim().toLocaleLowerCase("tr")))
+    : liste;
+
+  return (
+    <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+      <button onClick={() => setAcik((v) => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: acik ? 14 : 0 }}>
+        <SectionTitle>İşlem Geçmişi</SectionTitle>
+        <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{liste.length > 0 ? `${liste.length} kayıt` : "Kayıt yok"} {acik ? "▲" : "▼"}</span>
+      </button>
+
+      {acik && (
+        <div>
+          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12.5, color: T.textDim, lineHeight: 1.7, marginBottom: 12 }}>
+            Müşteri/personel/üyelik ekleme, silme ve durum değişiklikleri burada otomatik olarak listelenir — kim, ne zaman, neyi değiştirdi.
+          </p>
+          {liste.length > 0 && (
+            <input type="text" placeholder="Kişi ya da işlem ara…" value={aramaMetni} onChange={(e) => setAramaMetni(e.target.value)} style={{ ...inputStyle, marginBottom: 12, fontSize: 12.5 }} />
+          )}
+          {filtreli.length === 0 ? (
+            <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>{liste.length === 0 ? "Henüz kayıtlı bir işlem yok." : "Eşleşen kayıt bulunamadı."}</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 420, overflowY: "auto" }}>
+              {filtreli.map((k) => (
+                <div key={k.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, padding: "8px 12px", background: T.surfaceRaised, borderRadius: 9 }}>
+                  <div style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter" }}>
+                    <strong>{k.kisi}</strong> — {k.aciklama}
+                  </div>
+                  <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", whiteSpace: "nowrap", flexShrink: 0 }}>{k.tarih}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu, onSaveTeblig, staffPermissions, onUpdatePermissions, markaKimligiGorseli, onSaveMarkaKimligi, onRosterChange, clients, gizlilikModu, onToggleGizlilik, islemGecmisi }) {
   const fileInputRef = useRef(null);
   const rows = [
     { label: "İşletme Adı", value: "Marcus Medya" },
@@ -4011,6 +4057,8 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
           {gizlilikModu ? "Gizlilik Modu Açık — Kapat" : "Gizlilik Modunu Aç"}
         </button>
       </Card>
+
+      <IslemGecmisiKarti kayitlar={islemGecmisi} />
 
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Veri</SectionTitle>
@@ -4686,6 +4734,25 @@ function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
   const [revizeMetni, setRevizeMetni] = useState("");
   const [gonderiliyor, setGonderiliyor] = useState(null);
 
+  // Hareketsizlik koruması: müşteri panelini açık unutup giderse (özellikle ortak/paylaşılan
+  // bir bilgisayarda), 1 dakika hiç dokunulmazsa otomatik olarak çıkış yapılır — hem gizlilik
+  // hem güvenlik için (yazılmış ama gönderilmemiş bir revize notu ortada kalmasın diye).
+  useEffect(() => {
+    let zamanlayici = null;
+    const sifirla = () => {
+      if (zamanlayici) clearTimeout(zamanlayici);
+      zamanlayici = setTimeout(() => onCikis(), 60000);
+    };
+    const olaylar = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"];
+    olaylar.forEach((olay) => window.addEventListener(olay, sifirla, { passive: true }));
+    sifirla();
+    return () => {
+      if (zamanlayici) clearTimeout(zamanlayici);
+      olaylar.forEach((olay) => window.removeEventListener(olay, sifirla));
+    };
+    // eslint-disable-next-line
+  }, []);
+
   const istekAt = (musteriAction, icerikId, revizeNotu) => {
     setGonderiliyor(icerikId);
     fetch("/api/data", {
@@ -4930,6 +4997,25 @@ export default function MarcusOS() {
   useEffect(() => {
     try { localStorage.setItem("marcus-os-son-sekme", tab); } catch (e) { /* localStorage erişilemezse sessizce geç */ }
   }, [tab]);
+
+  // Hareketsizlik koruması: bir sayfa (özellikle bir düzenleme formu açık) 1 dakika boyunca
+  // hiç dokunulmadan açık kalırsa, otomatik olarak Dashboard'a (hiçbir düzenleme/kayıt
+  // riski taşımayan bir sayfa) yönlendirir. Amaç: biri sayfayı açık unutup gidince, geri
+  // dönüldüğünde yanlışlıkla eski/yarım bir formun kaydedilmesi riskini azaltmak.
+  useEffect(() => {
+    let zamanlayici = null;
+    const sifirla = () => {
+      if (zamanlayici) clearTimeout(zamanlayici);
+      zamanlayici = setTimeout(() => setTab("dashboard"), 60000);
+    };
+    const olaylar = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"];
+    olaylar.forEach((olay) => window.addEventListener(olay, sifirla, { passive: true }));
+    sifirla();
+    return () => {
+      if (zamanlayici) clearTimeout(zamanlayici);
+      olaylar.forEach((olay) => window.removeEventListener(olay, sifirla));
+    };
+  }, []);
   const [gizlilikModu, setGizlilikModuState] = useState(GIZLILIK_MODU);
   const setGizlilikModu = (deger) => {
     GIZLILIK_MODU = deger;
@@ -4946,6 +5032,7 @@ export default function MarcusOS() {
   const [role, setRole] = useState(null); // "owner" | "staff" | "musteri"
   const [loggedStaffName, setLoggedStaffName] = useState("");
   const [musteriData, setMusteriData] = useState(null);
+  const [musteriBlockedMsg, setMusteriBlockedMsg] = useState("");
   const [authError, setAuthError] = useState("");
   const [authChecking, setAuthChecking] = useState(false);
   const [search, setSearch] = useState("");
@@ -4957,6 +5044,7 @@ export default function MarcusOS() {
   const [loadError, setLoadError] = useState(false);
   const [needsSeedConfirm, setNeedsSeedConfirm] = useState(false);
   const [saveBlocked, setSaveBlocked] = useState(null);
+  const [staleConflictMsg, setStaleConflictMsg] = useState("");
   const [tebligOpen, setTebligOpen] = useState(null);
   const saveTimer = useRef(null);
   const skipNextSave = useRef(true);
@@ -4970,6 +5058,13 @@ export default function MarcusOS() {
         if (r.status === 401) {
           setNeedsAuth(true);
           if (isRetry) setAuthError("Yanlış şifre, tekrar dener misin?");
+          return;
+        }
+        if (r.status === 403) {
+          // Müşteri Paneli'nde marka dondurulmuş/silinmiş — genel sunucu hatasından ayrı,
+          // net bir mesaj göster.
+          const res = await r.json().catch(() => ({}));
+          setMusteriBlockedMsg(res.error || "Bu hesap şu anda kullanım dışı.");
           return;
         }
         if (!r.ok) {
@@ -5038,20 +5133,45 @@ export default function MarcusOS() {
   };
 
   useEffect(() => {
+    let gizlenmeZamani = null;
     const sessizYenile = () => {
       if (!dataVarMi.current) return; // ilk yükleme henüz tamamlanmadıysa karışma
       veriyiYenile();
     };
 
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") {
+        gizlenmeZamani = Date.now();
+        return;
+      }
+      if (document.visibilityState !== "visible") return;
+      const gizliKalinanSure = gizlenmeZamani ? Date.now() - gizlenmeZamani : 0;
+      gizlenmeZamani = null;
+      // Sekme/cihaz UZUN SÜRE (1 dakikadan fazla — laptop uykuya daldı, telefon arka plana
+      // atıldı vb.) arka planda kaldıysa, o sırada bellekte kalmış ve henüz gönderilmemiş
+      // BEKLEYEN bir kayıt varsa bunu artık güvenilir saymıyoruz: geri dönüldüğünde başka bir
+      // cihazın yaptığı değişiklikleri geçersiz kılıp üzerine yazabilirdi (gece verinin "eski
+      // haline dönmesi" sorununun kök nedeni buydu). Bu durumda bekleyen eski kaydı iptal edip
+      // önce sunucudaki en güncel veriyi çekiyoruz.
+      if (gizliKalinanSure > 60000 && saveTimer.current) {
+        clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+        skipNextSave.current = true;
+        setSaveStatus("saved");
+        veriyiYenile();
+        return;
+      }
+      sessizYenile();
+    };
+
     const interval = setInterval(sessizYenile, 25000); // 25 saniyede bir
-    const onVisible = () => { if (document.visibilityState === "visible") sessizYenile(); };
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("focus", onVisibilityChange);
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("focus", onVisibilityChange);
     };
     // eslint-disable-next-line
   }, [])
@@ -5069,6 +5189,7 @@ export default function MarcusOS() {
   const handleMusteriAuthSubmit = (kullaniciAdi, sifre) => {
     setPw("");
     clearStaffCreds();
+    setMusteriBlockedMsg("");
     setMusteriCreds(kullaniciAdi, sifre);
     loadData(true);
   };
@@ -5079,15 +5200,32 @@ export default function MarcusOS() {
     setSaveStatus("saving");
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      fetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ data }) })
+      fetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ data, _v: data._v }) })
         .then(async (r) => {
           if (r.status === 409) {
             const res = await r.json();
+            if (res.staleConflict) {
+              // Başka bir cihaz/sekme araya girmiş — bu değişikliği ZORLA üzerine yazmak yerine
+              // (bu tam da önlemeye çalıştığımız veri kaybı senaryosu), önce sunucudaki en
+              // güncel veriyi çekip kullanıcıyı bilgilendiriyoruz. Az önceki değişikliği
+              // kaybetmiş olabilir, tekrar uygulaması gerekebilir — ama en azından ARADA
+              // BAŞKASININ yaptığı değişiklikler kaybolmuyor.
+              setSaveStatus("error");
+              setStaleConflictMsg("Az önce başka bir cihazdan/sekmeden değişiklik yapılmış. En güncel veri çekildi — az önceki değişikliğini kontrol edip gerekirse tekrar uygula.");
+              skipNextSave.current = true;
+              fetch("/api/data", { headers: authHeaders() })
+                .then((r2) => r2.json())
+                .then((res2) => { if (res2.data) setData(res2.data); })
+                .catch(() => {});
+              return;
+            }
             setSaveStatus("error");
             setSaveBlocked({ ...res, dataToForce: data });
             return;
           }
           if (!r.ok) { setSaveStatus("error"); return; }
+          const res = await r.json();
+          if (typeof res._v === "number") { skipNextSave.current = true; setData((d) => ({ ...d, _v: res._v })); }
           setSaveStatus("saved");
           setLastSavedAt(new Date());
         })
@@ -5116,7 +5254,13 @@ export default function MarcusOS() {
     if (!saveBlocked) return;
     const payload = saveBlocked.dataToForce;
     fetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ data: payload, force: true }) })
-      .then((r) => { if (r.ok) { setSaveStatus("saved"); setLastSavedAt(new Date()); } else { setSaveStatus("error"); } })
+      .then(async (r) => {
+        if (r.ok) {
+          const res = await r.json();
+          if (typeof res._v === "number") { skipNextSave.current = true; setData((d) => ({ ...d, _v: res._v })); }
+          setSaveStatus("saved"); setLastSavedAt(new Date());
+        } else { setSaveStatus("error"); }
+      })
       .catch(() => setSaveStatus("error"))
       .finally(() => setSaveBlocked(null));
   };
@@ -5146,7 +5290,16 @@ export default function MarcusOS() {
     return { ...d, clients: [...d.clients, yeniClient], markalasmaSurecleri: [...(d.markalasmaSurecleri || []), yeniSurec] };
   });
   const updateClient = (id, patch) => setData((d) => ({ ...d, clients: d.clients.map((c) => (c.id === id ? { ...c, ...patch } : c)) }));
-  const deleteClient = (id) => setData((d) => ({ ...d, clients: d.clients.filter((c) => c.id !== id) }));
+  const deleteClient = (id) => {
+    setData((d) => ({ ...d, clients: d.clients.filter((c) => c.id !== id) }));
+    // Silinen markaya bağlı Müşteri Paneli giriş hesabı varsa, o da otomatik kapatılır —
+    // aksi halde silinen bir müşterinin giriş bilgisi hâlâ geçerli kalırdı.
+    fetch("/api/manage-staff", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Site-Password": getPw() },
+      body: JSON.stringify({ hesapTuru: "musteri", action: "silByClientId", clientId: id }),
+    }).catch(() => {}); // sessizce geç — asıl müşteri silme işlemi zaten tamamlandı
+  };
 
   const addClientCost = (clientId, cost) => setData((d) => ({
     ...d,
@@ -5673,6 +5826,19 @@ export default function MarcusOS() {
     );
   }
 
+  if (musteriBlockedMsg) {
+    return (
+      <div style={{ background: T.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+        <style>{FONTS}</style>
+        <div style={{ textAlign: "center", maxWidth: 340 }}>
+          <div style={{ color: T.warning, fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 600, marginBottom: 10 }}>Hesap Kullanım Dışı</div>
+          <div style={{ color: T.textDim, fontFamily: "Inter, sans-serif", fontSize: 13, lineHeight: 1.6, marginBottom: 18 }}>{musteriBlockedMsg}</div>
+          <button style={saveBtnStyle} onClick={() => { clearMusteriCreds(); setMusteriBlockedMsg(""); setNeedsAuth(true); }}>Giriş Ekranına Dön</button>
+        </div>
+      </div>
+    );
+  }
+
   if (loadError) {
     return (
       <div style={{ background: T.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
@@ -6139,6 +6305,7 @@ export default function MarcusOS() {
               clients={data.clients || []}
               gizlilikModu={gizlilikModu}
               onToggleGizlilik={setGizlilikModu}
+              islemGecmisi={data.islemGecmisi || []}
             />
           )}
         </div>
@@ -6158,6 +6325,15 @@ export default function MarcusOS() {
           onCancel={() => setSaveBlocked(null)}
           onForce={forceSave}
         />
+      )}
+      {staleConflictMsg && (
+        <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 200, maxWidth: 480, width: "90%" }}>
+          <div style={{ background: T.warningSoft, border: `1px solid ${T.warning}`, borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "flex-start", gap: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
+            <span style={{ fontSize: 16 }}>⚠️</span>
+            <div style={{ flex: 1, fontSize: 12.5, color: T.warning, fontFamily: "Inter", lineHeight: 1.6 }}>{staleConflictMsg}</div>
+            <button onClick={() => setStaleConflictMsg("")} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0 }}><X size={15} color={T.warning} /></button>
+          </div>
+        </div>
       )}
       {tebligOpen && (
         <TebligDuzenleModal

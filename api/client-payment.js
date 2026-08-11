@@ -1,4 +1,11 @@
 import { kv } from "@vercel/kv";
+const bugunISO = () => {
+  const parcalar = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const y = parcalar.find((p) => p.type === "year").value;
+  const m = parcalar.find((p) => p.type === "month").value;
+  const g = parcalar.find((p) => p.type === "day").value;
+  return `${y}-${m}-${g}`;
+};
 
 const KEY = "marcus-os-data";
 const nid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -64,7 +71,7 @@ export default async function handler(req, res) {
     await kv.set(KEY, yeniData);
 
     // Günlük yedeği de güncel tut ki bu değişiklik de yedeklensin.
-    const today = new Date().toISOString().slice(0, 10);
+    const today = bugunISO();
     await kv.set(`marcus-os-snapshot-${today}`, yeniData);
 
     return res.status(200).json({ ok: true, client });

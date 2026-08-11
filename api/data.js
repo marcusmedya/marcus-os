@@ -2,6 +2,44 @@ import { kv } from "@vercel/kv";
 import crypto from "crypto";
 
 const KEY = "marcus-os-data";
+/** Sunucu UTC saat diliminde çalışır — gece yarısı ile saat 03:00 arası (Türkiye UTC+3)
+ * yedek anahtarının bir gün geriden etiketlenmesini önler. */
+const bugunISO = () => {
+  const parcalar = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const y = parcalar.find((p) => p.type === "year").value;
+  const m = parcalar.find((p) => p.type === "month").value;
+  const g = parcalar.find((p) => p.type === "day").value;
+  return `${y}-${m}-${g}`;
+};
+
+/** Bir kayıt (eski veri, yeni veri) arasındaki ÖNEMLİ değişiklikleri (müşteri/personel/üyelik
+ * ekleme-silme, müşteri durum değişikliği) otomatik tespit edip okunabilir işlem geçmişi
+ * kayıtları üretir. Amaç: her tek tek işlemi elle loglamak yerine, kayıt anında ne değiştiğini
+ * karşılaştırarak "kim ne zaman ne yaptı" defterini kendiliğinden doldurmak. */
+function degisiklikleriTespitEt(eski, yeni, kisi) {
+  const aciklamalar = [];
+  const listeKarsilastir = (alan, etiket, adAlani) => {
+    const eskiListe = Array.isArray(eski && eski[alan]) ? eski[alan] : [];
+    const yeniListe = Array.isArray(yeni && yeni[alan]) ? yeni[alan] : [];
+    const eskiIds = new Set(eskiListe.map((x) => x.id));
+    const yeniIds = new Set(yeniListe.map((x) => x.id));
+    yeniListe.forEach((x) => { if (!eskiIds.has(x.id)) aciklamalar.push(`${etiket} eklendi: "${x[adAlani] || x.id}"`); });
+    eskiListe.forEach((x) => {
+      if (!yeniIds.has(x.id)) { aciklamalar.push(`${etiket} silindi: "${x[adAlani] || x.id}"`); return; }
+      // Müşteri durum değişikliği (aktif/donduruldu/ayrıldı) ayrıca not edilir.
+      if (alan === "clients") {
+        const yenisi = yeniListe.find((y) => y.id === x.id);
+        if (yenisi && yenisi.durum !== x.durum) aciklamalar.push(`"${x.ad}" durumu değişti: ${x.durum} → ${yenisi.durum}`);
+      }
+    });
+  };
+  listeKarsilastir("clients", "Müşteri", "ad");
+  listeKarsilastir("personel", "Personel", "ad");
+  listeKarsilastir("uyelikler", "Üyelik", "ad");
+  listeKarsilastir("teklifler", "Teklif", "musteri");
+  return aciklamalar.map((aciklama) => ({ id: nid(), tarih: new Date().toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" }), kisi, aciklama }));
+}
+function nid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
 /** Kaba kuvvet (brute-force) koruması: aynı IP'den 15 dakikada 20'den fazla başarısız
  * giriş denemesi olursa, şifre doğru olsa bile bir süre reddedilir. */
@@ -139,8 +177,16 @@ export default async function handler(req, res) {
   if (role === "musteri") {
     try {
       const data = (await kv.get(KEY)) || {};
-      const kendiIcerikleri = (data.musteriIcerikleri || []).filter((i) => String(i.clientId) === String(musteriClientId));
       const kendiMarka = (data.clients || []).find((c) => String(c.id) === String(musteriClientId));
+
+      // Marka silinmiş ya da dondurulmuşsa, panele hiç giriş yapılamaz — hesap var olsa bile
+      // "kullanım dışı" sayılır. Silme durumunda ayrıca deleteClient tarafında hesabın
+      // kendisi de otomatik siliniyor; bu kontrol dondurma durumunu ve olası gecikmeleri kapsar.
+      if (!kendiMarka || kendiMarka.durum === "donduruldu") {
+        return res.status(403).json({ error: "Bu hesap şu anda kullanım dışı. Sorularınız için ajansınızla iletişime geçin." });
+      }
+
+      const kendiIcerikleri = (data.musteriIcerikleri || []).filter((i) => String(i.clientId) === String(musteriClientId));
 
       if (req.method === "GET") {
         return res.status(200).json({
@@ -184,7 +230,7 @@ export default async function handler(req, res) {
           return res.status(400).json({ error: "Geçersiz işlem." });
         }
         await kv.set(KEY, data);
-        const bugunYedek = new Date().toISOString().slice(0, 10);
+        const bugunYedek = bugunISO();
         await kv.set(`marcus-os-snapshot-${bugunYedek}`, data);
         return res.status(200).json({ ok: true });
       }
@@ -233,7 +279,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "POST") {
-      const { data, force, kilitAction } = req.body || {};
+      const { data, force, kilitAction, _v: clientVersion } = req.body || {};
 
       // Düzenleme kilidi (eşzamanlı düzenleme uyarısı) — ayrı bir uç noktaydı, Vercel'in
       // Hobby planındaki 12 fonksiyon sınırına takılmamak için buraya taşındı. Owner ya da
@@ -285,10 +331,17 @@ export default async function handler(req, res) {
             merged[f] = data[f];
           });
         });
+        // Bu kayıtta ne değişti (müşteri/personel/üyelik eklendi-silindi, durum değişti) —
+        // İşlem Geçmişi defterine otomatik not düşülür. Son 200 kayıtla sınırlı tutulur.
+        const yeniKayitlar = degisiklikleriTespitEt(existing, merged, staffName || "Personel");
+        if (yeniKayitlar.length > 0) {
+          merged.islemGecmisi = [...(existing.islemGecmisi || []), ...yeniKayitlar].slice(-200);
+        }
+
         await kv.set(KEY, merged);
         // Personel yazımları da günlük yedeğe dahil olsun — daha önce sadece owner kayıtları
         // yedekleniyordu, bu da personelin yaptığı işlerin yedeksiz kalması riskini taşıyordu.
-        const bugun = new Date().toISOString().slice(0, 10);
+        const bugun = bugunISO();
         await kv.set(`marcus-os-snapshot-${bugun}`, merged);
         return res.status(200).json({ ok: true });
       }
@@ -297,6 +350,21 @@ export default async function handler(req, res) {
       // bu yüzden her kayıtta mevcut hesapları sunucudan alıp geri ekliyoruz, yoksa
       // ilk kayıtta tüm personel hesapları sessizce silinmiş olurdu.
       const existingFull = await kv.get(KEY);
+
+      // ÇAKIŞMA KONTROLÜ: her kayıt bir versiyon sayacını (_v) bir artırır. İstek, en son
+      // GÖRDÜĞÜ versiyonu (clientVersion) da gönderir. Sunucudaki versiyon bundan farklıysa,
+      // bu araya BAŞKA bir kayıt girmiş demektir (örn. az önce başka bir cihaz/sekme kaydetti,
+      // ya da bu istek uzun süre arka planda/uykuda bekleyip GEÇ gönderildi) — böyle bir
+      // durumda üzerine kör kör yazmak yerine reddedip ön yüzün önce en güncel veriyi
+      // çekmesini istiyoruz. "force: true" ile (kullanıcı bilerek üzerine yazmak isterse) bu
+      // kontrol atlanabilir.
+      if (!force && existingFull && typeof existingFull._v === "number" && typeof clientVersion === "number" && existingFull._v !== clientVersion) {
+        return res.status(409).json({
+          staleConflict: true,
+          error: "Bu veri, sen düzenlerken başka bir cihazdan/sekmeden değişmiş. Kaybını önlemek için önce en güncel veriyi çekip senin değişikliğini tekrar uygulaman gerekiyor.",
+          serverVersion: existingFull._v,
+        });
+      }
 
       // GÜVENLİK FRENİ: müşteri sayısı mevcut veriye göre çarpıcı biçimde azalıyorsa
       // (örn. bir hata sonucu boş/demo veri yazılmaya çalışılıyorsa) kaydı reddet.
@@ -337,10 +405,19 @@ export default async function handler(req, res) {
         musteriHesaplari: (existingFull && existingFull.musteriHesaplari) || [],
         kasaSifresiHash: existingFull ? existingFull.kasaSifresiHash : undefined,
         kasaSifresiSalt: existingFull ? existingFull.kasaSifresiSalt : undefined,
+        _v: (existingFull && typeof existingFull._v === "number" ? existingFull._v : 0) + 1,
       };
+      // Bu kayıtta ne değişti (müşteri/personel/üyelik eklendi-silindi, durum değişti) —
+      // İşlem Geçmişi defterine otomatik not düşülür. Son 200 kayıtla sınırlı tutulur.
+      const yeniKayitlar = degisiklikleriTespitEt(existingFull, finalData, "Yönetici (CEO)");
+      if (yeniKayitlar.length > 0) {
+        finalData.islemGecmisi = [...((existingFull && existingFull.islemGecmisi) || []), ...yeniKayitlar].slice(-200);
+      } else if (existingFull && existingFull.islemGecmisi) {
+        finalData.islemGecmisi = existingFull.islemGecmisi;
+      }
       await kv.set(KEY, finalData);
 
-      const today = new Date().toISOString().slice(0, 10);
+      const today = bugunISO();
       await kv.set(`marcus-os-snapshot-${today}`, finalData);
 
       if (Math.random() < 0.08) {
@@ -357,7 +434,7 @@ export default async function handler(req, res) {
         }
       }
 
-      return res.status(200).json({ ok: true });
+      return res.status(200).json({ ok: true, _v: finalData._v });
     }
 
     return res.status(405).json({ error: "Sadece GET/POST kabul edilir." });

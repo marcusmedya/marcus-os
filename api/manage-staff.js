@@ -1,4 +1,11 @@
 import { kv } from "@vercel/kv";
+const bugunISO = () => {
+  const parcalar = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const y = parcalar.find((p) => p.type === "year").value;
+  const m = parcalar.find((p) => p.type === "month").value;
+  const g = parcalar.find((p) => p.type === "day").value;
+  return `${y}-${m}-${g}`;
+};
 import crypto from "crypto";
 
 const KEY = "marcus-os-data";
@@ -44,7 +51,7 @@ function hashSifre(sifre, salt) {
 }
 
 async function yedekle(veri) {
-  const bugun = new Date().toISOString().slice(0, 10);
+  const bugun = bugunISO();
   await kv.set(`marcus-os-snapshot-${bugun}`, veri);
 }
 
@@ -128,6 +135,16 @@ export default async function handler(req, res) {
       if (action === "sil") {
         if (!id) return res.status(400).json({ error: "id gerekli." });
         const guncel = hesaplar.filter((h) => h.id !== id);
+        const yeniVeri = { ...data, [alanAdi]: guncel }; await kv.set(KEY, yeniVeri); await yedekle(yeniVeri);
+        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel) });
+      }
+
+      // Bir marka (client) silindiğinde, o markaya bağlı Müşteri Paneli giriş hesabını/hesaplarını
+      // da otomatik temizler — aksi halde silinen bir müşterinin giriş bilgisi hâlâ geçerli kalırdı.
+      // Sadece hesapTuru "musteri" için anlamlı; personel hesapları client'a bağlı değildir.
+      if (action === "silByClientId" && musteriMi) {
+        if (clientId === undefined || clientId === null) return res.status(400).json({ error: "clientId gerekli." });
+        const guncel = hesaplar.filter((h) => String(h.clientId) !== String(clientId));
         const yeniVeri = { ...data, [alanAdi]: guncel }; await kv.set(KEY, yeniVeri); await yedekle(yeniVeri);
         return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel) });
       }

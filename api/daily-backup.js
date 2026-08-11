@@ -1,4 +1,11 @@
 import { kv } from "@vercel/kv";
+const bugunISO = () => {
+  const parcalar = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const y = parcalar.find((p) => p.type === "year").value;
+  const m = parcalar.find((p) => p.type === "month").value;
+  const g = parcalar.find((p) => p.type === "day").value;
+  return `${y}-${m}-${g}`;
+};
 
 // Bu fonksiyon iki şekilde çalışır:
 // 1) Vercel Cron tarafından her gün otomatik (vercel.json'daki zamanlamaya göre) — CRON_SECRET ile korunur
@@ -32,7 +39,7 @@ export default async function handler(req, res) {
 
     const jsonStr = JSON.stringify(data, null, 2);
     const base64 = Buffer.from(jsonStr, "utf-8").toString("base64");
-    const today = new Date().toISOString().slice(0, 10);
+    const today = bugunISO();
 
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",

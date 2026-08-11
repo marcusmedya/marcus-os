@@ -18,6 +18,15 @@ const C = {
 
 export const KATEGORILER = ["Video", "Grafik Tasarım"];
 
+/** Google Drive paylaşım linkini, sayfa içinde doğrudan oynatılabilir (gömülü) önizleme
+ * formatına çevirir. Dönüştürülemezse null döner, o zaman normal link olarak gösterilir. */
+function driveEmbedUrl(link) {
+  if (!link) return null;
+  const m = link.match(/\/d\/([a-zA-Z0-9_-]+)/) || link.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (!m) return null;
+  return `https://drive.google.com/file/d/${m[1]}/preview`;
+}
+
 export const ASAMALAR_VIDEO = [
   "Çekim Planlandı", "Çekim Yapıldı", "Dosyalar Aktarıldı", "Edit Bekliyor",
   "Edit Yapılıyor", "Kontrol Bekliyor", "Revize İstendi", "Onaylandı", "Teslim Edildi",
@@ -37,7 +46,13 @@ const ONCELIKLER = ["Düşük", "Normal", "Yüksek"];
 const ONCELIK_RENK = { "Düşük": C.textFaint, "Normal": C.accentText, "Yüksek": C.danger };
 
 const nid = () => Math.random().toString(36).slice(2, 9);
-const bugunISO = () => new Date().toISOString().slice(0, 10);
+const bugunISO = () => {
+  const parcalar = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const y = parcalar.find((p) => p.type === "year").value;
+  const m = parcalar.find((p) => p.type === "month").value;
+  const g = parcalar.find((p) => p.type === "day").value;
+  return `${y}-${m}-${g}`;
+};
 const gunFarki = (tarihISO) => {
   if (!tarihISO) return null;
   const bugun = new Date(); bugun.setHours(0, 0, 0, 0);
@@ -280,13 +295,17 @@ function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate
       gecmis: logKaydet(`Aşama değişti: ${job.asama} → ${yeniAsama}${ekAciklama ? " (" + ekAciklama + ")" : ""}`),
     });
   };
+  const geriAl = (hedefAsama) => {
+    if (!window.confirm(`"${hedefAsama}" aşamasına geri alınsın mı?`)) return;
+    asamaGecir(hedefAsama, "geri alındı");
+  };
 
   const kategori = job.kategori === "Grafik Tasarım" ? "Grafik Tasarım" : "Video";
   const asamalar = asamaListesi(kategori);
   const editiTamamla = () => asamaGecir("Kontrol Bekliyor", TAMAMLADIM_ETIKETI[kategori]);
   const revizeyiTamamla = () => asamaGecir("Kontrol Bekliyor", "Revize Tamamlandı");
   const onayla = () => asamaGecir("Onaylandı");
-  const teslimEt = () => asamaGecir("Teslim Edildi");
+  const teslimEt = () => { if (window.confirm("Bu iş \"Teslim Edildi\" olarak işaretlenecek. Emin misin?")) asamaGecir("Teslim Edildi"); };
   const revizeGonder = () => {
     if (!revizeMetni.trim()) { window.alert("Revize açıklaması zorunludur."); return; }
     onUpdate(job.id, { asama: "Revize İstendi", revizeAciklamasi: revizeMetni.trim(), gecmis: logKaydet(`Revize istendi: ${revizeMetni.trim()}`) });
@@ -448,13 +467,25 @@ function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate
                   </div>
                 </div>
               ) : (
-                <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-                  {job.hamDosyaLink && <a href={job.hamDosyaLink} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: C.accentText, textDecoration: "none" }}><Link2 size={13} /> Ham Dosyalar</a>}
-                  {job.editliDosyaLink && <a href={job.editliDosyaLink} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: C.accentText, textDecoration: "none" }}><Link2 size={13} /> Editlenmiş Dosyalar</a>}
-                  {yetkili && (
-                    <button style={{ background: "none", border: "none", color: C.textFaint, fontSize: 11.5, cursor: "pointer", padding: 0, textDecoration: "underline", fontFamily: "inherit" }} onClick={() => setDosyaDuzenle(true)}>
-                      {job.hamDosyaLink || job.editliDosyaLink ? "Dosya bağlantılarını düzenle" : "+ Dosya bağlantısı ekle"}
-                    </button>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: (job.editliDosyaLink && driveEmbedUrl(job.editliDosyaLink)) ? 10 : 0 }}>
+                    {job.hamDosyaLink && <a href={job.hamDosyaLink} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: C.accentText, textDecoration: "none" }}><Link2 size={13} /> Ham Dosyalar</a>}
+                    {job.editliDosyaLink && <a href={job.editliDosyaLink} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: C.accentText, textDecoration: "none" }}><Link2 size={13} /> Editlenmiş Dosyalar</a>}
+                    {yetkili && (
+                      <button style={{ background: "none", border: "none", color: C.textFaint, fontSize: 11.5, cursor: "pointer", padding: 0, textDecoration: "underline", fontFamily: "inherit" }} onClick={() => setDosyaDuzenle(true)}>
+                        {job.hamDosyaLink || job.editliDosyaLink ? "Dosya bağlantılarını düzenle" : "+ Dosya bağlantısı ekle"}
+                      </button>
+                    )}
+                  </div>
+                  {/* Editlenmiş dosya bir Drive linkiyse, tıklamaya gerek kalmadan burada
+                   * doğrudan oynatılabilir şekilde gömülü gösterilir — link olarak değil, medya olarak. */}
+                  {job.editliDosyaLink && driveEmbedUrl(job.editliDosyaLink) && (
+                    <iframe
+                      src={driveEmbedUrl(job.editliDosyaLink)}
+                      title="Editlenmiş dosya önizleme"
+                      style={{ width: "100%", height: 280, border: "none", borderRadius: 10 }}
+                      allow="autoplay"
+                    />
                   )}
                 </div>
               )}
@@ -466,6 +497,9 @@ function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate
                 {job.asama === "Revize İstendi" && <button style={btnPrimary} onClick={revizeyiTamamla}><CheckCircle2 size={14} /> Revizeyi Tamamladım</button>}
                 {job.asama !== YAPILIYOR_ASAMASI[kategori] && job.asama !== "Revize İstendi" && ileriAsama && !["Onaylandı", "Teslim Edildi"].includes(ileriAsama) && (
                   <button style={btnGhost} onClick={() => asamaGecir(ileriAsama)}><ChevronRight size={14} /> Sonraki Aşamaya Geçir: {ileriAsama}</button>
+                )}
+                {suankiIndex > 0 && (
+                  <button style={{ ...btnGhost, color: C.textDim }} onClick={() => geriAl(asamalar[suankiIndex - 1])}>← Geri Al: {asamalar[suankiIndex - 1]}</button>
                 )}
                 {job.asama === "Kontrol Bekliyor" && !revizeAciliyor && <button style={{ ...btnGhost, color: C.danger, borderColor: C.danger }} onClick={() => setRevizeAciliyor(true)}>Revize İste</button>}
                 {role === "owner" && job.asama === "Kontrol Bekliyor" && <button style={{ ...btnPrimary, background: C.success }} onClick={onayla}>Onayla</button>}
@@ -626,6 +660,7 @@ export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, 
   const [staffName, setStaffNameState] = useState(girisYapanAd || getStaffName());
   const [view, setView] = useState(role === "staff" ? "panom" : "pano");
   const [panoKategori, setPanoKategori] = useState("Video");
+  const [genisletilmisSutunlar, setGenisletilmisSutunlar] = useState({});
   const [adding, setAdding] = useState(false);
   const [acikIs, setAcikIs] = useState(null);
   const duzenleyenAdi = role === "owner" ? "Yönetici (CEO)" : (staffName || "Personel");
@@ -699,15 +734,28 @@ export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, 
       {view === "pano" && (
         <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8 }}>
           {panoAsamalari.map((asama) => {
-            const buAsamadakiler = panoIsleri.filter((j) => j.asama === asama);
+            const asamaIsleri = panoIsleri.filter((j) => j.asama === asama);
+            // "Teslim Edildi" sütunu zamanla birikip pano'yu kalabalıklaştırıyordu — bu sütun
+            // için varsayılan olarak sadece en son 10 iş gösterilir, geri kalanı "Tümünü Göster"
+            // ile açılabilir. Diğer (hâlâ devam eden) sütunlarda hiçbir sınır yok.
+            const sinirliMi = asama === "Teslim Edildi" && !genisletilmisSutunlar[asama] && asamaIsleri.length > 10;
+            const buAsamadakiler = sinirliMi ? asamaIsleri.slice(-10) : asamaIsleri;
             return (
               <div key={asama} style={{ flex: "0 0 240px", minWidth: 240 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, padding: "0 2px" }}>
                   <span style={{ fontSize: 11.5, fontWeight: 700, color: C.textDim }}>{asama}</span>
-                  <span style={{ fontSize: 10.5, color: C.textFaint, background: C.panelAlt, padding: "1px 7px", borderRadius: 999 }}>{buAsamadakiler.length}</span>
+                  <span style={{ fontSize: 10.5, color: C.textFaint, background: C.panelAlt, padding: "1px 7px", borderRadius: 999 }}>{asamaIsleri.length}</span>
                 </div>
                 <div style={{ minHeight: 40 }}>
                   {buAsamadakiler.map((j) => <IsKarti key={j.id} job={j} onClick={() => setAcikIs(j)} />)}
+                  {sinirliMi && (
+                    <button
+                      onClick={() => setGenisletilmisSutunlar((s) => ({ ...s, [asama]: true }))}
+                      style={{ width: "100%", background: "none", border: `1px dashed ${C.border}`, borderRadius: 10, padding: "8px 0", color: C.textFaint, fontSize: 11.5, cursor: "pointer", marginTop: 4 }}
+                    >
+                      + {asamaIsleri.length - 10} tane daha göster
+                    </button>
+                  )}
                 </div>
               </div>
             );
