@@ -515,6 +515,7 @@ function FieldForm({ fields, initial, onSubmit, onCancel, submitLabel = "Kaydet"
       if (f.type === "number") { v[f.key] = 0; return; }
       if (f.type === "select") { v[f.key] = f.options[0].value; return; }
       if (f.type === "month") { v[f.key] = new Date().toISOString().slice(0, 7); return; }
+      if (f.type === "date") { v[f.key] = bugunISOTarih(); return; }
       v[f.key] = "";
     });
     return v;
@@ -1267,7 +1268,7 @@ const GELIR_FIELDS = [
 const BEKLEYEN_FIELDS = [{ key: "musteri", label: "Müşteri", type: "text" }, { key: "tutar", label: "Tutar (₺)", type: "number" }, { key: "vade", label: "Vade Durumu", type: "text", placeholder: "örn. bugün / 3 gün gecikti" }];
 const VERGI_FIELDS = [
   { key: "kalem", label: "Kalem Adı", type: "text" },
-  { key: "tarih", label: "Tarih", type: "text", placeholder: "örn. 26 Ağu" },
+  { key: "tarih", label: "Tarih", type: "date" },
   { key: "durum", label: "Durum", type: "select", options: [{ value: "yaklaşıyor", label: "Yaklaşıyor" }, { value: "planlandı", label: "Planlandı" }] },
 ];
 const MONTH_FIELDS = [
@@ -1300,7 +1301,7 @@ function MiniList({ title, icon, items, fields, renderRow, onAdd, onDelete, addL
   );
 }
 
-function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDeleteGider, onAddOfisGider, onDeleteOfisGider, onAddBekleyen, onDeleteBekleyen, onAddVergi, onDeleteVergi, onAddMonth, onDeleteMonth, onCloseMonth, onExport, onTransfer, onDeleteTransfer, onAddHesap, onDeleteHesap }) {
+function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDeleteGider, onAddOfisGider, onDeleteOfisGider, onAddBekleyen, onDeleteBekleyen, onAddVergi, onDeleteVergi, onAddMonth, onDeleteMonth, onCloseMonth, onExport, onTransfer, onDeleteTransfer, onAddHesap, onDeleteHesap, onUpdateHesap, onAddDuzeltme, onDeleteDuzeltme }) {
   const { monthly, gelirKalemleri, giderKalemleri, ofisGiderleri, bekleyenTahsilatlar, vergiTakvimi } = data;
   const [addingMonth, setAddingMonth] = useState(false);
   const live = computeLive(data);
@@ -1476,7 +1477,7 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{v.kalem}</div>
-                <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>{v.tarih}</div>
+                <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>{tarihGoster(v.tarih)}</div>
               </div>
               {v.durum === "yaklaşıyor" && <Pill color={T.warning} soft={T.warningSoft}>Yaklaşıyor</Pill>}
             </div>
@@ -1571,7 +1572,7 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
         </div>
       )}
 
-      <HesapBakiyeleri hesaplar={data.hesaplar} clients={clients} transferler={data.hesapTransferleri} avanslar={data.avanslar} odemeler={data.personelOdemeleri} onTransfer={onTransfer} onDeleteTransfer={onDeleteTransfer} onAddHesap={onAddHesap} onDeleteHesap={onDeleteHesap} />
+      <HesapBakiyeleri hesaplar={data.hesaplar} clients={clients} transferler={data.hesapTransferleri} avanslar={data.avanslar} odemeler={data.personelOdemeleri} duzeltmeler={data.hesapDuzeltmeleri} onTransfer={onTransfer} onDeleteTransfer={onDeleteTransfer} onAddHesap={onAddHesap} onDeleteHesap={onDeleteHesap} onUpdateHesap={onUpdateHesap} onAddDuzeltme={onAddDuzeltme} onDeleteDuzeltme={onDeleteDuzeltme} />
 
       <Card style={{ padding: "16px 20px", marginTop: 16 }}>
         <SectionTitle>Banka Hareketleri <span style={{ fontWeight: 400, opacity: 0.7 }}>— Ödeme Takvimi'nde kaydedilen tüm tahsilatlar</span></SectionTitle>
@@ -1693,8 +1694,36 @@ const TR_AYLAR_TAM = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "T
 const TR_GUNLER = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
 
 /** "26 Ağu" gibi serbest metin tarihleri gün/ay olarak ayrıştırır (yıl bilgisi yoktur, varsayılan olarak yok sayılır). */
+/** Bugünün tarihi, tarih seçicilerin (input type="date") beklediği YYYY-AA-GG biçiminde. */
+const bugunISOTarih = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+/**
+ * Tarihleri ekranda okunur gösterir. Tarih seçicilerden gelen YYYY-AA-GG değerini
+ * "26 Ağustos 2026" biçimine çevirir; eski kayıtlardaki serbest metin tarihleri
+ * ("26 Ağu", "11.08.2026") olduğu gibi geçirir — geçmiş veri bozulmasın diye.
+ */
+function tarihGoster(str) {
+  if (!str) return "—";
+  const m = String(str).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return String(str);
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (Number.isNaN(d.getTime())) return String(str);
+  return d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+}
+
 function parseTrTarih(str) {
   if (!str) return null;
+  // Tarih seçiciden gelen YYYY-AA-GG biçimi
+  const iso = String(str).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) {
+    const day = parseInt(iso[3], 10);
+    const month = parseInt(iso[2], 10) - 1;
+    if (day >= 1 && day <= 31 && month >= 0 && month <= 11) return { day, month, year: Number(iso[1]) };
+    return null;
+  }
   const m = String(str).trim().match(/(\d{1,2})\s*([a-zA-ZçğıöşüÇĞİÖŞÜ]+)/);
   if (!m) return null;
   const day = parseInt(m[1], 10);
@@ -1714,7 +1743,13 @@ function Takvim({ data }) {
   const activeClients = data.clients.filter((c) => c.durum !== "ayrildi" && c.durum !== "donduruldu" && c.odemeGunu);
 
   const eventsForDay = (day) => {
-    const vergiler = data.vergiTakvimi.filter((v) => { const p = parseTrTarih(v.tarih); return p && p.day === day && p.month === month; });
+    // Tarih seçiciden gelen kayıtlarda yıl da var — o zaman yılı da eşleştiriyoruz.
+    // Eski serbest metin kayıtlarında ("26 Ağu") yıl yok, onlar her yıl görünmeye devam eder.
+    const vergiler = data.vergiTakvimi.filter((v) => {
+      const p = parseTrTarih(v.tarih);
+      if (!p || p.day !== day || p.month !== month) return false;
+      return p.year === undefined || p.year === year;
+    });
     const odemeler = activeClients.filter((c) => Number(c.odemeGunu) === day);
     return { vergiler, odemeler };
   };
@@ -1857,7 +1892,7 @@ function AyOdemeModal({ client, ayObj, hesaplar, onAddKaydi, onDeleteKaydi, onCl
   const listeHesap = hesaplar && hesaplar.length ? hesaplar : [{ id: "ana", ad: "Marcus Medya", anaHesap: true }];
   const [tutar, setTutar] = useState(monthRemaining(client, ayObj.key) || client.aylikUcret || 0);
   const [hesapId, setHesapId] = useState(listeHesap[0].id);
-  const [tarih, setTarih] = useState(new Date().toLocaleDateString("tr-TR"));
+  const [tarih, setTarih] = useState(bugunISOTarih());
   const [not, setNot] = useState("");
   const kayitlar = (client.odemeKayitlari || []).filter((k) => k.ay === ayObj.key);
   const odenen = monthPaidAmount(client, ayObj.key);
@@ -1890,7 +1925,7 @@ function AyOdemeModal({ client, ayObj, hesaplar, onAddKaydi, onDeleteKaydi, onCl
                 <div key={k.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: T.surfaceRaised, borderRadius: 9 }}>
                   <div>
                     <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{fmt(k.tutar)}{k.banka ? ` · ${k.banka}` : ""}</div>
-                    <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{k.tarih}{k.not ? ` · ${k.not}` : ""}</div>
+                    <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{tarihGoster(k.tarih)}{k.not ? ` · ${k.not}` : ""}</div>
                   </div>
                   <button style={iconBtnStyle} onClick={() => onDeleteKaydi(k.id)}><Trash2 size={13} color={T.danger} /></button>
                 </div>
@@ -1913,7 +1948,7 @@ function AyOdemeModal({ client, ayObj, hesaplar, onAddKaydi, onDeleteKaydi, onCl
           </div>
           <div>
             <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Tarih</label>
-            <input type="text" value={tarih} onChange={(e) => setTarih(e.target.value)} style={inputStyle} />
+            <input type="date" value={tarih} onChange={(e) => setTarih(e.target.value)} style={inputStyle} />
           </div>
           <div>
             <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Not (opsiyonel)</label>
@@ -1929,7 +1964,7 @@ function AyOdemeModal({ client, ayObj, hesaplar, onAddKaydi, onDeleteKaydi, onCl
   );
 }
 
-function OdemeTakvimi({ clients, hesaplar, transferler, avanslar, odemeler, onUpdateClient, onAddOdemeKaydi, onDeleteOdemeKaydi, onTransfer, onDeleteTransfer, onAddHesap, onDeleteHesap, firmaAdi }) {
+function OdemeTakvimi({ clients, hesaplar, transferler, avanslar, odemeler, duzeltmeler, onUpdateClient, onAddOdemeKaydi, onDeleteOdemeKaydi, onTransfer, onDeleteTransfer, onAddHesap, onDeleteHesap, onUpdateHesap, onAddDuzeltme, onDeleteDuzeltme, firmaAdi }) {
   const [ayCount, setAyCount] = useState(6);
   const [activeCell, setActiveCell] = useState(null); // { client, ayObj }
   const [hatirlatmaClient, setHatirlatmaClient] = useState(null);
@@ -1986,7 +2021,7 @@ function OdemeTakvimi({ clients, hesaplar, transferler, avanslar, odemeler, onUp
         <KpiCard label="BİRİKMİŞ TOPLAM BORÇ" value={fmt(toplamBirikmisBorc)} accent={T.danger} />
       </div>
 
-      <HesapBakiyeleri hesaplar={hesaplar} clients={clients} transferler={transferler} avanslar={avanslar} odemeler={odemeler} onTransfer={onTransfer} onDeleteTransfer={onDeleteTransfer} onAddHesap={onAddHesap} onDeleteHesap={onDeleteHesap} />
+      <HesapBakiyeleri hesaplar={hesaplar} clients={clients} transferler={transferler} avanslar={avanslar} odemeler={odemeler} duzeltmeler={duzeltmeler} onTransfer={onTransfer} onDeleteTransfer={onDeleteTransfer} onAddHesap={onAddHesap} onDeleteHesap={onDeleteHesap} onUpdateHesap={onUpdateHesap} onAddDuzeltme={onAddDuzeltme} onDeleteDuzeltme={onDeleteDuzeltme} />
 
       <Card style={{ padding: "10px 12px", marginBottom: 16, display: "flex", justifyContent: "flex-end", gap: 8 }}>
         {[6, 12].map((n) => (
@@ -2517,24 +2552,51 @@ function tarihIso(d) {
 const bugunISO = () => tarihIso(new Date());
 
 /** Bir hesabın güncel bakiyesi: o hesaba kaydedilen tüm ödemeler + gelen transferler - giden transferler. */
-function hesapBakiyesi(hesapId, clients, transferler, avanslar, odemeler) {
-  const girisler = (clients || []).flatMap((c) => c.odemeKayitlari || []).filter((k) => k.hesapId === hesapId).reduce((s, k) => s + (Number(k.tutar) || 0), 0);
+/**
+ * Hesap bakiyesi. Tek tek parametre yerine bir nesne alır — alan sayısı arttıkça
+ * sıra karıştırma riski olmasın diye.
+ *
+ * İKİ MOD:
+ *  - Otomatik (varsayılan): müşteri ödemeleri bu hesaba otomatik akar.
+ *  - Elle takip (hesap.elleTakip = true): müşteri ödemeleri bu hesaba HİÇ akmaz; bakiye
+ *    tamamen senin girdiğin rakamdan ve bu hesap üzerinden yaptığın hareketlerden oluşur.
+ *    "Altın Olarak Alındı" gibi banka hesabı olmayan kalemler için uygundur.
+ *
+ * Her iki modda da: transferler, avanslar ve personel/freelancer ödemeleri bakiyeyi etkiler
+ * (bunlar zaten bu kartta bilerek yaptığın hareketler), ve ELLE DÜZELTMELER eklenir.
+ *
+ * Bakiye hâlâ hiçbir yerde saklanmıyor — elle girdiğin rakam bile bir "düzeltme kaydı"
+ * olarak tutuluyor. Bu sayede her işlem geri alınabilir ve neyin nereden geldiği izlenebilir.
+ */
+function hesapBakiyesi(hesapId, veri = {}) {
+  const { clients, transferler, avanslar, odemeler, hesaplar, duzeltmeler } = veri;
+  const hesap = (hesaplar || []).find((h) => h.id === hesapId);
+  const elleTakip = !!(hesap && hesap.elleTakip);
+
+  const girisler = elleTakip
+    ? 0
+    : (clients || []).flatMap((c) => c.odemeKayitlari || []).filter((k) => k.hesapId === hesapId).reduce((s, k) => s + (Number(k.tutar) || 0), 0);
   const transferGiris = (transferler || []).filter((t) => t.hedefHesapId === hesapId).reduce((s, t) => s + (Number(t.tutar) || 0), 0);
   const transferCikis = (transferler || []).filter((t) => t.kaynakHesapId === hesapId).reduce((s, t) => s + (Number(t.tutar) || 0), 0);
   // Verilen avanslar o hesaptan ÇIKAN gerçek paradır — bakiyeden düşülür.
   const avansCikis = (avanslar || []).filter((a) => a.hesapId === hesapId).reduce((s, a) => s + (Number(a.tutar) || 0), 0);
   // Personel maaşı / freelancer hak edişi ödemeleri de o hesaptan çıkan gerçek paradır.
   const odemeCikis = (odemeler || []).filter((o) => o.hesapId === hesapId).reduce((s, o) => s + (Number(o.tutar) || 0), 0);
-  return girisler + transferGiris - transferCikis - avansCikis - odemeCikis;
+  // Elle yapılan bakiye düzeltmeleri (artı ya da eksi olabilir).
+  const duzeltme = (duzeltmeler || []).filter((d) => d.hesapId === hesapId).reduce((s, d) => s + (Number(d.tutar) || 0), 0);
+
+  return girisler + transferGiris - transferCikis - avansCikis - odemeCikis + duzeltme;
 }
 
-function HesapBakiyeleri({ hesaplar, clients, transferler, avanslar, odemeler, onTransfer, onDeleteTransfer, onAddHesap, onDeleteHesap }) {
+function HesapBakiyeleri({ hesaplar, clients, transferler, avanslar, odemeler, duzeltmeler, onTransfer, onDeleteTransfer, onAddHesap, onDeleteHesap, onUpdateHesap, onAddDuzeltme, onDeleteDuzeltme }) {
   const [yeniHesapAcik, setYeniHesapAcik] = useState(false);
   const [yeniHesapAdi, setYeniHesapAdi] = useState("");
   const [aktarAcik, setAktarAcik] = useState(null); // aktarılacak hesabın id'si
   const [hedefId, setHedefId] = useState("");
   const [tutarMetni, setTutarMetni] = useState("");
   const [gecmisAcik, setGecmisAcik] = useState(false);
+  const [duzenleId, setDuzenleId] = useState(null);   // bakiyesi elle düzenlenen hesap
+  const [duzenleTutar, setDuzenleTutar] = useState("");
 
   const liste = hesaplar && hesaplar.length ? hesaplar : [{ id: "ana", ad: "Marcus Medya", anaHesap: true }];
   const anaHesap = liste.find((h) => h.anaHesap) || liste[0];
@@ -2547,6 +2609,19 @@ function HesapBakiyeleri({ hesaplar, clients, transferler, avanslar, odemeler, o
     const varsayilanHedef = h.anaHesap ? (liste.find((x) => !x.anaHesap) || {}).id || "" : anaHesap.id;
     setHedefId(varsayilanHedef);
     setTutarMetni(String(bakiye));
+  };
+
+  /** Elle girilen bakiye, mevcut bakiyeyle arasındaki FARK bir "düzeltme kaydı" olarak
+   * saklanır. Böylece ekranda tam olarak yazdığın rakam görünür, ama hiçbir hareket
+   * kaybolmaz ve düzeltme istediğin an geri alınabilir. */
+  const bakiyeyiKaydet = (h, mevcutBakiye) => {
+    const hedef = Number(String(duzenleTutar).replace(/\./g, "").replace(",", "."));
+    if (Number.isNaN(hedef)) { window.alert("Geçerli bir tutar gir."); return; }
+    const fark = hedef - mevcutBakiye;
+    if (fark === 0) { setDuzenleId(null); return; }
+    onAddDuzeltme({ hesapId: h.id, tutar: fark, tarih: bugunISOTarih(), not: "Elle düzeltme" });
+    setDuzenleId(null);
+    setDuzenleTutar("");
   };
 
   const aktarimiOnayla = (kaynak, bakiye) => {
@@ -2565,14 +2640,48 @@ function HesapBakiyeleri({ hesaplar, clients, transferler, avanslar, odemeler, o
       <SectionTitle>Hesap Bakiyeleri</SectionTitle>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
         {liste.map((h) => {
-          const bakiye = hesapBakiyesi(h.id, clients, transferler, avanslar, odemeler);
+          const bakiye = hesapBakiyesi(h.id, { clients, transferler, avanslar, odemeler, hesaplar: liste, duzeltmeler });
           const acik = aktarAcik === h.id;
           return (
             <div key={h.id} style={{ background: h.anaHesap ? T.accentSoft : T.surfaceRaised, borderRadius: 10, padding: "10px 12px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
                 <div>
-                  <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{h.ad}{h.anaHesap ? " (Ana Hesap)" : ""}</div>
-                  <div style={{ fontSize: 15, color: h.anaHesap ? T.accentText : T.text, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", marginTop: 2 }}>{fmt(bakiye)}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{h.ad}{h.anaHesap ? " (Ana Hesap)" : ""}</span>
+                    {onUpdateHesap && (
+                      <button
+                        onClick={() => onUpdateHesap(h.id, { elleTakip: !h.elleTakip })}
+                        title={h.elleTakip
+                          ? "Şu an elle takip: müşteri ödemeleri bu hesaba otomatik eklenmiyor. Otomatiğe çevirmek için tıkla."
+                          : "Şu an otomatik: müşteri ödemeleri bu hesaba akıyor. Elle takibe çevirmek için tıkla."}
+                        style={{ background: h.elleTakip ? T.warningSoft : T.surfaceRaised, border: "none", borderRadius: 999, padding: "2px 9px", cursor: "pointer", fontSize: 10, fontFamily: "Inter", color: h.elleTakip ? T.warning : T.textFaint, fontWeight: 600 }}
+                      >
+                        {h.elleTakip ? "elle takip" : "otomatik"}
+                      </button>
+                    )}
+                  </div>
+                  {duzenleId === h.id ? (
+                    <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 4 }}>
+                      <input
+                        autoFocus
+                        type="number"
+                        value={duzenleTutar}
+                        onChange={(e) => setDuzenleTutar(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") bakiyeyiKaydet(h, bakiye); if (e.key === "Escape") setDuzenleId(null); }}
+                        style={{ ...inputStyle, width: 140, marginBottom: 0 }}
+                      />
+                      <button style={saveBtnStyle} onClick={() => bakiyeyiKaydet(h, bakiye)}>Kaydet</button>
+                      <button style={cancelBtnStyle} onClick={() => setDuzenleId(null)}>İptal</button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { if (!onAddDuzeltme) return; setDuzenleId(h.id); setDuzenleTutar(String(bakiye)); setAktarAcik(null); }}
+                      title={onAddDuzeltme ? "Bakiyeyi elle düzenlemek için tıkla" : undefined}
+                      style={{ background: "none", border: "none", padding: 0, marginTop: 2, cursor: onAddDuzeltme ? "pointer" : "default", fontSize: 15, color: h.anaHesap ? T.accentText : T.text, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace" }}
+                    >
+                      {fmt(bakiye)}
+                    </button>
+                  )}
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
                   {/* Aktarma artık HER hesaptan HER hesaba yapılabiliyor (ana hesap dahil) ve
@@ -2614,6 +2723,15 @@ function HesapBakiyeleri({ hesaplar, clients, transferler, avanslar, odemeler, o
         })}
       </div>
 
+      {onAddDuzeltme && (
+        <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginBottom: 10, lineHeight: 1.6 }}>
+          Bir bakiyeye tıklayarak istediğin rakamı elle yazabilirsin. Yanındaki
+          <strong> otomatik / elle takip</strong> düğmesi, müşteri ödemelerinin o hesaba otomatik akıp
+          akmayacağını belirler — "Altın Olarak Alındı" gibi banka hesabı olmayan kalemleri
+          <strong> elle takip</strong>'e alman mantıklı.
+        </div>
+      )}
+
       {yeniHesapAcik ? (
         <div style={{ display: "flex", gap: 8 }}>
           <input autoFocus value={yeniHesapAdi} onChange={(e) => setYeniHesapAdi(e.target.value)} placeholder="örn. Aynur Akyalçın" style={{ ...inputStyle, flex: 1 }} />
@@ -2622,6 +2740,34 @@ function HesapBakiyeleri({ hesaplar, clients, transferler, avanslar, odemeler, o
         </div>
       ) : (
         <button style={addBtnStyle} onClick={() => setYeniHesapAcik(true)}><Plus size={13} /> Yeni Hesap Ekle</button>
+      )}
+
+      {/* ELLE DÜZELTME GEÇMİŞİ — elle girdiğin her bakiye burada bir kayıt olarak durur
+        * ve geri alınabilir. Bakiye hiçbir yerde "sabit sayı" olarak saklanmadığı için
+        * bir düzeltmeyi silmek her şeyi kendiliğinden eski haline döndürür. */}
+      {(duzeltmeler || []).length > 0 && (
+        <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${T.borderSoft}` }}>
+          <div style={{ fontSize: 12, color: T.textDim, fontFamily: "Inter", fontWeight: 600, marginBottom: 8 }}>Elle Bakiye Düzeltmeleri ({(duzeltmeler || []).length})</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 200, overflowY: "auto" }}>
+            {[...(duzeltmeler || [])].reverse().map((d) => (
+              <div key={d.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: T.surfaceRaised, borderRadius: 8, padding: "7px 10px", fontSize: 12, fontFamily: "Inter", flexWrap: "wrap" }}>
+                <span style={{ color: T.textDim }}>
+                  <span style={{ color: T.textFaint }}>{tarihGoster(d.tarih)}</span>{" · "}{hesapAdi(d.hesapId)}
+                </span>
+                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <strong style={{ color: Number(d.tutar) < 0 ? T.danger : T.success, fontFamily: "'IBM Plex Mono', monospace" }}>
+                    {Number(d.tutar) > 0 ? "+" : ""}{fmt(d.tutar)}
+                  </strong>
+                  {onDeleteDuzeltme && (
+                    <button style={iconBtnStyle} title="Bu düzeltmeyi geri al" onClick={() => { if (window.confirm("Bu elle düzeltme geri alınsın mı? Bakiye düzeltme öncesindeki haline döner.")) onDeleteDuzeltme(d.id); }}>
+                      <Trash2 size={13} color={T.danger} />
+                    </button>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* TRANSFER GEÇMİŞİ: her aktarım burada kayıtlı ve TEK TIKLA GERİ ALINABİLİR.
@@ -2898,12 +3044,13 @@ function AvansVerFormu({ kisiAd, hesaplar, varsayilanAy, onKaydet, onKapat }) {
   const [tutar, setTutar] = useState("");
   const [ay, setAy] = useState(varsayilanAy || monthKey());
   const [hesapId, setHesapId] = useState((liste.find((h) => h.anaHesap) || liste[0]).id);
+  const [tarih, setTarih] = useState(bugunISOTarih());
   const [not, setNot] = useState("");
 
   const kaydet = () => {
     const miktar = Number(String(tutar).replace(",", "."));
     if (!miktar || Number.isNaN(miktar) || miktar <= 0) { window.alert("Geçerli bir avans tutarı gir."); return; }
-    onKaydet({ tutar: miktar, ay, hesapId, not: not.trim(), tarih: new Date().toLocaleDateString("tr-TR") });
+    onKaydet({ tutar: miktar, ay, hesapId, not: not.trim(), tarih });
     onKapat();
   };
 
@@ -2918,6 +3065,10 @@ function AvansVerFormu({ kisiAd, hesaplar, varsayilanAy, onKaydet, onKapat }) {
         <div>
           <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Hangi aydan kesilecek</label>
           <AySeciciAlan value={ay} onChange={setAy} />
+        </div>
+        <div>
+          <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Avans Tarihi</label>
+          <input type="date" value={tarih} onChange={(e) => setTarih(e.target.value)} style={{ ...inputStyle, marginBottom: 0 }} />
         </div>
         <div>
           <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Hangi hesaptan çıktı</label>
@@ -2951,7 +3102,7 @@ function AvansListesi({ kayitlar, hesaplar, onDelete }) {
       {kayitlar.map((a) => (
         <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: T.surfaceRaised, borderRadius: 8, padding: "7px 10px", fontSize: 11.5, fontFamily: "Inter", flexWrap: "wrap" }}>
           <span style={{ color: T.textDim }}>
-            <span style={{ color: T.textFaint }}>{a.tarih}</span>{" · "}
+            <span style={{ color: T.textFaint }}>{tarihGoster(a.tarih)}</span>{" · "}
             {hesapAdi(a.hesapId)} hesabından{a.not ? ` · ${a.not}` : ""}
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -3009,7 +3160,7 @@ function OdemeKaydetFormu({ kisiAd, kalan, hesaplar, ay, onKaydet, onKapat }) {
   const liste = hesaplar && hesaplar.length ? hesaplar : [{ id: "ana", ad: "Marcus Medya", anaHesap: true }];
   const [tutar, setTutar] = useState(String(kalan > 0 ? kalan : ""));
   const [hesapId, setHesapId] = useState((liste.find((h) => h.anaHesap) || liste[0]).id);
-  const [tarih, setTarih] = useState(new Date().toLocaleDateString("tr-TR"));
+  const [tarih, setTarih] = useState(bugunISOTarih());
   const [not, setNot] = useState("");
 
   const kaydet = () => {
@@ -3029,7 +3180,7 @@ function OdemeKaydetFormu({ kisiAd, kalan, hesaplar, ay, onKaydet, onKapat }) {
         </div>
         <div>
           <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Ödeme Tarihi</label>
-          <input value={tarih} onChange={(e) => setTarih(e.target.value)} style={{ ...inputStyle, marginBottom: 0 }} />
+          <input type="date" value={tarih} onChange={(e) => setTarih(e.target.value)} style={{ ...inputStyle, marginBottom: 0 }} />
         </div>
         <div>
           <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Hangi hesaptan</label>
@@ -3059,7 +3210,7 @@ function OdemeListesi({ kayitlar, hesaplar, onDelete }) {
       {kayitlar.map((o) => (
         <div key={o.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: T.surfaceRaised, borderRadius: 8, padding: "7px 10px", fontSize: 11.5, fontFamily: "Inter", flexWrap: "wrap" }}>
           <span style={{ color: T.textDim }}>
-            <span style={{ color: T.textFaint }}>{o.tarih}</span>{" · "}{o.ay}{" · "}{hesapAdi(o.hesapId)} hesabından{o.not ? ` · ${o.not}` : ""}
+            <span style={{ color: T.textFaint }}>{tarihGoster(o.tarih)}</span>{" · "}{o.ay}{" · "}{hesapAdi(o.hesapId)} hesabından{o.not ? ` · ${o.not}` : ""}
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <strong style={{ color: T.success, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(o.tutar)}</strong>
@@ -3516,6 +3667,7 @@ const FON_FIELDS = [
 ];
 const HAREKET_FIELDS = [
   { key: "tutar", label: "Tutar (₺)", type: "number" },
+  { key: "tarih", label: "Tarih", type: "date" },
   { key: "not", label: "Not (opsiyonel)", type: "text", placeholder: "örn. Temmuz ayı payı" },
 ];
 
@@ -3556,7 +3708,7 @@ function FonCard({ fon, onDelete, onAddHareket, onDeleteHareket }) {
         <div style={{ marginBottom: 14 }}>
           <FieldForm
             fields={HAREKET_FIELDS}
-            onSubmit={(v) => { onAddHareket(addingTip, v.tutar, v.not); setAddingTip(null); }}
+            onSubmit={(v) => { onAddHareket(addingTip, v.tutar, v.not, v.tarih); setAddingTip(null); }}
             onCancel={() => setAddingTip(null)}
             submitLabel={addingTip === "ekleme" ? "Ekle" : "Kullan"}
           />
@@ -3571,7 +3723,7 @@ function FonCard({ fon, onDelete, onAddHareket, onDeleteHareket }) {
               <div key={h.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 8px", background: T.surfaceRaised, borderRadius: 8 }}>
                 <div>
                   <span style={{ fontSize: 12, fontFamily: "Inter", color: h.tip === "ekleme" ? T.success : T.danger, fontWeight: 600 }}>{h.tip === "ekleme" ? "+" : "−"}{fmt(h.tutar)}</span>
-                  <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginLeft: 6 }}>{h.tarih}{h.not ? " · " + h.not : ""}</span>
+                  <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginLeft: 6 }}>{tarihGoster(h.tarih)}{h.not ? " · " + h.not : ""}</span>
                 </div>
                 <button style={iconBtnStyle} onClick={() => onDeleteHareket(h.id)}><Trash2 size={11} color={T.textFaint} /></button>
               </div>
@@ -6403,6 +6555,18 @@ export default function MarcusOS() {
 
   const addHesap = (ad) => setData((d) => ({ ...d, hesaplar: [...(d.hesaplar && d.hesaplar.length ? d.hesaplar : [{ id: "ana", ad: "Marcus Medya", anaHesap: true }]), { id: `hesap_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, ad }] }));
   const deleteHesap = (hesapId) => setData((d) => ({ ...d, hesaplar: (d.hesaplar || []).filter((h) => h.id !== hesapId) }));
+  const updateHesap = (hesapId, patch) => setData((d) => {
+    const liste = d.hesaplar && d.hesaplar.length ? d.hesaplar : [{ id: "ana", ad: "Marcus Medya", anaHesap: true }];
+    return { ...d, hesaplar: liste.map((h) => (h.id === hesapId ? { ...h, ...patch } : h)) };
+  });
+  /** Elle bakiye düzeltmesi. Bakiye sabit bir sayı olarak saklanmaz; elle girilen rakam
+   * mevcut bakiyeyle arasındaki FARK olarak buraya yazılır. Böylece ekranda tam yazdığın
+   * rakam görünür ama hiçbir hareket kaybolmaz ve düzeltme geri alınabilir. */
+  const addHesapDuzeltme = (kayit) => setData((d) => ({
+    ...d,
+    hesapDuzeltmeleri: [...(d.hesapDuzeltmeleri || []), { ...kayit, id: nextId(d.hesapDuzeltmeleri || []) }],
+  }));
+  const deleteHesapDuzeltme = (id) => setData((d) => ({ ...d, hesapDuzeltmeleri: (d.hesapDuzeltmeleri || []).filter((x) => x.id !== id) }));
   /** Hesaplar arası para aktarımı. Hedef hesap artık serbest — eskiden hedef her zaman
    * ana hesaba sabitlenmişti, bu yüzden ana hesaptan geri aktarmanın ya da iki alt hesap
    * arasında aktarmanın hiçbir yolu yoktu. Tutar da artık kısmi olabiliyor. */
@@ -6458,13 +6622,13 @@ export default function MarcusOS() {
 
   const addFon = (f) => setData((d) => ({ ...d, birikimler: [...(d.birikimler || []), { ...f, bakiye: 0, hareketler: [], id: nextId(d.birikimler || []) }] }));
   const deleteFon = (id) => setData((d) => ({ ...d, birikimler: (d.birikimler || []).filter((f) => f.id !== id) }));
-  const addFonHareket = (fonId, tip, tutar, not) => setData((d) => ({
+  const addFonHareket = (fonId, tip, tutar, not, tarih) => setData((d) => ({
     ...d,
     birikimler: (d.birikimler || []).map((f) => {
       if (f.id !== fonId) return f;
       const miktar = Number(tutar) || 0;
       const delta = tip === "ekleme" ? miktar : -miktar;
-      const hareket = { id: nextId(f.hareketler || []), tip, tutar: miktar, tarih: new Date().toLocaleDateString("tr-TR"), not: not || "" };
+      const hareket = { id: nextId(f.hareketler || []), tip, tutar: miktar, tarih: tarih || bugunISOTarih(), not: not || "" };
       return { ...f, bakiye: (f.bakiye || 0) + delta, hareketler: [...(f.hareketler || []), hareket] };
     }),
   }));
@@ -6503,7 +6667,7 @@ export default function MarcusOS() {
       ["KDV Tutarı (%20)", live.kdvTutari], ["Faturalı Ciro (KDV Dahil)", live.faturaliKdvDahil], ["Ciro (KDV Dahil Toplam)", live.kdvDahilToplamCiro],
       [],
       ["Hesap Bakiyeleri", "Bakiye"],
-      ...hesapListesi.map((h) => [h.ad + (h.anaHesap ? " (Ana Hesap)" : ""), hesapBakiyesi(h.id, data.clients, data.hesapTransferleri, data.avanslar, data.personelOdemeleri)]),
+      ...hesapListesi.map((h) => [h.ad + (h.anaHesap ? " (Ana Hesap)" : ""), hesapBakiyesi(h.id, { clients: data.clients, transferler: data.hesapTransferleri, avanslar: data.avanslar, odemeler: data.personelOdemeleri, hesaplar: hesapListesi, duzeltmeler: data.hesapDuzeltmeleri })]),
       [],
       ["Şubeler", "Marka"],
       ...(data.subeler || []).map((s) => { const c = data.clients.find((x) => x.id === s.clientId); return [s.ad, c ? c.ad : ""]; }),
@@ -6618,7 +6782,7 @@ export default function MarcusOS() {
       if (st && st.status === "gecikti") items.push({ text: `${c.ad}: ödeme ${st.label} — ${fmt(c.aylikUcret)}`, level: "danger" });
       else if (st && st.status === "bekliyor") items.push({ text: `${c.ad}: ${st.label} — ${fmt(c.aylikUcret)}`, level: "warning" });
     });
-    data.vergiTakvimi.filter((v) => v.durum === "yaklaşıyor").forEach((v) => items.push({ text: `${v.kalem} — ${v.tarih}`, level: "warning" }));
+    data.vergiTakvimi.filter((v) => v.durum === "yaklaşıyor").forEach((v) => items.push({ text: `${v.kalem} — ${tarihGoster(v.tarih)}`, level: "warning" }));
     data.bekleyenTahsilatlar.filter((b) => b.vade.includes("gecikti")).forEach((b) => items.push({ text: `${b.musteri}: bekleyen tahsilat ${b.vade} — ${fmt(b.tutar)}`, level: "danger" }));
     data.bekleyenTahsilatlar.filter((b) => !b.vade.includes("gecikti")).forEach((b) => items.push({ text: `${b.musteri}: bekleyen tahsilat — ${fmt(b.tutar)} (${b.vade})`, level: "warning" }));
     (data.reklamlar || []).forEach((r) => {
@@ -6880,6 +7044,9 @@ export default function MarcusOS() {
               onExport={exportCsv}
               onTransfer={transferEt}
               onDeleteTransfer={deleteTransfer}
+              onUpdateHesap={updateHesap}
+              onAddDuzeltme={addHesapDuzeltme}
+              onDeleteDuzeltme={deleteHesapDuzeltme}
               onAddHesap={addHesap}
               onDeleteHesap={deleteHesap}
               firmaAdi={data.firmaAdi}
@@ -6893,11 +7060,15 @@ export default function MarcusOS() {
               transferler={data.hesapTransferleri}
               avanslar={data.avanslar || []}
               odemeler={data.personelOdemeleri || []}
+              duzeltmeler={data.hesapDuzeltmeleri || []}
               onUpdateClient={(id, patch) => setOdemeGunuSafe(id, patch.odemeGunu)}
               onAddOdemeKaydi={addOdemeKaydi}
               onDeleteOdemeKaydi={deleteOdemeKaydi}
               onTransfer={transferEt}
               onDeleteTransfer={deleteTransfer}
+              onUpdateHesap={updateHesap}
+              onAddDuzeltme={addHesapDuzeltme}
+              onDeleteDuzeltme={deleteHesapDuzeltme}
               onAddHesap={addHesap}
               onDeleteHesap={deleteHesap}
               firmaAdi={data.firmaAdi}
@@ -7125,6 +7296,9 @@ export default function MarcusOS() {
               onExport={exportCsv}
               onTransfer={transferEt}
               onDeleteTransfer={deleteTransfer}
+              onUpdateHesap={updateHesap}
+              onAddDuzeltme={addHesapDuzeltme}
+              onDeleteDuzeltme={deleteHesapDuzeltme}
               onAddHesap={addHesap}
               onDeleteHesap={deleteHesap}
               firmaAdi={data.firmaAdi}
@@ -7138,11 +7312,15 @@ export default function MarcusOS() {
               transferler={data.hesapTransferleri}
               avanslar={data.avanslar || []}
               odemeler={data.personelOdemeleri || []}
+              duzeltmeler={data.hesapDuzeltmeleri || []}
               onUpdateClient={(id, patch) => setOdemeGunuSafe(id, patch.odemeGunu)}
               onAddOdemeKaydi={addOdemeKaydi}
               onDeleteOdemeKaydi={deleteOdemeKaydi}
               onTransfer={transferEt}
               onDeleteTransfer={deleteTransfer}
+              onUpdateHesap={updateHesap}
+              onAddDuzeltme={addHesapDuzeltme}
+              onDeleteDuzeltme={deleteHesapDuzeltme}
               onAddHesap={addHesap}
               onDeleteHesap={deleteHesap}
               firmaAdi={data.firmaAdi}

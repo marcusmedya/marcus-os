@@ -488,3 +488,60 @@ Hiçbiri saklanmadığı için, bir kaydı silmek bakiyeyi otomatik eski haline 
 `freelancerlar` ve `personelOdemeleri` sunucudaki personel izin listesinde yer almıyor —
 personelin tarayıcısına hiç gönderilmiyor. Personel ekranında Personel sekmesi açıksa bile
 sadece eski sade tabloyu görür; Freelancer sekmesi, avans ve ödeme sütunları görünmez.
+
+## Güncelleme 20: Tüm Tarih Alanları Gerçek Takvim Seçici Oldu
+
+Birkaç yerde tarih alanları hâlâ düz metin kutusuydu — elle "26 Ağu" gibi yazmak gerekiyordu,
+takvim açılmıyordu. Hepsi gerçek tarih seçiciye (tıklayınca takvim açılan alan) çevrildi:
+
+| Nerede | Önce | Şimdi |
+|---|---|---|
+| Finans → Vergi Takvimi | metin ("örn. 26 Ağu") | takvim seçici |
+| Ödeme Takvimi → ödeme kaydı | metin | takvim seçici |
+| Personel/Freelancer → ödeme kaydı | metin | takvim seçici |
+| Avans verme (her iki yer) | tarih hiç sorulmuyordu, otomatik bugün | takvim seçici (geçmiş tarihli avans girebilirsin) |
+| Birikim → para ekle/kullan | tarih hiç sorulmuyordu, otomatik bugün | takvim seçici |
+
+Ayrıca yeni eklenen formlarda tarih alanı **bugünle dolu geliyor** — çoğu zaman hiç dokunman
+gerekmiyor.
+
+### Eski kayıtlar bozulmadı
+Geçmişte girilmiş serbest metin tarihler ("26 Ağu", "11.08.2026") olduğu gibi çalışmaya devam
+ediyor. Tarih okuyucu artık her iki biçimi de anlıyor, ekranda ise hepsi "26 Ağustos 2026"
+şeklinde okunur biçimde gösteriliyor.
+
+### Takvimde yıl kontrolü
+Tarih seçiciden gelen kayıtlar artık yıl bilgisi de taşıdığı için, Takvim sekmesi bunları doğru
+yıla yerleştiriyor. Eski (yılsız) kayıtlar eskisi gibi her yıl aynı gün görünmeye devam eder.
+
+## Güncelleme 21: Hesap Bakiyeleri Artık Elle Düzenlenebilir
+
+**Bakiyeye tıkla, istediğin rakamı yaz.** Ekranda tam olarak yazdığın tutar görünür.
+
+### İki mod — her hesap için ayrı
+Hesap adının yanındaki küçük düğmeyle seçiyorsun:
+
+- **otomatik** (varsayılan): müşteri ödemeleri o hesaba otomatik akar (eski davranış)
+- **elle takip**: müşteri ödemeleri o hesaba **hiç akmaz**, bakiye tamamen senin kontrolünde
+
+"Altın Olarak Alındı" gibi banka hesabı olmayan kalemleri **elle takip**'e alman mantıklı —
+böylece hiçbir yere bağlı kalmaz, sadece kendi içinde durur.
+
+Her iki modda da transferler, avanslar ve personel/freelancer ödemeleri bakiyeyi etkilemeye
+devam eder — bunlar zaten o kartta bilerek yaptığın hareketler, yansımasalar kafa karıştırırdı.
+
+### Neden "kaydedilen sayı" değil de düzeltme kaydı
+Elle girdiğin rakam, mevcut bakiyeyle arasındaki **fark** olarak bir düzeltme kaydına yazılır.
+Ekranda yazdığın rakamı görürsün ama:
+- Hiçbir hareket kaybolmaz (hangi paranın nereden geldiği izlenebilir kalır)
+- Yaptığın her düzeltme **"Elle Bakiye Düzeltmeleri"** listesinde durur ve **tek tıkla geri alınır**
+- Bakiye hâlâ hiçbir yerde sabit sayı olarak saklanmadığı için, herhangi bir kaydı silmek her
+  şeyi kendiliğinden eski haline döndürür
+
+Bakiyeyi doğrudan bir sayı olarak saklasaydık bu güvenlik ağının hepsini kaybederdik — bir hata
+olduğunda geri dönecek bir şey kalmazdı.
+
+### Not
+Personele Finans/Ödeme Takvimi açtıysan, onların gördüğü bakiyeler avans ve personel ödemelerini
+içermez (bu veriler güvenlik gereği personele hiç gönderilmiyor), dolayısıyla senin gördüğünden
+yüksek görünebilir. Bu sekmeler personele varsayılan olarak kapalıdır.

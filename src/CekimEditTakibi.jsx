@@ -993,12 +993,13 @@ function AvansMiniForm({ kisiAd, hesaplar, ay, onKaydet, onKapat }) {
   const liste = hesaplar && hesaplar.length ? hesaplar : [{ id: "ana", ad: "Marcus Medya", anaHesap: true }];
   const [tutar, setTutar] = useState("");
   const [hesapId, setHesapId] = useState((liste.find((h) => h.anaHesap) || liste[0]).id);
+  const [tarih, setTarih] = useState(bugunISO());
   const [not, setNot] = useState("");
 
   const kaydet = () => {
     const miktar = Number(String(tutar).replace(",", "."));
     if (!miktar || Number.isNaN(miktar) || miktar <= 0) { window.alert("Geçerli bir avans tutarı gir."); return; }
-    onKaydet({ tutar: miktar, ay, hesapId, not: not.trim(), tarih: new Date().toLocaleDateString("tr-TR") });
+    onKaydet({ tutar: miktar, ay, hesapId, not: not.trim(), tarih });
   };
 
   return (
@@ -1009,6 +1010,7 @@ function AvansMiniForm({ kisiAd, hesaplar, ay, onKaydet, onKapat }) {
         <select value={hesapId} onChange={(e) => setHesapId(e.target.value)} style={{ ...inputStyle, marginBottom: 0, width: "auto", minWidth: 150 }}>
           {liste.map((h) => <option key={h.id} value={h.id}>{h.ad}{h.anaHesap ? " (Ana Hesap)" : ""}</option>)}
         </select>
+        <input type="date" value={tarih} onChange={(e) => setTarih(e.target.value)} style={{ ...inputStyle, marginBottom: 0, width: 150 }} />
         <input value={not} onChange={(e) => setNot(e.target.value)} placeholder="Not (opsiyonel)" style={{ ...inputStyle, marginBottom: 0, width: 160 }} />
         <button style={btnPrimary} onClick={kaydet}>Kaydet</button>
         <button style={btnGhost} onClick={onKapat}>İptal</button>

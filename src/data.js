@@ -25,6 +25,7 @@ export const DEFAULT_DATA = {
   islemGecmisi: [],
   hesaplar: [{ id: "ana", ad: "Marcus Medya", anaHesap: true }],
   hesapTransferleri: [],
+  hesapDuzeltmeleri: [],
   staffPermissions: {
     dashboard: false, musteriler: false, finans: false, takvim: false, odemeTakvimi: false,
     teklif: false, reklamlar: true, paylasimlar: true, cekimEdit: true, personel: false, birikim: false,
