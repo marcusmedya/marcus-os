@@ -386,3 +386,105 @@ bazında topluyor.
 gönderiliyor — ücretler oraya konsaydı personel hepsini görebilirdi. Bu alan sunucudaki
 personel izin listesinde yer almadığı için personele hiç ulaşmıyor ve personel tarafından
 yazılamıyor.
+
+## Güncelleme 17: Hesap Transferleri Artık Çift Yönlü ve Geri Alınabilir
+
+**Sorun:** "Ana Hesaba Aktar" butonu tek yönlü ve hep-ya-hiç çalışıyordu. Aktarım her zaman
+ana hesaba gidiyor, her zaman bakiyenin TAMAMINI götürüyordu. Sonuç olarak:
+- Ana hesaptan bir alt hesaba **geri aktarmak imkânsızdı**
+- İki alt hesap arasında aktarım yapılamıyordu
+- Kısmi tutar aktarılamıyordu
+- Yanlış yapılan bir aktarımı **geri almanın hiçbir yolu yoktu**
+- Bakiye sıfırlanınca buton da kayboluyordu, yani ekran "öylece kalıyordu"
+
+**Düzeltmeler:**
+- Buton artık **"Aktar"** ve **her hesapta** (ana hesap dahil) çıkıyor
+- Tıklayınca **hedef hesabı seçiyorsun** — herhangi bir hesaptan herhangi bir hesaba
+- **Tutarı serbestçe giriyorsun**; "Tamamı" butonu tek tıkla bakiyenin hepsini yazar
+- Bakiyeden fazlasını aktarmaya çalışırsan uyarı verir, işlem yapılmaz
+- Yeni **"Transfer Geçmişi"** bölümü: her aktarım tarih, kaynak → hedef ve tutarla listeleniyor,
+  yanındaki çöp kutusuyla **tek tıkla geri alınabiliyor**. Kayıt silinince bakiyeler
+  kendiliğinden eski haline döner (bakiye her zaman transfer kayıtlarından hesaplanıyor,
+  ayrı bir yerde tutulmuyor — bu yüzden geri alma güvenli).
+
+## Güncelleme 18: Personel & Freelancer Avans Sistemi
+
+Hem kadrolu personele hem freelancer'lara avans verilebiliyor — ikisi ayrı ayrı takip ediliyor.
+
+### ⚠ En önemli kural: avans YENİ BİR GİDER DEĞİLDİR
+Sistem maaşın tamamını zaten her ay gider sayıyor. Avans, o maaşın erken ödenmiş kısmıdır.
+Ayrıca gider olarak eklenseydi **aynı para iki kez sayılır**, kâr olduğundan düşük görünürdü.
+Bu yüzden avansın Toplam Gider'e etkisi **yoktur**. İki gerçek etkisi vardır:
+1. Ay sonunda o kişiye ödenecek tutar, avans kadar azalır
+2. Avansın çıktığı hesabın bakiyesi, avans kadar azalır (gerçekten çıkan para)
+
+### Kadrolu personel (Personel sekmesi)
+- Üstte bir **"Avans ayı"** seçici — hangi ayın avanslarına baktığını belirler
+- Her satırda cüzdan ikonuyla **"Avans Ver"**: tutar, hangi aydan kesileceği, hangi hesaptan
+  çıktığı ve not
+- İki yeni sütun: **Avans** (o ay verilen toplam) ve **Maaştan Ödenecek** (maaş − avans)
+- Avans tutarına tıklayınca o kişinin tüm avans geçmişi açılır; her kayıt **tek tıkla silinebilir**
+  (silince hem ödenecek tutar hem hesap bakiyesi eski haline döner)
+
+### Freelancer'lar (Operasyon → Aylık İş Raporu)
+- Bir kişiyi açınca **"+ Avans ver"** bağlantısı
+- Kişi satırında hesap açıkça görünür: `6.000 ₺ −2.000 ₺ = 4.000 ₺`
+- Ay özetine **Verilen Avans** ve **Ödenecek Kalan** kutuları eklendi
+- CSV'ye **Avans** ve **Ödenecek Kalan** sütunları eklendi
+
+### Hesap bakiyesine etkisi
+Avans verirken hangi hesaptan çıktığını seçiyorsun ve o hesabın bakiyesinden düşülüyor.
+Bakiye hâlâ hiçbir yerde saklanmıyor — ödeme kayıtları, transferler ve avanslardan
+hesaplanıyor. Bu yüzden bir avansı silmek bakiyeyi otomatik olarak eski haline döndürür.
+
+### Sadece yönetici
+Avans verileri sunucudaki personel izin listesinde yer almıyor — personelin tarayıcısına
+hiç gönderilmiyor ve personel tarafından yazılamıyor. Avans arayüzü de yalnızca yönetici
+ekranında görünür.
+
+## Güncelleme 19: Personel Sekmesi İkiye Ayrıldı — Kadrolu / Freelancer + Ödeme Takibi
+
+Personel sekmesi artık iki bölümden oluşuyor. **Ay seçici iki bölüm arasında paylaşılıyor** —
+sekme değiştirince ay sıfırlanmaz, iki liste hep aynı dönemi gösterir.
+
+### Kadrolu sekmesi — maaş ödeme takibi
+- Personel formuna **"Maaş Ödeme Günü"** alanı eklendi (ayın kaçı — müşterilerdeki mantığın aynısı)
+- Tabloya yeni sütunlar: **Ödeme Günü · Avans · Ödenen · Kalan · Durum**
+- **Kalan = Maaş − Avans − Yapılan Ödemeler**
+- Durum otomatik: *X gün sonra / Bugün / Bekliyor / Gecikti / Ödendi*
+- Her satırdaki **"Öde"** butonuyla ödeme kaydı: tutar, tarih, hangi hesaptan, not
+- Avans tutarına tıklayınca o kişinin **tüm avans ve ödeme geçmişi** açılır; her kayıt tek tıkla
+  geri alınabilir
+
+### Freelancer sekmesi (yeni)
+Gerçek bir freelancer kaydı (ad, rol, telefon, e-posta, not) ve **üç kaynaktan otomatik senkron**:
+
+1. **Müşteri detayındaki Maliyetler** — maliyet formuna *"Kime ödenecek? (freelancer)"* alanı
+   eklendi. Bir kalemi bir kişiye bağlayınca, o kalem otomatik olarak kişinin aylık hak edişine
+   sayılır ve müşteri detayında kimin altında olduğu görünür. Elle kopyalama yok.
+2. **Operasyon işleri** — kameraman/editör olarak yaptığı işlerin hak edişi otomatik gelir.
+   Bu hesap, Aylık İş Raporu'yla **aynı fonksiyonu** kullanır (`operasyonAylikHakEdis`), yani iki
+   ekran asla farklı rakam gösteremez.
+3. **Otomatik öneri** — Operasyon'da iş atanmış ama kayıtlı olmayan isimler üstte listelenir,
+   tek tıkla freelancer olarak eklenir.
+
+Her freelancer kartında dökümü görürsün:
+**Müşteri kalemleri + Operasyon işleri = Hak Ediş − Avans − Ödenen = Kalan**
+
+Avans verme ve ödeme kaydetme aynı karttan yapılır.
+
+### Toplam Gider yine değişmiyor
+Ne maaş ödemesi ne freelancer ödemesi Toplam Gider'i artırır:
+- Kadrolunun maaşı zaten `personelGideri` içinde sayılıyor
+- Freelancer'ın müşteri kalemi zaten `clientCosts` içinde sayılıyor
+
+Ödeme kaydının işi sadece "ödendi mi, ne kadar kaldı" takibi yapmak ve **ödemenin çıktığı hesabın
+bakiyesini azaltmak**. Bakiye artık şuradan hesaplanıyor:
+`müşteri ödemeleri + transfer girişleri − transfer çıkışları − avanslar − personel/freelancer ödemeleri`
+
+Hiçbiri saklanmadığı için, bir kaydı silmek bakiyeyi otomatik eski haline döndürür.
+
+### Sadece yönetici
+`freelancerlar` ve `personelOdemeleri` sunucudaki personel izin listesinde yer almıyor —
+personelin tarayıcısına hiç gönderilmiyor. Personel ekranında Personel sekmesi açıksa bile
+sadece eski sade tabloyu görür; Freelancer sekmesi, avans ve ödeme sütunları görünmez.

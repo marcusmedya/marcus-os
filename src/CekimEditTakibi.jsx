@@ -838,6 +838,38 @@ function ucretEtiketi(job, detay, kisiVarsayilanUcret) {
   return para(kisiVarsayilanUcret);
 }
 
+/**
+ * Bir kişinin belirli bir aydaki OPERASYON hak edişi (teslim edilen işlerden).
+ * Personel > Freelancer sekmesi bu fonksiyonu kullanır — böylece hak ediş matematiği
+ * tek bir yerde tanımlı kalır ve iki ekran farklı rakam göstermez.
+ */
+export function operasyonAylikHakEdis(jobs, kisiAd, ay, ucretler, ucretDetaylari) {
+  if (!kisiAd) return { isSayisi: 0, tutar: 0, parca: 0 };
+  const varsayilan = Number((ucretler || {})[kisiAd]) || 0;
+  const oAyinIsleri = (jobs || []).filter((j) => {
+    const t = isTeslimTarihi(j);
+    if (!t || t.slice(0, 7) !== ay) return false;
+    return j.kameraman === kisiAd || j.editor === kisiAd;
+  });
+  const tutar = oAyinIsleri.reduce(
+    (s, j) => s + isUcretiHesapla(j, kisiAd, (ucretDetaylari || {})[j.id] || null, varsayilan),
+    0
+  );
+  const parca = oAyinIsleri.reduce((s, j) => s + (Number(j.uretilenAdet) || 0), 0);
+  return { isSayisi: oAyinIsleri.length, tutar, parca };
+}
+
+/** Operasyon'da atanmış ama kayıtlı olmayan kişileri bulur — Freelancer sekmesi bunları
+ * "eklemek ister misin?" diye önerir, böylece isimler elle kopyalanmaz. */
+export function operasyonKisiIsimleri(jobs) {
+  const set = new Set();
+  (jobs || []).forEach((j) => {
+    if (j.kameraman && String(j.kameraman).trim()) set.add(String(j.kameraman).trim());
+    if (j.editor && String(j.editor).trim()) set.add(String(j.editor).trim());
+  });
+  return Array.from(set);
+}
+
 /** İş detayında yöneticinin ücret modunu ayarladığı küçük panel. */
 function IsUcretPaneli({ job, detay, onKaydet }) {
   const mevcutMod = (detay && detay.mod) || "varsayilan";
@@ -955,11 +987,45 @@ function ayAdi(key) {
  * Bir işte hem kameraman hem editör varsa, iş İKİSİNİN de hanesine yazılır; bu yüzden
  * kişi toplamlarının toplamı, üstteki benzersiz iş sayısından fazla olabilir.
  */
-function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onSaveUcretDetayi }) {
+/** Freelancer'a avans veren küçük form. Avans, o ayın hak edişinden düşülür ve seçilen
+ * hesabın bakiyesinden çıkar — Toplam Gider'e AYRICA eklenmez (hak ediş zaten ödenecek para). */
+function AvansMiniForm({ kisiAd, hesaplar, ay, onKaydet, onKapat }) {
+  const liste = hesaplar && hesaplar.length ? hesaplar : [{ id: "ana", ad: "Marcus Medya", anaHesap: true }];
+  const [tutar, setTutar] = useState("");
+  const [hesapId, setHesapId] = useState((liste.find((h) => h.anaHesap) || liste[0]).id);
+  const [not, setNot] = useState("");
+
+  const kaydet = () => {
+    const miktar = Number(String(tutar).replace(",", "."));
+    if (!miktar || Number.isNaN(miktar) || miktar <= 0) { window.alert("Geçerli bir avans tutarı gir."); return; }
+    onKaydet({ tutar: miktar, ay, hesapId, not: not.trim(), tarih: new Date().toLocaleDateString("tr-TR") });
+  };
+
+  return (
+    <div style={{ background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px" }}>
+      <div style={{ fontSize: 11.5, color: C.textFaint, fontWeight: 700, marginBottom: 8 }}>{kisiAd} — AVANS VER</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <input autoFocus type="number" value={tutar} onChange={(e) => setTutar(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") kaydet(); }} placeholder="Tutar (₺)" style={{ ...inputStyle, marginBottom: 0, width: 130 }} />
+        <select value={hesapId} onChange={(e) => setHesapId(e.target.value)} style={{ ...inputStyle, marginBottom: 0, width: "auto", minWidth: 150 }}>
+          {liste.map((h) => <option key={h.id} value={h.id}>{h.ad}{h.anaHesap ? " (Ana Hesap)" : ""}</option>)}
+        </select>
+        <input value={not} onChange={(e) => setNot(e.target.value)} placeholder="Not (opsiyonel)" style={{ ...inputStyle, marginBottom: 0, width: 160 }} />
+        <button style={btnPrimary} onClick={kaydet}>Kaydet</button>
+        <button style={btnGhost} onClick={onKapat}>İptal</button>
+      </div>
+      <div style={{ fontSize: 10.5, color: C.textFaint, marginTop: 7, lineHeight: 1.6 }}>
+        Seçili ayın ({ay}) hak edişinden düşülür ve seçtiğin hesabın bakiyesinden çıkar.
+      </div>
+    </div>
+  );
+}
+
+function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onSaveUcretDetayi, avanslar, hesaplar, onAddAvans, onDeleteAvans }) {
   const [ay, setAy] = useState(ayKeyi());
   const [acikKisi, setAcikKisi] = useState(null);
   const [ucretDuzenle, setUcretDuzenle] = useState(null);
   const [ucretTaslak, setUcretTaslak] = useState("");
+  const [avansFormAcik, setAvansFormAcik] = useState(null);
 
   const oAyinIsleri = useMemo(
     () => (jobs || []).filter((j) => {
@@ -997,6 +1063,11 @@ function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onSaveUcre
   const kisiToplami = (k) => k.isler.reduce((t, j) => t + isUcretiHesapla(j, k.ad, detayAl(j.id), ucretAl(k.ad)), 0);
   const kisiUcretsizSayisi = (k) => k.isler.filter((j) => (detayAl(j.id) || {}).mod === "ucretsiz").length;
   const kisiParcaSayisi = (k) => k.isler.reduce((t, j) => t + (Number(j.uretilenAdet) || 0), 0);
+  // Freelancer avansları: kişi adına göre eşleşir ve o ayın hak edişinden düşülür.
+  const kisiAvansKayitlari = (ad) => (avanslar || []).filter((a) => a.tur === "freelancer" && a.kisiAd === ad);
+  const kisiAvansi = (ad) => kisiAvansKayitlari(ad).filter((a) => a.ay === ay).reduce((t, a) => t + (Number(a.tutar) || 0), 0);
+  const kisiOdenecek = (k) => kisiToplami(k) - kisiAvansi(k.ad);
+  const genelAvans = kisiler.reduce((s, k) => s + kisiAvansi(k.ad), 0);
   const genelToplam = kisiler.reduce((s, k) => s + kisiToplami(k), 0);
   const genelParca = oAyinIsleri.reduce((t, j) => t + (Number(j.uretilenAdet) || 0), 0);
   const paraYaz = (n) => Number(n).toLocaleString("tr-TR") + " ₺";
@@ -1004,9 +1075,9 @@ function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onSaveUcre
   const bekleyenSayisi = (ad) => bekleyenler.filter((j) => j.kameraman === ad || j.editor === ad).length;
 
   const csvIndir = () => {
-    const satirlar = [["Kişi", "Tamamlanan İş", "Üretilen Parça", "Video", "Grafik Tasarım", "Kameraman Olarak", "Editör Olarak", "Ücretsiz İş", "İş Başı Ücret", "Toplam Hak Ediş"]];
+    const satirlar = [["Kişi", "Tamamlanan İş", "Üretilen Parça", "Video", "Grafik Tasarım", "Kameraman Olarak", "Editör Olarak", "Ücretsiz İş", "İş Başı Ücret", "Toplam Hak Ediş", "Avans", "Ödenecek Kalan"]];
     kisiler.forEach((k) => {
-      satirlar.push([k.ad, k.isler.length, kisiParcaSayisi(k) || "", k.video, k.grafik, k.kameraman, k.editor, kisiUcretsizSayisi(k) || "", ucretAl(k.ad) || "", kisiToplami(k) || ""]);
+      satirlar.push([k.ad, k.isler.length, kisiParcaSayisi(k) || "", k.video, k.grafik, k.kameraman, k.editor, kisiUcretsizSayisi(k) || "", ucretAl(k.ad) || "", kisiToplami(k) || "", kisiAvansi(k.ad) || "", kisiOdenecek(k) || ""]);
     });
     satirlar.push([]);
     satirlar.push(["İş bazlı döküm", "", "", "", "", "", "", "", "", ""]);
@@ -1065,8 +1136,20 @@ function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onSaveUcre
         </div>
         {genelToplam > 0 && (
           <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", flex: "1 1 150px" }}>
-            <div style={{ fontSize: 10.5, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>TOPLAM ÖDEME</div>
+            <div style={{ fontSize: 10.5, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>TOPLAM HAK EDİŞ</div>
             <div style={{ fontSize: 20, fontWeight: 700, color: C.accentText, fontFamily: "monospace" }}>{paraYaz(genelToplam)}</div>
+          </div>
+        )}
+        {genelAvans > 0 && (
+          <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", flex: "1 1 150px" }}>
+            <div style={{ fontSize: 10.5, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>VERİLEN AVANS</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: C.warning, fontFamily: "monospace" }}>{paraYaz(genelAvans)}</div>
+          </div>
+        )}
+        {genelAvans > 0 && (
+          <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", flex: "1 1 150px" }}>
+            <div style={{ fontSize: 10.5, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>ÖDENECEK KALAN</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: C.success, fontFamily: "monospace" }}>{paraYaz(genelToplam - genelAvans)}</div>
           </div>
         )}
       </div>
@@ -1109,7 +1192,19 @@ function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onSaveUcre
                   </span>
                   {kisiUcretsizSayisi(k) > 0 && <span style={{ color: C.textFaint, fontSize: 11 }}>{kisiUcretsizSayisi(k)} ücretsiz</span>}
                   {bekleyen > 0 && <span style={{ color: C.warning, fontSize: 11 }}>+{bekleyen} teslim bekliyor</span>}
-                  {kisiToplami(k) > 0 && <span style={{ color: C.accentText, fontWeight: 700, fontFamily: "monospace" }}>{paraYaz(kisiToplami(k))}</span>}
+                  {kisiToplami(k) > 0 && (
+                    kisiAvansi(k.ad) > 0 ? (
+                      <span style={{ fontFamily: "monospace", fontWeight: 700 }}>
+                        <span style={{ color: C.textFaint, textDecoration: "line-through", fontWeight: 400, fontSize: 11.5 }}>{paraYaz(kisiToplami(k))}</span>
+                        {" "}
+                        <span style={{ color: C.warning, fontSize: 11.5, fontWeight: 400 }}>−{paraYaz(kisiAvansi(k.ad))}</span>
+                        {" = "}
+                        <span style={{ color: C.success }}>{paraYaz(kisiOdenecek(k))}</span>
+                      </span>
+                    ) : (
+                      <span style={{ color: C.accentText, fontWeight: 700, fontFamily: "monospace" }}>{paraYaz(kisiToplami(k))}</span>
+                    )
+                  )}
                 </div>
               </div>
 
@@ -1144,6 +1239,41 @@ function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onSaveUcre
                     )}
                   </div>
 
+                  {/* Avans (freelancer) */}
+                  {onAddAvans && (
+                    <div style={{ marginBottom: 10 }}>
+                      {avansFormAcik === k.ad ? (
+                        <AvansMiniForm
+                          kisiAd={k.ad}
+                          hesaplar={hesaplar}
+                          ay={ay}
+                          onKaydet={(kayit) => { onAddAvans({ ...kayit, tur: "freelancer", kisiId: null, kisiAd: k.ad }); setAvansFormAcik(null); }}
+                          onKapat={() => setAvansFormAcik(null)}
+                        />
+                      ) : (
+                        <button
+                          onClick={() => setAvansFormAcik(k.ad)}
+                          style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 11.5, color: C.textFaint, textDecoration: "underline", fontFamily: "inherit" }}
+                        >
+                          + Avans ver
+                        </button>
+                      )}
+                      {kisiAvansKayitlari(k.ad).filter((a) => a.ay === ay).map((a) => (
+                        <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: C.panelAlt, borderRadius: 8, padding: "6px 10px", fontSize: 11, marginTop: 5 }}>
+                          <span style={{ color: C.textDim }}>Avans · {a.tarih}{a.not ? ` · ${a.not}` : ""}</span>
+                          <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <strong style={{ color: C.warning, fontFamily: "monospace" }}>{paraYaz(a.tutar)}</strong>
+                            {onDeleteAvans && (
+                              <button onClick={() => { if (window.confirm("Bu avans silinsin mi?")) onDeleteAvans(a.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>
+                                <Trash2 size={12} color={C.danger} />
+                              </button>
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Yaptığı işler */}
                   <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                     {k.isler.map((j) => (
@@ -1176,7 +1306,7 @@ function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onSaveUcre
 /* ------------------------------------------------------------------ */
 /* ANA BİLEŞEN                                                           */
 /* ------------------------------------------------------------------ */
-export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, onRefreshRoster, onAddJob, onUpdateJob, onDeleteJob, girisYapanAd, isUcretleri, onSaveIsUcreti, isUcretDetaylari, onSaveIsUcretDetayi, markalasmaSurecleri, onToggleMarkalasmaGorev, onSetMarkalasmaYonetici, onAddMarkalasmaGorev, onCompleteMarkalasmaSureci, onDeleteMarkalasmaSureci, markaYoneticisiMi, firmaAdi }) {
+export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, onRefreshRoster, onAddJob, onUpdateJob, onDeleteJob, girisYapanAd, isUcretleri, onSaveIsUcreti, isUcretDetaylari, onSaveIsUcretDetayi, avanslar, hesaplar, onAddAvans, onDeleteAvans, markalasmaSurecleri, onToggleMarkalasmaGorev, onSetMarkalasmaYonetici, onAddMarkalasmaGorev, onCompleteMarkalasmaSureci, onDeleteMarkalasmaSureci, markaYoneticisiMi, firmaAdi }) {
   const [staffName, setStaffNameState] = useState(girisYapanAd || getStaffName());
   const [view, setView] = useState(role === "staff" ? "panom" : "pano");
   const [panoKategori, setPanoKategori] = useState("Video");
@@ -1249,6 +1379,10 @@ export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, 
           onSaveUcret={onSaveIsUcreti}
           ucretDetaylari={isUcretDetaylari || {}}
           onSaveUcretDetayi={onSaveIsUcretDetayi}
+          avanslar={avanslar || []}
+          hesaplar={hesaplar || []}
+          onAddAvans={onAddAvans}
+          onDeleteAvans={onDeleteAvans}
         />
       )}
 
