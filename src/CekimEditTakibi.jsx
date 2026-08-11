@@ -26,6 +26,15 @@ function driveEmbedUrl(link) {
   if (!m) return null;
   return `https://drive.google.com/file/d/${m[1]}/preview`;
 }
+/** Grafik Tasarım (görsel) içerikler için — Drive'ın /preview'ı (video amaçlı) tıklama
+ * gerektiriyor; görsel için bunun yerine dosyanın DOĞRUDAN görsel URL'sini üretip normal bir
+ * <img> olarak gösteriyoruz — hiç tıklamaya gerek kalmadan anında görünür. */
+function driveGorselUrl(link) {
+  if (!link) return null;
+  const m = link.match(/\/d\/([a-zA-Z0-9_-]+)/) || link.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (!m) return null;
+  return `https://drive.google.com/uc?export=view&id=${m[1]}`;
+}
 
 export const ASAMALAR_VIDEO = [
   "Çekim Planlandı", "Çekim Yapıldı", "Dosyalar Aktarıldı", "Edit Bekliyor",
@@ -166,6 +175,14 @@ function IsKarti({ job, onClick, draggable, onDragStart }) {
         <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{job.marka}</div>
         <span style={{ width: 7, height: 7, borderRadius: 999, background: ONCELIK_RENK[job.oncelik], flexShrink: 0, marginTop: 4 }} title={`Öncelik: ${job.oncelik}`} />
       </div>
+      {job.kategori === "Grafik Tasarım" && job.editliDosyaLink && driveGorselUrl(job.editliDosyaLink) && (
+        <img
+          src={driveGorselUrl(job.editliDosyaLink)}
+          alt=""
+          style={{ width: "100%", height: 110, objectFit: "cover", borderRadius: 8, marginBottom: 8, background: C.panelAlt, display: "block" }}
+          onError={(e) => { e.target.style.display = "none"; }}
+        />
+      )}
       <div style={{ fontSize: 11.5, color: C.textDim, marginBottom: 8 }}>{job.icerikTuru}{job.kategori ? ` · ${job.kategori}` : ""}</div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: C.textFaint, marginBottom: 8 }}>
         <span>{job.kameraman || job.editor || "—"}{job.kategori !== "Grafik Tasarım" && job.editor ? ` / ${job.editor}` : ""}</span>
@@ -468,7 +485,7 @@ function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate
                 </div>
               ) : (
                 <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: (job.editliDosyaLink && driveEmbedUrl(job.editliDosyaLink)) ? 10 : 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: (job.editliDosyaLink && (driveGorselUrl(job.editliDosyaLink) || driveEmbedUrl(job.editliDosyaLink))) ? 10 : 0 }}>
                     {job.hamDosyaLink && <a href={job.hamDosyaLink} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: C.accentText, textDecoration: "none" }}><Link2 size={13} /> Ham Dosyalar</a>}
                     {job.editliDosyaLink && <a href={job.editliDosyaLink} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: C.accentText, textDecoration: "none" }}><Link2 size={13} /> Editlenmiş Dosyalar</a>}
                     {yetkili && (
@@ -477,15 +494,28 @@ function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate
                       </button>
                     )}
                   </div>
-                  {/* Editlenmiş dosya bir Drive linkiyse, tıklamaya gerek kalmadan burada
-                   * doğrudan oynatılabilir şekilde gömülü gösterilir — link olarak değil, medya olarak. */}
-                  {job.editliDosyaLink && driveEmbedUrl(job.editliDosyaLink) && (
-                    <iframe
-                      src={driveEmbedUrl(job.editliDosyaLink)}
-                      title="Editlenmiş dosya önizleme"
-                      style={{ width: "100%", height: 280, border: "none", borderRadius: 10 }}
-                      allow="autoplay"
+                  {/* Grafik Tasarım'da (görsel) doğrudan <img> ile hiç tıklamaya gerek kalmadan
+                   * anında gösterilir. Video'da ise Drive'ın /preview'ı kullanılır — tarayıcıların
+                   * otomatik oynatma kısıtlaması yüzünden oynatmak için bir tık gerekiyor, bu
+                   * platform kısıtı, tamamen kaldırılamıyor. */}
+                  {job.editliDosyaLink && kategori === "Grafik Tasarım" && driveGorselUrl(job.editliDosyaLink) && (
+                    <img
+                      src={driveGorselUrl(job.editliDosyaLink)}
+                      alt="Editlenmiş görsel önizleme"
+                      style={{ width: "100%", maxHeight: 420, objectFit: "contain", borderRadius: 10, background: C.panelAlt, display: "block" }}
+                      onError={(e) => { e.target.style.display = "none"; }}
                     />
+                  )}
+                  {job.editliDosyaLink && kategori !== "Grafik Tasarım" && driveEmbedUrl(job.editliDosyaLink) && (
+                    <>
+                      <iframe
+                        src={driveEmbedUrl(job.editliDosyaLink)}
+                        title="Editlenmiş dosya önizleme"
+                        style={{ width: "100%", height: 280, border: "none", borderRadius: 10 }}
+                        allow="autoplay"
+                      />
+                      <div style={{ fontSize: 10.5, color: C.textFaint, marginTop: 4 }}>Tarayıcılar videoyu otomatik başlatmaya izin vermiyor — oynatmak için oynatıcının üzerine bir kez tıklaman gerekiyor.</div>
+                    </>
                   )}
                 </div>
               )}
