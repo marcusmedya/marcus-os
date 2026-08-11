@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from "react";
 import {
   Camera, Plus, X, Clock, AlertTriangle, CheckCircle2, User, Link2,
-  MessageSquare, History, ChevronRight, Pencil, Trash2, LayoutGrid, BarChart3, ListTodo, Rocket,
+  MessageSquare, History, ChevronRight, ChevronLeft, Pencil, Trash2, LayoutGrid, BarChart3, ListTodo, Rocket,
+  Download, Wallet,
 } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
@@ -319,7 +320,7 @@ function YeniIsFormu({ clients, personelRosteri, varsayilanKategori, onSubmit, o
   const [v, setV] = useState({
     kategori: varsayilanKategori || "Video",
     marka: "", icerikTuru: "", cekimTarihi: bugunISO(), teslimTarihi: bugunISO(),
-    kameraman: "", editor: "", oncelik: "Normal", istenenAdet: "", brief: "",
+    kameraman: "", editor: "", oncelik: "Normal", istenenAdet: "", uretilenAdet: "", brief: "",
   });
   const set = (k, val) => setV((s) => ({ ...s, [k]: val }));
   const video = v.kategori !== "Grafik Tasarım";
@@ -351,6 +352,7 @@ function YeniIsFormu({ clients, personelRosteri, varsayilanKategori, onSubmit, o
           </select>
         </div>
         <div><label style={labelStyle}>İstenen Adet</label><input style={inputStyle} value={v.istenenAdet} onChange={(e) => set("istenenAdet", e.target.value)} placeholder={video ? "örn. 6 Reels + 10 Post" : "örn. 4 Post + 2 Banner"} /></div>
+        <div><label style={labelStyle}>Kaç Parça? (rapor için)</label><input type="number" min="0" style={inputStyle} value={v.uretilenAdet} onChange={(e) => set("uretilenAdet", e.target.value)} placeholder="örn. 10" /></div>
       </div>
       <label style={labelStyle}>Brief / Notlar</label>
       <textarea style={{ ...inputStyle, marginBottom: 12 }} rows={3} value={v.brief} onChange={(e) => set("brief", e.target.value)} />
@@ -366,7 +368,7 @@ function YeniIsFormu({ clients, personelRosteri, varsayilanKategori, onSubmit, o
 /* ------------------------------------------------------------------ */
 /* İş Detay Modalı                                                       */
 /* ------------------------------------------------------------------ */
-function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate, onDelete, kilitleyen, markaYoneticisiMi, firmaAdi }) {
+function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate, onDelete, kilitleyen, markaYoneticisiMi, firmaAdi, ucretDetayi, onSaveUcretDetayi }) {
   const [yorum, setYorum] = useState("");
   const [revizeMetni, setRevizeMetni] = useState("");
   const [revizeAciliyor, setRevizeAciliyor] = useState(false);
@@ -390,10 +392,17 @@ function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate
   };
 
   const asamaGecir = (yeniAsama, ekAciklama) => {
-    onUpdate(job.id, {
+    const patch = {
       asama: yeniAsama,
       gecmis: logKaydet(`Aşama değişti: ${job.asama} → ${yeniAsama}${ekAciklama ? " (" + ekAciklama + ")" : ""}`),
-    });
+    };
+    // AYLIK RAPOR İÇİN: bir iş teslim edildiğinde gerçek tarih AYRI BİR ALANA yazılır.
+    // Eskiden bu bilgi sadece işlem geçmişindeki metnin içinde duruyordu ve oradan
+    // ayrıştırmak gerekiyordu — kırılgan bir yöntemdi. Geri alınırsa tarih temizlenir ki
+    // rapor yanlış saymasın.
+    if (yeniAsama === "Teslim Edildi") patch.teslimEdilmeTarihi = new Date().toISOString().slice(0, 10);
+    else if (job.asama === "Teslim Edildi") patch.teslimEdilmeTarihi = null;
+    onUpdate(job.id, patch);
   };
   const geriAl = (hedefAsama) => {
     if (!window.confirm(`"${hedefAsama}" aşamasına geri alınsın mı?`)) return;
@@ -517,6 +526,7 @@ function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate
                 </select>
               </div>
               <div><label style={labelStyle}>İstenen Adet</label><input style={inputStyle} value={taslak.istenenAdet || ""} onChange={(e) => setTaslak((s) => ({ ...s, istenenAdet: e.target.value }))} /></div>
+              <div><label style={labelStyle}>Kaç Parça? (rapor için)</label><input type="number" min="0" style={inputStyle} value={taslak.uretilenAdet || ""} onChange={(e) => setTaslak((s) => ({ ...s, uretilenAdet: e.target.value }))} placeholder="örn. 10" /></div>
             </div>
             <label style={labelStyle}>Brief / Çekim Notları</label>
             <textarea style={{ ...inputStyle, marginBottom: 10 }} rows={3} value={taslak.brief || ""} onChange={(e) => setTaslak((s) => ({ ...s, brief: e.target.value }))} />
@@ -538,7 +548,12 @@ function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate
               <div><span style={{ color: C.textFaint }}>Editör:</span> <span style={{ color: C.text }}>{job.editor || "—"}</span></div>
               <div><span style={{ color: C.textFaint }}>Öncelik:</span> <span style={{ color: ONCELIK_RENK[job.oncelik] }}>{job.oncelik}</span></div>
               <div><span style={{ color: C.textFaint }}>İstenen Adet:</span> <span style={{ color: C.text }}>{job.istenenAdet || "—"}</span></div>
+              {job.uretilenAdet ? <div><span style={{ color: C.textFaint }}>Parça Sayısı:</span> <span style={{ color: C.text }}>{job.uretilenAdet}</span></div> : null}
             </div>
+
+            {role === "owner" && onSaveUcretDetayi && (
+              <IsUcretPaneli job={job} detay={ucretDetayi} onKaydet={onSaveUcretDetayi} />
+            )}
 
             {job.brief && (
               <div style={{ marginBottom: 14 }}>
@@ -769,9 +784,399 @@ function YoneticiIstatistik({ jobs }) {
 }
 
 /* ------------------------------------------------------------------ */
+/* İŞ ÜCRETİ MODELİ (sadece yönetici)                                    */
+/* ------------------------------------------------------------------ */
+/**
+ * Her işin ücreti üç moddan biriyle belirlenir:
+ *   "varsayilan" → kişinin iş başı ücreti × 1 (Aylık İş Raporu'nda kişiye girilen tutar)
+ *   "sabit"      → bu işe özel TEK tutar (örn. "10 tasarım yapacak ama tek ücret alınacak")
+ *   "ucretsiz"   → 0 ₺ (örn. "öne çıkan ikonları yapacak ama ücret almayacak" — pakete dahil)
+ *
+ * "sabit" ve "ucretsiz" modda, işte iki kişi varsa tutarın kime yazılacağı `kime` alanıyla
+ * belirlenir ("editor" | "kameraman" | "ikisi") — böylece tek bir ücret yanlışlıkla iki kez
+ * sayılmaz. Bu bilgi işin kendi üzerinde DEĞİL, ayrı ve yöneticiye özel bir haritada tutulur;
+ * çünkü iş kayıtları personelin tarayıcısına olduğu gibi gönderiliyor ve ücretlerin oraya
+ * sızmaması gerekiyor.
+ */
+export const UCRET_MODLARI = [
+  { key: "varsayilan", label: "Varsayılan (kişinin iş başı ücreti)" },
+  { key: "sabit", label: "Bu işe tek sabit ücret" },
+  { key: "ucretsiz", label: "Ücretsiz (pakete dahil)" },
+];
+
+function varsayilanKime(job) {
+  if (job && job.editor) return "editor";
+  if (job && job.kameraman) return "kameraman";
+  return "editor";
+}
+
+/** Bir işin, belirli bir kişiye yazılacak ücretini hesaplar. */
+function isUcretiHesapla(job, kisiAdi, detay, kisiVarsayilanUcret) {
+  const mod = (detay && detay.mod) || "varsayilan";
+  if (mod === "ucretsiz") return 0;
+  if (mod === "sabit") {
+    const tutar = Number(detay && detay.tutar) || 0;
+    const kime = (detay && detay.kime) || varsayilanKime(job);
+    if (kime === "ikisi") return tutar;
+    if (kime === "kameraman") return job.kameraman === kisiAdi ? tutar : 0;
+    return job.editor === kisiAdi ? tutar : 0;
+  }
+  return Number(kisiVarsayilanUcret) || 0;
+}
+
+/** Ücret modunu kısa, okunur bir etikete çevirir. */
+function ucretEtiketi(job, detay, kisiVarsayilanUcret) {
+  const mod = (detay && detay.mod) || "varsayilan";
+  const para = (n) => Number(n).toLocaleString("tr-TR") + " ₺";
+  if (mod === "ucretsiz") return "Ücretsiz";
+  if (mod === "sabit") {
+    const kime = (detay && detay.kime) || varsayilanKime(job);
+    const kimeYazi = kime === "ikisi" ? " (ikisine ayrı)" : "";
+    return `${para(Number(detay.tutar) || 0)} sabit${kimeYazi}`;
+  }
+  if (!kisiVarsayilanUcret) return "ücret girilmemiş";
+  return para(kisiVarsayilanUcret);
+}
+
+/** İş detayında yöneticinin ücret modunu ayarladığı küçük panel. */
+function IsUcretPaneli({ job, detay, onKaydet }) {
+  const mevcutMod = (detay && detay.mod) || "varsayilan";
+  const [mod, setMod] = useState(mevcutMod);
+  const [tutar, setTutar] = useState(String((detay && detay.tutar) || ""));
+  const [kime, setKime] = useState((detay && detay.kime) || varsayilanKime(job));
+  const [kaydedildi, setKaydedildi] = useState(false);
+
+  useEffect(() => {
+    setMod((detay && detay.mod) || "varsayilan");
+    setTutar(String((detay && detay.tutar) || ""));
+    setKime((detay && detay.kime) || varsayilanKime(job));
+  }, [job.id]);
+
+  const ikiKisiVar = !!job.kameraman && !!job.editor && job.kameraman !== job.editor;
+
+  const kaydet = (yeniMod, yeniTutar, yeniKime) => {
+    const m = yeniMod !== undefined ? yeniMod : mod;
+    const t = yeniTutar !== undefined ? yeniTutar : tutar;
+    const k = yeniKime !== undefined ? yeniKime : kime;
+    if (m === "varsayilan") onKaydet(job.id, null);
+    else onKaydet(job.id, { mod: m, tutar: m === "sabit" ? (Number(t) || 0) : 0, kime: k });
+    setKaydedildi(true);
+    setTimeout(() => setKaydedildi(false), 1500);
+  };
+
+  return (
+    <div style={{ background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "11px 13px", marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+        <Wallet size={13} color={C.textFaint} />
+        <span style={{ fontSize: 11.5, color: C.textFaint, fontWeight: 700 }}>ÜCRETLENDİRME (sadece sen görüyorsun)</span>
+        {kaydedildi && <span style={{ fontSize: 11, color: C.success }}>✓ kaydedildi</span>}
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+        <select
+          style={{ ...inputStyle, marginBottom: 0, width: "auto", minWidth: 210 }}
+          value={mod}
+          onChange={(e) => { setMod(e.target.value); kaydet(e.target.value); }}
+        >
+          {UCRET_MODLARI.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
+        </select>
+        {mod === "sabit" && (
+          <input
+            type="number"
+            min="0"
+            style={{ ...inputStyle, marginBottom: 0, width: 130 }}
+            value={tutar}
+            placeholder="Tutar (₺)"
+            onChange={(e) => setTutar(e.target.value)}
+            onBlur={() => kaydet()}
+            onKeyDown={(e) => { if (e.key === "Enter") kaydet(); }}
+          />
+        )}
+        {mod === "sabit" && ikiKisiVar && (
+          <select
+            style={{ ...inputStyle, marginBottom: 0, width: "auto" }}
+            value={kime}
+            onChange={(e) => { setKime(e.target.value); kaydet(undefined, undefined, e.target.value); }}
+          >
+            <option value="editor">{job.editor} alsın</option>
+            <option value="kameraman">{job.kameraman} alsın</option>
+            <option value="ikisi">İkisi de ayrı ayrı alsın</option>
+          </select>
+        )}
+      </div>
+      <div style={{ fontSize: 10.5, color: C.textFaint, marginTop: 7, lineHeight: 1.6 }}>
+        {mod === "sabit" && "Bu iş kaç parça içerirse içersin, ay sonu raporunda tek bu tutar sayılır."}
+        {mod === "ucretsiz" && "Bu iş raporda görünür ve iş sayısına dahil olur, ama ödemeye 0 ₺ yazılır."}
+        {mod === "varsayilan" && "Aylık İş Raporu'nda o kişi için girdiğin iş başı ücret kullanılır."}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* AYLIK İŞ RAPORU (SADECE YÖNETİCİ)                                     */
+/* ------------------------------------------------------------------ */
+
+/** Bir işin GERÇEKTEN teslim edildiği tarihi (YYYY-AA-GG) döndürür.
+ *
+ * Yeni işlerde bu bilgi doğrudan `teslimEdilmeTarihi` alanında duruyor. Bu alan eklenmeden
+ * ÖNCE teslim edilmiş işler için, bilgi işlem geçmişindeki "→ Teslim Edildi" satırının
+ * tarihinden geri kazanılır — böylece rapor eski işleri de sayabiliyor. */
+export function isTeslimTarihi(job) {
+  if (!job) return null;
+  if (job.teslimEdilmeTarihi) return job.teslimEdilmeTarihi;
+  const kayit = [...(job.gecmis || [])].reverse().find((g) => (g.aciklama || "").includes("→ Teslim Edildi"));
+  if (!kayit || !kayit.tarih) return null;
+  const gun = String(kayit.tarih).split(" ")[0]; // "11.08.2026" ya da "2.08.2026"
+  const p = gun.split(".");
+  if (p.length !== 3) return null;
+  const [g, a, y] = p;
+  if (!y || y.length !== 4) return null;
+  return `${y}-${String(a).padStart(2, "0")}-${String(g).padStart(2, "0")}`;
+}
+
+function ayKeyi(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+function ayEkle(key, adet) {
+  const [y, a] = key.split("-").map(Number);
+  const d = new Date(y, a - 1 + adet, 1);
+  return ayKeyi(d);
+}
+function ayAdi(key) {
+  const [y, a] = key.split("-").map(Number);
+  return new Date(y, a - 1, 1).toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
+}
+
+/**
+ * Kim, hangi ay, kaç iş tamamladı — ve isteğe bağlı olarak ne kadar ödeme hak etti.
+ *
+ * Sayım kuralı: iş "Teslim Edildi" aşamasına GEÇTİĞİ tarihe göre ilgili aya yazılır
+ * (planlanan teslim tarihine göre değil — gerçekte ne zaman bittiği önemli).
+ * Bir işte hem kameraman hem editör varsa, iş İKİSİNİN de hanesine yazılır; bu yüzden
+ * kişi toplamlarının toplamı, üstteki benzersiz iş sayısından fazla olabilir.
+ */
+function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onSaveUcretDetayi }) {
+  const [ay, setAy] = useState(ayKeyi());
+  const [acikKisi, setAcikKisi] = useState(null);
+  const [ucretDuzenle, setUcretDuzenle] = useState(null);
+  const [ucretTaslak, setUcretTaslak] = useState("");
+
+  const oAyinIsleri = useMemo(
+    () => (jobs || []).filter((j) => {
+      const t = isTeslimTarihi(j);
+      return t && t.slice(0, 7) === ay;
+    }),
+    [jobs, ay]
+  );
+
+  // Teslim edilmeyi bekleyen (onaylanmış ama henüz teslim edilmemiş) işler — ayrı gösterilir
+  // ki "bu kişi çalıştı ama sayılmadı" izlenimi oluşmasın.
+  const bekleyenler = (jobs || []).filter((j) => j.asama === "Onaylandı");
+
+  const kisiler = useMemo(() => {
+    const harita = {};
+    const ekle = (ad, job, rol) => {
+      if (!ad || !String(ad).trim()) return;
+      const anahtar = String(ad).trim();
+      if (!harita[anahtar]) harita[anahtar] = { ad: anahtar, isler: [], video: 0, grafik: 0, kameraman: 0, editor: 0 };
+      const k = harita[anahtar];
+      if (!k.isler.some((x) => x.id === job.id)) {
+        k.isler.push(job);
+        if (job.kategori === "Grafik Tasarım") k.grafik += 1; else k.video += 1;
+      }
+      if (rol === "kameraman") k.kameraman += 1; else k.editor += 1;
+    };
+    oAyinIsleri.forEach((j) => { ekle(j.kameraman, j, "kameraman"); ekle(j.editor, j, "editor"); });
+    return Object.values(harita).sort((a, b) => b.isler.length - a.isler.length);
+  }, [oAyinIsleri]);
+
+  const ucretAl = (ad) => Number((ucretler || {})[ad]) || 0;
+  const detayAl = (jobId) => (ucretDetaylari || {})[jobId] || null;
+  /** Kişinin o aydaki toplam hak edişi: her iş kendi moduna göre hesaplanır
+   * (sabit ücretli işler kaç parça olursa olsun tek sayılır, ücretsizler 0 yazar). */
+  const kisiToplami = (k) => k.isler.reduce((t, j) => t + isUcretiHesapla(j, k.ad, detayAl(j.id), ucretAl(k.ad)), 0);
+  const kisiUcretsizSayisi = (k) => k.isler.filter((j) => (detayAl(j.id) || {}).mod === "ucretsiz").length;
+  const kisiParcaSayisi = (k) => k.isler.reduce((t, j) => t + (Number(j.uretilenAdet) || 0), 0);
+  const genelToplam = kisiler.reduce((s, k) => s + kisiToplami(k), 0);
+  const genelParca = oAyinIsleri.reduce((t, j) => t + (Number(j.uretilenAdet) || 0), 0);
+  const paraYaz = (n) => Number(n).toLocaleString("tr-TR") + " ₺";
+
+  const bekleyenSayisi = (ad) => bekleyenler.filter((j) => j.kameraman === ad || j.editor === ad).length;
+
+  const csvIndir = () => {
+    const satirlar = [["Kişi", "Tamamlanan İş", "Üretilen Parça", "Video", "Grafik Tasarım", "Kameraman Olarak", "Editör Olarak", "Ücretsiz İş", "İş Başı Ücret", "Toplam Hak Ediş"]];
+    kisiler.forEach((k) => {
+      satirlar.push([k.ad, k.isler.length, kisiParcaSayisi(k) || "", k.video, k.grafik, k.kameraman, k.editor, kisiUcretsizSayisi(k) || "", ucretAl(k.ad) || "", kisiToplami(k) || ""]);
+    });
+    satirlar.push([]);
+    satirlar.push(["İş bazlı döküm", "", "", "", "", "", "", "", "", ""]);
+    satirlar.push(["Kişi", "Marka", "İçerik", "Kategori", "Parça", "Teslim Tarihi", "Ücretlendirme", "", "", ""]);
+    kisiler.forEach((k) => {
+      k.isler.forEach((j) => {
+        satirlar.push([k.ad, j.marka, j.icerikTuru || "", j.kategori || "", j.uretilenAdet || "", isTeslimTarihi(j) || "", ucretEtiketi(j, detayAl(j.id), ucretAl(k.ad)), "", "", ""]);
+      });
+    });
+    const csv = "\uFEFF" + satirlar.map((r) => r.map((h) => `"${String(h).replace(/"/g, '""')}"`).join(";")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `is-raporu-${ay}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const ucretKaydet = (ad) => {
+    const deger = ucretTaslak.trim() === "" ? 0 : Number(ucretTaslak);
+    if (Number.isNaN(deger) || deger < 0) { window.alert("Geçerli bir tutar gir."); return; }
+    onSaveUcret(ad, deger);
+    setUcretDuzenle(null);
+    setUcretTaslak("");
+  };
+
+  return (
+    <div>
+      {/* Ay seçici */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <button style={btnGhost} onClick={() => setAy(ayEkle(ay, -1))}><ChevronLeft size={14} /></button>
+          <div style={{ fontSize: 14, fontWeight: 700, color: C.text, minWidth: 130, textAlign: "center", textTransform: "capitalize" }}>{ayAdi(ay)}</div>
+          <button style={btnGhost} onClick={() => setAy(ayEkle(ay, 1))}><ChevronRight size={14} /></button>
+          {ay !== ayKeyi() && <button style={btnGhost} onClick={() => setAy(ayKeyi())}>Bu aya dön</button>}
+        </div>
+        {kisiler.length > 0 && <button style={btnGhost} onClick={csvIndir}><Download size={13} /> CSV indir</button>}
+      </div>
+
+      {/* Ay özeti */}
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 18 }}>
+        <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", flex: "1 1 150px" }}>
+          <div style={{ fontSize: 10.5, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>TAMAMLANAN İŞ</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: C.success, fontFamily: "monospace" }}>{oAyinIsleri.length}</div>
+        </div>
+        {genelParca > 0 && (
+          <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", flex: "1 1 150px" }}>
+            <div style={{ fontSize: 10.5, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>ÜRETİLEN PARÇA</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: C.text, fontFamily: "monospace" }}>{genelParca}</div>
+          </div>
+        )}
+        <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", flex: "1 1 150px" }}>
+          <div style={{ fontSize: 10.5, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>ÇALIŞAN KİŞİ</div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: C.text, fontFamily: "monospace" }}>{kisiler.length}</div>
+        </div>
+        {genelToplam > 0 && (
+          <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", flex: "1 1 150px" }}>
+            <div style={{ fontSize: 10.5, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>TOPLAM ÖDEME</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: C.accentText, fontFamily: "monospace" }}>{paraYaz(genelToplam)}</div>
+          </div>
+        )}
+      </div>
+
+      {/* Kişi listesi */}
+      <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px" }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 4 }}>Kim Ne Kadar İş Yaptı</div>
+        <div style={{ fontSize: 11, color: C.textFaint, marginBottom: 12, lineHeight: 1.6 }}>
+          Bir iş, "Teslim Edildi"ye geçtiği tarihe göre sayılır. Hem kameraman hem editör varsa iş ikisinin de hanesine yazılır,
+          bu yüzden kişi toplamları üstteki iş sayısından fazla olabilir. Bir kişinin adına tıklayınca yaptığı işleri görürsün.
+          Bir işin ücretini değiştirmek için (tek sabit ücret ya da ücretsiz) o işi Operasyon panosundan açıp
+          "Ücretlendirme" bölümünü kullan.
+        </div>
+
+        {kisiler.length === 0 && (
+          <div style={{ fontSize: 12.5, color: C.textFaint, lineHeight: 1.7 }}>
+            Bu ay teslim edilmiş iş yok. (Bir işin sayılabilmesi için "Teslim Edildi" aşamasına geçmiş olması gerekiyor —
+            "Onaylandı"da bekleyen {bekleyenler.length} iş var.)
+          </div>
+        )}
+
+        {kisiler.map((k) => {
+          const acik = acikKisi === k.ad;
+          const bekleyen = bekleyenSayisi(k.ad);
+          return (
+            <div key={k.ad} style={{ borderBottom: `1px solid ${C.borderSoft}`, padding: "10px 0" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <button
+                  onClick={() => setAcikKisi(acik ? null : k.ad)}
+                  style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: "inherit", textAlign: "left" }}
+                >
+                  <ChevronRight size={13} color={C.textFaint} style={{ transform: acik ? "rotate(90deg)" : "none", transition: "transform .15s" }} />
+                  <span style={{ fontSize: 13.5, fontWeight: 700, color: C.text }}>{k.ad}</span>
+                </button>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", fontSize: 12 }}>
+                  <span style={{ color: C.success, fontWeight: 700, fontFamily: "monospace", fontSize: 15 }}>{k.isler.length} iş</span>
+                  <span style={{ color: C.textDim }}>
+                    {k.video > 0 && `${k.video} video`}{k.video > 0 && k.grafik > 0 && " · "}{k.grafik > 0 && `${k.grafik} grafik`}
+                    {kisiParcaSayisi(k) > 0 && ` · ${kisiParcaSayisi(k)} parça`}
+                  </span>
+                  {kisiUcretsizSayisi(k) > 0 && <span style={{ color: C.textFaint, fontSize: 11 }}>{kisiUcretsizSayisi(k)} ücretsiz</span>}
+                  {bekleyen > 0 && <span style={{ color: C.warning, fontSize: 11 }}>+{bekleyen} teslim bekliyor</span>}
+                  {kisiToplami(k) > 0 && <span style={{ color: C.accentText, fontWeight: 700, fontFamily: "monospace" }}>{paraYaz(kisiToplami(k))}</span>}
+                </div>
+              </div>
+
+              {acik && (
+                <div style={{ paddingLeft: 19, marginTop: 8 }}>
+                  {/* İş başı ücret (isteğe bağlı) */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+                    <Wallet size={13} color={C.textFaint} />
+                    {ucretDuzenle === k.ad ? (
+                      <>
+                        <input
+                          autoFocus
+                          type="number"
+                          value={ucretTaslak}
+                          onChange={(e) => setUcretTaslak(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") ucretKaydet(k.ad); if (e.key === "Escape") setUcretDuzenle(null); }}
+                          placeholder="İş başı ücret (₺)"
+                          style={{ ...inputStyle, width: 150, marginBottom: 0 }}
+                        />
+                        <button style={btnGhost} onClick={() => ucretKaydet(k.ad)}>Kaydet</button>
+                        <button style={btnGhost} onClick={() => setUcretDuzenle(null)}>Vazgeç</button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => { setUcretDuzenle(k.ad); setUcretTaslak(String(ucretAl(k.ad) || "")); }}
+                        style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 11.5, color: C.textFaint, textDecoration: "underline", fontFamily: "inherit" }}
+                      >
+                        {ucretAl(k.ad) > 0
+                          ? `Varsayılan iş başı ${paraYaz(ucretAl(k.ad))} · ay toplamı ${paraYaz(kisiToplami(k))} · değiştir`
+                          : "Varsayılan iş başı ücret gir (isteğe bağlı — freelancer ödemesi için)"}
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Yaptığı işler */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+                    {k.isler.map((j) => (
+                      <div key={j.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 11.5, color: C.textDim, background: C.panelAlt, borderRadius: 8, padding: "7px 10px", flexWrap: "wrap" }}>
+                        <span>
+                          <strong style={{ color: C.text }}>{j.marka}</strong> · {j.icerikTuru}{j.kategori ? ` · ${j.kategori}` : ""}
+                          {Number(j.uretilenAdet) > 0 && <span style={{ color: C.textFaint }}> · {j.uretilenAdet} parça</span>}
+                        </span>
+                        <span style={{ color: C.textFaint }}>
+                          {j.kameraman === k.ad && j.editor === k.ad ? "kameraman + editör" : j.kameraman === k.ad ? "kameraman" : "editör"}
+                          {" · "}{isTeslimTarihi(j)}
+                          {" · "}
+                          <strong style={{ color: (detayAl(j.id) || {}).mod === "ucretsiz" ? C.textFaint : C.accentText }}>
+                            {ucretEtiketi(j, detayAl(j.id), ucretAl(k.ad))}
+                          </strong>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* ANA BİLEŞEN                                                           */
 /* ------------------------------------------------------------------ */
-export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, onRefreshRoster, onAddJob, onUpdateJob, onDeleteJob, girisYapanAd, markalasmaSurecleri, onToggleMarkalasmaGorev, onSetMarkalasmaYonetici, onAddMarkalasmaGorev, onCompleteMarkalasmaSureci, onDeleteMarkalasmaSureci, markaYoneticisiMi, firmaAdi }) {
+export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, onRefreshRoster, onAddJob, onUpdateJob, onDeleteJob, girisYapanAd, isUcretleri, onSaveIsUcreti, isUcretDetaylari, onSaveIsUcretDetayi, markalasmaSurecleri, onToggleMarkalasmaGorev, onSetMarkalasmaYonetici, onAddMarkalasmaGorev, onCompleteMarkalasmaSureci, onDeleteMarkalasmaSureci, markaYoneticisiMi, firmaAdi }) {
   const [staffName, setStaffNameState] = useState(girisYapanAd || getStaffName());
   const [view, setView] = useState(role === "staff" ? "panom" : "pano");
   const [panoKategori, setPanoKategori] = useState("Video");
@@ -812,6 +1217,9 @@ export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, 
           <button onClick={() => setView("pano")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "none", background: view === "pano" ? C.accentSoft : "transparent", color: view === "pano" ? C.accentText : C.textDim, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><LayoutGrid size={14} /> Tüm İşler</button>
           <button onClick={() => setView("markalasma")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "none", background: view === "markalasma" ? C.accentSoft : "transparent", color: view === "markalasma" ? C.accentText : C.textDim, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><Rocket size={14} /> Markalaşma</button>
           {role === "owner" && (
+            <button onClick={() => setView("rapor")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "none", background: view === "rapor" ? C.accentSoft : "transparent", color: view === "rapor" ? C.accentText : C.textDim, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><Wallet size={14} /> Aylık İş Raporu</button>
+          )}
+          {role === "owner" && (
             <button onClick={() => setView("istatistik")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "none", background: view === "istatistik" ? C.accentSoft : "transparent", color: view === "istatistik" ? C.accentText : C.textDim, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><BarChart3 size={14} /> İstatistikler</button>
           )}
         </div>
@@ -831,6 +1239,18 @@ export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, 
       {view === "panom" && role === "staff" && <PersonelPaneli jobs={isler} staffName={staffName} onOpen={setAcikIs} />}
 
       {view === "istatistik" && role === "owner" && <YoneticiIstatistik jobs={isler} />}
+      {/* Aylık İş Raporu SADECE yöneticiye açık: hem sekme butonu, hem bu koşul owner
+        * kontrolü yapıyor. Ayrıca iş başı ücret bilgisi sunucuda personel izin listesinde
+        * yer almadığı için personelin tarayıcısına hiç gönderilmiyor. */}
+      {view === "rapor" && role === "owner" && (
+        <AylikIsRaporu
+          jobs={isler}
+          ucretler={isUcretleri || {}}
+          onSaveUcret={onSaveIsUcreti}
+          ucretDetaylari={isUcretDetaylari || {}}
+          onSaveUcretDetayi={onSaveIsUcretDetayi}
+        />
+      )}
 
       {view === "markalasma" && (
         <MarkalasmaGorunumu
@@ -889,6 +1309,8 @@ export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, 
           kilitleyen={isKilitleyen}
           markaYoneticisiMi={markaYoneticisiMi}
           firmaAdi={firmaAdi}
+          ucretDetayi={(isUcretDetaylari || {})[acikIs.id] || null}
+          onSaveUcretDetayi={role === "owner" ? onSaveIsUcretDetayi : null}
           onDelete={(id) => { onDeleteJob(id); setAcikIs(null); }}
         />
       )}

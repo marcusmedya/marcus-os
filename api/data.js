@@ -214,7 +214,9 @@ export default async function handler(req, res) {
               yeni.cekimIsleri = yeni.cekimIsleri.map((j) => {
                 if (j.id !== icerik.kaynakIsId) return j;
                 const not = { id: (j.gecmis || []).length + 1, tarih: new Date().toLocaleString("tr-TR"), yazan: "Müşteri", aciklama: "Müşteri içeriği onayladı." };
-                return { ...j, asama: "Teslim Edildi", gecmis: [...(j.gecmis || []), not] };
+                // Aylık İş Raporu bu tarihe göre sayıyor — müşteri onayıyla teslim edilen
+                // işler de sayıma girsin diye burada da kaydediliyor.
+                return { ...j, asama: "Teslim Edildi", teslimEdilmeTarihi: new Date().toISOString().slice(0, 10), gecmis: [...(j.gecmis || []), not] };
               });
             }
           } else {

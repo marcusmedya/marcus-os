@@ -5499,6 +5499,24 @@ export default function MarcusOS() {
       .catch(() => window.alert("Bağlantı hatası — kaydedilemedi, tekrar dene."));
   };
 
+  /** Operasyon > Aylık İş Raporu'ndaki iş başı ücretler. SADECE yöneticiye ait bir veri:
+   * sunucudaki personel izin listesinde (PERMISSION_DATA_FIELDS) yer almadığı için
+   * personelin tarayıcısına hiç gönderilmiyor ve personel tarafından yazılamıyor. */
+  const setIsUcreti = (ad, tutar) => setData((d) => {
+    const mevcut = { ...(d.isUcretleri || {}) };
+    if (!tutar) delete mevcut[ad]; else mevcut[ad] = tutar;
+    return { ...d, isUcretleri: mevcut };
+  });
+
+  /** İş bazlı ücretlendirme (sabit tutar / ücretsiz). İş kayıtları personelin tarayıcısına
+   * olduğu gibi gönderildiği için, bu bilgi işin ÜZERİNDE değil ayrı bir haritada tutulur —
+   * böylece ücretler personele hiç ulaşmıyor. detay null verilirse varsayılana döner. */
+  const setIsUcretDetayi = (jobId, detay) => setData((d) => {
+    const mevcut = { ...(d.isUcretDetaylari || {}) };
+    if (!detay) delete mevcut[jobId]; else mevcut[jobId] = detay;
+    return { ...d, isUcretDetaylari: mevcut };
+  });
+
   const saveTeklif = (teklif) => setData((d) => ({ ...d, teklifler: [...(d.teklifler || []), teklif] }));
   const saveSablon = (ad, secimler) => setData((d) => ({ ...d, teklifSablonlari: [...(d.teklifSablonlari || []), { id: nextId(d.teklifSablonlari || []), ad, secimler }] }));
   const deleteSozlesmeSablonu = (id) => setData((d) => ({ ...d, sozlesmeSablonlari: (d.sozlesmeSablonlari || []).filter((s) => s.id !== id) }));
@@ -6420,7 +6438,7 @@ export default function MarcusOS() {
           {tab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} />}
           {tab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} kontrol={data.gunlukKontrol} onToggle={toggleGunlukKontrol} onYenile={veriyiYenile} role="owner" />}
           {tab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} />}
-          {tab === "cekim-edit" && <CekimEditTakibi role="owner" clients={data.clients || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={true} firmaAdi={data.firmaAdi} />}
+          {tab === "cekim-edit" && <CekimEditTakibi role="owner" clients={data.clients || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} isUcretleri={data.isUcretleri || {}} onSaveIsUcreti={setIsUcreti} isUcretDetaylari={data.isUcretDetaylari || {}} onSaveIsUcretDetayi={setIsUcretDetayi} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={true} firmaAdi={data.firmaAdi} />}
           {tab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} duzenleyenAdi="Yönetici (CEO)" />}
           {tab === "birikim" && (
             <Birikim

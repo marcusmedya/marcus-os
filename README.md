@@ -313,3 +313,76 @@ ekranda bunun sebebini açıklayan HİÇBİR şey yazmıyordu.
   klasör bağlantısı mı, tanınmayan bir bağlantı mı, yoksa paylaşım ayarı kapalı mı.
 - Aynı açıklama Video kategorisi için de eklendi (klasör/tanınmayan bağlantı durumunda).
 - Klasör bağlantıları artık dosya sanılmıyor (adres ayrıştırma düzeltildi).
+
+## Güncelleme 15: Aylık İş Raporu — Kim Kaç İş Yaptı (sadece yönetici)
+
+Operasyon sekmesine yeni bir görünüm eklendi: **"Aylık İş Raporu"**. Ay ay, hangi kişinin kaç iş
+tamamladığını gösterir — özellikle freelancer'larla ay sonu hesaplaşmak için.
+
+### Nasıl sayıyor
+- Bir iş, **"Teslim Edildi" aşamasına geçtiği tarihe** göre ilgili aya yazılır (planlanan teslim
+  tarihine göre değil — gerçekte ne zaman bittiği önemli).
+- Bir işte hem kameraman hem editör varsa, iş **ikisinin de** hanesine yazılır. Bu yüzden kişi
+  toplamlarının toplamı, üstteki benzersiz iş sayısından fazla olabilir — bu normal.
+- Kayıtlı personel olmayan (Operasyon'da isim olarak elle yazılan) **freelancer'lar da otomatik
+  listeye girer** — ayrıca tanımlamana gerek yok.
+
+### Neler görünüyor
+- Ay seçici (ileri/geri), ay özeti: tamamlanan iş, çalışan kişi, toplam ödeme
+- Kişi başına: toplam iş, Video / Grafik Tasarım kırılımı, kameraman mı editör mü olarak yaptığı
+- Bir kişiye tıklayınca **yaptığı işlerin tam listesi** (marka, içerik türü, rol, teslim tarihi)
+- **"Onaylandı"da bekleyen** işler ayrıca gösterilir — kişi çalışmış ama iş henüz teslim
+  edilmemişse "sayılmadı" izlenimi oluşmasın diye
+- **İş başı ücret (isteğe bağlı)**: bir kişiye iş başı ücret girersen aylık toplam ödemesi
+  otomatik hesaplanır. Boş bırakırsan sadece adet sayılır.
+- **CSV indir** — ay sonu ödemeleri için tabloyu Excel'de açabilirsin
+
+### Gerçek tamamlanma tarihi artık kaydediliyor
+Eskiden bir işin ne zaman teslim edildiği **hiçbir yerde alan olarak tutulmuyordu** — sadece işlem
+geçmişindeki metnin ("Aşama değişti: ... → Teslim Edildi") içinden ayrıştırılabiliyordu. Artık
+teslim anında gerçek tarih ayrı bir alana yazılıyor. İş geri alınırsa tarih temizleniyor, yani
+rapor yanlış saymıyor. **Bu güncellemeden önce teslim edilmiş işler de sayılıyor** — onların
+tarihi işlem geçmişinden geri kazanılıyor, yani geçmiş aylara da bakabilirsin.
+Müşteri panelinden onaylanarak teslim edilen işler de sayıma dahil.
+
+### Sadece yönetici görür
+Bu görünüm personel panelinde **hiç görünmüyor** (sekme butonu ve içerik, ikisi de yönetici
+kontrolünden geçiyor). Ayrıca iş başı ücret bilgisi sunucudaki personel izin listesinde yer
+almadığı için **personelin tarayıcısına hiç gönderilmiyor** ve personel tarafından yazılamıyor.
+
+## Güncelleme 16: Esnek Ücretlendirme — Toplu İşler ve Ücretsiz İşler
+
+"10 tasarım yapacak ama tek ücret alınacak" ya da "öne çıkan ikonları yapacak ama ücret
+almayacak" gibi durumlar, "kişi ücreti × iş sayısı" mantığıyla doğru hesaplanamıyordu.
+Artık her işin ücreti ayrı ayrı belirlenebiliyor.
+
+### Üç ücret modu
+Bir işi Operasyon panosundan aç → **"Ücretlendirme"** bölümü (sadece yönetici görür):
+
+| Mod | Ne yapar | Örnek |
+|---|---|---|
+| **Varsayılan** | Kişinin iş başı ücreti kullanılır | Normal tek iş |
+| **Bu işe tek sabit ücret** | İş kaç parça içerirse içersin, tek tutar sayılır | 10 tasarım → tek ücret |
+| **Ücretsiz (pakete dahil)** | İş raporda görünür ve sayılır, ödemeye 0 ₺ yazılır | Öne çıkan ikonları |
+
+İşte hem kameraman hem editör varsa, sabit ücretin **kime yazılacağını** seçebiliyorsun
+(editöre / kameramana / ikisine ayrı ayrı) — böylece tek bir ücret yanlışlıkla iki kez sayılmaz.
+
+### "Kaç Parça?" alanı
+İş formuna sayısal bir **"Kaç Parça?"** alanı eklendi (mevcut serbest metin "İstenen Adet"
+alanından ayrı). Böylece iş sayısıyla üretim adedini ayrı ayrı takip edebiliyorsun:
+*"bu ay 12 iş kaleminde 47 tasarım üretildi"* gibi. Rapor bunu hem ay özetinde hem kişi
+bazında topluyor.
+
+### Rapordaki değişiklikler
+- Ay özetine **"Üretilen Parça"** kutusu eklendi
+- Kişi satırında parça sayısı ve **kaç ücretsiz iş** yaptığı görünüyor
+- İş listesinde her işin yanında ücretlendirmesi yazıyor ("Ücretsiz", "3.000 ₺ sabit", vb.)
+- CSV'ye üretilen parça, ücretsiz iş sayısı ve ayrıca **iş bazlı detaylı döküm** eklendi
+
+### Gizlilik
+İş bazlı ücretler, işin kendi kaydında **değil**, ayrı ve yöneticiye özel bir alanda
+(`isUcretDetaylari`) tutuluyor. Sebebi: iş kayıtları personelin tarayıcısına olduğu gibi
+gönderiliyor — ücretler oraya konsaydı personel hepsini görebilirdi. Bu alan sunucudaki
+personel izin listesinde yer almadığı için personele hiç ulaşmıyor ve personel tarafından
+yazılamıyor.
