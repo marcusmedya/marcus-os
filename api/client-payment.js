@@ -1,13 +1,6 @@
 import { kv } from "@vercel/kv";
-const bugunISO = () => {
-  const parcalar = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
-  const y = parcalar.find((p) => p.type === "year").value;
-  const m = parcalar.find((p) => p.type === "month").value;
-  const g = parcalar.find((p) => p.type === "day").value;
-  return `${y}-${m}-${g}`;
-};
+import { KEY, guvenliGuncelle } from "../lib/kv-yaz.js";
 
-const KEY = "marcus-os-data";
 const nid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 /** Owner her zaman yetkili. Personel ise "odemeTakvimi" iznine (ya da onunla örtüşen finans/müşteri
@@ -44,37 +37,34 @@ export default async function handler(req, res) {
   try {
     const { action, clientId, kayit, kayitId, odemeGunu } = req.body || {};
     if (!clientId) return res.status(400).json({ error: "clientId gerekli." });
+    if (action === "addKaydi" && (!kayit || !kayit.tutar)) return res.status(400).json({ error: "Geçerli bir ödeme kaydı gerekli." });
+    if (action === "deleteKaydi" && !kayitId) return res.status(400).json({ error: "kayitId gerekli." });
 
-    const data = (await kv.get(KEY)) || {};
-    const clients = data.clients || [];
-    const idx = clients.findIndex((c) => c.id === clientId);
-    if (idx === -1) return res.status(404).json({ error: "Müşteri bulunamadı — sayfayı yenileyip tekrar dene." });
+    // Kilit altında, en güncel veri okunarak yapılır ve versiyon sayacını artırır —
+    // böylece bu ödeme kaydı, açık duran başka bir sekme tarafından ezilemez.
+    const sonuc = await guvenliGuncelle(async (data) => {
+      const clients = data.clients || [];
+      const idx = clients.findIndex((c) => c.id === clientId);
+      if (idx === -1) return { iptal: true, kod: 404, hata: "Müşteri bulunamadı — sayfayı yenileyip tekrar dene." };
 
-    const client = { ...clients[idx] };
+      const client = { ...clients[idx] };
+      if (action === "addKaydi") {
+        client.odemeKayitlari = [...(client.odemeKayitlari || []), { ...kayit, id: nid() }];
+      } else if (action === "deleteKaydi") {
+        client.odemeKayitlari = (client.odemeKayitlari || []).filter((k) => k.id !== kayitId);
+      } else if (action === "setOdemeGunu") {
+        client.odemeGunu = odemeGunu || null;
+      } else {
+        return { iptal: true, kod: 400, hata: "Geçersiz işlem." };
+      }
 
-    if (action === "addKaydi") {
-      if (!kayit || !kayit.tutar) return res.status(400).json({ error: "Geçerli bir ödeme kaydı gerekli." });
-      const yeniKayit = { ...kayit, id: nid() };
-      client.odemeKayitlari = [...(client.odemeKayitlari || []), yeniKayit];
-    } else if (action === "deleteKaydi") {
-      if (!kayitId) return res.status(400).json({ error: "kayitId gerekli." });
-      client.odemeKayitlari = (client.odemeKayitlari || []).filter((k) => k.id !== kayitId);
-    } else if (action === "setOdemeGunu") {
-      client.odemeGunu = odemeGunu || null;
-    } else {
-      return res.status(400).json({ error: "Geçersiz işlem." });
-    }
+      const yeniClients = [...clients];
+      yeniClients[idx] = client;
+      return { veri: { ...data, clients: yeniClients }, ek: { client } };
+    });
 
-    const yeniClients = [...clients];
-    yeniClients[idx] = client;
-    const yeniData = { ...data, clients: yeniClients };
-    await kv.set(KEY, yeniData);
-
-    // Günlük yedeği de güncel tut ki bu değişiklik de yedeklensin.
-    const today = bugunISO();
-    await kv.set(`marcus-os-snapshot-${today}`, yeniData);
-
-    return res.status(200).json({ ok: true, client });
+    if (!sonuc.ok) return res.status(sonuc.kod || 400).json({ error: sonuc.hata || "İşlem yapılamadı." });
+    return res.status(200).json({ ok: true, client: sonuc.ek.client, _v: sonuc.veri._v });
   } catch (e) {
     return res.status(500).json({ error: "Sunucu hatası: " + e.message });
   }

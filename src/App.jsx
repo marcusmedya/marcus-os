@@ -11,7 +11,8 @@ import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
   Tooltip, ResponsiveContainer, CartesianGrid
 } from "recharts";
-import { DEFAULT_DATA } from "./data.js";
+import { DEFAULT_DATA, BOS_DATA } from "./data.js";
+import { gorseliKucult, base64Bayt, boyutYazisi } from "./gorselKucult.js";
 
 /* ------------------------------------------------------------------ */
 /* DESIGN TOKENS                                                       */
@@ -985,11 +986,10 @@ const COST_FIELDS = [
 /** Base64'e çevrilebilecek makul boyutta bir görsel — çok büyük dosyalarda tarayıcıyı ve
  * veritabanını zorlamamak için basit bir boyut uyarısı (2MB üstü) veriliyor. */
 function gorseliBase64eCevir(file, onDone, onHata) {
-  if (file.size > 2 * 1024 * 1024) { onHata("Görsel 2MB'tan büyük — daha küçük bir dosya seçmen gerekiyor."); return; }
-  const reader = new FileReader();
-  reader.onload = () => onDone(reader.result);
-  reader.onerror = () => onHata("Dosya okunamadı.");
-  reader.readAsDataURL(file);
+  // Artık boyut sınırı yok — görsel tarayıcıda otomatik küçültülüp sıkıştırılıyor.
+  // Telefondan çekilmiş 5 MB'lık bir fotoğraf da sorunsuz yükleniyor, veritabanına
+  // birkaç yüz KB olarak gidiyor.
+  gorseliKucult(file).then(onDone).catch((e) => onHata(e.message || "Görsel işlenemedi."));
 }
 
 const MUSTERI_DURUM_ETIKET = {
@@ -3159,43 +3159,52 @@ function EmailYedekTest({ endpoint = "/api/daily-backup" }) {
 }
 
 function YedekGecmisi() {
-  const [dates, setDates] = useState(null);
+  const [liste, setListe] = useState(null);
   const [restoring, setRestoring] = useState(null);
   const [indiriliyor, setIndiriliyor] = useState(null);
+  const [gorunum, setGorunum] = useState("gunluk"); // "gunluk" | "saatlik" | "geriAlma"
 
-  useEffect(() => {
+  const listeyiCek = () => {
     fetch("/api/backup", { headers: { "X-Site-Password": getPw() } })
       .then((r) => r.json())
-      .then((res) => setDates(res.dates || []))
-      .catch(() => setDates([]));
-  }, []);
+      .then((res) => setListe({ dates: res.dates || [], saatlikler: res.saatlikler || [], geriAlmalar: res.geriAlmalar || [] }))
+      .catch(() => setListe({ dates: [], saatlikler: [], geriAlmalar: [] }));
+  };
+  useEffect(listeyiCek, []);
 
-  const restore = (date) => {
-    if (!window.confirm(`${date} tarihindeki hale geri dönülsün mü? O tarihten sonra yaptığın değişiklikler kaybolur.`)) return;
-    setRestoring(date);
-    fetch("/api/backup", { method: "POST", headers: { "Content-Type": "application/json", "X-Site-Password": getPw() }, body: JSON.stringify({ date }) })
+  /** Geri yüklemeden ÖNCE o yedeğin içinde ne olduğunu gösterir. Yanlış tarihe dönmenin
+   * en yaygın sebebi, içeriğini görmeden karar vermekti. */
+  const restore = (anahtar, etiket) => {
+    fetch(`/api/backup?key=${encodeURIComponent(anahtar)}&ozet=1`, { headers: { "X-Site-Password": getPw() } })
       .then((r) => r.json())
       .then((res) => {
-        if (res.ok) { window.alert("Geri yüklendi. Sayfa yenileniyor…"); window.location.reload(); }
-        else { window.alert(res.error || "Geri yükleme başarısız."); setRestoring(null); }
+        const o = res.ozet;
+        const ozetMetni = o
+          ? `Bu yedeğin içinde:\n  • ${o.musteri} müşteri\n  • ${o.personel} personel\n  • ${o.cekimIsleri} operasyon işi\n  • ${o.uyelikler} üyelik\n\n`
+          : "";
+        if (!window.confirm(`${etiket} yedeğine dönülecek.\n\n${ozetMetni}Şu anki verinin tam bir kopyası otomatik olarak saklanacak — yanlış olursa "Geri Yükleme Öncesi" sekmesinden geri dönebilirsin.\n\nDevam edilsin mi?`)) return;
+        setRestoring(anahtar);
+        return fetch("/api/backup", { method: "POST", headers: { "Content-Type": "application/json", "X-Site-Password": getPw() }, body: JSON.stringify({ key: anahtar }) })
+          .then((r) => r.json())
+          .then((res2) => {
+            if (res2.ok) { window.alert("Geri yüklendi. Sayfa yenileniyor…"); window.location.reload(); }
+            else { window.alert(res2.error || "Geri yükleme başarısız."); setRestoring(null); }
+          });
       })
       .catch(() => { window.alert("Bağlantı hatası."); setRestoring(null); });
   };
 
-  // Bu tarihin yedeğini gerçek bir dosya olarak indirir — tarayıcının kendi "Farklı Kaydet"
-  // davranışına göre nereye kaydedeceğini kendin seçebilirsin (Chrome/Edge'de "indirmeden önce
-  // sor" ayarı açıksa doğrudan bir konum seçme penceresi çıkar).
-  const indir = (date) => {
-    setIndiriliyor(date);
-    fetch(`/api/backup?date=${encodeURIComponent(date)}`, { headers: { "X-Site-Password": getPw() } })
+  const indir = (anahtar, etiket) => {
+    setIndiriliyor(anahtar);
+    fetch(`/api/backup?key=${encodeURIComponent(anahtar)}`, { headers: { "X-Site-Password": getPw() } })
       .then((r) => r.json())
       .then((res) => {
-        if (!res.data) { window.alert(res.error || "Bu tarihin yedeği bulunamadı."); return; }
+        if (!res.data) { window.alert(res.error || "Bu yedek bulunamadı."); return; }
         const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `marcus-os-yedek-${date}.json`;
+        a.download = `marcus-os-yedek-${etiket.replace(/[^0-9A-Za-z-]/g, "_")}.json`;
         a.click();
         URL.revokeObjectURL(url);
       })
@@ -3205,26 +3214,74 @@ function YedekGecmisi() {
 
   const okunakliTarih = (d) => {
     const parcalar = d.split("-");
-    if (parcalar.length !== 3) return d;
+    if (parcalar.length < 3) return d;
     const [y, m, day] = parcalar;
     const tarih = new Date(Number(y), Number(m) - 1, Number(day));
+    if (Number.isNaN(tarih.getTime())) return d;
     return tarih.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
   };
+  const okunakliSaat = (s2) => {
+    const p2 = s2.split("-");
+    if (p2.length < 4) return s2;
+    return `${okunakliTarih(p2.slice(0, 3).join("-"))} — saat ${p2[3]}:00`;
+  };
+  const okunakliGeriAlma = (s2) => {
+    // 2026-08-11T14-32-05 biçimindeki etiketi okunur hale getirir.
+    const duz = s2.replace("T", " ").replace(/-(\d{2})-(\d{2})$/, ":$1:$2");
+    return duz;
+  };
 
-  if (dates === null) return <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Yükleniyor…</div>;
-  if (dates.length === 0) return <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Henüz otomatik yedek oluşmadı — ilk kayıttan itibaren her gün otomatik birikmeye başlayacak.</div>;
+  if (liste === null) return <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Yükleniyor…</div>;
+
+  const sekmeler = [
+    { key: "gunluk", label: `Günlük (${liste.dates.length})` },
+    { key: "saatlik", label: `Saatlik (${liste.saatlikler.length})` },
+    { key: "geriAlma", label: `Geri Yükleme Öncesi (${liste.geriAlmalar.length})` },
+  ];
+
+  let kayitlar = [];
+  if (gorunum === "gunluk") kayitlar = liste.dates.slice(0, 30).map((d) => ({ anahtar: `marcus-os-snapshot-${d}`, etiket: okunakliTarih(d) }));
+  else if (gorunum === "saatlik") kayitlar = liste.saatlikler.map((h) => ({ anahtar: `marcus-os-saatlik-${h}`, etiket: okunakliSaat(h) }));
+  else kayitlar = liste.geriAlmalar.map((g) => ({ anahtar: `marcus-os-geri-alma-${g}`, etiket: okunakliGeriAlma(g) }));
+
+  const aciklama = {
+    gunluk: "Her günün SON hâli. 30 gün saklanır.",
+    saatlik: "Son 48 saatin her saati. Gün içinde bir şey ters giderse buradan saat saat geri dönebilirsin.",
+    geriAlma: "Bir geri yükleme yapmadan HEMEN ÖNCEKİ hâller. Yanlış tarihe döndüysen buradan eski durumuna dönebilirsin. 30 gün saklanır.",
+  }[gorunum];
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 320, overflowY: "auto" }}>
-      {dates.slice(0, 30).map((d) => (
-        <div key={d} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: T.surfaceRaised, borderRadius: 9, flexWrap: "wrap", gap: 8 }}>
-          <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter" }}>{okunakliTarih(d)}</span>
-          <div style={{ display: "flex", gap: 6 }}>
-            <button style={cancelBtnStyle} disabled={indiriliyor === d} onClick={() => indir(d)}>{indiriliyor === d ? "İndiriliyor…" : "İndir (JSON)"}</button>
-            <button style={cancelBtnStyle} disabled={restoring === d} onClick={() => restore(d)}>{restoring === d ? "Geri yükleniyor…" : "Bu tarihe dön"}</button>
-          </div>
+    <div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+        {sekmeler.map((sk) => (
+          <button
+            key={sk.key}
+            onClick={() => setGorunum(sk.key)}
+            style={{ padding: "6px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 12,
+              background: gorunum === sk.key ? T.accentSoft : T.surfaceRaised, color: gorunum === sk.key ? T.accentText : T.textDim, fontWeight: 600 }}
+          >
+            {sk.label}
+          </button>
+        ))}
+      </div>
+      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 10, lineHeight: 1.6 }}>{aciklama}</div>
+      {kayitlar.length === 0 ? (
+        <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>
+          {gorunum === "geriAlma" ? "Henüz hiç geri yükleme yapılmadı — bu iyi bir şey." : "Henüz yedek oluşmadı; ilk kayıttan itibaren otomatik birikmeye başlar."}
         </div>
-      ))}
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 320, overflowY: "auto" }}>
+          {kayitlar.map((k) => (
+            <div key={k.anahtar} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: T.surfaceRaised, borderRadius: 9, flexWrap: "wrap", gap: 8 }}>
+              <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter" }}>{k.etiket}</span>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button style={cancelBtnStyle} disabled={indiriliyor === k.anahtar} onClick={() => indir(k.anahtar, k.etiket)}>{indiriliyor === k.anahtar ? "İndiriliyor…" : "İndir (JSON)"}</button>
+                <button style={cancelBtnStyle} disabled={restoring === k.anahtar} onClick={() => restore(k.anahtar, k.etiket)}>{restoring === k.anahtar ? "Geri yükleniyor…" : "Bu hâle dön"}</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -4020,6 +4077,52 @@ function IslemGecmisiKarti({ kayitlar }) {
   );
 }
 
+/** Verinin toplam boyutunu gösterir. Görseller base64 olarak tek bir blok içinde
+ * saklandığı için, boyut Vercel'in ~4.5 MB istek sınırına yaklaşırsa KAYITLAR TAMAMEN
+ * DURUR. Bu kart o sınırı görünür kılar — sessiz bir çökmeye dönüşmeden önce uyarır. */
+function VeriBoyutuKarti() {
+  const [bilgi, setBilgi] = useState(null);
+  useEffect(() => {
+    fetch("/api/data", { headers: authHeaders() })
+      .then((r) => r.json())
+      .then((res) => {
+        if (!res.data) return;
+        const metin = JSON.stringify(res.data);
+        const toplam = metin.length;
+        let gorselToplam = 0;
+        const gorselAra = (o) => {
+          if (typeof o === "string") { if (o.startsWith("data:image")) gorselToplam += base64Bayt(o); return; }
+          if (Array.isArray(o)) { o.forEach(gorselAra); return; }
+          if (o && typeof o === "object") { Object.values(o).forEach(gorselAra); }
+        };
+        gorselAra(res.data);
+        setBilgi({ toplam, gorselToplam });
+      })
+      .catch(() => {});
+  }, []);
+  if (!bilgi) return null;
+  const SINIR = 4.5 * 1024 * 1024;
+  const oran = Math.min(100, (bilgi.toplam / SINIR) * 100);
+  const uyari = oran > 60;
+  return (
+    <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+      <SectionTitle>Veri Boyutu</SectionTitle>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontFamily: "Inter", color: T.textDim, marginBottom: 8 }}>
+        <span>Toplam: <strong style={{ color: uyari ? T.warning : T.text }}>{boyutYazisi(bilgi.toplam)}</strong></span>
+        <span>Bunun {boyutYazisi(bilgi.gorselToplam)} kadarı görsel</span>
+      </div>
+      <div style={{ height: 8, borderRadius: 999, background: T.surfaceRaised, overflow: "hidden", marginBottom: 10 }}>
+        <div style={{ width: `${oran}%`, height: "100%", background: uyari ? T.warning : T.success, borderRadius: 999 }} />
+      </div>
+      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12.5, color: T.textFaint, lineHeight: 1.7, margin: 0 }}>
+        {uyari
+          ? "⚠ Veri boyutu sınıra yaklaşıyor. Sunucu tek bir istekte en fazla ~4.5 MB kabul eder; bu aşılırsa kayıtlar tamamen durur. Müşteri detaylarındaki eski içerik görsellerini silerek yer açabilirsin."
+          : "Yüklediğin görseller otomatik olarak küçültülüp sıkıştırılıyor. Sınır ~4.5 MB — şu an rahat bir seviyedesin."}
+      </p>
+    </Card>
+  );
+}
+
 function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu, onSaveTeblig, staffPermissions, onUpdatePermissions, markaKimligiGorseli, onSaveMarkaKimligi, onRosterChange, clients, gizlilikModu, onToggleGizlilik, islemGecmisi }) {
   const fileInputRef = useRef(null);
   const rows = [
@@ -4070,14 +4173,17 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
       </Card>
 
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
-        <SectionTitle>Otomatik Günlük Yedekler</SectionTitle>
+        <SectionTitle>Otomatik Yedekler</SectionTitle>
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
-          Her kayıt işleminde (senin ya da personelin yaptığı — hepsi dahil) o günün son hali otomatik olarak sunucuda saklanır (son 30 gün).
-          Her tarihin yanındaki <strong>"İndir (JSON)"</strong> ile o günün yedeğini bilgisayarına indirip istediğin yere
-          (Drive, harici disk vb.) taşıyabilirsin. Bir şey ters giderse <strong>"Bu tarihe dön"</strong> ile doğrudan o tarihe geri dönebilirsin.
+          Her kayıt işleminde (senin ya da personelin yaptığı — hepsi dahil) veri otomatik olarak yedeklenir:
+          <strong> günlük</strong> (son 30 gün) ve <strong>saatlik</strong> (son 48 saat). Saatlik yedekler sayesinde gün içinde
+          bir şey ters giderse günün başına dönmek zorunda kalmazsın. Bir geri yükleme yaptığında, o andaki verinin tam bir kopyası
+          otomatik olarak <strong>"Geri Yükleme Öncesi"</strong> sekmesine kaydedilir — yanlış yedeğe dönsen bile geri alabilirsin.
         </p>
         <YedekGecmisi />
       </Card>
+
+      <VeriBoyutuKarti />
 
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Tam Yedek</SectionTitle>
@@ -4515,9 +4621,11 @@ function MarkaKimligiYukleyici({ value, onChange }) {
   const dosyaSec = (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => onChange(reader.result);
-    reader.readAsDataURL(file);
+    // Logo olduğu için şeffaflık korunur; yine de küçültülüp sıkıştırılır ki
+    // veri bloğunu şişirmesin.
+    gorseliKucult(file, { maxKenar: 800, seffafKoru: true, hedefBayt: 250 * 1024 })
+      .then(onChange)
+      .catch((err) => window.alert(err.message || "Görsel yüklenemedi."));
   };
   return (
     <div>
@@ -5004,9 +5112,26 @@ export default function MarcusOS() {
   // dönüldüğünde yanlışlıkla eski/yarım bir formun kaydedilmesi riskini azaltmak.
   useEffect(() => {
     let zamanlayici = null;
+    // Doldurulmuş ama henüz kaydedilmemiş bir form açıksa yönlendirme yapılmaz —
+    // eskiden 60 saniyede yarım kalan bir form uyarısız siliniyordu. Arama kutusu
+    // bu kontrolün dışında tutulur (o bir form değil).
+    const yarimFormVarMi = () => {
+      try {
+        const alanlar = document.querySelectorAll("input:not([data-marcus-arama]), textarea");
+        for (const alan of alanlar) {
+          if (alan.type === "file" || alan.type === "checkbox" || alan.type === "radio") continue;
+          if (alan.value && String(alan.value).trim() !== "") return true;
+        }
+      } catch (e) { return true; } // emin olamıyorsak yönlendirme YAPMA (güvenli taraf)
+      return false;
+    };
     const sifirla = () => {
       if (zamanlayici) clearTimeout(zamanlayici);
-      zamanlayici = setTimeout(() => setTab("dashboard"), 60000);
+      zamanlayici = setTimeout(() => {
+        if (yarimFormVarMi()) { sifirla(); return; }
+        if (saveTimer.current || saveStatusRef.current === "saving") { sifirla(); return; }
+        setTab("dashboard");
+      }, 180000);
     };
     const olaylar = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"];
     olaylar.forEach((olay) => window.addEventListener(olay, sifirla, { passive: true }));
@@ -5235,6 +5360,20 @@ export default function MarcusOS() {
     // eslint-disable-next-line
   }, [data]);
 
+  // KAYDEDİLMEMİŞ DEĞİŞİKLİK KORUMASI: kayıt 500ms gecikmeli gönderiliyor ve gönderim
+  // birkaç yüz milisaniye sürüyor. Tam o aralıkta sekme kapatılırsa değişiklik sessizce
+  // kayboluyordu. Artık tarayıcı "bu sayfadan ayrılmak istediğine emin misin?" diye sorar.
+  useEffect(() => {
+    const uyar = (e) => {
+      if (!saveTimer.current && saveStatusRef.current !== "saving") return;
+      e.preventDefault();
+      e.returnValue = "";
+      return "";
+    };
+    window.addEventListener("beforeunload", uyar);
+    return () => window.removeEventListener("beforeunload", uyar);
+  }, []);
+
   const openAi = (q) => { setAiQuestion(q || null); setAiOpen(true); };
 
   const openTeblig = (client, months, toplam) => {
@@ -5294,9 +5433,12 @@ export default function MarcusOS() {
     setData((d) => ({ ...d, clients: d.clients.filter((c) => c.id !== id) }));
     // Silinen markaya bağlı Müşteri Paneli giriş hesabı varsa, o da otomatik kapatılır —
     // aksi halde silinen bir müşterinin giriş bilgisi hâlâ geçerli kalırdı.
+    // Not: bu uç nokta sadece yöneticide çalışır. Personel bir müşteri silerse burada
+    // bir şey olmaz — ama sunucudaki ortak yazma katmanı her kayıtta yetim müşteri
+    // hesaplarını zaten otomatik temizliyor, yani hesap yine de kapanır.
     fetch("/api/manage-staff", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Site-Password": getPw() },
+      headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ hesapTuru: "musteri", action: "silByClientId", clientId: id }),
     }).catch(() => {}); // sessizce geç — asıl müşteri silme işlemi zaten tamamlandı
   };
@@ -5862,20 +6004,33 @@ export default function MarcusOS() {
           <div style={{ color: T.warning, fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 600, marginBottom: 10 }}>Veritabanında hiçbir kayıt bulunamadı</div>
           <div style={{ color: T.textDim, fontFamily: "Inter, sans-serif", fontSize: 13, lineHeight: 1.7, marginBottom: 18 }}>
             Bunun iki sebebi olabilir: (1) bu gerçekten ilk kurulumun, ya da (2) beklenmedik bir sorun. Emin olana kadar hiçbir şey otomatik yazılmadı.
-            Daha önce veri girdiysen, "Örnek Verilerle Başla"ya BASMA — önce Ayarlar'daki günlük yedekleri kontrol et.
+            <strong style={{ color: T.warning }}> Daha önce veri girdiysen aşağıdaki başlatma butonlarına BASMA</strong> — önce "Tekrar Dene"yi,
+            sonra Ayarlar'daki günlük/saatlik yedekleri kontrol et.
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <button style={cancelBtnStyle} onClick={() => loadData(false)}>Tekrar Dene (bir şey değiştirmeden)</button>
             <button
               style={saveBtnStyle}
               onClick={() => {
+                if (!window.confirm("Boş bir sistemle başlanacak. Daha önce veri girdiysen bu işlem yanlış olur — emin misin?")) return;
+                skipNextSave.current = false;
+                setData(BOS_DATA);
+                setNeedsSeedConfirm(false);
+              }}
+            >
+              Evet, ilk kurulum — Boş Başlat
+            </button>
+            <button
+              style={{ ...cancelBtnStyle, fontSize: 12, opacity: 0.75 }}
+              onClick={() => {
+                if (!window.confirm("Bu, SAHTE örnek müşteriler ve sahte finans rakamları oluşturur. Sadece uygulamayı denemek için kullan. Devam edilsin mi?")) return;
                 skipNextSave.current = false;
                 setData(DEFAULT_DATA);
                 setNeedsSeedConfirm(false);
               }}
             >
-              Evet, ilk kurulum — Örnek Verilerle Başla
+              Sadece denemek için: örnek (sahte) verilerle başlat
             </button>
-            <button style={cancelBtnStyle} onClick={() => loadData(false)}>Tekrar Dene (bir şey değiştirmeden)</button>
           </div>
         </div>
       </div>
@@ -6145,6 +6300,7 @@ export default function MarcusOS() {
                 <Search size={14} color={T.textFaint} />
                 <input
                   value={search}
+                  data-marcus-arama="1"
                   onChange={(e) => { setSearch(e.target.value); setSearchOpen(true); }}
                   onFocus={() => setSearchOpen(true)}
                   onBlur={() => setTimeout(() => setSearchOpen(false), 150)}

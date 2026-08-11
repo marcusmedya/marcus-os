@@ -4,6 +4,7 @@ import {
   Sun, Moon, ChevronDown, Trash2, Building2, ImagePlus, BookmarkPlus,
 } from "lucide-react";
 import { HIZMET_KATALOGU, KATEGORI_SIRASI, SOZLESME_SURELERI, hizmetBul } from "./teklifKatalog.js";
+import { gorseliKucult } from "./gorselKucult.js";
 
 /* ------------------------------------------------------------------ */
 /* Bu modül, geri kalan uygulamadan bağımsız kendi (açık/koyu) tasarım  */
@@ -222,9 +223,11 @@ function LogoYukleyici({ C, label, value, onChange }) {
   const dosyaSec = (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => onChange(reader.result);
-    reader.readAsDataURL(file);
+    // Logo şeffaflığı korunarak küçültülür. Sıkıştırılmadan saklandığında, birkaç teklif
+    // logosu bile veri bloğunu megabaytlarca şişirip kayıtları durdurabiliyordu.
+    gorseliKucult(file, { maxKenar: 800, seffafKoru: true, hedefBayt: 250 * 1024 })
+      .then(onChange)
+      .catch((err) => window.alert(err.message || "Logo yüklenemedi."));
   };
   return (
     <div style={{ flex: 1 }}>

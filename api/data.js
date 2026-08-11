@@ -1,16 +1,6 @@
 import { kv } from "@vercel/kv";
 import crypto from "crypto";
-
-const KEY = "marcus-os-data";
-/** Sunucu UTC saat diliminde çalışır — gece yarısı ile saat 03:00 arası (Türkiye UTC+3)
- * yedek anahtarının bir gün geriden etiketlenmesini önler. */
-const bugunISO = () => {
-  const parcalar = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
-  const y = parcalar.find((p) => p.type === "year").value;
-  const m = parcalar.find((p) => p.type === "month").value;
-  const g = parcalar.find((p) => p.type === "day").value;
-  return `${y}-${m}-${g}`;
-};
+import { KEY, guvenliGuncelle, kilitAl, kilitBirak, guvenliYaz } from "../lib/kv-yaz.js";
 
 /** Bir kayıt (eski veri, yeni veri) arasındaki ÖNEMLİ değişiklikleri (müşteri/personel/üyelik
  * ekleme-silme, müşteri durum değişikliği) otomatik tespit edip okunabilir işlem geçmişi
@@ -200,38 +190,49 @@ export default async function handler(req, res) {
 
       if (req.method === "POST") {
         const { musteriAction, icerikId, revizeNotu } = req.body || {};
-        const icerik = (data.musteriIcerikleri || []).find((i) => i.id === icerikId && String(i.clientId) === String(musteriClientId));
-        if (!icerik) return res.status(404).json({ error: "İçerik bulunamadı." });
-
-        if (musteriAction === "onayla") {
-          data.musteriIcerikleri = data.musteriIcerikleri.map((i) => (i.id === icerikId ? { ...i, durum: "onaylandi", revizeNotu: null, yanitTarihi: new Date().toLocaleDateString("tr-TR") } : i));
-          // Bağlı bir Operasyon işi varsa (Kontrol Bekliyor'dan otomatik düşmüşse), müşteri
-          // onaylayınca o iş de "Teslim Edildi" olarak işaretlenir — döngü kapanır.
-          if (icerik.kaynakIsId && data.cekimIsleri) {
-            data.cekimIsleri = data.cekimIsleri.map((j) => {
-              if (j.id !== icerik.kaynakIsId) return j;
-              const not = { id: (j.gecmis || []).length + 1, tarih: new Date().toLocaleString("tr-TR"), yazan: "Müşteri", aciklama: "Müşteri içeriği onayladı." };
-              return { ...j, asama: "Teslim Edildi", gecmis: [...(j.gecmis || []), not] };
-            });
-          }
-        } else if (musteriAction === "revizeIste") {
-          if (!revizeNotu || !revizeNotu.trim()) return res.status(400).json({ error: "Revize notu boş olamaz." });
-          data.musteriIcerikleri = data.musteriIcerikleri.map((i) => (i.id === icerikId ? { ...i, durum: "revize", revizeNotu: revizeNotu.trim(), yanitTarihi: new Date().toLocaleDateString("tr-TR") } : i));
-          // Bağlı bir Operasyon işi varsa, otomatik olarak "Revize İstendi" aşamasına döner ve
-          // müşterinin notu işin geçmişine düşer — ekip ekstra bir yere bakmadan görsün.
-          if (icerik.kaynakIsId && data.cekimIsleri) {
-            data.cekimIsleri = data.cekimIsleri.map((j) => {
-              if (j.id !== icerik.kaynakIsId) return j;
-              const not = { id: (j.gecmis || []).length + 1, tarih: new Date().toLocaleString("tr-TR"), yazan: "Müşteri", aciklama: `Müşteri revize istedi: "${revizeNotu.trim()}"` };
-              return { ...j, asama: "Revize İstendi", gecmis: [...(j.gecmis || []), not] };
-            });
-          }
-        } else {
+        if (musteriAction !== "onayla" && musteriAction !== "revizeIste") {
           return res.status(400).json({ error: "Geçersiz işlem." });
         }
-        await kv.set(KEY, data);
-        const bugunYedek = bugunISO();
-        await kv.set(`marcus-os-snapshot-${bugunYedek}`, data);
+        if (musteriAction === "revizeIste" && (!revizeNotu || !revizeNotu.trim())) {
+          return res.status(400).json({ error: "Revize notu boş olamaz." });
+        }
+
+        // Kilit altında, EN GÜNCEL veri üzerinde çalışılır — eskiden yukarıda okunan
+        // (bu noktada bayatlamış olabilecek) kopya yazıldığı için, arada ekibin yaptığı
+        // değişiklikler silinebiliyordu.
+        const sonuc = await guvenliGuncelle(async (guncel) => {
+          const liste = guncel.musteriIcerikleri || [];
+          const icerik = liste.find((i) => i.id === icerikId && String(i.clientId) === String(musteriClientId));
+          if (!icerik) return { iptal: true, hata: "İçerik bulunamadı.", kod: 404 };
+
+          const yeni = { ...guncel };
+          if (musteriAction === "onayla") {
+            yeni.musteriIcerikleri = liste.map((i) => (i.id === icerikId ? { ...i, durum: "onaylandi", revizeNotu: null, yanitTarihi: new Date().toLocaleDateString("tr-TR") } : i));
+            // Bağlı bir Operasyon işi varsa (Kontrol Bekliyor'dan otomatik düşmüşse), müşteri
+            // onaylayınca o iş de "Teslim Edildi" olarak işaretlenir — döngü kapanır.
+            if (icerik.kaynakIsId && yeni.cekimIsleri) {
+              yeni.cekimIsleri = yeni.cekimIsleri.map((j) => {
+                if (j.id !== icerik.kaynakIsId) return j;
+                const not = { id: (j.gecmis || []).length + 1, tarih: new Date().toLocaleString("tr-TR"), yazan: "Müşteri", aciklama: "Müşteri içeriği onayladı." };
+                return { ...j, asama: "Teslim Edildi", gecmis: [...(j.gecmis || []), not] };
+              });
+            }
+          } else {
+            yeni.musteriIcerikleri = liste.map((i) => (i.id === icerikId ? { ...i, durum: "revize", revizeNotu: revizeNotu.trim(), yanitTarihi: new Date().toLocaleDateString("tr-TR") } : i));
+            // Bağlı bir Operasyon işi varsa, otomatik olarak "Revize İstendi" aşamasına döner ve
+            // müşterinin notu işin geçmişine düşer — ekip ekstra bir yere bakmadan görsün.
+            if (icerik.kaynakIsId && yeni.cekimIsleri) {
+              yeni.cekimIsleri = yeni.cekimIsleri.map((j) => {
+                if (j.id !== icerik.kaynakIsId) return j;
+                const not = { id: (j.gecmis || []).length + 1, tarih: new Date().toLocaleString("tr-TR"), yazan: "Müşteri", aciklama: `Müşteri revize istedi: "${revizeNotu.trim()}"` };
+                return { ...j, asama: "Revize İstendi", gecmis: [...(j.gecmis || []), not] };
+              });
+            }
+          }
+          return { veri: yeni };
+        });
+
+        if (!sonuc.ok) return res.status(sonuc.kod || 400).json({ error: sonuc.hata || "İşlem yapılamadı." });
         return res.status(200).json({ ok: true });
       }
 
@@ -248,7 +249,10 @@ export default async function handler(req, res) {
         // Kişiye özel hesapla girildiyse o hesabın kendi izinleri kullanılır; eski ortak
         // personel şifresiyle (STAFF_PASSWORD) girildiyse genel (herkes için ortak) izinler kullanılır.
         const perms = staffPerms ? { ...DEFAULT_PERMS, ...staffPerms } : { ...DEFAULT_PERMS, ...((data && data.staffPermissions) || {}) };
-        const restricted = { staffPermissions: perms, firmaAdi: (data && data.firmaAdi) || "Marcus Medya" };
+        // _v (versiyon sayacı) personele de gönderilir — eskiden gönderilmediği için
+        // personel kayıtlarında çakışma kontrolü hiç devreye giremiyordu ve bayat bir
+        // personel sekmesi, arada yapılan değişikliklerin üzerine yazabiliyordu.
+        const restricted = { staffPermissions: perms, firmaAdi: (data && data.firmaAdi) || "Marcus Medya", _v: (data && typeof data._v === "number") ? data._v : 0 };
 
         // Hangi izinler açıksa, o izne bağlı alanları gerçek veriyle dolduruyoruz.
         Object.entries(PERMISSION_DATA_FIELDS).forEach(([permKey, fields]) => {
@@ -313,39 +317,57 @@ export default async function handler(req, res) {
       // paylasimlar/cekimEdit gibi dar izinler clients'i sadece okuyabilir, asla yazamaz
       // (yoksa sadeleştirilmiş liste, zengin müşteri verisinin üzerine yazardı).
       if (role === "staff") {
-        const existing = (await kv.get(KEY)) || {};
-        const guncelHesap = staffId ? ((existing.personelHesaplari || []).find((h) => h.id === staffId)) : null;
-        const perms = guncelHesap ? { ...DEFAULT_PERMS, ...(guncelHesap.izinler || {}) } : { ...DEFAULT_PERMS, ...(existing.staffPermissions || {}) };
-        const merged = { ...existing };
-        Object.entries(PERMISSION_WRITE_FIELDS).forEach(([permKey, fields]) => {
-          if (perms[permKey] !== true) return;
-          fields.forEach((f) => {
-            if (data[f] === undefined) return;
-            if (f === "clients") {
-              // Personel yazımlarında da aynı güvenlik freni: müşteri sayısı çarpıcı biçimde
-              // azalıyorsa (bayat/eksik veri olabilir) bu alanı yazmayı reddet.
-              const existingCount = Array.isArray(existing.clients) ? existing.clients.length : 0;
-              const newCount = Array.isArray(data.clients) ? data.clients.length : 0;
-              if (existingCount >= 2 && newCount < existingCount * 0.6) return;
-            }
-            merged[f] = data[f];
+        // Personel kaydı da artık kilit altında, EN GÜNCEL veri okunarak yapılıyor ve
+        // versiyon sayacını artırıyor. Ayrıca çakışma kontrolü personel için de geçerli:
+        // iki editör aynı anda çalışırken biri diğerinin işini geri alamıyor.
+        const sonuc = await guvenliGuncelle(async (existing) => {
+          if (!force && typeof existing._v === "number" && typeof clientVersion === "number" && existing._v !== clientVersion) {
+            return { iptal: true, kod: 409, hata: "stale", ek: { serverVersion: existing._v } };
+          }
+          const guncelHesap = staffId ? ((existing.personelHesaplari || []).find((h) => h.id === staffId)) : null;
+          const perms = guncelHesap ? { ...DEFAULT_PERMS, ...(guncelHesap.izinler || {}) } : { ...DEFAULT_PERMS, ...(existing.staffPermissions || {}) };
+          const merged = { ...existing };
+          Object.entries(PERMISSION_WRITE_FIELDS).forEach(([permKey, fields]) => {
+            if (perms[permKey] !== true) return;
+            fields.forEach((f) => {
+              if (data[f] === undefined) return;
+              if (f === "clients") {
+                // Personel yazımlarında da aynı güvenlik freni: müşteri sayısı çarpıcı biçimde
+                // azalıyorsa (bayat/eksik veri olabilir) bu alanı yazmayı reddet.
+                const existingCount = Array.isArray(existing.clients) ? existing.clients.length : 0;
+                const newCount = Array.isArray(data.clients) ? data.clients.length : 0;
+                if (existingCount >= 2 && newCount < existingCount * 0.6) return;
+              }
+              merged[f] = data[f];
+            });
           });
+          // Bu kayıtta ne değişti (müşteri/personel/üyelik eklendi-silindi, durum değişti) —
+          // İşlem Geçmişi defterine otomatik not düşülür. Son 200 kayıtla sınırlı tutulur.
+          const yeniKayitlar = degisiklikleriTespitEt(existing, merged, staffName || "Personel");
+          if (yeniKayitlar.length > 0) {
+            merged.islemGecmisi = [...(existing.islemGecmisi || []), ...yeniKayitlar].slice(-200);
+          }
+          return { veri: merged };
         });
-        // Bu kayıtta ne değişti (müşteri/personel/üyelik eklendi-silindi, durum değişti) —
-        // İşlem Geçmişi defterine otomatik not düşülür. Son 200 kayıtla sınırlı tutulur.
-        const yeniKayitlar = degisiklikleriTespitEt(existing, merged, staffName || "Personel");
-        if (yeniKayitlar.length > 0) {
-          merged.islemGecmisi = [...(existing.islemGecmisi || []), ...yeniKayitlar].slice(-200);
-        }
 
-        await kv.set(KEY, merged);
-        // Personel yazımları da günlük yedeğe dahil olsun — daha önce sadece owner kayıtları
-        // yedekleniyordu, bu da personelin yaptığı işlerin yedeksiz kalması riskini taşıyordu.
-        const bugun = bugunISO();
-        await kv.set(`marcus-os-snapshot-${bugun}`, merged);
-        return res.status(200).json({ ok: true });
+        if (!sonuc.ok) {
+          if (sonuc.kod === 409) {
+            return res.status(409).json({
+              staleConflict: true,
+              error: "Bu veri, sen düzenlerken başka bir cihazdan/sekmeden değişmiş. Kaybını önlemek için önce en güncel veriyi çekip senin değişikliğini tekrar uygulaman gerekiyor.",
+              serverVersion: sonuc.mevcut && sonuc.mevcut._v,
+            });
+          }
+          return res.status(sonuc.kod || 400).json({ error: sonuc.hata || "Kayıt yapılamadı." });
+        }
+        return res.status(200).json({ ok: true, _v: sonuc.veri._v });
       }
 
+      // Owner kaydı da artık kilit altında: okuma, çakışma kontrolü, güvenlik freni ve
+      // yazma tek bir bölünmez blok halinde yapılıyor. Eskiden bu adımlar arasında başka
+      // bir isteğin araya girip yazdığı değişiklik fark edilmeden siliniyordu.
+      const ownerKilidi = await kilitAl();
+      try {
       // Owner'ın yerel kopyasında personelHesaplari hiç yok (GET'te hiç gönderilmiyor) —
       // bu yüzden her kayıtta mevcut hesapları sunucudan alıp geri ekliyoruz, yoksa
       // ilk kayıtta tüm personel hesapları sessizce silinmiş olurdu.
@@ -405,7 +427,9 @@ export default async function handler(req, res) {
         musteriHesaplari: (existingFull && existingFull.musteriHesaplari) || [],
         kasaSifresiHash: existingFull ? existingFull.kasaSifresiHash : undefined,
         kasaSifresiSalt: existingFull ? existingFull.kasaSifresiSalt : undefined,
-        _v: (existingFull && typeof existingFull._v === "number" ? existingFull._v : 0) + 1,
+        // Sayacı SUNUCUDAKİ değerden alıyoruz (tarayıcının gönderdiğinden değil);
+        // bir artırma işini guvenliYaz yapıyor, böylece tüm uç noktalarda tek bir kural var.
+        _v: (existingFull && typeof existingFull._v === "number" ? existingFull._v : 0),
       };
       // Bu kayıtta ne değişti (müşteri/personel/üyelik eklendi-silindi, durum değişti) —
       // İşlem Geçmişi defterine otomatik not düşülür. Son 200 kayıtla sınırlı tutulur.
@@ -415,10 +439,8 @@ export default async function handler(req, res) {
       } else if (existingFull && existingFull.islemGecmisi) {
         finalData.islemGecmisi = existingFull.islemGecmisi;
       }
-      await kv.set(KEY, finalData);
-
-      const today = bugunISO();
-      await kv.set(`marcus-os-snapshot-${today}`, finalData);
+      // Versiyonu artırır, günlük + saatlik yedeği yazar, yetim müşteri hesaplarını temizler.
+      const yazilan = await guvenliYaz(finalData);
 
       if (Math.random() < 0.08) {
         try {
@@ -434,7 +456,10 @@ export default async function handler(req, res) {
         }
       }
 
-      return res.status(200).json({ ok: true, _v: finalData._v });
+      return res.status(200).json({ ok: true, _v: yazilan._v });
+      } finally {
+        await kilitBirak(ownerKilidi);
+      }
     }
 
     return res.status(405).json({ error: "Sadece GET/POST kabul edilir." });

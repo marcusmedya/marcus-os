@@ -1,14 +1,7 @@
 import { kv } from "@vercel/kv";
-const bugunISO = () => {
-  const parcalar = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
-  const y = parcalar.find((p) => p.type === "year").value;
-  const m = parcalar.find((p) => p.type === "month").value;
-  const g = parcalar.find((p) => p.type === "day").value;
-  return `${y}-${m}-${g}`;
-};
 import crypto from "crypto";
+import { KEY, guvenliGuncelle } from "../lib/kv-yaz.js";
 
-const KEY = "marcus-os-data";
 function hashSifre(sifre, salt) {
   return crypto.scryptSync(sifre, salt, 64).toString("hex");
 }
@@ -101,10 +94,12 @@ export default async function handler(req, res) {
       if (!yeniSifre || yeniSifre.length < 4) return res.status(400).json({ error: "Şifre en az 4 karakter olmalı." });
       const salt = crypto.randomBytes(16).toString("hex");
       const hash = hashSifre(yeniSifre, salt);
-      const yeniVeri = { ...data, kasaSifresiHash: hash, kasaSifresiSalt: salt };
-      await kv.set(KEY, yeniVeri);
-      const bugun = bugunISO();
-      await kv.set(`marcus-os-snapshot-${bugun}`, yeniVeri);
+      // Kilit altında ve en güncel veri üzerinde yazılır — yukarıda okunan kopya bu noktada
+      // bayatlamış olabilir ve o kopyayı yazmak arada yapılan işleri silerdi.
+      const sonuc = await guvenliGuncelle(async (guncel) => ({
+        veri: { ...guncel, kasaSifresiHash: hash, kasaSifresiSalt: salt },
+      }));
+      if (!sonuc.ok) return res.status(500).json({ error: "Kasa şifresi kaydedilemedi, tekrar dene." });
       return res.status(200).json({ ok: true });
     }
 

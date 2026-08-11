@@ -81,3 +81,24 @@ export const DEFAULT_DATA = {
     { id: 3, kalem: "Geçici Vergi (3. Dönem)", tarih: "17 Kas", durum: "planlandı" },
   ],
 };
+
+/**
+ * BOŞ BAŞLANGIÇ VERİSİ
+ * --------------------
+ * DEFAULT_DATA örnek (demo) müşteriler ve sahte finans rakamları içeriyor. Veritabanı
+ * beklenmedik şekilde boş görünürse ve yanlışlıkla "örnek verilerle başla" seçilirse,
+ * bu sahte kayıtlar gerçek veri gibi kaydediliyordu. Artık ilk kurulum varsayılan
+ * olarak BU boş yapıyla başlıyor — hiçbir uydurma kayıt oluşmuyor.
+ */
+export const BOS_DATA = {
+  ...DEFAULT_DATA,
+  clients: [],
+  monthly: [],
+  gelirKalemleri: [],
+  giderKalemleri: [],
+  ofisGiderleri: [],
+  bekleyenTahsilatlar: [],
+  personel: [],
+  birikimler: [],
+  vergiTakvimi: [],
+};

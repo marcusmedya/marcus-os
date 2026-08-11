@@ -1,14 +1,7 @@
 import { kv } from "@vercel/kv";
-const bugunISO = () => {
-  const parcalar = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
-  const y = parcalar.find((p) => p.type === "year").value;
-  const m = parcalar.find((p) => p.type === "month").value;
-  const g = parcalar.find((p) => p.type === "day").value;
-  return `${y}-${m}-${g}`;
-};
 import crypto from "crypto";
+import { KEY, guvenliGuncelle } from "../lib/kv-yaz.js";
 
-const KEY = "marcus-os-data";
 const DEFAULT_PERMS = {
   dashboard: false, musteriler: false, finans: false, takvim: false, odemeTakvimi: false,
   teklif: false, reklamlar: true, paylasimlar: true, cekimListesi: false, cekimEdit: true, markaYoneticisi: false, personel: false, birikim: false, uyelikler: false, sifreKasasi: false,
@@ -50,9 +43,12 @@ function hashSifre(sifre, salt) {
   return crypto.scryptSync(sifre, salt, 64).toString("hex");
 }
 
-async function yedekle(veri) {
-  const bugun = bugunISO();
-  await kv.set(`marcus-os-snapshot-${bugun}`, veri);
+/** Hesap listesini kilit altında, en güncel veri üzerine yazar ve versiyon sayacını
+ * artırır. Eskiden burada yukarıda okunan (bayatlamış olabilecek) kopyanın tamamı geri
+ * yazılıyordu — bir hesap eklerken arada yapılan başka değişiklikler silinebiliyordu. */
+async function hesaplariYaz(alanAdi, guncel) {
+  const sonuc = await guvenliGuncelle(async (veri) => ({ veri: { ...veri, [alanAdi]: guncel } }));
+  return sonuc.ok;
 }
 
 function guvenliListe(hesaplar) {
@@ -101,7 +97,7 @@ export default async function handler(req, res) {
           ? { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ad, kullaniciAdi, clientId, sifreHash: hashSifre(sifre, salt), sifreSalt: salt }
           : { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ad, kullaniciAdi, email: email || "", izinler: { ...DEFAULT_PERMS }, sifreHash: hashSifre(sifre, salt), sifreSalt: salt };
         const guncel = [...hesaplar, yeni];
-        const yeniVeri = { ...data, [alanAdi]: guncel }; await kv.set(KEY, yeniVeri); await yedekle(yeniVeri);
+        if (!(await hesaplariYaz(alanAdi, guncel))) return res.status(500).json({ error: "Kaydedilemedi, tekrar dene." });
         return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel) });
       }
 
@@ -110,7 +106,7 @@ export default async function handler(req, res) {
         if (sifre.length < 4) return res.status(400).json({ error: "Şifre en az 4 karakter olmalı." });
         const salt = crypto.randomBytes(16).toString("hex");
         const guncel = hesaplar.map((h) => (h.id === id ? { ...h, sifreHash: hashSifre(sifre, salt), sifreSalt: salt } : h));
-        const yeniVeri = { ...data, [alanAdi]: guncel }; await kv.set(KEY, yeniVeri); await yedekle(yeniVeri);
+        if (!(await hesaplariYaz(alanAdi, guncel))) return res.status(500).json({ error: "Kaydedilemedi, tekrar dene." });
         return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel) });
       }
 
@@ -128,14 +124,14 @@ export default async function handler(req, res) {
           }
           return yeni;
         });
-        const yeniVeri = { ...data, [alanAdi]: guncel }; await kv.set(KEY, yeniVeri); await yedekle(yeniVeri);
+        if (!(await hesaplariYaz(alanAdi, guncel))) return res.status(500).json({ error: "Kaydedilemedi, tekrar dene." });
         return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel) });
       }
 
       if (action === "sil") {
         if (!id) return res.status(400).json({ error: "id gerekli." });
         const guncel = hesaplar.filter((h) => h.id !== id);
-        const yeniVeri = { ...data, [alanAdi]: guncel }; await kv.set(KEY, yeniVeri); await yedekle(yeniVeri);
+        if (!(await hesaplariYaz(alanAdi, guncel))) return res.status(500).json({ error: "Kaydedilemedi, tekrar dene." });
         return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel) });
       }
 
@@ -145,7 +141,7 @@ export default async function handler(req, res) {
       if (action === "silByClientId" && musteriMi) {
         if (clientId === undefined || clientId === null) return res.status(400).json({ error: "clientId gerekli." });
         const guncel = hesaplar.filter((h) => String(h.clientId) !== String(clientId));
-        const yeniVeri = { ...data, [alanAdi]: guncel }; await kv.set(KEY, yeniVeri); await yedekle(yeniVeri);
+        if (!(await hesaplariYaz(alanAdi, guncel))) return res.status(500).json({ error: "Kaydedilemedi, tekrar dene." });
         return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel) });
       }
 

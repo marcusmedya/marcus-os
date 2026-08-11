@@ -235,3 +235,60 @@ Ayarlar → **Otomatik Günlük Yedekler**'e bak. Bu hatanın ortaya çıkmasın
 ## Notlar
 - Uygulama şu an örnek (demo) verilerle geliyor. Gerçek verilerini bağlamak istediğinde `src/App.jsx` içindeki `clients`, `monthly`, `operasyonlar` gibi listeleri kendi verilerinle değiştirebiliriz, ya da bir sonraki adımda bunları düzenleyebileceğin bir veri giriş ekranı ekleyebiliriz.
 - API anahtarın hiçbir zaman tarayıcıya gönderilmiyor; `api/chat.js` sunucu tarafında çalışıyor.
+
+## Güncellemeler 13: Veri Kaybı Denetimi — 9 Bulgunun Tamamı Kapatıldı
+
+Tüm sistem baştan sona veri kaybı riski açısından tarandı. Bulunan 9 sorunun hepsi düzeltildi.
+
+### 1. Çakışma koruması artık TÜM yazma yollarında çalışıyor (kritik)
+Versiyon sayacı (`_v`) sadece yöneticinin ana kaydında artıyordu. Ödeme kayıtları, paylaşım/stok
+işlemleri, personel kayıtları, kasa, personel hesapları ve müşteri paneli onayları veriyi
+değiştiriyor ama sayacı olduğu gibi bırakıyordu — bu yüzden çakışma tespiti bu yolların hepsine
+karşı **kördü**. Açık duran bir sekme, personelin az önce yaptığı işin üzerine fark etmeden
+yazabiliyordu. Artık her yazma ortak bir katmandan (`lib/kv-yaz.js`) geçiyor ve sayacı artırıyor.
+
+*Not: `lib/` klasörü `api/` dışında olduğu için Vercel'in 12 fonksiyon sınırını etkilemez — hâlâ 12/12.*
+
+### 2. Yedekten geri yükleme artık geri alınabilir (kritik)
+Eskiden geri yükleme mevcut veriyi hiçbir yere kaydetmiyordu: yanlış tarihe dönüp sonra biri bir
+şey kaydettiğinde, geri yükleme öncesindeki hâl **kalıcı olarak** kayboluyordu. Artık geri
+yüklemeden hemen önce mevcut verinin tam bir kopyası alınıyor (30 gün saklanır) ve
+Ayarlar → **"Geri Yükleme Öncesi"** sekmesinden tek tıkla geri dönülebiliyor.
+Ayrıca geri yüklemeden önce **"bu yedekte kaç müşteri/personel/iş var"** özeti gösteriliyor.
+
+### 3. Eşzamanlı yazma kilidi eklendi
+Tüm uç noktalar "oku → değiştir → yaz" yapıyordu; iki kişi aynı anda işlem yaptığında ikincisi
+birincinin değişikliğini siliyordu. Artık bu döngü kısa ömürlü bir kilit altında yapılıyor
+(10 saniyede kendiliğinden düşer, sistem asla kilitli kalmaz).
+
+### 4. Personel kayıtlarında da çakışma kontrolü
+İki editör aynı anda çalışırken biri diğerinin işini geri alabiliyordu. Personele de artık
+versiyon bilgisi gönderiliyor ve bayat bir kayıt reddedilip en güncel veri çekiliyor.
+
+### 5. Saatlik yedekler (son 48 saat)
+Günlük yedek günde tek kayıttı — "dün'e dön" aslında "dünün SON hâline dön" demekti. Bozulma dün
+sabah olduysa dünün yedeği de bozuktu. Artık her saatin ayrı bir yedeği tutuluyor (48 saat sonra
+kendiliğinden silinir). Ayarlar → **"Saatlik"** sekmesinden saat saat geri dönülebilir.
+
+### 6. Görseller otomatik küçültülüyor (sessiz uçurum kapatıldı)
+Marka kimliği, teklif logoları ve müşteri içerik görselleri base64 olarak tek bir veri bloğunun
+içinde saklanıyor. Vercel tek istekte ~4.5 MB kabul eder — görseller biriktikçe **kayıtlar
+tamamen çalışmaz hâle gelirdi.** Artık her görsel tarayıcıda, sunucuya gitmeden önce küçültülüp
+sıkıştırılıyor (genelde 10-40 kat küçülüyor, gözle fark edilmiyor). Eski 2 MB yükleme sınırı
+kaldırıldı — telefondan çekilmiş fotoğraflar da artık sorunsuz yükleniyor.
+Ayarlar'a bir **"Veri Boyutu"** kartı eklendi; sınıra yaklaşırsan uyarı veriyor.
+
+### 7. Kaydedilmemiş değişiklik uyarısı
+Kayıt 500ms gecikmeli gönderiliyor; tam o aralıkta sekme kapatılırsa değişiklik sessizce
+kayboluyordu. Artık tarayıcı ayrılmadan önce uyarıyor.
+Ayrıca hareketsizlik yönlendirmesi 60 saniyeden **3 dakikaya** çıkarıldı ve **doldurulmuş bir form
+açıkken artık hiç yönlendirme yapmıyor** (eskiden yarım kalan formu uyarısız siliyordu).
+
+### 8. İlk kurulum artık boş başlıyor
+Veritabanı boş göründüğünde sunulan seçenek sahte müşteriler ve sahte finans rakamları
+yazıyordu. Artık birincil seçenek **"Boş Başlat"**; örnek verilerle başlatma ayrı, ikincil ve
+ekstra uyarılı bir seçenek olarak duruyor. Ayrıca "Tekrar Dene" en üste alındı.
+
+### 9. Yetim müşteri hesapları otomatik temizleniyor
+Bir marka silindiğinde ona bağlı Müşteri Paneli hesabı bazı yollardan silinmeden kalabiliyordu.
+Artık her kayıtta sunucu tarafında otomatik kontrol edilip temizleniyor.

@@ -1,20 +1,12 @@
 import { kv } from "@vercel/kv";
+import { KEY, guvenliYaz, kilitAl, kilitBirak, bugunISO } from "../lib/kv-yaz.js";
 
-const KEY = "marcus-os-data";
 const nid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const stokAnahtari = (clientId, tur) => `${clientId}_${tur}`;
 const bugunTR = () => new Date().toLocaleDateString("tr-TR");
 /** Sunucu (Vercel) UTC saat diliminde çalışır — bu, gece yarısı ile saat 03:00 arası
  * (Türkiye UTC+3) "bugün"ün bir gün geriden hesaplanmasına yol açıyordu (Günlük Kontrol
  * geç sıfırlanıyordu). Artık her zaman Türkiye'nin takvim gününü baz alır. */
-const bugunISO = () => {
-  const parcalar = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
-  const y = parcalar.find((p) => p.type === "year").value;
-  const m = parcalar.find((p) => p.type === "month").value;
-  const g = parcalar.find((p) => p.type === "day").value;
-  return `${y}-${m}-${g}`;
-};
-
 /** Owner her zaman yetkili. Personel ise "paylasimlar" iznine sahipse yetkilidir. */
 async function yetkiliMi(req) {
   const ownerPw = process.env.SITE_PASSWORD;
@@ -58,14 +50,19 @@ function gecmiseEkle(data, clientId, marka, tur, tip) {
  * (stok/paylaşım/haftalık plan/şube/günlük kontrol) değişiklikler daha önce günlük yedeğe hiç
  * dahil edilmiyordu, bu da bu verinin bir "bu tarihe dön" işleminde kaybolabileceği anlamına geliyordu. */
 async function kaydetVeYedekle(data) {
-  await kv.set(KEY, data);
-  await kv.set(`marcus-os-snapshot-${bugunISO()}`, data);
+  // Ortak yazma katmanı: versiyon sayacını artırır, günlük + saatlik yedeği yazar.
+  // Sayacın artması kritik — eskiden bu uç noktadan yapılan stok/plan değişiklikleri
+  // sayacı artırmadığı için, açık duran bir yönetici sekmesi bunların üzerine yazabiliyordu.
+  await guvenliYaz(data);
 }
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Sadece POST kabul edilir." });
   if (!(await yetkiliMi(req))) return res.status(401).json({ error: "Yetkisiz." });
 
+  // Tüm işlem (oku → değiştir → yaz) kilit altında yapılır: iki personel aynı anda
+  // stok işaretlediğinde birinin değişikliği diğerini silmesin.
+  const kilitAlindi = await kilitAl();
   try {
     const body = req.body || {};
     const { action } = body;
@@ -234,5 +231,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: "Geçersiz işlem." });
   } catch (e) {
     return res.status(500).json({ error: "Sunucu hatası: " + e.message });
+  } finally {
+    await kilitBirak(kilitAlindi);
   }
 }
