@@ -375,6 +375,12 @@ const setMusteriCreds = (kullaniciAdi, sifre, hatirla = true) => {
     depo.setItem(MUSTERI_PW_KEY, sifre);
   } catch (e) { /* depolama kapalıysa oturum yine de açılır, sadece hatırlanmaz */ }
 };
+/** "Beni hatırla" seçilmiş mi? Kalıcı depoda kayıt varsa evet. Hareketsizlik çıkışı bu
+ * bilgiye göre davranır — hatırlanan bir cihazda müşteriyi dışarı atmak anlamsız. */
+const musteriHatirlaniyorMu = () => {
+  if (typeof window === "undefined") return false;
+  try { return !!localStorage.getItem(MUSTERI_USER_KEY); } catch (e) { return false; }
+};
 const clearMusteriCreds = () => {
   if (typeof window === "undefined") return;
   try {
@@ -7306,14 +7312,23 @@ function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
   const [revizeMetni, setRevizeMetni] = useState("");
   const [gonderiliyor, setGonderiliyor] = useState(null);
 
-  // Hareketsizlik koruması: müşteri panelini açık unutup giderse (özellikle ortak/paylaşılan
-  // bir bilgisayarda), 1 dakika hiç dokunulmazsa otomatik olarak çıkış yapılır — hem gizlilik
-  // hem güvenlik için (yazılmış ama gönderilmemiş bir revize notu ortada kalmasın diye).
+  /**
+   * Hareketsizlik çıkışı — SADECE "Beni hatırla" seçilmemişse.
+   *
+   * Eskiden burada koşulsuz 1 DAKİKALIK bir çıkış vardı: müşteri uzun bir konuşma metnini
+   * okurken bile ekrandan atılıyor, üstelik çıkış kayıtlı giriş bilgilerini de sildiği için
+   * "Beni hatırla" tamamen işlevsiz kalıyordu.
+   *
+   * Yeni davranış:
+   *  - "Beni hatırla" seçiliyse: otomatik çıkış YOK. Müşteri istediği zaman çıkış butonuyla çıkar.
+   *  - Seçili değilse (ortak/paylaşılan bilgisayar): 20 dakika hareketsizlikte çıkış.
+   */
   useEffect(() => {
+    if (musteriHatirlaniyorMu()) return undefined;
     let zamanlayici = null;
     const sifirla = () => {
       if (zamanlayici) clearTimeout(zamanlayici);
-      zamanlayici = setTimeout(() => onCikis(), 60000);
+      zamanlayici = setTimeout(() => onCikis(), 20 * 60 * 1000);
     };
     const olaylar = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"];
     olaylar.forEach((olay) => window.addEventListener(olay, sifirla, { passive: true }));

@@ -1123,3 +1123,26 @@ Video yönü özelliği (58. güncelleme) olduğu gibi çalışıyor.
 mevcut kontrollerden kaçmıştı. Artık her pakete çıkmadan önce şablon literallerinin içinde
 kod parçası (fonksiyon tanımı, yorum bloğu, import satırı) olup olmadığı ayrıca taranıyor —
 tam olarak bu hatayı yakalayan bir kontrol.
+
+## Güncelleme 40: Müşteri Paneli Artık Kendiliğinden Çıkış Yapmıyor
+
+**Sorun:** Müşteri paneli bir süre sonra kendiliğinden giriş ekranına dönüyordu.
+
+**Sebep:** Panelde koşulsuz **1 dakikalık** bir hareketsizlik çıkışı vardı. Müşteri uzun bir
+konuşma metnini okurken bile (fareye dokunmadan 60 saniye geçmesi yeterli) dışarı atılıyordu.
+
+Daha kötüsü: bu otomatik çıkış, kayıtlı giriş bilgilerini de siliyordu. Yani geçen güncellemede
+eklenen **"Beni hatırla" tamamen işlevsizdi** — 60 saniye sonra zaten siliniyordu.
+
+**Düzeltme — "Beni hatırla" seçimine göre davranıyor:**
+
+| Durum | Davranış |
+|---|---|
+| **"Beni hatırla" seçili** (varsayılan) | Otomatik çıkış **yok**. Müşteri istediğinde çıkış butonuyla çıkar. |
+| **Seçili değil** (ortak/paylaşılan bilgisayar) | 20 dakika hareketsizlikte çıkış |
+
+Böylece hem müşteri rahatsız edilmiyor hem de ortak bir bilgisayarda panelin açık unutulmasına
+karşı koruma duruyor — ama bu korumayı isteyip istemediğine müşteri karar veriyor.
+
+### Not
+Bu paket ayrıca 39. güncellemede eklenen şablon-bozulması kontrolünden geçirildi.
