@@ -288,6 +288,7 @@ export default async function handler(req, res) {
           yapildi: !!p.yapildi,
           yapildigiTarih: p.yapildigiTarih || null,
           altMetin: p.altMetin || null,
+          gorselUrl: p.gorselUrl || null,
         }));
 
       const kendiIsleri = (data.cekimIsleri || [])

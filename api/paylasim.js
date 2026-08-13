@@ -102,10 +102,18 @@ export default async function handler(req, res) {
     /* Planlanan bir paylaşımın ALT METNİ (caption). Müşteri panelinde gösterilir, böylece
      * müşteri neyin ne zaman, hangi metinle paylaşılacağını önceden görebilir. */
     if (action === "haftalikAltMetin") {
-      const { planId, altMetin } = body;
+      // Alt metin ve/veya görsel. Sadece GÖNDERİLEN alan değişir — biri güncellenirken
+      // diğerinin sıfırlanmaması için "undefined mı?" kontrolü yapılıyor.
+      const { planId, altMetin, gorselUrl } = body;
       const liste = data.haftalikPaylasimlar || [];
       if (!liste.some((p) => p.id === planId)) return res.status(404).json({ error: "Plan bulunamadı." });
-      data.haftalikPaylasimlar = liste.map((p) => (p.id === planId ? { ...p, altMetin: (altMetin || "").trim() || null } : p));
+      data.haftalikPaylasimlar = liste.map((p) => {
+        if (p.id !== planId) return p;
+        const yeniPlan = { ...p };
+        if (altMetin !== undefined) yeniPlan.altMetin = (altMetin || "").trim() || null;
+        if (gorselUrl !== undefined) yeniPlan.gorselUrl = gorselUrl || null;
+        return yeniPlan;
+      });
       await kaydetVeYedekle(data);
       return res.status(200).json({ ok: true, haftalikPaylasimlar: data.haftalikPaylasimlar });
     }

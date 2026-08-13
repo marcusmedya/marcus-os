@@ -766,3 +766,44 @@ seçeneğiyle serbest metin de girilebiliyor. Tek bir fazla boşluk ya da büyü
 ("Kanatçı Diren " vs "Kanatçı Diren") o markanın hiçbir reklamının görünmemesine yol açabilirdi.
 E�leştirme artık boşluk ve harf büyüklüğüne takılmıyor — hem sunucuda hem yönetici ekranında
 **aynı kural** kullanılıyor, böylece iki taraf asla farklı sonuç gösteremez.
+
+## Güncelleme 29: Müşteri Paneli Sekmeli Oldu + Instagram Önizlemeli Paylaşım Takvimi
+
+### 1. Uzun kartlar artık açılıp kapanıyor
+Konuşma metinleri uzun olduğu için tek bir çekim planı ekranı metrelerce uzatıyor, 7 planlı bir
+markada alt bölümlere ulaşmak imkânsız hâle geliyordu. Artık **her kart kapalı başlıyor** —
+başlıkta konu adı, tarih ve "Aç ▼" görünüyor, tıklayınca içerik açılıyor.
+
+### 2. Müşteri paneline sekmeler geldi
+Her şey alt alta akmak yerine dört bölüme ayrıldı:
+
+| Sekme | İçerik |
+|---|---|
+| **Onay Bekleyenler** | Çekim planları ve içerikler (bekleyen sayısı rozet olarak görünür) |
+| **Paylaşım Takvimi** | Instagram önizlemeleri |
+| **Reklamlar** | Kampanyalar ve durumları |
+| **Üretim Durumu** | Operasyon işlerinin aşamaları |
+
+### 3. Paylaşım takvimi artık Instagram önizlemesi
+Planlanan her gönderi, gerçek bir Instagram gönderisi gibi görünüyor: marka avatarı, kare görsel,
+beğeni/yorum ikon şeridi ve altında **marka adı + açıklama metni**. Uzun metinler "devamı"
+bağlantısıyla kısaltılıyor — tıpkı Instagram'daki gibi. Paylaşılmış olanlar "✓ Paylaşıldı"
+etiketi alıyor. Gönderiler hafta hafta gruplanıyor, geçmiş haftalar altta katlanmış duruyor.
+
+### 4. Paylaşım görseli yükleme (yönetici tarafı)
+**Müşteri Paneli** sekmesi → markayı seç → **"Müşteri Panelinde Ayrıca Görünenler"** →
+*Paylaşım Takvimi*. Her planın altında **"Görsel / metin ekle"** butonu var:
+- Görsel yükle (tarayıcıda otomatik küçültülüp sıkıştırılır — 1080px, ~400KB hedefli)
+- Açıklama metnini yaz
+- Yaptığın değişikliği **anında aynı Instagram önizlemesinde** görürsün
+
+Yönetici ve müşteri **aynı önizleme bileşenini** kullanır — senin gördüğünle müşterinin gördüğü
+asla ayrışamaz.
+
+### Teknik notlar
+- `haftalikPaylasimlar` kayıtlarına `gorselUrl` alanı eklendi; sunucu tarafı mevcut
+  `haftalikAltMetin` action'ı genişletilerek yapıldı (yeni dosya yok, hâlâ **12/12**)
+- Action sadece **gönderilen** alanı değiştirir: görseli güncellerken metin, metni güncellerken
+  görsel sıfırlanmaz
+- Görseller base64 olarak veri bloğunda saklandığı için sıkıştırma önemli — Ayarlar'daki
+  **Veri Boyutu** kartından toplam boyutu takip edebilirsin

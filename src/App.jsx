@@ -5201,7 +5201,7 @@ function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
   const buHafta = haftaBaslangici();
   const yaklasanPlan = markaPlani.filter((p) => p.haftaKey >= buHafta).sort((a, b) => (a.haftaKey > b.haftaKey ? 1 : -1));
 
-  const kaydet = (planId) => { onAltMetin(planId, taslak); setDuzenlenen(null); setTaslak(""); };
+  const kaydet = (planId) => { onAltMetin(planId, taslak, undefined); setDuzenlenen(null); setTaslak(""); };
 
   const Bolum = ({ anahtar, baslik, adet, children }) => (
     <div style={{ borderTop: `1px solid ${T.borderSoft}`, paddingTop: 12, marginTop: 12 }}>
@@ -5224,41 +5224,60 @@ function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
         Reklam bütçesi, personel adları ve iç notlar müşteriye <strong>gönderilmez</strong>.
       </div>
 
-      <Bolum anahtar="plan" baslik="Paylaşım Planı (alt metinler buradan yazılır)" adet={yaklasanPlan.length}>
+      <Bolum anahtar="plan" baslik="Paylaşım Takvimi (görsel + açıklama)" adet={yaklasanPlan.length}>
         {yaklasanPlan.length === 0 ? (
           <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter" }}>Bu marka için bu hafta ve sonrasına plan yok. Plan eklemek için Paylaşımlar sekmesini kullan.</div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
             {yaklasanPlan.map((p) => (
-              <div key={p.id} style={{ background: T.surfaceRaised, borderRadius: 9, padding: "9px 12px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: T.accentText, background: T.accentSoft, padding: "2px 8px", borderRadius: 999, fontFamily: "Inter" }}>{p.gun}</span>
-                  <span style={{ fontSize: 12, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{p.tur}</span>
-                  {p.yapildi && <span style={{ fontSize: 10, color: T.success, fontFamily: "Inter" }}>✓ paylaşıldı</span>}
-                  {duzenlenen !== p.id && (
-                    <button onClick={() => { setDuzenlenen(p.id); setTaslak(p.altMetin || ""); }} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", fontSize: 11, color: T.accentText, fontFamily: "Inter", textDecoration: "underline", padding: 0 }}>
-                      {p.altMetin ? "Alt metni düzenle" : "+ Alt metin ekle"}
-                    </button>
-                  )}
-                </div>
+              <div key={p.id} style={{ display: "flex", flexDirection: "column", gap: 8, width: 320 }}>
+                <InstagramOnizleme
+                  marka={marka.ad}
+                  tur={p.tur}
+                  gun={p.gun}
+                  gorselUrl={p.gorselUrl}
+                  altMetin={p.altMetin}
+                  yapildi={p.yapildi}
+                  kompakt
+                />
                 {duzenlenen === p.id ? (
-                  <div style={{ marginTop: 8 }}>
+                  <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: 10 }}>
+                    <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 5 }}>Görsel</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files && e.target.files[0];
+                        if (!file) return;
+                        // Görsel tarayıcıda küçültülüp sıkıştırılır (bkz. gorselKucult.js) —
+                        // veri bloğunu şişirip kayıtları durdurmasın diye.
+                        gorseliKucult(file, { maxKenar: 1080, hedefBayt: 400 * 1024 })
+                          .then((veri) => onAltMetin(p.id, undefined, veri))
+                          .catch((err) => window.alert(err.message || "Görsel yüklenemedi."));
+                      }}
+                      style={{ ...inputStyle, marginBottom: 8, fontSize: 12, padding: "7px 10px" }}
+                    />
+                    {p.gorselUrl && (
+                      <button style={{ ...cancelBtnStyle, marginBottom: 8, color: T.danger }} onClick={() => { if (window.confirm("Görsel kaldırılsın mı?")) onAltMetin(p.id, undefined, null); }}>Görseli Kaldır</button>
+                    )}
+                    <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 5 }}>Açıklama metni</label>
                     <textarea
-                      autoFocus
                       value={taslak}
                       onChange={(e) => setTaslak(e.target.value)}
-                      rows={4}
-                      placeholder="Paylaşımın alt metni (caption) — müşteri panelinde bu metni görecek"
+                      rows={5}
+                      placeholder="Gönderinin açıklama metni — müşteri bunu önizlemede görecek"
                       style={{ ...inputStyle, width: "100%", resize: "vertical", marginBottom: 8, fontFamily: "Inter", lineHeight: 1.6 }}
                     />
                     <div style={{ display: "flex", gap: 8 }}>
                       <button style={saveBtnStyle} onClick={() => kaydet(p.id)}>Kaydet</button>
-                      <button style={cancelBtnStyle} onClick={() => setDuzenlenen(null)}>İptal</button>
+                      <button style={cancelBtnStyle} onClick={() => setDuzenlenen(null)}>Kapat</button>
                     </div>
                   </div>
-                ) : p.altMetin ? (
-                  <div style={{ marginTop: 6, fontSize: 12, color: T.textDim, fontFamily: "Inter", lineHeight: 1.6, whiteSpace: "pre-wrap", borderLeft: `2px solid ${T.border}`, paddingLeft: 9 }}>{p.altMetin}</div>
-                ) : null}
+                ) : (
+                  <button style={addBtnStyle} onClick={() => { setDuzenlenen(p.id); setTaslak(p.altMetin || ""); }}>
+                    <Pencil size={12} /> {p.gorselUrl || p.altMetin ? "Düzenle" : "Görsel / metin ekle"}
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -5295,6 +5314,71 @@ function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
         )}
       </Bolum>
     </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* INSTAGRAM ÖNİZLEME                                                    */
+/* ------------------------------------------------------------------ */
+/**
+ * Planlanan bir paylaşımı Instagram gönderisi gibi gösterir. Hem yöneticinin
+ * (Müşteri Paneli sekmesi) hem müşterinin ekranında AYNI bileşen kullanılır — iki taraf
+ * asla farklı bir şey görmez.
+ */
+function InstagramOnizleme({ marka, tur, gun, gorselUrl, altMetin, yapildi, kompakt = false }) {
+  const [metinAcik, setMetinAcik] = useState(false);
+  const uzunMetin = (altMetin || "").length > 125;
+  const gosterilenMetin = !uzunMetin || metinAcik ? altMetin : (altMetin || "").slice(0, 125) + "…";
+
+  return (
+    <div style={{ background: "#000", border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden", maxWidth: kompakt ? 320 : 400, width: "100%" }}>
+      {/* Üst şerit — profil satırı */}
+      <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 12px" }}>
+        <div style={{ width: 30, height: 30, borderRadius: "50%", background: "linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#000", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 11, fontWeight: 700, fontFamily: "Inter" }}>
+            {(marka || "M").charAt(0).toLocaleUpperCase("tr")}
+          </div>
+        </div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: 12.5, color: "#fff", fontWeight: 600, fontFamily: "Inter", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{marka || "Marka"}</div>
+          <div style={{ fontSize: 10.5, color: "#a8a8a8", fontFamily: "Inter" }}>{tur}{gun ? ` · ${gun}` : ""}</div>
+        </div>
+        {yapildi && <span style={{ fontSize: 10, color: "#4ade80", fontFamily: "Inter", fontWeight: 600 }}>✓ Paylaşıldı</span>}
+      </div>
+
+      {/* Görsel alanı — kare, Instagram gibi */}
+      <div style={{ width: "100%", aspectRatio: "1 / 1", background: "#111", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+        {gorselUrl ? (
+          <img src={gorselUrl} alt={altMetin || "Paylaşım görseli"} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        ) : (
+          <div style={{ color: "#555", fontSize: 12, fontFamily: "Inter", textAlign: "center", padding: 20, lineHeight: 1.6 }}>
+            Görsel henüz yüklenmedi
+          </div>
+        )}
+      </div>
+
+      {/* Alt ikon şeridi — sadece görsel amaçlı */}
+      <div style={{ display: "flex", gap: 13, padding: "9px 12px 4px", color: "#fff", fontSize: 16 }}>
+        <span>♡</span><span>💬</span><span>➤</span>
+      </div>
+
+      {/* Alt metin */}
+      <div style={{ padding: "2px 12px 12px" }}>
+        {altMetin ? (
+          <div style={{ fontSize: 12.5, color: "#fff", fontFamily: "Inter", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
+            <strong style={{ fontWeight: 600 }}>{marka} </strong>
+            {gosterilenMetin}
+            {uzunMetin && (
+              <button onClick={() => setMetinAcik((v) => !v)} style={{ background: "none", border: "none", color: "#a8a8a8", cursor: "pointer", fontSize: 12.5, fontFamily: "Inter", padding: "0 0 0 4px" }}>
+                {metinAcik ? "daha az" : "devamı"}
+              </button>
+            )}
+          </div>
+        ) : (
+          <div style={{ fontSize: 12, color: "#555", fontFamily: "Inter", fontStyle: "italic" }}>Açıklama metni henüz yazılmadı</div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -6393,6 +6477,8 @@ function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
   // onay sonrası veri yenilense bile müşterinin ekranı ilk açılıştaki hâlinde donuyordu.
   useEffect(() => { setIcerikler(musteriData.icerikler || []); }, [musteriData]);
   const [revizeAcikId, setRevizeAcikId] = useState(null);
+  const [acikIcerikId, setAcikIcerikId] = useState(null); // açık olan içerik kartı
+  const [sekme, setSekme] = useState("onay");
   const [revizeMetni, setRevizeMetni] = useState("");
   const [gonderiliyor, setGonderiliyor] = useState(null);
 
@@ -6448,10 +6534,17 @@ function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
   const bekleyenler = icerikler.filter((i) => i.durum === "bekliyor");
   const gecmis = icerikler.filter((i) => i.durum !== "bekliyor");
 
+  const sekmeler = [
+    { key: "onay", label: "Onay Bekleyenler", rozet: bekleyenler.length },
+    { key: "takvim", label: "Paylaşım Takvimi", rozet: 0 },
+    { key: "reklam", label: "Reklamlar", rozet: 0 },
+    { key: "uretim", label: "Üretim Durumu", rozet: 0 },
+  ];
+
   return (
     <div style={{ background: T.bg, minHeight: "100vh" }}>
       <style>{FONTS}</style>
-      <div style={{ maxWidth: 640, margin: "0 auto", padding: "24px 18px 60px" }}>
+      <div style={{ maxWidth: 880, margin: "0 auto", padding: "24px 18px 60px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
           <div>
             <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter" }}>{musteriData.firmaAdi}</div>
@@ -6460,6 +6553,28 @@ function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
           <button onClick={onCikis} style={{ ...cancelBtnStyle, fontSize: 12 }}>Çıkış Yap</button>
         </div>
 
+        {/* SEKMELER — her şey tek sayfada alt alta akmak yerine bölümlere ayrıldı. */}
+        <div style={{ display: "flex", gap: 6, marginBottom: 20, overflowX: "auto", paddingBottom: 2 }}>
+          {sekmeler.map((sk) => (
+            <button
+              key={sk.key}
+              onClick={() => setSekme(sk.key)}
+              style={{
+                display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 10, border: "none",
+                cursor: "pointer", whiteSpace: "nowrap", fontFamily: "Inter, sans-serif", fontSize: 12.5, fontWeight: 600,
+                background: sekme === sk.key ? T.accent : T.surfaceRaised,
+                color: sekme === sk.key ? "#fff" : T.textDim,
+              }}
+            >
+              {sk.label}
+              {sk.rozet > 0 && (
+                <span style={{ background: sekme === sk.key ? "rgba(255,255,255,.25)" : T.warningSoft, color: sekme === sk.key ? "#fff" : T.warning, borderRadius: 999, padding: "1px 7px", fontSize: 10.5, fontWeight: 700 }}>{sk.rozet}</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {sekme === "onay" && <>
         <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 10 }}>
           İncelemeni Bekleyenler {bekleyenler.length > 0 && `(${bekleyenler.length})`}
         </div>
@@ -6473,16 +6588,31 @@ function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
             {bekleyenler.map((icerik) => {
               const embed = driveEmbedUrl(icerik.driveLinki);
               const cekimEmbed = icerik.tur === "cekim" ? driveEmbedUrl(icerik.referansLink) : null;
+              const kartAcik = acikIcerikId === icerik.id;
               return (
                 <Card key={icerik.id} style={{ padding: 16, border: `1px solid ${T.warning}` }}>
-                  <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter", marginBottom: 4 }}>
-                    {icerik.tur === "cekim" && <span style={{ color: T.accentText }}>🎬 </span>}
-                    {basligiTemizle(icerik.aciklama) || (icerik.tur === "cekim" ? "Çekim Planı" : icerik.tur)}
-                  </div>
-                  <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginBottom: 12 }}>
-                    {icerik.tarih}
-                    {icerik.tur === "cekim" && icerik.planlananTarih && ` · Planlanan çekim: ${tarihGoster(icerik.planlananTarih)}`}
-                  </div>
+                  {/* Başlığa tıklayınca açılır/kapanır. Uzun konuşma metinleri listeyi
+                    * metrelerce uzatıyordu; artık hepsi kapalı başlar. */}
+                  <button
+                    onClick={() => setAcikIcerikId(kartAcik ? null : icerik.id)}
+                    style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
+                  >
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ display: "block", fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter", marginBottom: 4 }}>
+                        {icerik.tur === "cekim" && <span style={{ color: T.accentText }}>🎬 </span>}
+                        {basligiTemizle(icerik.aciklama) || (icerik.tur === "cekim" ? "Çekim Planı" : icerik.tur)}
+                      </span>
+                      <span style={{ display: "block", fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>
+                        {icerik.tarih}
+                        {icerik.tur === "cekim" && icerik.planlananTarih && ` · Planlanan çekim: ${tarihGoster(icerik.planlananTarih)}`}
+                      </span>
+                    </span>
+                    <span style={{ color: T.accentText, fontSize: 11.5, flexShrink: 0, fontFamily: "Inter", fontWeight: 600 }}>
+                      {kartAcik ? "Kapat ▲" : "Aç ▼"}
+                    </span>
+                  </button>
+
+                  {kartAcik && <div style={{ marginTop: 14 }}>
 
                   {/* ÇEKİM PLANI: referans video + konuşma metni + çekim notu */}
                   {icerik.tur === "cekim" && (
@@ -6570,6 +6700,7 @@ function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
                       </button>
                     </div>
                   )}
+                  </div>}
                 </Card>
               );
             })}
@@ -6599,14 +6730,16 @@ function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
           </>
         )}
 
-        {/* PAYLAŞIM PLANI — hangi gün ne paylaşılacak, alt metniyle birlikte. */}
-        <MusteriPaylasimPlani plan={musteriData.paylasimPlani || []} />
+        </>}
+
+        {/* PAYLAŞIM TAKVİMİ — Instagram önizlemeleriyle */}
+        {sekme === "takvim" && <MusteriPaylasimPlani plan={musteriData.paylasimPlani || []} marka={musteriData.marka} />}
 
         {/* REKLAMLAR — markanın aktif/biten kampanyaları. Bütçe bilgisi bilerek gönderilmez. */}
-        <MusteriReklamlar reklamlar={musteriData.reklamlar || []} />
+        {sekme === "reklam" && <MusteriReklamlar reklamlar={musteriData.reklamlar || []} />}
 
-        {/* OPERASYON — üretim süreci: hangi iş hangi aşamada. */}
-        <MusteriOperasyon isler={musteriData.operasyonIsleri || []} />
+        {/* ÜRETİM — hangi iş hangi aşamada. */}
+        {sekme === "uretim" && <MusteriOperasyon isler={musteriData.operasyonIsleri || []} />}
       </div>
     </div>
   );
@@ -6614,9 +6747,15 @@ function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
 
 /** Müşteri panelinde haftalık paylaşım planı. Gelecek haftalar önce gösterilir; geçmiş
  * haftalar "yapıldı" bilgisiyle altta kalır. */
-function MusteriPaylasimPlani({ plan }) {
+function MusteriPaylasimPlani({ plan, marka }) {
   const [gecmisAcik, setGecmisAcik] = useState(false);
-  if (!plan || plan.length === 0) return null;
+  if (!plan || plan.length === 0) {
+    return (
+      <Card style={{ padding: 24, textAlign: "center" }}>
+        <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Henüz paylaşım planı oluşturulmadı.</div>
+      </Card>
+    );
+  }
 
   const buHafta = haftaBaslangici();
   const gelecek = plan.filter((p) => p.haftaKey >= buHafta);
@@ -6631,42 +6770,46 @@ function MusteriPaylasimPlani({ plan }) {
   gelecek.forEach((p) => { (gruplar[p.haftaKey] = gruplar[p.haftaKey] || []).push(p); });
   const siraliHaftalar = Object.keys(gruplar).sort();
 
-  const Satir = ({ p }) => (
-    <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "10px 13px", marginBottom: 6 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: T.accentText, background: T.accentSoft, padding: "2px 9px", borderRadius: 999, fontFamily: "Inter" }}>{p.gun}</span>
-        <span style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{p.tur}</span>
-        {p.yapildi && <span style={{ fontSize: 10.5, fontWeight: 600, color: T.success, background: T.successSoft, padding: "2px 9px", borderRadius: 999, fontFamily: "Inter" }}>Paylaşıldı</span>}
-      </div>
-      {p.altMetin && (
-        <div style={{ marginTop: 8, fontSize: 12.5, color: T.textDim, fontFamily: "Inter", lineHeight: 1.65, whiteSpace: "pre-wrap", borderLeft: `2px solid ${T.border}`, paddingLeft: 10 }}>
-          {p.altMetin}
-        </div>
-      )}
+  /** Gönderiler Instagram akışı gibi gösterilir — müşteri neyin nasıl görüneceğini
+   * paylaşılmadan önce görsel olarak değerlendirebilsin diye. */
+  const Izgara = ({ liste }) => (
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 14, justifyContent: "center" }}>
+      {liste.map((p) => (
+        <InstagramOnizleme
+          key={p.id}
+          marka={marka}
+          tur={p.tur}
+          gun={p.gun}
+          gorselUrl={p.gorselUrl}
+          altMetin={p.altMetin}
+          yapildi={p.yapildi}
+        />
+      ))}
     </div>
   );
 
   return (
-    <div style={{ marginTop: 28 }}>
-      <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 10 }}>Paylaşım Planı</div>
+    <div>
       {siraliHaftalar.length === 0 && gecmis.length === 0 && (
         <Card style={{ padding: 20, textAlign: "center" }}>
           <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Henüz plan oluşturulmadı.</div>
         </Card>
       )}
       {siraliHaftalar.map((hk) => (
-        <div key={hk} style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 6 }}>{haftaBasligi(hk)}</div>
-          {gruplar[hk].map((p) => <Satir key={p.id} p={p} />)}
+        <div key={hk} style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", fontWeight: 700, marginBottom: 12, letterSpacing: 0.3 }}>
+            {haftaBasligi(hk).toLocaleUpperCase("tr")}
+          </div>
+          <Izgara liste={gruplar[hk]} />
         </div>
       ))}
       {gecmis.length > 0 && (
-        <>
-          <button onClick={() => setGecmisAcik((v) => !v)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 12, color: T.textDim, fontFamily: "Inter", fontWeight: 600 }}>
+        <div style={{ marginTop: 8 }}>
+          <button onClick={() => setGecmisAcik((v) => !v)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 12.5, color: T.textDim, fontFamily: "Inter", fontWeight: 600 }}>
             {gecmisAcik ? "▾" : "▸"} Geçmiş paylaşımlar ({gecmis.length})
           </button>
-          {gecmisAcik && <div style={{ marginTop: 8 }}>{gecmis.map((p) => <Satir key={p.id} p={p} />)}</div>}
-        </>
+          {gecmisAcik && <div style={{ marginTop: 14 }}><Izgara liste={gecmis} /></div>}
+        </div>
       )}
     </div>
   );
@@ -6674,11 +6817,16 @@ function MusteriPaylasimPlani({ plan }) {
 
 /** Müşteri panelinde markanın reklam kampanyaları. */
 function MusteriReklamlar({ reklamlar }) {
-  if (!reklamlar || reklamlar.length === 0) return null;
+  if (!reklamlar || reklamlar.length === 0) {
+    return (
+      <Card style={{ padding: 24, textAlign: "center" }}>
+        <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Şu an kayıtlı bir reklam kampanyası yok.</div>
+      </Card>
+    );
+  }
   const durumStil = { aktif: { label: "Yayında", color: T.success, bg: T.successSoft }, yakinda: { label: "Yakında bitiyor", color: T.warning, bg: T.warningSoft }, bitti: { label: "Sona erdi", color: T.textFaint, bg: T.surfaceRaised } };
   return (
-    <div style={{ marginTop: 28 }}>
-      <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 10 }}>Reklam Kampanyaları</div>
+    <div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {reklamlar.map((r) => {
           const st = durumStil[reklamDurumu(r)] || durumStil.aktif;
@@ -6703,7 +6851,13 @@ function MusteriReklamlar({ reklamlar }) {
 /** Müşteri panelinde üretim süreci — hangi iş hangi aşamada. */
 function MusteriOperasyon({ isler }) {
   const [hepsiAcik, setHepsiAcik] = useState(false);
-  if (!isler || isler.length === 0) return null;
+  if (!isler || isler.length === 0) {
+    return (
+      <Card style={{ padding: 24, textAlign: "center" }}>
+        <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Şu an devam eden bir üretim kaydı yok.</div>
+      </Card>
+    );
+  }
 
   const devamEden = isler.filter((j) => j.asama !== "Teslim Edildi");
   const bitenler = isler.filter((j) => j.asama === "Teslim Edildi");
@@ -6730,8 +6884,7 @@ function MusteriOperasyon({ isler }) {
   );
 
   return (
-    <div style={{ marginTop: 28, marginBottom: 20 }}>
-      <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 10 }}>Üretim Durumu</div>
+    <div>
       {devamEden.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: bitenler.length > 0 ? 12 : 0 }}>
           {devamEden.map((j) => <Satir key={j.id} j={j} />)}
@@ -7531,7 +7684,14 @@ export default function MarcusOS() {
 
   const addHaftalikPlan = (clientId, gun, haftaKey, tur) => paylasimIstek({ action: "haftalikEkle", clientId, gun, haftaKey, tur }, "Bağlantı hatası — plan eklenemedi, tekrar dene.");
   /** Planlanan paylaşımın alt metni (caption) — müşteri panelinde gösterilir. */
-  const setPlanAltMetin = (planId, altMetin) => paylasimIstek({ action: "haftalikAltMetin", planId, altMetin }, "Bağlantı hatası — alt metin kaydedilemedi, tekrar dene.");
+  /** Planlanan paylaşımın açıklama metni ve/veya görseli. Sadece verilen alan gönderilir —
+   * biri güncellenirken diğeri sıfırlanmasın diye undefined olanlar isteğe hiç eklenmez. */
+  const setPlanAltMetin = (planId, altMetin, gorselUrl) => {
+    const govde = { action: "haftalikAltMetin", planId };
+    if (altMetin !== undefined) govde.altMetin = altMetin;
+    if (gorselUrl !== undefined) govde.gorselUrl = gorselUrl;
+    return paylasimIstek(govde, "Bağlantı hatası — paylaşım kaydedilemedi, tekrar dene.");
+  };
   const toggleHaftalikYapildi = (planId) => paylasimIstek({ action: "haftalikToggle", planId }, "Bağlantı hatası — işaretlenemedi, tekrar dene.");
   const deleteHaftalikPlan = (planId) => paylasimIstek({ action: "haftalikSil", planId }, "Bağlantı hatası — silinemedi, tekrar dene.");
 
