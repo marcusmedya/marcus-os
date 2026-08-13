@@ -1023,3 +1023,51 @@ yazılıyor; işlem geçmişine de kimin aktardığı kaydediliyor.
 Revize ve onay akışları **aynı aktarım formunu** (`AktarimFormu`) kullanıyor — tek yerde tanımlı
 olduğu için iki akış zamanla birbirinden ayrışamaz. Kutu hâlâ hesaplanan bir liste, saklanmıyor;
 aktarılan kayıt kendiliğinden düşüyor.
+
+## Güncelleme 36: Yönetici de Müşteri Adına Onaylayabiliyor
+
+Müşteri onaylamayı unuttuğunda iş takılı kalıyordu — çekim planı "Bekliyor"da duruyor, Operasyon'a
+düşmüyordu. Artık **sen de onaylayabiliyorsun.**
+
+### Nasıl
+**Müşteri Paneli** sekmesinde (ve müşteri detayındaki kısa görünümde) "Bekliyor" durumundaki her
+kaydın yanında yeşil çerçeveli **"✓ Onayla"** butonu var. Onay istiyor, yanlışlıkla basılmıyor.
+
+### Sonuç müşterinin onayıyla birebir aynı
+Bu bilinçli bir tercih — iki farklı onay yolu farklı sonuç vermesin:
+- **Çekim planı** → Planım > Onay Kutusu'na düşer, oradan atamanla Operasyon'a aktarılır
+- **Bağlı işi olan normal içerik** → iş "Teslim Edildi" olarak kapanır (sunucudaki müşteri
+  onayı akışının aynısı)
+
+### Kim onayladı görünüyor
+Artık onayın kimden geldiği kaydediliyor. Listede senin onayladıkların **"Onaylandı ✓ (sen)"**
+olarak görünür; etiketin üzerine gelince de yazar. Onay Kutusu'nda da **"Sen onayladın"** /
+**"Müşteri onayladı"** ayrımı yapılır — böylece gerçekten müşteriden gelen onayla senin
+kapattığın işi karıştırmazsın.
+
+Bu alan sunucu tarafına da eklendi, yani müşterinin kendi onayları da "Müşteri" olarak
+işaretleniyor.
+
+## Güncelleme 37: Revize İstekleri Onay Kutusundan Kaybolmuyor
+
+**Sorun:** Revize istekleri "Onayını Bekleyenler" kutusunda görünmüyordu.
+
+**Sebep:** Bir revizeyi Operasyon'a aktarınca kayıt `operasyonaAktarildi` olarak işaretleniyor ve
+**listeden düşüyordu.** Ama işi Operasyon'a aktarmak müşterinin talebini çözmez — talep, ancak
+düzeltilmiş içerik müşteriye tekrar gönderildiğinde kapanır. Bu yüzden bir kere aktardığın
+revize, düzeltmeyi göndermeyi unutsan bile gözünden kayboluyordu.
+
+**Düzeltme:** Revize istekleri artık **düzeltilmiş içerik gönderilene kadar** kutuda kalıyor.
+Düzeltmeyi gönderdiğinde durum kendiliğinden "Bekliyor"a döner ve kayıt kutudan düşer — yani
+liste gerçekten "senden aksiyon bekleyenler" listesi oluyor.
+
+Aktarılmış olanlar kaybolmuyor, sadece **"✓ Operasyon'a aktarıldı"** işareti alıyor ve butonu
+"Tekrar Aktar" oluyor (yanlışlıkla ikinci bir iş açmayasın diye).
+
+### Menüde sayaç
+Sol menüde **Planım**'ın yanında turuncu bir sayaç var artık — bekleyen iş varsa sekmeye girmeden
+görüyorsun. Sayaç, kutunun kendisiyle **birebir aynı kuralı** kullanıyor; ikisi farklı sayı
+gösteremez.
+
+Sayaca dahil olanlar: müşteri revize istekleri + onaylanmış ama henüz aktarılmamış çekim
+planları + kimseye atanmamış işler.

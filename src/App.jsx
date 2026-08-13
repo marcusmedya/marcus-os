@@ -791,7 +791,7 @@ const CLIENT_DURUM = {
   ayrildi: { label: "Ayrıldı", color: T.textFaint, soft: T.borderSoft },
 };
 
-function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, freelancerlar, onAdd, onUpdate, onDelete, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, openClient, onOpenClientHandled, duzenleyenAdi, musteriIcerikleri, onAddIcerik, onUpdateIcerik, onDeleteIcerik, firmaAdi }) {
+function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, freelancerlar, onAdd, onUpdate, onDelete, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, openClient, onOpenClientHandled, duzenleyenAdi, musteriIcerikleri, onAddIcerik, onUpdateIcerik, onDeleteIcerik, onOnaylaIcerik, firmaAdi }) {
   const [filter, setFilter] = useState("hepsi");
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -973,6 +973,7 @@ function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, freelancerlar, onA
           detailClientId={detailClientId}
           musteriIcerikleri={musteriIcerikleri}
           onUpdateIcerik={onUpdateIcerik}
+          onOnaylaIcerik={onOnaylaIcerik}
           onAddIcerik={onAddIcerik}
           firmaAdi={firmaAdi}
           onDeleteIcerik={onDeleteIcerik}
@@ -1098,7 +1099,7 @@ const MUSTERI_DURUM_ETIKET = {
  * Müşteri Paneli sekmesinde tam sayfa olarak (kompakt=false) kullanılır.
  * Tek bir yerde tanımlı olduğu için iki görünüm asla birbirinden ayrışmaz.
  */
-function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, kompakt = true, baslangicAcik = false }) {
+function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, onOnayla, kompakt = true, baslangicAcik = false }) {
   const [acik, setAcik] = useState(baslangicAcik);
   const [ekleAcik, setEkleAcik] = useState(false);
   const [duzenlenenId, setDuzenlenenId] = useState(null); // düzenlenen kaydın id'si (yoksa yeni ekleme)
@@ -1198,7 +1199,19 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, k
                         {i.revizeNotu && <div style={{ fontSize: 11, color: T.danger, fontFamily: "Inter", fontStyle: "italic" }}>"{i.revizeNotu}"</div>}
                       </button>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontSize: 10.5, fontWeight: 600, color: etiket.color, background: etiket.bg, padding: "2px 8px", borderRadius: 999, fontFamily: "Inter" }}>{etiket.label}</span>
+                        <span style={{ fontSize: 10.5, fontWeight: 600, color: etiket.color, background: etiket.bg, padding: "2px 8px", borderRadius: 999, fontFamily: "Inter" }} title={i.onaylayan ? `Onaylayan: ${i.onaylayan}` : undefined}>
+                          {etiket.label}{i.onaylayan === "Yönetici" ? " (sen)" : ""}
+                        </span>
+                        {/* Müşteri onaylamayı unutursa iş takılı kalmasın diye sen de onaylayabilirsin. */}
+                        {onOnayla && i.durum === "bekliyor" && (
+                          <button
+                            title="Müşteri adına onayla"
+                            onClick={() => { if (window.confirm(`"${basligiTemizle(i.aciklama) || "Bu içerik"}" senin adına onaylanacak ve Planım'daki onay kutusuna düşecek. Devam edilsin mi?`)) onOnayla(i.id); }}
+                            style={{ background: "none", border: `1px solid ${T.success}`, color: T.success, cursor: "pointer", padding: "2px 9px", borderRadius: 999, fontSize: 10.5, fontWeight: 600, fontFamily: "Inter" }}
+                          >
+                            ✓ Onayla
+                          </button>
+                        )}
                         {onUpdate && (
                           <button title="Düzenle" onClick={() => duzenlemeyeAl(i)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><Pencil size={12} color={T.textFaint} /></button>
                         )}
@@ -1372,7 +1385,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, k
   );
 }
 
-function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, freelancerlar, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, onClose, kilitleyen, musteriIcerikleri, onAddIcerik, onUpdateIcerik, onDeleteIcerik, firmaAdi }) {
+function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, freelancerlar, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, onClose, kilitleyen, musteriIcerikleri, onAddIcerik, onUpdateIcerik, onDeleteIcerik, onOnaylaIcerik, firmaAdi }) {
   const [addingCost, setAddingCost] = useState(false);
   const [odemeModalOpen, setOdemeModalOpen] = useState(false);
   if (!client) return null;
@@ -1396,7 +1409,7 @@ function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, freelancerlar, on
 
         <KilitUyarisi kisi={kilitleyen} />
 
-        <IcerikYonetimMotoru clientId={client.id} icerikler={musteriIcerikleri} onAdd={onAddIcerik} onUpdate={onUpdateIcerik} onDelete={onDeleteIcerik} />
+        <IcerikYonetimMotoru clientId={client.id} icerikler={musteriIcerikleri} onAdd={onAddIcerik} onUpdate={onUpdateIcerik} onDelete={onDeleteIcerik} onOnayla={onOnaylaIcerik} />
 
         <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
           <Pill color={cd.color} soft={cd.soft}>{cd.label}</Pill>
@@ -5795,7 +5808,7 @@ function aylikRaporAc(veri) {
  * Daha önce bunlar iki ayrı yere dağılmıştı (içerikler müşteri detayında, hesaplar
  * Ayarlar'da) ve müşteri detayı zaten kalabalık olduğu için içerik bölümü kayboluyordu.
  */
-function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, plan, reklamlar, isler, onAltMetin, firmaAdi, logo }) {
+function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, onOnayla, plan, reklamlar, isler, onAltMetin, firmaAdi, logo }) {
   const [secili, setSecili] = useState(null);
 
   const aktifler = (clients || []).filter((c) => c.durum !== "ayrildi");
@@ -5860,6 +5873,7 @@ function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, 
             onAdd={onAdd}
             onUpdate={onUpdate}
             onDelete={onDelete}
+            onOnayla={onOnayla}
             kompakt={false}
           />
         </Card>
@@ -5920,9 +5934,12 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, onOperas
 
   const markaAdi = (clientId) => ((clients || []).find((c) => String(c.id) === String(clientId)) || {}).ad || "Müşteri";
 
-  // Aktarılmış olanlar listeden düşer — ama müşteri panelindeki "Revize İstendi" durumu
-  // korunur, çünkü müşteri düzeltilmiş içeriği henüz görmedi.
-  const revizeler = (icerikler || []).filter((i) => i.durum === "revize" && !i.operasyonaAktarildi);
+  /* Müşterinin revize isteği, DÜZELTİLİP TEKRAR GÖNDERİLENE KADAR listede kalır.
+   * Önceden "Operasyona aktarıldı" işareti konunca listeden düşüyordu — ama işi Operasyon'a
+   * aktarmak müşterinin talebini çözmüyor; talep ancak düzeltilmiş içerik gönderilince kapanır
+   * (o an durum kendiliğinden "bekliyor" olur ve kayıt buradan düşer).
+   * Aktarılmış olanlar listede kalır, sadece işaretlenir. */
+  const revizeler = (icerikler || []).filter((i) => i.durum === "revize");
   /** Müşterinin ONAYLADIĞI ama henüz Operasyon'a aktarılmamış çekim planları. Artık otomatik
    * iş açılmıyor — kimin yapacağına ve hangi aşamada başlayacağına sen karar veriyorsun. */
   const onaylananlar = (icerikler || []).filter((i) => i.tur === "cekim" && i.durum === "onaylandi" && !i.olusturulanIsId);
@@ -5975,7 +5992,8 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, onOperas
         Onayını Bekleyenler ({revizeler.length + onaylananlar.length + atanmamislar.length})
       </div>
       <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 14, lineHeight: 1.6 }}>
-        Müşteriden gelen revize istekleri ve kimseye atanmamış işler. Buradan kişi atayıp Operasyon'a düşürebilirsin.
+        Müşteriden gelen revize istekleri, onaylanmış çekim planları ve kimseye atanmamış işler.
+        Revize istekleri, düzeltilmiş içeriği müşteriye tekrar gönderene kadar burada kalır.
       </div>
 
       {revizeler.map((i) => (
@@ -5993,9 +6011,14 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, onOperas
               )}
             </div>
             {acikId !== i.id && (
-              <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+              <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center" }}>
+                {i.operasyonaAktarildi && (
+                  <span style={{ fontSize: 10.5, color: T.success, fontFamily: "Inter", fontWeight: 600 }}>✓ Operasyon'a aktarıldı</span>
+                )}
                 <button style={cancelBtnStyle} onClick={() => onGit && onGit()}>Planı Düzenle</button>
-                <button style={saveBtnStyle} onClick={() => formuAc(i)}>Operasyona Aktar</button>
+                <button style={i.operasyonaAktarildi ? cancelBtnStyle : saveBtnStyle} onClick={() => formuAc(i)}>
+                  {i.operasyonaAktarildi ? "Tekrar Aktar" : "Operasyona Aktar"}
+                </button>
               </div>
             )}
           </div>
@@ -6009,7 +6032,7 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, onOperas
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
-                <span style={{ color: T.success }}>Müşteri onayladı · </span>
+                <span style={{ color: T.success }}>{i.onaylayan === "Yönetici" ? "Sen onayladın · " : "Müşteri onayladı · "}</span>
                 {markaAdi(i.clientId)} — {basligiTemizle(i.aciklama) || "Çekim Planı"}
               </div>
               <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>
@@ -8433,6 +8456,38 @@ export default function MarcusOS() {
       i.id === icerikId ? { ...i, ...patch, id: i.id, clientId: i.clientId, kaynakIsId: i.kaynakIsId } : i
     )),
   }));
+  /**
+   * Yöneticinin müşteri adına onaylaması. Müşteri onaylamayı unuttuğunda iş takılı kalmasın
+   * diye var. Sonuç MÜŞTERİNİN ONAYIYLA AYNI — sadece kimin onayladığı kaydedilir:
+   *   - Çekim planları: Planım > Onay Kutusu'na düşer, oradan atamayla Operasyon'a aktarılır
+   *   - Bağlı bir işi olan normal içerik: iş "Teslim Edildi" olarak kapanır (sunucudaki
+   *     müşteri onayı akışının aynısı — iki yol farklı davranmasın diye)
+   */
+  const yoneticiOnayla = (icerikId) => setData((d) => {
+    const icerik = (d.musteriIcerikleri || []).find((i) => i.id === icerikId);
+    if (!icerik) return d;
+    const zaman = new Date().toLocaleString("tr-TR");
+
+    const yeni = {
+      ...d,
+      musteriIcerikleri: (d.musteriIcerikleri || []).map((i) => (
+        i.id === icerikId
+          ? { ...i, durum: "onaylandi", revizeNotu: null, onaylayan: "Yönetici", yanitTarihi: new Date().toLocaleDateString("tr-TR") }
+          : i
+      )),
+    };
+
+    // Çekim planı DEĞİLSE ve bağlı bir iş varsa, o iş kapanır (müşteri onayıyla aynı kural).
+    if (icerik.tur !== "cekim" && icerik.kaynakIsId && d.cekimIsleri) {
+      yeni.cekimIsleri = d.cekimIsleri.map((j) => {
+        if (j.id !== icerik.kaynakIsId) return j;
+        const not = { id: (j.gecmis || []).length + 1, tarih: zaman, yazan: "Yönetici (CEO)", aciklama: "Müşteri adına onaylandı." };
+        return { ...j, asama: "Teslim Edildi", teslimEdilmeTarihi: bugunISOTarih(), gecmis: [...(j.gecmis || []), not] };
+      });
+    }
+    return yeni;
+  });
+
   const deleteMusteriIcerik = (icerikId) => setData((d) => ({ ...d, musteriIcerikleri: (d.musteriIcerikleri || []).filter((i) => i.id !== icerikId) }));
 
   const addUyelik = (u) => paylasimIstek({ action: "uyelikEkle", uyelik: u }, "Bağlantı hatası — üyelik eklenemedi, tekrar dene.");
@@ -8876,6 +8931,19 @@ export default function MarcusOS() {
   }, [data, role]);
   const [notifOpen, setNotifOpen] = useState(false);
 
+  /** Planım menü rozeti. OnayKutusu ile AYNI kuralı kullanır — iki yer farklı sayı
+   * göstermesin diye. */
+  const onayBekleyenSayisi = useMemo(() => {
+    if (!data) return 0;
+    const icerikler = data.musteriIcerikleri || [];
+    const revize = icerikler.filter((i) => i.durum === "revize").length;
+    const onaylanan = icerikler.filter((i) => i.tur === "cekim" && i.durum === "onaylandi" && !i.olusturulanIsId).length;
+    const atanmamis = (data.cekimIsleri || []).filter(
+      (j) => j.asama !== "Teslim Edildi" && !String(j.kameraman || "").trim() && !String(j.editor || "").trim()
+    ).length;
+    return revize + onaylanan + atanmamis;
+  }, [data]);
+
   const searchResults = useMemo(() => {
     if (!data || role === "staff" || !search.trim() || !data.clients) return [];
     const q = search.trim().toLowerCase();
@@ -9099,6 +9167,7 @@ export default function MarcusOS() {
               musteriIcerikleri={data.musteriIcerikleri || []}
               onAddIcerik={addMusteriIcerik}
               onUpdateIcerik={updateMusteriIcerik}
+              onOnaylaIcerik={yoneticiOnayla}
               onDeleteIcerik={deleteMusteriIcerik}
               firmaAdi={data.firmaAdi}
             />
@@ -9236,12 +9305,19 @@ export default function MarcusOS() {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {NAV.map(({ key, label, icon: Icon }) => (
-            <button key={key} onClick={() => { setTab(key); setMobileMenuOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 9, background: tab === key ? T.accentSoft : "transparent", border: "none", cursor: "pointer", textAlign: "left" }}>
-              <Icon size={16} color={tab === key ? T.accentText : T.textDim} />
-              <span style={{ fontSize: 13.5, fontWeight: tab === key ? 600 : 500, color: tab === key ? T.text : T.textDim, fontFamily: "Inter, sans-serif" }}>{label}</span>
-            </button>
-          ))}
+          {NAV.map(({ key, label, icon: Icon }) => {
+            // Planım'da bekleyen iş varsa menüde sayaç görünsün — sekmeye girmeden fark edilsin.
+            const rozet = key === "planim" ? onayBekleyenSayisi : 0;
+            return (
+              <button key={key} onClick={() => { setTab(key); setMobileMenuOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 9, background: tab === key ? T.accentSoft : "transparent", border: "none", cursor: "pointer", textAlign: "left" }}>
+                <Icon size={16} color={tab === key ? T.accentText : T.textDim} />
+                <span style={{ flex: 1, fontSize: 13.5, fontWeight: tab === key ? 600 : 500, color: tab === key ? T.text : T.textDim, fontFamily: "Inter, sans-serif" }}>{label}</span>
+                {rozet > 0 && (
+                  <span style={{ background: T.warning, color: "#fff", borderRadius: 999, padding: "1px 7px", fontSize: 10.5, fontWeight: 700, fontFamily: "Inter" }}>{rozet}</span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
@@ -9360,6 +9436,7 @@ export default function MarcusOS() {
               onAdd={addMusteriIcerik}
               onUpdate={updateMusteriIcerik}
               onDelete={deleteMusteriIcerik}
+              onOnayla={yoneticiOnayla}
               plan={data.haftalikPaylasimlar || []}
               reklamlar={data.reklamlar || []}
               isler={data.cekimIsleri || []}
@@ -9385,6 +9462,7 @@ export default function MarcusOS() {
               musteriIcerikleri={data.musteriIcerikleri || []}
               onAddIcerik={addMusteriIcerik}
               onUpdateIcerik={updateMusteriIcerik}
+              onOnaylaIcerik={yoneticiOnayla}
               onDeleteIcerik={deleteMusteriIcerik}
               firmaAdi={data.firmaAdi}
             />

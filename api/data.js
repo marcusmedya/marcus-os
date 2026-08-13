@@ -343,7 +343,9 @@ export default async function handler(req, res) {
 
           const yeni = { ...guncel };
           if (musteriAction === "onayla") {
-            yeni.musteriIcerikleri = liste.map((i) => (i.id === icerikId ? { ...i, durum: "onaylandi", revizeNotu: null, yanitTarihi: new Date().toLocaleDateString("tr-TR") } : i));
+            // onaylayan: "Müşteri" — yönetici de müşteri adına onaylayabildiği için (müşteri
+            // unuttuğunda iş takılı kalmasın diye), onayın kimden geldiği kaydediliyor.
+            yeni.musteriIcerikleri = liste.map((i) => (i.id === icerikId ? { ...i, durum: "onaylandi", revizeNotu: null, onaylayan: "Müşteri", yanitTarihi: new Date().toLocaleDateString("tr-TR") } : i));
 
             /* NOT: Müşteri bir çekim planını onayladığında Operasyon'da iş OTOMATİK AÇILMAZ.
              * İş, yöneticinin Planım > Onay Kutusu'ndan onaylamasıyla ve orada yaptığı
