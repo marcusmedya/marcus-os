@@ -1567,3 +1567,38 @@ Sonuç: koruma çalışmıyorken çalışıyor sanılıyordu — güvenlik açı
 
 Bu iki değişiklik sorunu çözmüyor, **görünür kılıyor** — asıl sebebi ancak uyarıdaki metinle
 teşhis edebiliriz.
+
+## Güncelleme 74: "Verilerine Ulaşılamadı" — Hız Sınırı Kilitlenmesi
+
+Vercel logları sorunu kesin olarak gösterdi: `/api/data` isteklerinin neredeyse tamamı
+**HTTP 429** dönüyordu. Yani sunucu çökmüş değildi — uygulama seni brute-force saldırganı
+sanıp kilitlemişti.
+
+### Tasarım hatası
+Hız sınırı kontrolü **her isteğin başında, kimlik doğrulamasından ÖNCE** çalışıyordu.
+
+Sonuç: sayaç bir kez dolduğunda (test sırasında yapılan hatalı giriş denemeleri yetti),
+**geçerli oturumu olan kullanıcı da dahil** herkes 15 dakika boyunca dışarıda kalıyordu.
+Uygulama tamamen kullanılamaz hâle geliyordu.
+
+Daha kötüsü: kilidi açma bağlantısı yalnızca giriş ekranında görünüyordu. Zaten giriş yapmış
+biri o ekranı hiç görmediği için kilidi açmanın da yolu yoktu.
+
+### Düzeltme
+Hız sınırı artık **kimliği doğrulanamayan** isteklere uygulanıyor:
+
+- **Giriş denemeleri** (authAction) → sınır uygulanır, brute-force korumasi aynen duruyor
+- **Normal istekler** → önce kimlik doğrulanır; geçerliyse sınır hiç devreye girmez
+- Kimlik doğrulanamazsa sınır uygulanır
+
+Yani doğru davranış: sınır saldırganı durdurur, kullanıcıyı değil. Geçerli oturumu olan biri
+artık hiçbir koşulda kilitlenemez.
+
+### Doğrulama (testler/t11.mjs)
+Sayaç bilerek doldurulup dört senaryo test edildi:
+- ✓ Brute-force hâlâ engelleniyor (429)
+- ✓ Geçerli kimlikle veri çekilebiliyor (200) — **asıl hata buydu**
+- ✓ Başarılı giriş mümkün, sayaç sıfırlanıyor
+- ✓ Kimliksiz istek hâlâ engelleniyor
+
+Test paketi 49 kontrole çıktı, hepsi geçiyor.

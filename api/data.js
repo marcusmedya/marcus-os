@@ -186,7 +186,19 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true });
   }
 
-  if (await rateLimitAsildiMi(req)) {
+  /* HIZ SINIRI — SADECE GİRİŞ DENEMELERİNE UYGULANIR.
+   *
+   * TASARIM HATASI DÜZELTİLDİ: Bu kontrol eskiden HER isteğin başında, kimlik
+   * doğrulamasından ÖNCE çalışıyordu. Sonuç: sayaç bir kez dolduğunda, geçerli oturumu olan
+   * kullanıcı da dahil herkes 15 dakika boyunca dışarıda kalıyordu — uygulama tamamen
+   * kullanılamaz hâle geliyor ve "Verilerine ulaşılamadı" ekranı çıkıyordu. Üstelik kilidi
+   * açma bağlantısı yalnızca giriş ekranında göründüğü için, zaten girmiş olan kullanıcının
+   * ona ulaşma yolu da yoktu.
+   *
+   * Doğrusu: hız sınırı brute-force denemelerini durdurmalı, kimliği DOĞRULANMIŞ kullanıcıyı
+   * değil. Bu yüzden artık yalnızca giriş denemelerinde (authAction POST) uygulanıyor;
+   * normal isteklerde ise kimlik doğrulanamazsa aşağıda uygulanıyor. */
+  if (req.method === "POST" && req.body && req.body.authAction && await rateLimitAsildiMi(req)) {
     return res.status(429).json({ error: "Çok fazla başarısız giriş denemesi. 15 dakika sonra tekrar dene." });
   }
 
@@ -262,7 +274,13 @@ export default async function handler(req, res) {
   const auth = await resolveRole(req);
   // Kimlik doğrulandıysa hatalı deneme sayacını temizle — yoksa eski denemeler geçerli
   // girişleri de engellemeye devam ederdi.
-  if (auth) await basariliGirisiSifirla(req);
+  if (auth) {
+    await basariliGirisiSifirla(req);
+  } else if (await rateLimitAsildiMi(req)) {
+    // Kimliği doğrulanamayan isteklerde hız sınırı burada devreye girer. Geçerli oturumu
+    // olan kullanıcı bu noktaya hiç gelmez, dolayısıyla kilitlenemez.
+    return res.status(429).json({ error: "Çok fazla başarısız giriş denemesi. 15 dakika sonra tekrar dene." });
+  }
   if (!auth) {
     await basarisizGirisiKaydet(req);
     return res.status(401).json({ error: "Yetkisiz. Şifre gerekli." });
