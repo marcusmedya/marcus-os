@@ -248,6 +248,56 @@ export default async function handler(req, res) {
 
       const kendiIcerikleri = (data.musteriIcerikleri || []).filter((i) => String(i.clientId) === String(musteriClientId));
 
+      /* ---------------------------------------------------------------- *
+       * MÜŞTERİYE GÖNDERİLEN EK VERİ (reklamlar, paylaşım planı, operasyon)
+       *
+       * KRİTİK: burada ne göndermediğimiz, ne gönderdiğimiz kadar önemli. Her kayıt
+       * alan alan SEÇİLEREK kopyalanıyor — kaydın tamamı asla olduğu gibi gönderilmiyor.
+       * Böylece ileride bu kayıtlara eklenecek yeni bir iç alan (maliyet, personel notu vb.)
+       * müşteri paneline kendiliğinden sızamaz.
+       *
+       * Bilerek DIŞARIDA bırakılanlar:
+       *  - Reklam bütçesi (iç bilgi)
+       *  - Operasyon işlerinde kameraman/editör adı, iç yorumlar, işlem geçmişi, brief
+       *  - Her türlü maliyet, ücret ve personel bilgisi
+       * ---------------------------------------------------------------- */
+      const markaAdi = kendiMarka ? kendiMarka.ad : "";
+
+      const kendiReklamlari = (data.reklamlar || [])
+        .filter((r) => r.marka === markaAdi)
+        .map((r) => ({
+          id: r.id,
+          reklamAdi: r.reklamAdi,
+          baslangicTarihi: r.baslangicTarihi || null,
+          bitisTarihi: r.bitisTarihi || null,
+          not: r.not || null,
+        }));
+
+      const kendiPaylasimPlani = (data.haftalikPaylasimlar || [])
+        .filter((p) => String(p.clientId) === String(musteriClientId))
+        .map((p) => ({
+          id: p.id,
+          gun: p.gun,
+          haftaKey: p.haftaKey,
+          tur: p.tur,
+          yapildi: !!p.yapildi,
+          yapildigiTarih: p.yapildigiTarih || null,
+          altMetin: p.altMetin || null,
+        }));
+
+      const kendiIsleri = (data.cekimIsleri || [])
+        .filter((j) => j.marka === markaAdi)
+        .map((j) => ({
+          id: j.id,
+          icerikTuru: j.icerikTuru || "",
+          kategori: j.kategori || null,
+          asama: j.asama || "",
+          cekimTarihi: j.cekimTarihi || null,
+          teslimTarihi: j.teslimTarihi || null,
+          teslimEdilmeTarihi: j.teslimEdilmeTarihi || null,
+          uretilenAdet: j.uretilenAdet || null,
+        }));
+
       if (req.method === "GET") {
         return res.status(200).json({
           role: "musteri",
@@ -255,6 +305,9 @@ export default async function handler(req, res) {
           marka: kendiMarka ? kendiMarka.ad : "",
           firmaAdi: data.firmaAdi || "Marcus Medya",
           icerikler: kendiIcerikleri,
+          reklamlar: kendiReklamlari,
+          paylasimPlani: kendiPaylasimPlani,
+          operasyonIsleri: kendiIsleri,
         });
       }
 

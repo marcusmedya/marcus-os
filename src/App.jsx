@@ -5180,6 +5180,121 @@ function VeriBoyutuKarti() {
  *
  * Müşteri işlerinden (Operasyon) tamamen ayrıdır ve personele hiç gönderilmez.
  */
+/**
+ * Müşterinin panelinde içeriklerin YANI SIRA gördükleri: paylaşım planı, reklamlar ve
+ * üretim durumu. Bu veriler başka sekmelerde yönetiliyor (Paylaşımlar, Reklamlar,
+ * Operasyon) — burada müşterinin göreceği hâliyle gösteriliyor ki "müşteri ne görüyor?"
+ * sorusunu tek yerden cevaplayabilesin. Tek düzenlenebilir alan ALT METİNLER.
+ */
+function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
+  const [acik, setAcik] = useState(null); // "plan" | "reklam" | "operasyon"
+  const [duzenlenen, setDuzenlenen] = useState(null);
+  const [taslak, setTaslak] = useState("");
+
+  const markaPlani = (plan || []).filter((p) => String(p.clientId) === String(marka.id));
+  const markaReklamlari = (reklamlar || []).filter((r) => r.marka === marka.ad);
+  const markaIsleri = (isler || []).filter((j) => j.marka === marka.ad);
+
+  const buHafta = haftaBaslangici();
+  const yaklasanPlan = markaPlani.filter((p) => p.haftaKey >= buHafta).sort((a, b) => (a.haftaKey > b.haftaKey ? 1 : -1));
+
+  const kaydet = (planId) => { onAltMetin(planId, taslak); setDuzenlenen(null); setTaslak(""); };
+
+  const Bolum = ({ anahtar, baslik, adet, children }) => (
+    <div style={{ borderTop: `1px solid ${T.borderSoft}`, paddingTop: 12, marginTop: 12 }}>
+      <button
+        onClick={() => setAcik(acik === anahtar ? null : anahtar)}
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+      >
+        <span style={{ fontSize: 12.5, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{baslik}</span>
+        <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{adet} kayıt {acik === anahtar ? "▲" : "▼"}</span>
+      </button>
+      {acik === anahtar && <div style={{ marginTop: 10 }}>{children}</div>}
+    </div>
+  );
+
+  return (
+    <Card style={{ padding: "16px 18px", marginBottom: 16 }}>
+      <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter" }}>Müşteri Panelinde Ayrıca Görünenler</div>
+      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 4, lineHeight: 1.6 }}>
+        Bunlar Paylaşımlar, Reklamlar ve Operasyon sekmelerinden otomatik gelir — burada müşterinin gördüğü hâliyle listelenir.
+        Reklam bütçesi, personel adları ve iç notlar müşteriye <strong>gönderilmez</strong>.
+      </div>
+
+      <Bolum anahtar="plan" baslik="Paylaşım Planı (alt metinler buradan yazılır)" adet={yaklasanPlan.length}>
+        {yaklasanPlan.length === 0 ? (
+          <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter" }}>Bu marka için bu hafta ve sonrasına plan yok. Plan eklemek için Paylaşımlar sekmesini kullan.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {yaklasanPlan.map((p) => (
+              <div key={p.id} style={{ background: T.surfaceRaised, borderRadius: 9, padding: "9px 12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: T.accentText, background: T.accentSoft, padding: "2px 8px", borderRadius: 999, fontFamily: "Inter" }}>{p.gun}</span>
+                  <span style={{ fontSize: 12, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{p.tur}</span>
+                  {p.yapildi && <span style={{ fontSize: 10, color: T.success, fontFamily: "Inter" }}>✓ paylaşıldı</span>}
+                  {duzenlenen !== p.id && (
+                    <button onClick={() => { setDuzenlenen(p.id); setTaslak(p.altMetin || ""); }} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", fontSize: 11, color: T.accentText, fontFamily: "Inter", textDecoration: "underline", padding: 0 }}>
+                      {p.altMetin ? "Alt metni düzenle" : "+ Alt metin ekle"}
+                    </button>
+                  )}
+                </div>
+                {duzenlenen === p.id ? (
+                  <div style={{ marginTop: 8 }}>
+                    <textarea
+                      autoFocus
+                      value={taslak}
+                      onChange={(e) => setTaslak(e.target.value)}
+                      rows={4}
+                      placeholder="Paylaşımın alt metni (caption) — müşteri panelinde bu metni görecek"
+                      style={{ ...inputStyle, width: "100%", resize: "vertical", marginBottom: 8, fontFamily: "Inter", lineHeight: 1.6 }}
+                    />
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button style={saveBtnStyle} onClick={() => kaydet(p.id)}>Kaydet</button>
+                      <button style={cancelBtnStyle} onClick={() => setDuzenlenen(null)}>İptal</button>
+                    </div>
+                  </div>
+                ) : p.altMetin ? (
+                  <div style={{ marginTop: 6, fontSize: 12, color: T.textDim, fontFamily: "Inter", lineHeight: 1.6, whiteSpace: "pre-wrap", borderLeft: `2px solid ${T.border}`, paddingLeft: 9 }}>{p.altMetin}</div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        )}
+      </Bolum>
+
+      <Bolum anahtar="reklam" baslik="Reklam Kampanyaları" adet={markaReklamlari.length}>
+        {markaReklamlari.length === 0 ? (
+          <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter" }}>Bu markaya ait reklam kaydı yok.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            {markaReklamlari.map((r) => (
+              <div key={r.id} style={{ background: T.surfaceRaised, borderRadius: 9, padding: "8px 12px", fontSize: 12, fontFamily: "Inter", display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ color: T.text, fontWeight: 600 }}>{r.reklamAdi}</span>
+                <span style={{ color: T.textFaint }}>{tarihGoster(r.baslangicTarihi)} — {tarihGoster(r.bitisTarihi)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Bolum>
+
+      <Bolum anahtar="operasyon" baslik="Üretim Durumu (Operasyon)" adet={markaIsleri.length}>
+        {markaIsleri.length === 0 ? (
+          <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter" }}>Bu markaya ait operasyon işi yok.</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 260, overflowY: "auto" }}>
+            {markaIsleri.map((j) => (
+              <div key={j.id} style={{ background: T.surfaceRaised, borderRadius: 9, padding: "8px 12px", fontSize: 12, fontFamily: "Inter", display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ color: T.text }}>{j.icerikTuru}{j.kategori ? ` · ${j.kategori}` : ""}</span>
+                <span style={{ color: j.asama === "Teslim Edildi" ? T.success : T.warning, fontWeight: 600 }}>{j.asama}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Bolum>
+    </Card>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* MÜŞTERİ PANELİ YÖNETİMİ (kendi sekmesi)                               */
 /* ------------------------------------------------------------------ */
@@ -5190,7 +5305,7 @@ function VeriBoyutuKarti() {
  * Daha önce bunlar iki ayrı yere dağılmıştı (içerikler müşteri detayında, hesaplar
  * Ayarlar'da) ve müşteri detayı zaten kalabalık olduğu için içerik bölümü kayboluyordu.
  */
-function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete }) {
+function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, plan, reklamlar, isler, onAltMetin }) {
   const [secili, setSecili] = useState(null);
 
   const aktifler = (clients || []).filter((c) => c.durum !== "ayrildi");
@@ -5264,6 +5379,18 @@ function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete }
             Yukarıdan bir marka seç — o markaya gönderdiğin çekim planlarını ve içerikleri burada yönetirsin.
           </div>
         </Card>
+      )}
+
+      {/* Müşterinin panelinde ayrıca gördükleri: paylaşım planı (alt metinleriyle),
+        * reklamlar ve üretim durumu. Alt metinler buradan yazılır. */}
+      {seciliMarka && (
+        <MusteriPanelEkleri
+          marka={seciliMarka}
+          plan={plan || []}
+          reklamlar={reklamlar || []}
+          isler={isler || []}
+          onAltMetin={onAltMetin}
+        />
       )}
 
       {/* Panel giriş hesapları — artık müşteri paneliyle aynı yerde */}
@@ -6464,7 +6591,158 @@ function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
             </div>
           </>
         )}
+
+        {/* PAYLAŞIM PLANI — hangi gün ne paylaşılacak, alt metniyle birlikte. */}
+        <MusteriPaylasimPlani plan={musteriData.paylasimPlani || []} />
+
+        {/* REKLAMLAR — markanın aktif/biten kampanyaları. Bütçe bilgisi bilerek gönderilmez. */}
+        <MusteriReklamlar reklamlar={musteriData.reklamlar || []} />
+
+        {/* OPERASYON — üretim süreci: hangi iş hangi aşamada. */}
+        <MusteriOperasyon isler={musteriData.operasyonIsleri || []} />
       </div>
+    </div>
+  );
+}
+
+/** Müşteri panelinde haftalık paylaşım planı. Gelecek haftalar önce gösterilir; geçmiş
+ * haftalar "yapıldı" bilgisiyle altta kalır. */
+function MusteriPaylasimPlani({ plan }) {
+  const [gecmisAcik, setGecmisAcik] = useState(false);
+  if (!plan || plan.length === 0) return null;
+
+  const buHafta = haftaBaslangici();
+  const gelecek = plan.filter((p) => p.haftaKey >= buHafta);
+  const gecmis = plan.filter((p) => p.haftaKey < buHafta).sort((a, b) => (a.haftaKey < b.haftaKey ? 1 : -1));
+
+  const haftaBasligi = (key) => {
+    const d = new Date(key);
+    if (Number.isNaN(d.getTime())) return key;
+    return `${d.toLocaleDateString("tr-TR", { day: "numeric", month: "long" })} haftası`;
+  };
+  const gruplar = {};
+  gelecek.forEach((p) => { (gruplar[p.haftaKey] = gruplar[p.haftaKey] || []).push(p); });
+  const siraliHaftalar = Object.keys(gruplar).sort();
+
+  const Satir = ({ p }) => (
+    <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "10px 13px", marginBottom: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: T.accentText, background: T.accentSoft, padding: "2px 9px", borderRadius: 999, fontFamily: "Inter" }}>{p.gun}</span>
+        <span style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{p.tur}</span>
+        {p.yapildi && <span style={{ fontSize: 10.5, fontWeight: 600, color: T.success, background: T.successSoft, padding: "2px 9px", borderRadius: 999, fontFamily: "Inter" }}>Paylaşıldı</span>}
+      </div>
+      {p.altMetin && (
+        <div style={{ marginTop: 8, fontSize: 12.5, color: T.textDim, fontFamily: "Inter", lineHeight: 1.65, whiteSpace: "pre-wrap", borderLeft: `2px solid ${T.border}`, paddingLeft: 10 }}>
+          {p.altMetin}
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div style={{ marginTop: 28 }}>
+      <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 10 }}>Paylaşım Planı</div>
+      {siraliHaftalar.length === 0 && gecmis.length === 0 && (
+        <Card style={{ padding: 20, textAlign: "center" }}>
+          <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Henüz plan oluşturulmadı.</div>
+        </Card>
+      )}
+      {siraliHaftalar.map((hk) => (
+        <div key={hk} style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 6 }}>{haftaBasligi(hk)}</div>
+          {gruplar[hk].map((p) => <Satir key={p.id} p={p} />)}
+        </div>
+      ))}
+      {gecmis.length > 0 && (
+        <>
+          <button onClick={() => setGecmisAcik((v) => !v)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 12, color: T.textDim, fontFamily: "Inter", fontWeight: 600 }}>
+            {gecmisAcik ? "▾" : "▸"} Geçmiş paylaşımlar ({gecmis.length})
+          </button>
+          {gecmisAcik && <div style={{ marginTop: 8 }}>{gecmis.map((p) => <Satir key={p.id} p={p} />)}</div>}
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Müşteri panelinde markanın reklam kampanyaları. */
+function MusteriReklamlar({ reklamlar }) {
+  if (!reklamlar || reklamlar.length === 0) return null;
+  const durumStil = { aktif: { label: "Yayında", color: T.success, bg: T.successSoft }, yakinda: { label: "Yakında bitiyor", color: T.warning, bg: T.warningSoft }, bitti: { label: "Sona erdi", color: T.textFaint, bg: T.surfaceRaised } };
+  return (
+    <div style={{ marginTop: 28 }}>
+      <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 10 }}>Reklam Kampanyaları</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {reklamlar.map((r) => {
+          const st = durumStil[reklamDurumu(r)] || durumStil.aktif;
+          return (
+            <div key={r.id} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "10px 13px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{r.reklamAdi}</span>
+                <span style={{ fontSize: 10.5, fontWeight: 600, color: st.color, background: st.bg, padding: "2px 9px", borderRadius: 999, fontFamily: "Inter" }}>{st.label}</span>
+              </div>
+              <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 3 }}>
+                {tarihGoster(r.baslangicTarihi)} — {tarihGoster(r.bitisTarihi)}
+              </div>
+              {r.not && <div style={{ fontSize: 12, color: T.textDim, fontFamily: "Inter", marginTop: 5, lineHeight: 1.6 }}>{r.not}</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** Müşteri panelinde üretim süreci — hangi iş hangi aşamada. */
+function MusteriOperasyon({ isler }) {
+  const [hepsiAcik, setHepsiAcik] = useState(false);
+  if (!isler || isler.length === 0) return null;
+
+  const devamEden = isler.filter((j) => j.asama !== "Teslim Edildi");
+  const bitenler = isler.filter((j) => j.asama === "Teslim Edildi");
+  const gosterilen = hepsiAcik ? bitenler : bitenler.slice(-5);
+
+  const Satir = ({ j }) => (
+    <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "10px 13px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <div>
+        <div style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
+          {j.icerikTuru}{j.kategori ? ` · ${j.kategori}` : ""}{j.uretilenAdet ? ` · ${j.uretilenAdet} parça` : ""}
+        </div>
+        <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>
+          {j.asama === "Teslim Edildi" && j.teslimEdilmeTarihi
+            ? `Teslim: ${tarihGoster(j.teslimEdilmeTarihi)}`
+            : j.teslimTarihi ? `Planlanan teslim: ${tarihGoster(j.teslimTarihi)}` : ""}
+        </div>
+      </div>
+      <span style={{ fontSize: 10.5, fontWeight: 600, fontFamily: "Inter", padding: "3px 10px", borderRadius: 999,
+        color: j.asama === "Teslim Edildi" ? T.success : T.warning,
+        background: j.asama === "Teslim Edildi" ? T.successSoft : T.warningSoft }}>
+        {j.asama}
+      </span>
+    </div>
+  );
+
+  return (
+    <div style={{ marginTop: 28, marginBottom: 20 }}>
+      <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 10 }}>Üretim Durumu</div>
+      {devamEden.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: bitenler.length > 0 ? 12 : 0 }}>
+          {devamEden.map((j) => <Satir key={j.id} j={j} />)}
+        </div>
+      )}
+      {bitenler.length > 0 && (
+        <>
+          <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 6 }}>Tamamlananlar</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {gosterilen.map((j) => <Satir key={j.id} j={j} />)}
+          </div>
+          {bitenler.length > 5 && (
+            <button onClick={() => setHepsiAcik((v) => !v)} style={{ background: "none", border: "none", padding: "8px 0 0", cursor: "pointer", fontSize: 12, color: T.textDim, fontFamily: "Inter", fontWeight: 600 }}>
+              {hepsiAcik ? "Daha az göster" : `+ ${bitenler.length - 5} tane daha göster`}
+            </button>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -7234,6 +7512,8 @@ export default function MarcusOS() {
   const toggleGunlukKontrol = (clientId, tur) => paylasimIstek({ action: "gunlukToggle", clientId, tur }, "Bağlantı hatası — işaretlenemedi, tekrar dene.");
 
   const addHaftalikPlan = (clientId, gun, haftaKey, tur) => paylasimIstek({ action: "haftalikEkle", clientId, gun, haftaKey, tur }, "Bağlantı hatası — plan eklenemedi, tekrar dene.");
+  /** Planlanan paylaşımın alt metni (caption) — müşteri panelinde gösterilir. */
+  const setPlanAltMetin = (planId, altMetin) => paylasimIstek({ action: "haftalikAltMetin", planId, altMetin }, "Bağlantı hatası — alt metin kaydedilemedi, tekrar dene.");
   const toggleHaftalikYapildi = (planId) => paylasimIstek({ action: "haftalikToggle", planId }, "Bağlantı hatası — işaretlenemedi, tekrar dene.");
   const deleteHaftalikPlan = (planId) => paylasimIstek({ action: "haftalikSil", planId }, "Bağlantı hatası — silinemedi, tekrar dene.");
 
@@ -7994,6 +8274,10 @@ export default function MarcusOS() {
               onAdd={addMusteriIcerik}
               onUpdate={updateMusteriIcerik}
               onDelete={deleteMusteriIcerik}
+              plan={data.haftalikPaylasimlar || []}
+              reklamlar={data.reklamlar || []}
+              isler={data.cekimIsleri || []}
+              onAltMetin={setPlanAltMetin}
             />
           )}
           {tab === "musteriler" && (

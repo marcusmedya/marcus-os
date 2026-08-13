@@ -704,3 +704,41 @@ Arayüz çekim planlarının başına kendi 🎬 ikonunu koyuyor. Başlığa ell
 "🎬 🎬 🎬 Konu Başlığı" gibi görünüyordu. Artık başlığın başındaki emojiler gösterimde
 otomatik temizleniyor — kayıtlı veriye dokunulmuyor, sadece ekranda düzgün görünüyor.
 Hem senin listende hem müşterinin panelinde geçerli.
+
+## Güncelleme 27: Müşteri Paneline Reklamlar, Paylaşım Planı ve Üretim Durumu
+
+Müşteri artık kendi panelinde sadece onay bekleyen içerikleri değil, işin tamamını görüyor.
+
+### Müşterinin gördüğü yeni bölümler
+**Paylaşım Planı** — hangi gün ne paylaşılacak, hafta hafta gruplanmış. Her planın altında
+**alt metni (caption)** okunur biçimde görünür. Paylaşılanlar "Paylaşıldı" etiketi alır, geçmiş
+haftalar altta katlanmış durur.
+
+**Reklam Kampanyaları** — kampanya adı, başlangıç/bitiş tarihi, durumu (Yayında / Yakında
+bitiyor / Sona erdi) ve varsa not.
+
+**Üretim Durumu** — markanın tüm Operasyon işleri, hangi aşamada oldukları ve teslim tarihleriyle.
+Devam edenler üstte, tamamlananlar altta (son 5, istenirse hepsi açılır).
+
+### Alt metin (caption) alanı eklendi
+Haftalık paylaşım planına `altMetin` alanı eklendi. Yazmak için: **Müşteri Paneli** sekmesi →
+markayı seç → **"Müşteri Panelinde Ayrıca Görünenler"** → *Paylaşım Planı* → ilgili planda
+"+ Alt metin ekle". Sunucu tarafında yeni bir dosya açılmadı; `api/paylasim.js` içine
+`haftalikAltMetin` action'ı olarak eklendi (fonksiyon sayısı hâlâ 12/12).
+
+### Yönetici tarafı: "müşteri ne görüyor?"
+Müşteri Paneli sekmesinde, seçili markanın altında yeni bir bölüm var. Paylaşım planı, reklamlar
+ve operasyon işleri müşterinin göreceği hâliyle listeleniyor — bu veriler kendi sekmelerinde
+(Paylaşımlar / Reklamlar / Operasyon) yönetilmeye devam ediyor, burası aynanın müşteri tarafı.
+Tek düzenlenebilir alan alt metinler.
+
+### Gizlilik — ne gönderilmiyor
+Kayıtlar müşteriye olduğu gibi DEĞİL, **alan alan seçilerek** gönderiliyor. Bilerek dışarıda
+bırakılanlar:
+- **Reklam bütçesi**
+- Operasyon işlerinde **kameraman/editör adları**, **iç yorumlar**, **işlem geçmişi**, **brief**
+- Her türlü maliyet, ücret ve personel bilgisi
+
+Bu yaklaşım ileriye dönük de korur: bu kayıtlara sonradan eklenecek yeni bir iç alan (yeni bir
+maliyet kalemi, personel notu vb.) müşteri paneline kendiliğinden sızamaz — açıkça eklenmedikçe
+gitmez.

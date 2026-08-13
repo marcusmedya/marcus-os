@@ -99,6 +99,17 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, haftalikPaylasimlar: data.haftalikPaylasimlar });
     }
 
+    /* Planlanan bir paylaşımın ALT METNİ (caption). Müşteri panelinde gösterilir, böylece
+     * müşteri neyin ne zaman, hangi metinle paylaşılacağını önceden görebilir. */
+    if (action === "haftalikAltMetin") {
+      const { planId, altMetin } = body;
+      const liste = data.haftalikPaylasimlar || [];
+      if (!liste.some((p) => p.id === planId)) return res.status(404).json({ error: "Plan bulunamadı." });
+      data.haftalikPaylasimlar = liste.map((p) => (p.id === planId ? { ...p, altMetin: (altMetin || "").trim() || null } : p));
+      await kaydetVeYedekle(data);
+      return res.status(200).json({ ok: true, haftalikPaylasimlar: data.haftalikPaylasimlar });
+    }
+
     if (action === "haftalikSil") {
       const { planId } = body;
       const silinen = (data.haftalikPaylasimlar || []).find((p) => p.id === planId);
