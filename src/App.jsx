@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Wallet, Settings, Sparkles,
   ArrowUpRight, ArrowDownRight, X, Send, Plus, Pencil, Trash2, Check,
   ChevronRight,
-  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp, Menu, Calendar, ChevronLeft, ListChecks, FileText, Megaphone, Share2, Lock, Camera, Shield, ClipboardCheck, Video, Copy, KeyRound, Eye, EyeOff, RefreshCw, CreditCard, NotebookPen
+  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp, Menu, Calendar, ChevronLeft, ListChecks, FileText, Megaphone, Share2, Lock, Camera, Shield, ClipboardCheck, Video, Copy, KeyRound, Eye, EyeOff, RefreshCw, CreditCard, NotebookPen, MonitorSmartphone
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
@@ -1020,33 +1020,56 @@ const MUSTERI_DURUM_ETIKET = {
 
 /** Bir markanın Müşteri Paneli'nde göreceği içerikleri (görsel/video) ekleyip listeleyen,
  * ClientDetail içine gömülü, kendi başına açılıp kapanan bir bölüm. */
-function MusteriIcerikYonetimi({ clientId, icerikler, onAdd, onDelete }) {
-  const [acik, setAcik] = useState(false);
+/**
+ * Müşteri Paneli içerik motoru — hem eski katlanır kart olarak (kompakt) hem de
+ * Müşteri Paneli sekmesinde tam sayfa olarak (kompakt=false) kullanılır.
+ * Tek bir yerde tanımlı olduğu için iki görünüm asla birbirinden ayrışmaz.
+ */
+function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onDelete, kompakt = true, baslangicAcik = false }) {
+  const [acik, setAcik] = useState(baslangicAcik);
   const [ekleAcik, setEkleAcik] = useState(false);
   const [tur, setTur] = useState("gorsel");
   const [aciklama, setAciklama] = useState("");
   const [driveLinki, setDriveLinki] = useState("");
   const [gorselUrl, setGorselUrl] = useState(null);
   const [gorselHata, setGorselHata] = useState("");
+  const [acikDetayId, setAcikDetayId] = useState(null); // detayı açık olan çekim planı
+  // Çekim planı alanları
+  const [konusmali, setKonusmali] = useState("konusmali");
+  const [konusmaMetni, setKonusmaMetni] = useState("");
+  const [cekimNotu, setCekimNotu] = useState("");
+  const [planlananTarih, setPlanlananTarih] = useState("");
 
   const kendiListesi = (icerikler || []).filter((i) => String(i.clientId) === String(clientId)).sort((a, b) => (a.durum === "bekliyor" ? -1 : 1));
+
+  const formuTemizle = () => {
+    setAciklama(""); setDriveLinki(""); setGorselUrl(null); setGorselHata("");
+    setKonusmaMetni(""); setCekimNotu(""); setPlanlananTarih(""); setKonusmali("konusmali");
+    setEkleAcik(false);
+  };
 
   const ekle = () => {
     if (tur === "gorsel" && !gorselUrl) { setGorselHata("Bir görsel seç."); return; }
     if (tur === "video" && !driveLinki.trim()) { setGorselHata("Video için bir Drive linki gir."); return; }
-    onAdd(clientId, { tur, aciklama: aciklama.trim(), tarih: new Date().toLocaleDateString("tr-TR"), gorselUrl: tur === "gorsel" ? gorselUrl : null, driveLinki: tur === "video" ? driveLinki.trim() : null });
-    setAciklama(""); setDriveLinki(""); setGorselUrl(null); setGorselHata(""); setEkleAcik(false);
+    if (tur === "cekim" && !aciklama.trim()) { setGorselHata("Çekim planına bir başlık yaz (örn. \"Reels 1 — Ürün tanıtımı\")."); return; }
+    onAdd(clientId, {
+      tur,
+      aciklama: aciklama.trim(),
+      tarih: new Date().toLocaleDateString("tr-TR"),
+      gorselUrl: tur === "gorsel" ? gorselUrl : null,
+      driveLinki: tur === "video" ? driveLinki.trim() : null,
+      // Çekim planına özel alanlar — diğer türlerde boş kalır
+      referansLink: tur === "cekim" ? driveLinki.trim() : null,
+      konusmali: tur === "cekim" ? konusmali : null,
+      konusmaMetni: tur === "cekim" ? konusmaMetni.trim() : null,
+      cekimNotu: tur === "cekim" ? cekimNotu.trim() : null,
+      planlananTarih: tur === "cekim" ? (planlananTarih || null) : null,
+    });
+    formuTemizle();
   };
 
-  return (
-    <Card style={{ padding: "14px 18px", marginBottom: 16 }}>
-      <button onClick={() => setAcik((v) => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-        <span style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter" }}>Müşteri Paneli İçerikleri</span>
-        <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{kendiListesi.length > 0 ? `${kendiListesi.length} kayıt` : "Kayıt yok"} {acik ? "▲" : "▼"}</span>
-      </button>
-
-      {acik && (
-        <div style={{ marginTop: 14 }}>
+  const govde = (
+    <>
           {kendiListesi.length === 0 ? (
             <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginBottom: 12 }}>Bu markaya henüz müşteri panelinde gösterilecek bir içerik eklenmedi.</div>
           ) : (
@@ -1054,15 +1077,54 @@ function MusteriIcerikYonetimi({ clientId, icerikler, onAdd, onDelete }) {
               {kendiListesi.map((i) => {
                 const etiket = MUSTERI_DURUM_ETIKET[i.durum] || MUSTERI_DURUM_ETIKET.bekliyor;
                 return (
-                  <div key={i.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: T.surfaceRaised, borderRadius: 9, padding: "8px 12px" }}>
-                    <div>
-                      <div style={{ fontSize: 12, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{i.aciklama || (i.tur === "gorsel" ? "Görsel" : "Video")} <span style={{ color: T.textFaint, fontWeight: 400 }}>· {i.tarih}</span></div>
-                      {i.revizeNotu && <div style={{ fontSize: 11, color: T.danger, fontFamily: "Inter", fontStyle: "italic" }}>"{i.revizeNotu}"</div>}
+                  <div key={i.id} style={{ background: T.surfaceRaised, borderRadius: 9, padding: "8px 12px" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                      <button
+                        onClick={() => { if (i.tur === "cekim") setAcikDetayId(acikDetayId === i.id ? null : i.id); }}
+                        style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: i.tur === "cekim" ? "pointer" : "default", fontFamily: "inherit", flex: 1, minWidth: 0 }}
+                        title={i.tur === "cekim" ? "Çekim planının detayını göster" : undefined}
+                      >
+                        <div style={{ fontSize: 12, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
+                          {i.tur === "cekim" && <span style={{ color: T.accentText, fontWeight: 700 }}>🎬 </span>}
+                          {i.aciklama || (i.tur === "gorsel" ? "Görsel" : i.tur === "cekim" ? "Çekim Planı" : "Video")} <span style={{ color: T.textFaint, fontWeight: 400 }}>· {i.tarih}</span>
+                        </div>
+                        {i.revizeNotu && <div style={{ fontSize: 11, color: T.danger, fontFamily: "Inter", fontStyle: "italic" }}>"{i.revizeNotu}"</div>}
+                      </button>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: 10.5, fontWeight: 600, color: etiket.color, background: etiket.bg, padding: "2px 8px", borderRadius: 999, fontFamily: "Inter" }}>{etiket.label}</span>
+                        <button onClick={() => { if (window.confirm("Bu içerik silinsin mi?")) onDelete(i.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><Trash2 size={12} color={T.textFaint} /></button>
+                      </div>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ fontSize: 10.5, fontWeight: 600, color: etiket.color, background: etiket.bg, padding: "2px 8px", borderRadius: 999, fontFamily: "Inter" }}>{etiket.label}</span>
-                      <button onClick={() => { if (window.confirm("Bu içerik silinsin mi?")) onDelete(i.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><Trash2 size={12} color={T.textFaint} /></button>
-                    </div>
+
+                    {i.tur === "cekim" && acikDetayId === i.id && (
+                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+                          {i.konusmali && (
+                            <span style={{ fontSize: 10, fontWeight: 700, color: T.accentText, background: T.accentSoft, padding: "2px 9px", borderRadius: 999, fontFamily: "Inter" }}>
+                              {i.konusmali === "konusmali" ? "KONUŞMALI" : i.konusmali === "seslendirme" ? "DIŞ SES" : "KONUŞMASIZ"}
+                            </span>
+                          )}
+                          {i.planlananTarih && <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>Planlanan çekim: {tarihGoster(i.planlananTarih)}</span>}
+                        </div>
+                        {i.referansLink && (
+                          <a href={i.referansLink} target="_blank" rel="noreferrer" style={{ display: "block", fontSize: 11.5, color: T.accentText, fontFamily: "Inter", marginBottom: 8 }}>▶ Referans videoyu aç ↗</a>
+                        )}
+                        {i.konusmaMetni && (
+                          <>
+                            <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter", fontWeight: 700, marginBottom: 4 }}>
+                              {i.konusmali === "seslendirme" ? "DIŞ SES METNİ" : "KONUŞMA METNİ"}
+                            </div>
+                            <div style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", lineHeight: 1.7, whiteSpace: "pre-wrap", background: T.surface, borderRadius: 8, padding: "10px 12px", marginBottom: 8 }}>{i.konusmaMetni}</div>
+                          </>
+                        )}
+                        {i.cekimNotu && (
+                          <>
+                            <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter", fontWeight: 700, marginBottom: 4 }}>ÇEKİM NOTU</div>
+                            <div style={{ fontSize: 12, color: T.textDim, fontFamily: "Inter", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{i.cekimNotu}</div>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1073,10 +1135,17 @@ function MusteriIcerikYonetimi({ clientId, icerikler, onAdd, onDelete }) {
             <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: 12 }}>
               <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
                 <button onClick={() => { setTur("gorsel"); setGorselHata(""); }} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: tur === "gorsel" ? T.accent : T.surface, color: tur === "gorsel" ? "#fff" : T.textDim, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "Inter" }}>Görsel</button>
-                <button onClick={() => { setTur("video"); setGorselHata(""); }} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: tur === "video" ? T.accent : T.surface, color: tur === "video" ? "#fff" : T.textDim, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "Inter" }}>Video (Drive linki)</button>
+                <button onClick={() => { setTur("video"); setGorselHata(""); }} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: tur === "video" ? T.accent : T.surface, color: tur === "video" ? "#fff" : T.textDim, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "Inter" }}>Video</button>
+                <button onClick={() => { setTur("cekim"); setGorselHata(""); }} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: tur === "cekim" ? T.accent : T.surface, color: tur === "cekim" ? "#fff" : T.textDim, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "Inter" }}>Çekim Planı</button>
               </div>
-              <input type="text" placeholder="Açıklama (opsiyonel — örn. Ağustos Reels 1)" value={aciklama} onChange={(e) => setAciklama(e.target.value)} style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "7px 10px" }} />
-              {tur === "gorsel" ? (
+              <input
+                type="text"
+                placeholder={tur === "cekim" ? "Başlık — örn. Reels 1: Ürün tanıtımı" : "Açıklama (opsiyonel — örn. Ağustos Reels 1)"}
+                value={aciklama}
+                onChange={(e) => setAciklama(e.target.value)}
+                style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "7px 10px" }}
+              />
+              {tur === "gorsel" && (
                 <input
                   type="file"
                   accept="image/*"
@@ -1088,20 +1157,83 @@ function MusteriIcerikYonetimi({ clientId, icerikler, onAdd, onDelete }) {
                   }}
                   style={{ ...inputStyle, marginBottom: 8, fontSize: 12, padding: "7px 10px" }}
                 />
-              ) : (
+              )}
+              {tur === "video" && (
                 <input type="text" placeholder="https://drive.google.com/..." value={driveLinki} onChange={(e) => setDriveLinki(e.target.value)} style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "7px 10px" }} />
+              )}
+              {tur === "cekim" && (
+                <>
+                  <input
+                    type="text"
+                    placeholder="Referans video linki (Drive, Instagram, TikTok — opsiyonel)"
+                    value={driveLinki}
+                    onChange={(e) => setDriveLinki(e.target.value)}
+                    style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "7px 10px" }}
+                  />
+                  <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                    {[
+                      { key: "konusmali", label: "Konuşmalı" },
+                      { key: "konusmasiz", label: "Konuşmasız" },
+                      { key: "seslendirme", label: "Dış ses" },
+                    ].map((x) => (
+                      <button
+                        key={x.key}
+                        onClick={() => setKonusmali(x.key)}
+                        style={{ flex: 1, padding: "6px 0", borderRadius: 8, border: "none", background: konusmali === x.key ? T.accentSoft : T.surface, color: konusmali === x.key ? T.accentText : T.textDim, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "Inter" }}
+                      >
+                        {x.label}
+                      </button>
+                    ))}
+                  </div>
+                  {konusmali !== "konusmasiz" && (
+                    <textarea
+                      placeholder={konusmali === "seslendirme" ? "Dış ses metni — videoda okunacak metin" : "Konuşma metni — kamera karşısında söylenecekler"}
+                      value={konusmaMetni}
+                      onChange={(e) => setKonusmaMetni(e.target.value)}
+                      rows={5}
+                      style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "8px 10px", width: "100%", resize: "vertical", fontFamily: "Inter", lineHeight: 1.6 }}
+                    />
+                  )}
+                  <textarea
+                    placeholder="Çekim notu (opsiyonel) — mekan, kıyafet, aksesuar, plan detayı"
+                    value={cekimNotu}
+                    onChange={(e) => setCekimNotu(e.target.value)}
+                    rows={2}
+                    style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "8px 10px", width: "100%", resize: "vertical", fontFamily: "Inter" }}
+                  />
+                  <input
+                    type="date"
+                    value={planlananTarih}
+                    onChange={(e) => setPlanlananTarih(e.target.value)}
+                    title="Planlanan çekim tarihi (opsiyonel)"
+                    style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "7px 10px" }}
+                  />
+                </>
               )}
               {gorselHata && <div style={{ color: T.danger, fontSize: 11.5, fontFamily: "Inter", marginBottom: 8 }}>{gorselHata}</div>}
               <div style={{ display: "flex", gap: 8 }}>
-                <button style={cancelBtnStyle} onClick={() => { setEkleAcik(false); setGorselHata(""); }}>İptal</button>
-                <button style={saveBtnStyle} onClick={ekle}>Müşteri Paneline Ekle</button>
+                <button style={cancelBtnStyle} onClick={formuTemizle}>İptal</button>
+                <button style={saveBtnStyle} onClick={ekle}>{tur === "cekim" ? "Çekim Planını Gönder" : "Müşteri Paneline Ekle"}</button>
               </div>
             </div>
           ) : (
-            <button onClick={() => setEkleAcik(true)} style={{ background: "none", border: "none", color: T.accentText, fontSize: 11.5, cursor: "pointer", padding: 0, fontFamily: "Inter" }}>+ İçerik Ekle</button>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button style={saveBtnStyle} onClick={() => { setTur("cekim"); setEkleAcik(true); }}>🎬 Yeni Çekim Planı</button>
+              <button style={addBtnStyle} onClick={() => { setTur("gorsel"); setEkleAcik(true); }}><Plus size={13} /> İçerik Ekle</button>
+            </div>
           )}
-        </div>
-      )}
+    </>
+  );
+
+  if (!kompakt) return <div>{govde}</div>;
+
+  return (
+    <Card style={{ padding: "14px 18px", marginBottom: 16 }}>
+      <button onClick={() => setAcik((v) => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+        <span style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter" }}>Müşteri Paneli İçerikleri <span style={{ fontWeight: 400, color: T.textFaint, fontSize: 11 }}>· asıl yönetim: Müşteri Paneli sekmesi</span></span>
+        <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{kendiListesi.length > 0 ? `${kendiListesi.length} kayıt` : "Kayıt yok"} {acik ? "▲" : "▼"}</span>
+      </button>
+      {acik && <div style={{ marginTop: 14 }}>{govde}</div>}
     </Card>
   );
 }
@@ -1130,7 +1262,7 @@ function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, freelancerlar, on
 
         <KilitUyarisi kisi={kilitleyen} />
 
-        <MusteriIcerikYonetimi clientId={client.id} icerikler={musteriIcerikleri} onAdd={onAddIcerik} onDelete={onDeleteIcerik} />
+        <IcerikYonetimMotoru clientId={client.id} icerikler={musteriIcerikleri} onAdd={onAddIcerik} onDelete={onDeleteIcerik} />
 
         <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
           <Pill color={cd.color} soft={cd.soft}>{cd.label}</Pill>
@@ -4967,6 +5099,97 @@ function VeriBoyutuKarti() {
  *
  * Müşteri işlerinden (Operasyon) tamamen ayrıdır ve personele hiç gönderilmez.
  */
+/* ------------------------------------------------------------------ */
+/* MÜŞTERİ PANELİ YÖNETİMİ (kendi sekmesi)                               */
+/* ------------------------------------------------------------------ */
+/**
+ * Müşteri paneliyle ilgili HER ŞEY burada: hangi markaya ne gönderildi, müşteri ne yanıt
+ * verdi, çekim planları, ve panel giriş hesapları.
+ *
+ * Daha önce bunlar iki ayrı yere dağılmıştı (içerikler müşteri detayında, hesaplar
+ * Ayarlar'da) ve müşteri detayı zaten kalabalık olduğu için içerik bölümü kayboluyordu.
+ */
+function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onDelete }) {
+  const [secili, setSecili] = useState(null);
+
+  const aktifler = (clients || []).filter((c) => c.durum !== "ayrildi");
+  const listesi = (id) => (icerikler || []).filter((i) => String(i.clientId) === String(id));
+  const sayac = (id, durum) => listesi(id).filter((i) => i.durum === durum).length;
+
+  const toplamBekleyen = (icerikler || []).filter((i) => i.durum === "bekliyor").length;
+  const toplamRevize = (icerikler || []).filter((i) => i.durum === "revize").length;
+  const toplamPlan = (icerikler || []).filter((i) => i.tur === "cekim").length;
+
+  const seciliMarka = aktifler.find((c) => String(c.id) === String(secili));
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 18 }}>
+        <KpiCard label="MÜŞTERİ ONAYI BEKLEYEN" value={toplamBekleyen} mono={false} accent={toplamBekleyen > 0 ? T.warning : T.success} />
+        {toplamRevize > 0 && <KpiCard label="REVİZE İSTENEN" value={toplamRevize} mono={false} accent={T.danger} />}
+        <KpiCard label="ÇEKİM PLANI" value={toplamPlan} mono={false} />
+      </div>
+
+      <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 16, lineHeight: 1.6 }}>
+        Markaya tıkla, ona çekim planı ya da içerik gönder. Müşteri kendi panelinden görüp onaylar veya revize ister.
+      </div>
+
+      {/* Marka seçimi — yanlarında bekleyen/revize rozetleri */}
+      <Card style={{ padding: "14px 16px", marginBottom: 16 }}>
+        <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 10 }}>MARKA SEÇ</div>
+        {aktifler.length === 0 ? (
+          <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>Henüz aktif marka yok.</div>
+        ) : (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {aktifler.map((c) => {
+              const bekleyen = sayac(c.id, "bekliyor");
+              const revize = sayac(c.id, "revize");
+              const aktif = String(secili) === String(c.id);
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => setSecili(aktif ? null : c.id)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, border: "none", cursor: "pointer",
+                    background: aktif ? T.accent : T.surfaceRaised, color: aktif ? "#fff" : T.textDim,
+                    fontSize: 13, fontWeight: 600, fontFamily: "Inter",
+                  }}
+                >
+                  {c.ad}
+                  {revize > 0 && <span style={{ background: T.danger, color: "#fff", borderRadius: 999, padding: "1px 7px", fontSize: 10.5, fontWeight: 700 }}>{revize}</span>}
+                  {bekleyen > 0 && <span style={{ background: aktif ? "rgba(255,255,255,.25)" : T.warningSoft, color: aktif ? "#fff" : T.warning, borderRadius: 999, padding: "1px 7px", fontSize: 10.5, fontWeight: 700 }}>{bekleyen}</span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
+      {seciliMarka ? (
+        <Card style={{ padding: "16px 18px", marginBottom: 16 }}>
+          <div style={{ fontSize: 14, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 14 }}>{seciliMarka.ad}</div>
+          <IcerikYonetimMotoru
+            clientId={seciliMarka.id}
+            icerikler={icerikler}
+            onAdd={onAdd}
+            onDelete={onDelete}
+            kompakt={false}
+          />
+        </Card>
+      ) : (
+        <Card style={{ padding: "28px 16px", textAlign: "center", marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", lineHeight: 1.7 }}>
+            Yukarıdan bir marka seç — o markaya gönderdiğin çekim planlarını ve içerikleri burada yönetirsin.
+          </div>
+        </Card>
+      )}
+
+      {/* Panel giriş hesapları — artık müşteri paneliyle aynı yerde */}
+      <MusteriHesaplariKart clients={clients} />
+    </div>
+  );
+}
+
 function Planim({ gorevler, onAdd, onUpdate, onDelete }) {
   const [metin, setMetin] = useState("");
   const [tarih, setTarih] = useState("");
@@ -5286,7 +5509,15 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
         </p>
       </Card>
 
-      <MusteriHesaplariKart clients={clients} />
+      {/* Müşteri Paneli hesapları artık "Müşteri Paneli" sekmesinde — panel içerikleriyle
+        * aynı yerde durması, iki farklı sekmeye bakmak zorunda kalmandan daha anlaşılır. */}
+      <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+        <SectionTitle>Müşteri Paneli Hesapları</SectionTitle>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, margin: 0 }}>
+          Müşteri giriş hesapları ve panele gönderdiğin içerikler artık sol menüdeki
+          <strong> Müşteri Paneli</strong> sekmesinde, tek bir yerde toplandı.
+        </p>
+      </Card>
       <PersonelHesaplariKart onRosterChange={onRosterChange} />
       <KasaSifresiKarti />
 
@@ -5944,10 +6175,58 @@ function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
           <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 28 }}>
             {bekleyenler.map((icerik) => {
               const embed = driveEmbedUrl(icerik.driveLinki);
+              const cekimEmbed = icerik.tur === "cekim" ? driveEmbedUrl(icerik.referansLink) : null;
               return (
                 <Card key={icerik.id} style={{ padding: 16, border: `1px solid ${T.warning}` }}>
-                  <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter", marginBottom: 4 }}>{icerik.aciklama || icerik.tur}</div>
-                  <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginBottom: 12 }}>{icerik.tarih}</div>
+                  <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter", marginBottom: 4 }}>
+                    {icerik.tur === "cekim" && <span style={{ color: T.accentText }}>🎬 </span>}
+                    {icerik.aciklama || (icerik.tur === "cekim" ? "Çekim Planı" : icerik.tur)}
+                  </div>
+                  <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginBottom: 12 }}>
+                    {icerik.tarih}
+                    {icerik.tur === "cekim" && icerik.planlananTarih && ` · Planlanan çekim: ${tarihGoster(icerik.planlananTarih)}`}
+                  </div>
+
+                  {/* ÇEKİM PLANI: referans video + konuşma metni + çekim notu */}
+                  {icerik.tur === "cekim" && (
+                    <div style={{ marginBottom: 12 }}>
+                      {icerik.konusmali && (
+                        <div style={{ display: "inline-block", fontSize: 10.5, fontWeight: 700, color: T.accentText, background: T.accentSoft, padding: "3px 10px", borderRadius: 999, fontFamily: "Inter", marginBottom: 10 }}>
+                          {icerik.konusmali === "konusmali" ? "KONUŞMALI" : icerik.konusmali === "seslendirme" ? "DIŞ SES" : "KONUŞMASIZ"}
+                        </div>
+                      )}
+
+                      {cekimEmbed && (
+                        <div style={{ marginBottom: 10 }}>
+                          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 5 }}>REFERANS VİDEO</div>
+                          <iframe src={cekimEmbed} title="Referans video" style={{ width: "100%", height: 280, border: "none", borderRadius: 10 }} allow="autoplay" />
+                        </div>
+                      )}
+                      {!cekimEmbed && icerik.referansLink && (
+                        <a href={icerik.referansLink} target="_blank" rel="noreferrer" style={{ display: "block", marginBottom: 10, color: T.accentText, fontSize: 12.5, fontFamily: "Inter" }}>
+                          ▶ Referans videoyu izle ↗
+                        </a>
+                      )}
+
+                      {icerik.konusmaMetni && (
+                        <div style={{ marginBottom: 10 }}>
+                          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 5 }}>
+                            {icerik.konusmali === "seslendirme" ? "DIŞ SES METNİ" : "KONUŞMA METNİ"}
+                          </div>
+                          <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 14px", fontSize: 13.5, color: T.text, fontFamily: "Inter", lineHeight: 1.75, whiteSpace: "pre-wrap" }}>
+                            {icerik.konusmaMetni}
+                          </div>
+                        </div>
+                      )}
+
+                      {icerik.cekimNotu && (
+                        <div>
+                          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 5 }}>ÇEKİM NOTU</div>
+                          <div style={{ fontSize: 12.5, color: T.textDim, fontFamily: "Inter", lineHeight: 1.65, whiteSpace: "pre-wrap" }}>{icerik.cekimNotu}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {icerik.gorselUrl && (
                     <img src={icerik.gorselUrl} alt={icerik.aciklama || ""} style={{ width: "100%", borderRadius: 10, marginBottom: 12, display: "block" }} />
@@ -5987,7 +6266,7 @@ function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
                         disabled={gonderiliyor === icerik.id}
                         onClick={() => istekAt("onayla", icerik.id)}
                       >
-                        {gonderiliyor === icerik.id ? "…" : "✓ Onayla"}
+                        {gonderiliyor === icerik.id ? "…" : (icerik.tur === "cekim" ? "✓ Planı Onayla" : "✓ Onayla")}
                       </button>
                       <button style={{ ...cancelBtnStyle, flex: 1, justifyContent: "center" }} onClick={() => { setRevizeAcikId(icerik.id); setRevizeMetni(""); }}>
                         Revize İste
@@ -6121,6 +6400,7 @@ const NAV = [
   { key: "personel", label: "Personel", icon: Briefcase },
   { key: "birikim", label: "Birikim", icon: PiggyBank },
   { key: "uyelikler", label: "Üyelikler", icon: CreditCard },
+  { key: "musteri-paneli", label: "Müşteri Paneli", icon: MonitorSmartphone },
   { key: "musteri-girisleri", label: "Şifre Kasası", icon: KeyRound },
   { key: "ayarlar", label: "Ayarlar", icon: Settings },
 ];
@@ -6982,6 +7262,15 @@ export default function MarcusOS() {
       if (g.tarih < buGun) items.push({ text: `Planım: ${g.baslik} — tarihi geçti (${tarihGoster(g.tarih)})`, level: "danger" });
       else if (g.tarih === buGun) items.push({ text: `Planım: ${g.baslik} — bugün`, level: "warning" });
     });
+    // Müşteri Paneli yanıtları — müşteri revize istediyse ya da çekim planı onay bekliyorsa
+    // haberin olsun. Eskiden bunun için Müşteri Paneli İçerikleri bölümünü elle açman
+    // gerekiyordu, yani revize isteği fark edilmeden bekleyebiliyordu.
+    (data.musteriIcerikleri || []).forEach((i) => {
+      const marka = ((data.clients || []).find((c) => String(c.id) === String(i.clientId)) || {}).ad || "Müşteri";
+      const ad = i.aciklama || (i.tur === "cekim" ? "Çekim planı" : "İçerik");
+      if (i.durum === "revize") items.push({ text: `${marka}: "${ad}" için revize istedi${i.revizeNotu ? ` — "${i.revizeNotu}"` : ""}`, level: "danger" });
+      else if (i.durum === "bekliyor" && i.tur === "cekim") items.push({ text: `${marka}: "${ad}" çekim planı müşteri onayı bekliyor`, level: "warning" });
+    });
     data.clients.filter((c) => c.durum !== "ayrildi" && c.durum !== "donduruldu").forEach((c) => {
       const st = clientPaymentStatus(c);
       if (st && st.status === "gecikti") items.push({ text: `${c.ad}: ödeme ${st.label} — ${fmt(c.aylikUcret)}`, level: "danger" });
@@ -7468,6 +7757,14 @@ export default function MarcusOS() {
         <div style={{ padding: isMobile ? "16px 16px 32px" : "20px 30px 40px" }}>
           {tab === "dashboard" && <Dashboard data={data} onAsk={() => openAi()} />}
           {tab === "planim" && <Planim gorevler={data.kisiselGorevler || []} onAdd={addGorev} onUpdate={updateGorev} onDelete={deleteGorev} />}
+          {tab === "musteri-paneli" && (
+            <MusteriPaneliYonetimi
+              clients={data.clients || []}
+              icerikler={data.musteriIcerikleri || []}
+              onAdd={addMusteriIcerik}
+              onDelete={deleteMusteriIcerik}
+            />
+          )}
           {tab === "musteriler" && (
             <Musteriler
               clients={data.clients}

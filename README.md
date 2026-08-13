@@ -571,3 +571,64 @@ gönderilmiyor. Personel menüsünde Planım sekmesi de yok.
 Operasyon şu an dört ayrı işi birden yapıyor (günlük takip / markalaşma / ay sonu ödeme raporu /
 istatistik) ve **Aylık İş Raporu** ile yeni **Personel → Freelancer** sekmesi büyük ölçüde aynı
 bilgiyi gösteriyor. Sadeleştirme için bir öneri hazır ama henüz uygulanmadı — karar senin.
+
+## Güncelleme 23: Çekim Planı — Müşteriye Sunulan İçerik Planı
+
+Müşteriye çekimden ÖNCE "şunları çekeceğiz, şunları konuşacaksın" diye sunabileceğin plan
+özelliği eklendi. Ayrı bir sistem kurulmadı — mevcut **Müşteri Paneli**'ne yeni bir içerik türü
+olarak eklendi, böylece onay/revize akışı, giriş sistemi ve bildirimler hazır geldi.
+
+### Nasıl ekliyorsun
+Müşteriler → markayı aç → **Müşteri Paneli İçerikleri** → *+ İçerik / Çekim Planı Ekle* →
+**Çekim Planı** sekmesi. Alanlar:
+
+- **Başlık** — örn. "Reels 1: Ürün tanıtımı"
+- **Referans video linki** — seçtiğiniz örnek video (Drive linkiyse panelde gömülü oynatıcı
+  olarak açılır, Instagram/TikTok linkiyse tıklanabilir bağlantı olur)
+- **Konuşmalı / Konuşmasız / Dış ses** — içeriğin tipi
+- **Konuşma metni** — kamera karşısında söyleyeceği metin (dış ses seçilirse "dış ses metni"
+  olur; konuşmasızda bu alan hiç çıkmaz)
+- **Çekim notu** — mekan, kıyafet, aksesuar gibi detaylar
+- **Planlanan çekim tarihi** — takvimden seçilir (opsiyonel)
+
+### Müşteri ne görüyor
+Müşteri panelinde plan düzenli bir kart olarak açılır: tip etiketi, referans video (gömülü),
+konuşma metni okunaklı bir blok içinde (satır boşlukları korunur), çekim notu ve planlanan tarih.
+Altında **"✓ Planı Onayla"** ve **"Revize İste"** butonları — mevcut onay akışının aynısı.
+
+### Sen ne görüyorsun
+Listede çekim planları 🎬 işaretiyle ayrışır. Başlığa tıklayınca **gönderdiğin metni yeniden
+okuyabilirsin** — müşteri revize isterse neyi değiştireceğini görmek için gerekli.
+
+### Yeni bildirimler
+Müşteri Paneli yanıtları artık üstteki zil listesine düşüyor:
+- Müşteri **revize istediyse** (notuyla birlikte) — kırmızı
+- Bir **çekim planı müşteri onayı bekliyorsa** — sarı
+
+Eskiden bunu görmek için marka detayındaki bölümü elle açman gerekiyordu; revize isteği fark
+edilmeden bekleyebiliyordu.
+
+### Not
+Çekim planı onaylandığında Operasyon'da otomatik iş açılmıyor — plan ile üretim şu an ayrı.
+İstenirse "onaylanan plandan çekim işi oluştur" bağlantısı sonradan eklenebilir.
+
+## Güncelleme 24: Müşteri Paneli Kendi Sekmesine Taşındı
+
+Çekim planı/içerik yönetimi müşteri detayının içindeydi ve orası zaten kalabalık olduğu için
+kayboluyordu. Ayrıca panel **iki ayrı yerden** yönetiliyordu: içerikler müşteri detayında,
+giriş hesapları Ayarlar'da. İkisi de tek bir sekmede toplandı.
+
+### Yeni: sol menüde "Müşteri Paneli"
+- Üstte özet: **Müşteri onayı bekleyen · Revize istenen · Çekim planı** sayıları
+- **Marka seç** — her markanın yanında rozetler: kırmızı = revize istedi, sarı = onay bekliyor.
+  Böylece hangi markada ne olduğunu tek bakışta görürsün.
+- Markaya tıkla → o markanın tüm içerikleri ve çekim planları açılır; **🎬 Yeni Çekim Planı** ve
+  **İçerik Ekle** butonları doğrudan orada, katlanmış bir bölümün içinde saklı değil
+- En altta **Müşteri Paneli Hesapları** (Ayarlar'dan buraya taşındı)
+
+### Müşteri detayında ne oldu
+Bölüm tamamen kaldırılmadı — hâlâ orada duruyor (bir markayla ilgilenirken hızlıca bakabilmen
+için), ama başlığında "asıl yönetim: Müşteri Paneli sekmesi" notu var. İki görünüm **aynı kodu**
+kullanıyor, yani birinde yaptığın değişiklik diğerinde de aynen görünür; ayrışma riski yok.
+
+Ayarlar'daki hesap bölümünün yerinde de nereye taşındığını söyleyen kısa bir not bırakıldı.
