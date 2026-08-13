@@ -1,6 +1,6 @@
 import { kv } from "@vercel/kv";
 import crypto from "crypto";
-import { KEY, guvenliGuncelle, kilitAl, kilitBirak, guvenliYaz } from "../lib/kv-yaz.js";
+import { KEY, guvenliGuncelle, kilitAl, kilitBirak, guvenliYaz, deftereYaz, defteriOku } from "../lib/kv-yaz.js";
 import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, tumOturumlariIptalEt, ikiAdimliAktifMi, esitMi, baslikOku } from "../lib/oturum.js";
 import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, trKucult } from "../lib/marka-kilidi.js";
 
@@ -207,6 +207,7 @@ export default async function handler(req, res) {
       }
       if (!sifre || !esitMi(sifre, ownerPw)) {
         await basarisizGirisiKaydet(req);
+        await deftereYaz("giris-basarisiz", { ip: istekIP(req) });
         return res.status(401).json({ error: "Şifre hatalı." });
       }
       if (!ikiAdimliAktifMi()) {
@@ -215,6 +216,7 @@ export default async function handler(req, res) {
         const { token, sure } = await oturumAc(!!hatirla);
         return res.status(200).json({ ok: true, token, sure, kodGerekli: false });
       }
+      await deftereYaz("giris-basarili", { rol: "owner", ip: istekIP(req) });
       const sonuc = await girisKoduGonder(req.headers["x-forwarded-for"] || null);
       if (!sonuc.gonderildi) {
         // E-posta gönderilemedi — sistemden tamamen kilitlenme, şifreyle devam et.
@@ -246,6 +248,7 @@ export default async function handler(req, res) {
 
     // Tüm cihazlardan çıkış — sadece yetkili yapabilir.
     if (authAction === "tumCihazlardanCikis") {
+      await deftereYaz("tum-oturumlar-iptal", { ip: istekIP(req) });
       const yetkili = (req.headers["x-oturum"] && (await oturumGecerliMi(req.headers["x-oturum"])))
         || (ownerPw && esitMi(baslikOku(req, "x-site-password"), ownerPw));
       if (!yetkili) return res.status(401).json({ error: "Yetkisiz." });
@@ -474,10 +477,22 @@ export default async function handler(req, res) {
         return res.status(200).json({ data: restricted, role, staffId, staffName });
       }
       // Sahibe (owner) bile şifre hash'lerini asla gönderme — ayrı, korumalı bir uçtan yönetiliyor.
+      /* Güvenlik defteri ayrı bir anahtarda tutuluyor ve yalnızca istendiğinde gönderilir —
+       * her veri çekilişinde 500 kaydı taşımak gereksiz yük olurdu. */
+      if (req.query && req.query.defter === "1") {
+        return res.status(200).json({ defter: await defteriOku() });
+      }
       const { personelHesaplari, kasaSifresiHash, kasaSifresiSalt, musteriHesaplari, ...safeData } = data || {};
       const personelRosteri = (personelHesaplari || []).map((h) => ({ ad: h.ad, email: h.email || "" }));
       const musteriRosteri = (musteriHesaplari || []).map((h) => ({ id: h.id, clientId: h.clientId, ad: h.ad, kullaniciAdi: h.kullaniciAdi }));
-      return res.status(200).json({ data: data ? { ...safeData, personelRosteri, musteriRosteri } : null, role });
+      /* Güvenlik durumu — arayüz, iki adımlı doğrulamanın gerçekten açık olup olmadığını
+       * ancak sunucudan öğrenebilir (ortam değişkenleri tarayıcıya gönderilmez). Bu bayrak
+       * olmadan kullanıcı "kurdum" sanıp kapalı bir sistemle devam edebilirdi. */
+      return res.status(200).json({
+        data: data ? { ...safeData, personelRosteri, musteriRosteri } : null,
+        role,
+        guvenlik: { ikiAdimliAktif: ikiAdimliAktifMi(), yedekEpostaSayisi: String(process.env.BACKUP_EMAIL || "").split(",").filter((x) => x.trim()).length },
+      });
     }
 
     if (req.method === "POST") {

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import TeklifSozlesme from "./TeklifSozlesme.jsx";
-import CekimEditTakibi, { operasyonAylikHakEdis, operasyonKisiIsimleri, ASAMALAR_VIDEO, ASAMALAR_TASARIM } from "./CekimEditTakibi.jsx";
+import CekimEditTakibi, { operasyonAylikHakEdis, operasyonKisiIsimleri, ASAMALAR_VIDEO, ASAMALAR_TASARIM, AylikIsRaporu } from "./CekimEditTakibi.jsx";
 import {
   LayoutDashboard, Users, Wallet, Settings, Sparkles,
   ArrowUpRight, ArrowDownRight, X, Send, Plus, Pencil, Trash2, Check,
@@ -17,652 +17,28 @@ import { gorseliKucult, base64Bayt, boyutYazisi } from "./gorselKucult.js";
 /* ------------------------------------------------------------------ */
 /* DESIGN TOKENS                                                       */
 /* ------------------------------------------------------------------ */
-const T = {
-  bg: "#0C0E13",
-  surface: "#151822",
-  surfaceRaised: "#1C202C",
-  border: "#262B38",
-  borderSoft: "#1D212C",
-  text: "#EEF0F4",
-  textDim: "#8B93A7",
-  textFaint: "#565D70",
-  accent: "#5B6EF5",
-  accentSoft: "rgba(91,110,245,0.14)",
-  accentText: "#B7C0FF",
-  success: "#34D399",
-  successSoft: "rgba(52,211,153,0.14)",
-  warning: "#F5A623",
-  warningSoft: "rgba(245,166,35,0.14)",
-  danger: "#F2555A",
-  dangerSoft: "rgba(242,85,90,0.14)",
-};
-
-const FONTS = `
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
-`;
-
-/** Gizlilik Modu: Ayarlar'dan açılıp kapanan, tüm ₺ tutarlarını "***" olarak gösteren bir
- * bayrak. fmt() her yerde kullanıldığı için, bunu tek bir global değişkende tutup fmt()'nin
- * içinde kontrol etmek, uygulamanın her köşesine tek tek dokunmaktan çok daha güvenli/hızlı. */
-let GIZLILIK_MODU = (() => {
-  try { return localStorage.getItem("marcus-os-gizlilik") === "1"; } catch (e) { return false; }
-})();
-const fmt = (n) => {
-  if (GIZLILIK_MODU) return "₺ •••";
-  return "₺" + (Number(n) || 0).toLocaleString("tr-TR");
-};
-const fmtShort = (n) => (n >= 1000 ? (n / 1000).toFixed(0) + "b" : n);
-const nextId = (arr) => (arr.length ? Math.max(...arr.map((i) => i.id || 0)) + 1 : 1);
-
-/**
- * Tüm sekmelerin ortak "gerçek" hesaplaması: Toplam Ciro = aktif/yeni müşterilerin
- * aylık ücretleri (Müşteriler) + ek gelir kalemleri (Finans > Gelirler). Toplam Gider =
- * Finans > Giderler toplamı + müşteri bazlı maliyetler (örn. freelance ödemeleri).
- * Dashboard, Finans ve AI CEO hepsi bu fonksiyonu kullanır, böylece bir sekmede
- * yapılan değişiklik anında diğerlerine yansır.
- */
-/** Bir üyeliğin gider hesabına dahil edilip edilmeyeceğini belirler: elle "Pasif Et" ile
- * kapatılmışsa YA DA bitiş tarihi geçmişse pasif sayılır (gider pusulasından düşer).
- * Elle "Aktif Et" ile geri açılırsa (bitiş tarihi geçmiş olsa bile) tekrar dahil edilir —
- * yani `aktif` alanı, tarih kontrolünün ÜZERİNE yazan kesin bir kullanıcı tercihidir. */
-function uyelikEfektifAktifMi(u) {
-  if (u.aktif === true) return true; // elle aktif edilmiş, tarih geçmiş olsa bile sayılır
-  if (u.aktif === false) return false; // elle pasif edilmiş
-  if (u.bitisTarihi) {
-    const bugun = new Date(); bugun.setHours(0, 0, 0, 0);
-    if (new Date(u.bitisTarihi) < bugun) return false; // süresi dolmuş, otomatik pasif
-  }
-  return true; // varsayılan: aktif
-}
-
-function computeLive(data) {
-  const clients = data.clients || [];
-  const activeClients = clients.filter((c) => c.durum !== "ayrildi" && c.durum !== "donduruldu");
-  const recurring = activeClients.reduce((s, c) => s + (Number(c.aylikUcret) || 0), 0);
-  const extra = (data.gelirKalemleri || []).reduce((s, g) => s + (Number(g.tutar) || 0), 0);
-  const ciro = recurring + extra;
-  const faturaliRecurring = activeClients.reduce((s, c) => s + clientFaturaliTutar(c), 0);
-  const faturaliExtra = (data.gelirKalemleri || []).filter((g) => g.faturali !== "hayir").reduce((s, g) => s + (Number(g.tutar) || 0), 0);
-  const faturaliCiro = faturaliRecurring + faturaliExtra;
-  const faturasizCiro = ciro - faturaliCiro;
-  const kdvTutari = Math.round(faturaliCiro * 0.2);
-  const kdvDahilToplamCiro = ciro + kdvTutari;
-  const faturaliKdvDahil = faturaliCiro + kdvTutari;
-  const giderKalemToplam = (data.giderKalemleri || []).reduce((s, g) => s + (Number(g.tutar) || 0), 0);
-  const ofisGiderToplam = (data.ofisGiderleri || []).reduce((s, g) => s + (Number(g.tutar) || 0), 0);
-  const clientCosts = clients.reduce((s, c) => s + (c.maliyetler || []).reduce((s2, m) => s2 + (Number(m.tutar) || 0), 0), 0);
-  const personelGideri = (data.personel || []).reduce((s, p) => s + (Number(p.maas) || 0) + (Number(p.sigorta) || 0) + (Number(p.yemek) || 0) + (Number(p.tazminatBirikimi) || 0), 0);
-  // Üyelikler (Canva, Adobe, ChatGPT vb.) de aylık gidere dahil edilir — yıllık ödenenler
-  // 12'ye bölünerek aylık karşılığı hesaplanır, böylece "Toplam Gider" gerçek aylık maliyeti yansıtır.
-  const uyelikGideri = (data.uyelikler || []).filter(uyelikEfektifAktifMi).reduce((s, u) => s + (u.periyot === "yillik" ? (Number(u.tutar) || 0) / 12 : (Number(u.tutar) || 0)), 0);
-  const gider = giderKalemToplam + ofisGiderToplam + clientCosts + personelGideri + uyelikGideri;
-  const net = ciro - gider;
-  const manuelBekleyen = (data.bekleyenTahsilatlar || []).reduce((s, b) => s + (Number(b.tutar) || 0), 0);
-  const otomatikBekleyen = activeClients.reduce((s, c) => {
-    const st = clientPaymentStatus(c);
-    if (st && (st.status === "bekliyor" || st.status === "gecikti")) return s + monthRemaining(c, monthKey());
-    return s;
-  }, 0);
-  const bekleyenToplam = manuelBekleyen + otomatikBekleyen;
-  // "Tahsil Edilen" artık ciro'dan bekleyeni çıkararak TAHMİN edilmiyor (bu, ödeme günü henüz
-  // gelmemiş müşterileri de "tahsil edildi" sayan bir hataya yol açıyordu — örn. ayın 1'inde
-  // hiç ödeme alınmamışken bile öyle görünüyordu). Bunun yerine gerçek ödeme kayıtlarından toplanıyor.
-  const tahsilEdilen = extra + activeClients.reduce((s, c) => s + monthPaidAmount(c, monthKey()), 0);
-  const karMarji = ciro ? Math.round((net / ciro) * 100) : 0;
-  return { recurring, extra, ciro, faturaliCiro, faturasizCiro, kdvTutari, kdvDahilToplamCiro, faturaliKdvDahil, giderKalemToplam, ofisGiderToplam, clientCosts, personelGideri, uyelikGideri, gider, net, manuelBekleyen, otomatikBekleyen, bekleyenToplam, tahsilEdilen, karMarji };
-}
-
-/** Bir müşterinin bu ayki ödeme durumunu, kayıtlı "ödeme günü"ne göre otomatik hesaplar. */
-const monthKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-
-/** Belirli bir ay için o müşteriden gerçekten tahsil edilen toplam tutar (kısmi ödemeler dahil).
- * Eski sistemde (odemeler dizisinde işaretli ama hiç ödeme kaydı yoksa) geriye dönük uyumluluk için
- * tam ödenmiş sayılır. */
-function monthPaidAmount(client, key) {
-  const kayitlar = (client.odemeKayitlari || []).filter((k) => k.ay === key);
-  const sum = kayitlar.reduce((s, k) => s + (Number(k.tutar) || 0), 0);
-  if (sum > 0) return sum;
-  if ((client.odemeler || []).includes(key)) return Number(client.aylikUcret) || 0;
-  return 0;
-}
-/** O ay için kalan (henüz ödenmemiş) bakiye. */
-function monthRemaining(client, key) {
-  return Math.max(0, (Number(client.aylikUcret) || 0) - monthPaidAmount(client, key));
-}
-/** O ay tam olarak ödenmiş mi? */
-function isMonthPaid(client, key) {
-  const tutar = Number(client.aylikUcret) || 0;
-  if (tutar <= 0) return true;
-  return monthPaidAmount(client, key) >= tutar;
-}
-
-function clientPaymentStatus(client) {
-  if (!client.odemeGunu) return null;
-  const today = new Date();
-  const dueDay = Number(client.odemeGunu);
-  const todayDay = today.getDate();
-  const pesin = client.odemeSekli !== "sonra";
-
-  // Peşin: bu ayın ödemesi bu ayın ödeme gününde beklenir.
-  // Sonra: bu ayın hizmeti henüz devam ediyor sayılır, değerlendirilen borç ayı BİR ÖNCEKİ takvim ayıdır,
-  // vadesi ise yine bu ayın ödeme günündedir (yani geçen ayın hizmeti, bu ay içinde ödenir).
-  const degerlendirilenAy = pesin ? today : new Date(today.getFullYear(), today.getMonth() - 1, 1);
-  const key = monthKey(degerlendirilenAy);
-
-  if (isMonthPaid(client, key)) return { status: "odendi", label: pesin ? "Bu ay ödendi" : "Geçen ay ödendi" };
-  if (todayDay < dueDay) return { status: "yaklasiyor", label: `Ödeme günü: ayın ${dueDay}'i` };
-  const gecikenGun = todayDay - dueDay;
-  const kalan = monthRemaining(client, key);
-  const kismiNot = monthPaidAmount(client, key) > 0 ? ` — kalan ${fmt(kalan)}` : "";
-  if (gecikenGun >= 7) return { status: "gecikti", label: `${gecikenGun} gün gecikti${kismiNot}` };
-  return { status: "bekliyor", label: `Ödeme günü geçti (ayın ${dueDay}'i)${kismiNot}` };
-}
-
-/** Bir müşterinin kaç aydır (bu ay dahil, geriye doğru art arda) ödeme yapmadığını hesaplar.
- * Tam ödenmiş bir ay bulununca sayımı durdurur (kısmi ödemeler yine "ödenmemiş" sayılır). */
-function clientOverdueMonths(client) {
-  if (!client.odemeGunu) return 0;
-  const now = new Date();
-  const pesin = client.odemeSekli !== "sonra";
-  let baslangicKey = null;
-  if (client.baslangic && /^\d{4}-\d{1,2}$/.test(client.baslangic.trim())) {
-    const [by, bm] = client.baslangic.trim().split("-").map(Number);
-    baslangicKey = `${by}-${String(bm).padStart(2, "0")}`;
-  }
-  let count = 0;
-  for (let i = 0; i < 24; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = monthKey(d);
-    if (baslangicKey && key < baslangicKey) break; // müşterinin başlangıcından öncesini sayma
-    if (pesin && i === 0 && now.getDate() < Number(client.odemeGunu)) continue; // peşin: bu ayın vadesi henüz gelmedi
-    if (!pesin && i === 0) continue; // sonra: bu ayın hizmeti henüz bitmedi, hiç vadesi gelmedi
-    if (!pesin && i === 1 && now.getDate() < Number(client.odemeGunu)) continue; // sonra: geçen ayın vadesi bu ayın ödeme gününe kadar gelmez
-    if (isMonthPaid(client, key)) break;
-    count++;
-  }
-  return count;
-}
-
-/** clientOverdueMonths ile AYNI ayları tarar ama sayı yerine, her ayın kısmi ödemesi düşülmüş
- * GERÇEK kalan bakiyesini toplar — "3 aydır ödenmedi" derken biri o aylardan birine kısmi ödeme
- * yapmışsa, bu fonksiyon o kısmi ödemeyi düşerek doğru toplamı verir. */
-function clientOverdueBalance(client) {
-  if (!client.odemeGunu) return 0;
-  const now = new Date();
-  const pesin = client.odemeSekli !== "sonra";
-  let baslangicKey = null;
-  if (client.baslangic && /^\d{4}-\d{1,2}$/.test(client.baslangic.trim())) {
-    const [by, bm] = client.baslangic.trim().split("-").map(Number);
-    baslangicKey = `${by}-${String(bm).padStart(2, "0")}`;
-  }
-  let toplam = 0;
-  for (let i = 0; i < 24; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const key = monthKey(d);
-    if (baslangicKey && key < baslangicKey) break;
-    if (pesin && i === 0 && now.getDate() < Number(client.odemeGunu)) continue;
-    if (!pesin && i === 0) continue;
-    if (!pesin && i === 1 && now.getDate() < Number(client.odemeGunu)) continue;
-    if (isMonthPaid(client, key)) break;
-    toplam += monthRemaining(client, key);
-  }
-  return toplam;
-}
-
-const DEFAULT_TEBLIG_SABLONU = `Sayın {musteri} Yetkilisi,
-
-Firmanız ile aramızda devam etmekte olan hizmet ilişkisi kapsamında, aylık {aylikUcret} tutarındaki hizmet bedelinin {ay} aydır tarafımıza ödenmediği tespit edilmiştir.
-
-Toplam Bakiye: {toplamBakiye}
-
-İş bu bildirim tarihinden itibaren 7 (yedi) gün içerisinde yukarıda belirtilen toplam bakiyenin tarafımıza ödenmesini, aksi halde hizmetin askıya alınması ve/veya yasal yollara başvurulması hakkımızın saklı olduğunu bilgilerinize sunarız.
-
-Herhangi bir ödeme yapıldıysa veya bir yanlışlık olduğunu düşünüyorsanız, en kısa sürede tarafımızla iletişime geçmenizi rica ederiz.
-
-Saygılarımızla,
-{firma}`;
-
-/** Şablondaki {musteri}, {aylikUcret}, {ay}, {toplamBakiye}, {firma}, {tarih} yer tutucularını gerçek değerlerle değiştirir. */
-function renderTeblig(sablon, vars) {
-  let text = sablon || DEFAULT_TEBLIG_SABLONU;
-  Object.entries(vars).forEach(([k, v]) => { text = text.split(`{${k}}`).join(String(v)); });
-  return text;
-}
-
-/** Kullanıcı verisini yazdırılabilir HTML'e basmadan önce güvenli hale getirir (kod enjeksiyonunu engeller). */
-const escapeHtml = (s) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-
-/** Serbestçe düzenlenmiş tebliğ metnini yazdırılabilir HTML'e sarar. */
-function tebligHtmlFromText(text, client, firmaAdi) {
-  const bugun = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
-  const bodyHtml = escapeHtml(text)
-    .split(/\n{2,}/)
-    .map((para) => `<p>${para.replace(/\n/g, "<br/>")}</p>`)
-    .join("\n");
-  return `<!doctype html>
-<html lang="tr"><head><meta charset="utf-8" /><title>Ödeme Hatırlatma - ${escapeHtml(client.ad)}</title>
-<style>
-  body { font-family: Georgia, 'Times New Roman', serif; max-width: 700px; margin: 60px auto; color:#111; line-height:1.7; font-size:15px; }
-  .header { display:flex; justify-content:space-between; margin-bottom:40px; }
-  .baslik { font-size:20px; font-weight:bold; text-align:center; margin: 30px 0; text-transform:uppercase; letter-spacing:1px; }
-  p { margin: 0 0 16px; }
-  @media print { body { margin: 20px; } }
-</style></head>
-<body>
-  <div class="header">
-    <div><strong>${escapeHtml(firmaAdi)}</strong></div>
-    <div>${bugun}</div>
-  </div>
-  <div class="baslik">Ödeme Hatırlatma Bildirimi</div>
-  ${bodyHtml}
-</body></html>`;
-}
-
-function yazdirTebligMetni(text, client, firmaAdi) {
-  const html = tebligHtmlFromText(text, client, firmaAdi);
-  const win = window.open("", "_blank");
-  if (!win) { window.alert("Yeni pencere açılamadı — tarayıcının pop-up engelleyicisini kontrol et."); return; }
-  win.document.write(html);
-  win.document.close();
-  win.focus();
-  setTimeout(() => win.print(), 300);
-}
-
-function kopyalaMetin(text) {
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(() => window.alert("Metin kopyalandı — WhatsApp veya e-postaya yapıştırabilirsin.")).catch(() => window.alert("Kopyalanamadı."));
-  } else {
-    window.alert("Bu tarayıcıda otomatik kopyalama desteklenmiyor.");
-  }
-}
-
-
-/** Bir müşterinin aylık ücretinin ne kadarının faturalı olduğunu döndürür (kısmi olabilir).
- * Yeni "faturaliTutar" alanı varsa onu kullanır (aylıkÜcret'i geçemez); yoksa eski evet/hayır
- * alanına bakar (geriye dönük uyumluluk). */
-function clientFaturaliTutar(c) {
-  const aylik = Number(c.aylikUcret) || 0;
-  if (c.faturaliTutar !== undefined && c.faturaliTutar !== null && c.faturaliTutar !== "") {
-    return Math.min(Math.max(Number(c.faturaliTutar) || 0, 0), aylik);
-  }
-  return c.faturali === "hayir" ? 0 : aylik;
-}
-
-/** Bir müşterinin kâr marjı: eğer o müşteriye maliyet eklenmişse (aylikUcret - maliyet)/aylikUcret
- * üzerinden otomatik hesaplanır; hiç maliyet eklenmemişse elle girilmiş karMarji alanı kullanılır. */
-function clientKarMarji(c) {
-  const maliyetToplam = (c.maliyetler || []).reduce((s, m) => s + (Number(m.tutar) || 0), 0);
-  if ((c.maliyetler || []).length > 0) {
-    return c.aylikUcret ? Math.round(((c.aylikUcret - maliyetToplam) / c.aylikUcret) * 100) : 0;
-  }
-  return Number(c.karMarji) || 0;
-}
-
-/**
- * YÖNETİCİ OTURUMU
- * ----------------
- * ÖNEMLİ GÜVENLİK DEĞİŞİKLİĞİ: yönetici şifresi artık tarayıcıda HİÇ saklanmıyor.
- * Eskiden şifre localStorage'da süresiz duruyordu ve giriş alanı tarayıcıya kaydedilip
- * otomatik dolduruluyordu — o cihaza oturan herkes CEO paneline girebiliyordu.
- *
- * Artık girişten sonra sadece süreli bir "oturum anahtarı" saklanıyor. Bu anahtar:
- *  - kendiliğinden sona erer (normal giriş 12 saat, "bu cihazı hatırla" 30 gün)
- *  - Ayarlar'dan tek tıkla tüm cihazlarda iptal edilebilir
- *  - ele geçse bile şifreyi ifşa etmez
- */
-const PW_KEY = "marcus-os-pw";
-const OTURUM_KEY = "marcus-os-oturum";
-const OTURUM_BITIS_KEY = "marcus-os-oturum-bitis";
-
-const getOturum = () => {
-  if (typeof window === "undefined") return "";
-  try {
-    const bitis = Number(localStorage.getItem(OTURUM_BITIS_KEY) || 0);
-    if (bitis && Date.now() > bitis) { clearOturum(); return ""; }
-    return localStorage.getItem(OTURUM_KEY) || "";
-  } catch (e) { return ""; }
-};
-const setOturum = (token, sureSaniye) => {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.setItem(OTURUM_KEY, token);
-    localStorage.setItem(OTURUM_BITIS_KEY, String(Date.now() + (Number(sureSaniye) || 43200) * 1000));
-    // Eski sürümlerden kalmış olabilecek düz şifreyi temizle — artık asla saklanmıyor.
-    localStorage.removeItem(PW_KEY);
-  } catch (e) { /* localStorage kapalıysa sessizce geç */ }
-};
-const clearOturum = () => {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.removeItem(OTURUM_KEY);
-    localStorage.removeItem(OTURUM_BITIS_KEY);
-    localStorage.removeItem(PW_KEY);
-  } catch (e) { /* sessizce geç */ }
-};
-/** Geriye dönük: eski sürümde saklanmış şifre varsa okunur ama artık hiç yazılmaz. */
-const getPw = () => (typeof window !== "undefined" ? localStorage.getItem(PW_KEY) || "" : "");
-const setPw = (v) => { if (typeof window !== "undefined" && !v) localStorage.removeItem(PW_KEY); };
-
-/** Kişiye özel personel girişi: kullanıcı adı + şifre, ayrı bir localStorage anahtarında. */
-const STAFF_USER_KEY = "marcus-os-staff-user";
-const STAFF_PW_KEY = "marcus-os-staff-pw";
-const getStaffCreds = () => (typeof window !== "undefined" ? { kullaniciAdi: localStorage.getItem(STAFF_USER_KEY) || "", sifre: localStorage.getItem(STAFF_PW_KEY) || "" } : { kullaniciAdi: "", sifre: "" });
-const setStaffCreds = (kullaniciAdi, sifre) => { if (typeof window !== "undefined") { localStorage.setItem(STAFF_USER_KEY, kullaniciAdi); localStorage.setItem(STAFF_PW_KEY, sifre); } };
-const clearStaffCreds = () => { if (typeof window !== "undefined") { localStorage.removeItem(STAFF_USER_KEY); localStorage.removeItem(STAFF_PW_KEY); } };
-
-/** Müşteri Paneli girişi — personelden tamamen ayrı bir kimlik. */
-const MUSTERI_USER_KEY = "marcus-os-musteri-user";
-const MUSTERI_PW_KEY = "marcus-os-musteri-pw";
-/**
- * Müşteri giriş bilgileri. "Beni hatırla" işaretliyse localStorage'a yazılır (tarayıcı
- * kapansa da kalır); işaretli değilse sessionStorage'a yazılır ve sekme kapanınca silinir.
- * Okuma her ikisine de bakar — hangisinde varsa oradan alır.
- */
-const getMusteriCreds = () => {
-  if (typeof window === "undefined") return { kullaniciAdi: "", sifre: "" };
-  try {
-    const ku = localStorage.getItem(MUSTERI_USER_KEY) || sessionStorage.getItem(MUSTERI_USER_KEY) || "";
-    const sf = localStorage.getItem(MUSTERI_PW_KEY) || sessionStorage.getItem(MUSTERI_PW_KEY) || "";
-    return { kullaniciAdi: ku, sifre: sf };
-  } catch (e) { return { kullaniciAdi: "", sifre: "" }; }
-};
-const setMusteriCreds = (kullaniciAdi, sifre, hatirla = true) => {
-  if (typeof window === "undefined") return;
-  try {
-    clearMusteriCreds();
-    const depo = hatirla ? localStorage : sessionStorage;
-    depo.setItem(MUSTERI_USER_KEY, kullaniciAdi);
-    depo.setItem(MUSTERI_PW_KEY, sifre);
-  } catch (e) { /* depolama kapalıysa oturum yine de açılır, sadece hatırlanmaz */ }
-};
-/** "Beni hatırla" seçilmiş mi? Kalıcı depoda kayıt varsa evet. Hareketsizlik çıkışı bu
- * bilgiye göre davranır — hatırlanan bir cihazda müşteriyi dışarı atmak anlamsız. */
-const musteriHatirlaniyorMu = () => {
-  if (typeof window === "undefined") return false;
-  try { return !!localStorage.getItem(MUSTERI_USER_KEY); } catch (e) { return false; }
-};
-const clearMusteriCreds = () => {
-  if (typeof window === "undefined") return;
-  try {
-    localStorage.removeItem(MUSTERI_USER_KEY); localStorage.removeItem(MUSTERI_PW_KEY);
-    sessionStorage.removeItem(MUSTERI_USER_KEY); sessionStorage.removeItem(MUSTERI_PW_KEY);
-  } catch (e) { /* sessizce geç */ }
-};
-
-/**
- * Metni HTTP başlığında güvenle taşınabilir hale getirir (UTF-8 → base64).
- *
- * NEDEN GEREKLİ: HTTP başlık değerleri yalnızca ASCII karakter taşıyabilir. Türkçe karakter
- * içeren bir kullanıcı adı ya da şifre ("saygı", "çağrı", "gülşen"...) doğrudan başlığa
- * konduğunda tarayıcı isteği GÖNDERMEDEN hata veriyordu — ekranda "Sunucuya ulaşılamadı"
- * yazıyor, oysa sunucuyla hiç konuşulmamış oluyordu. Bu, personel ve müşteri girişlerinin
- * sessizce çalışmamasının sebebiydi (yönetici girişi etkilenmiyordu, çünkü onun şifresi
- * başlıkta değil istek gövdesinde gidiyor).
- */
-const basligaCevir = (metin) => {
-  const s = String(metin || "");
-  if (!s) return "";
-  try {
-    // TextEncoder + btoa: UTF-8 baytlarını ASCII base64'e çevirir.
-    const baytlar = new TextEncoder().encode(s);
-    let ikili = "";
-    baytlar.forEach((b) => { ikili += String.fromCharCode(b); });
-    return btoa(ikili);
-  } catch (e) {
-    return "";
-  }
-};
-
-/** /api/data isteklerine hem olası tek-şifre hem de kişisel personel kimliğini ekler.
- * Kimlik bilgileri base64 olarak (…-B64 başlıklarıyla) gönderilir; sunucu bunları çözer.
- * Düz başlıklar da GÖNDERİLMEYE devam eder ama sadece ASCII ise — Türkçe karakter içeren
- * bir değer başlığa konulamadığı için orada boş bırakılır. */
-const sadeceAscii = (metin) => (/^[\x00-\x7F]*$/.test(String(metin || "")) ? String(metin || "") : "");
-
-const authHeaders = () => {
-  const staff = getStaffCreds();
-  const musteri = getMusteriCreds();
-  return {
-    "X-Oturum": getOturum(),
-    "X-Site-Password": sadeceAscii(getPw()),
-    "X-Site-Password-B64": basligaCevir(getPw()),
-    "X-Staff-Username": sadeceAscii(staff.kullaniciAdi),
-    "X-Staff-Password": sadeceAscii(staff.sifre),
-    "X-Staff-Username-B64": basligaCevir(staff.kullaniciAdi),
-    "X-Staff-Password-B64": basligaCevir(staff.sifre),
-    "X-Musteri-Username": sadeceAscii(musteri.kullaniciAdi),
-    "X-Musteri-Password": sadeceAscii(musteri.sifre),
-    "X-Musteri-Username-B64": basligaCevir(musteri.kullaniciAdi),
-    "X-Musteri-Password-B64": basligaCevir(musteri.sifre),
-  };
-};
-
-/** Ekran genişliğine göre mobil/masaüstü ayrımı yapar; pencere yeniden boyutlandırıldığında güncellenir. */
-function useIsMobile(breakpoint = 860) {
-  const [isMobile, setIsMobile] = useState(() => (typeof window !== "undefined" ? window.innerWidth < breakpoint : false));
-  useEffect(() => {
-    const onResize = () => setIsMobile(window.innerWidth < breakpoint);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [breakpoint]);
-  return isMobile;
-}
-
-function Card({ children, style, className, ...rest }) {
-  return (
-    <div className={["marcus-card", className].filter(Boolean).join(" ")} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, ...style }} {...rest}>
-      {children}
-    </div>
-  );
-}
-
-function Pill({ color, soft, children }) {
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color, background: soft, padding: "4px 10px", borderRadius: 999, fontFamily: "Inter, sans-serif" }}>
-      <span style={{ width: 6, height: 6, borderRadius: 999, background: color }} />
-      {children}
-    </span>
-  );
-}
-
-function KpiCard({ label, value, mono = true, delta, deltaYoy, accent }) {
-  const up = delta >= 0;
-  return (
-    <Card style={{ padding: "18px 20px", flex: "1 1 220px", minWidth: 200 }}>
-      <div style={{ fontSize: 12.5, color: T.textDim, fontFamily: "Inter, sans-serif", fontWeight: 600, letterSpacing: 0.2, marginBottom: 10 }}>{label}</div>
-      <div style={{ fontSize: 26, fontWeight: 600, color: accent || T.text, fontFamily: mono ? "'IBM Plex Mono', monospace" : "'Space Grotesk', sans-serif", marginBottom: 10, letterSpacing: -0.5 }}>
-        {value}
-      </div>
-      {delta !== undefined && (
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 12, fontWeight: 600, color: up ? T.success : T.danger, fontFamily: "Inter, sans-serif" }}>
-            {up ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
-            {Math.abs(delta)}% geçen aya göre
-          </span>
-          {deltaYoy !== undefined && (
-            <span style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter, sans-serif" }}>yıllık {deltaYoy >= 0 ? "+" : ""}{deltaYoy}%</span>
-          )}
-        </div>
-      )}
-    </Card>
-  );
-}
-
-function SectionTitle({ children, action }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-      <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: T.text, margin: 0, letterSpacing: 0.1 }}>{children}</h2>
-      {action}
-    </div>
-  );
-}
-
-const inputStyle = { width: "100%", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 10px", color: T.text, fontSize: 16, fontFamily: "Inter, sans-serif", outline: "none" };
-const saveBtnStyle = { background: T.accent, color: "#fff", border: "none", borderRadius: 8, padding: "10px 16px", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, minHeight: 40 };
-const cancelBtnStyle = { background: "transparent", color: T.textDim, border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 16px", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer", minHeight: 40 };
-const iconBtnStyle = { background: "transparent", border: "none", cursor: "pointer", padding: 9, display: "flex", alignItems: "center", justifyContent: "center", minWidth: 36, minHeight: 36 };
-const addBtnStyle = { display: "flex", alignItems: "center", gap: 6, background: T.accentSoft, color: T.accentText, border: "none", borderRadius: 9, padding: "10px 15px", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer", minHeight: 40 };
-
-/** Generic small form for add/edit, driven by a field-definition list. */
-const AY_ADLARI = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
-
-/** Native <input type="month"> Safari masaüstünde desteklenmediği için (düz metin kutusuna
- * dönüşüyor ve yanlış/gün eklenmiş değerler kabul edilebiliyor), bunun yerine iki ayrı <select>
- * (Ay + Yıl) ile tüm tarayıcılarda garanti aynı şekilde çalışan bir seçici kullanılıyor. */
-function AySeciciAlan({ value, onChange }) {
-  const gecerli = value && /^\d{4}-\d{1,2}$/.test(value);
-  const [yil, ay] = gecerli ? value.split("-").map(Number) : [new Date().getFullYear(), new Date().getMonth() + 1];
-  const buYil = new Date().getFullYear();
-  const yilListesi = [];
-  for (let y = buYil - 6; y <= buYil + 1; y++) yilListesi.push(y);
-
-  const guncelle = (yeniYil, yeniAy) => onChange(`${yeniYil}-${String(yeniAy).padStart(2, "0")}`);
-
-  // Gelen değer boş/hatalı formattaysa (örn. eski kayıtlardan kalma "" ya da "2026-08-01" gibi
-  // gün içeren bozuk bir değer), sadece EKRANDA doğru ayı göstermekle kalma — asıl form
-  // durumunu da hemen düzelt. Yoksa kullanıcı hiç dokunmadan "Kaydet"e basınca bozuk/boş
-  // değer sessizce kaydedilmeye devam ediyordu ("yeniden kaydetsem de işlemiyor" sorunu buydu).
-  useEffect(() => {
-    if (!gecerli) guncelle(yil, ay);
-    // eslint-disable-next-line
-  }, []);
-
-  return (
-    <div style={{ display: "flex", gap: 8 }}>
-      <select value={ay} onChange={(e) => guncelle(yil, Number(e.target.value))} style={{ ...inputStyle, flex: 1.4 }}>
-        {AY_ADLARI.map((ad, i) => <option key={i} value={i + 1}>{ad}</option>)}
-      </select>
-      <select value={yil} onChange={(e) => guncelle(Number(e.target.value), ay)} style={{ ...inputStyle, flex: 1 }}>
-        {yilListesi.map((y) => <option key={y} value={y}>{y}</option>)}
-      </select>
-    </div>
-  );
-}
-
-/** Bir kayıt (müşteri, personel, reklam, iş vb.) düzenleme ekranı açıkken, başka biri de aynı
- * kaydı açtıysa erken uyarı verir. Kilit sunucuda kısa ömürlü (TTL'li) tutulur, ekran açık
- * olduğu sürece periyodik "tazelenir"; ekran kapanınca kilit bırakılır. Vercel'in Hobby
- * planındaki 12 fonksiyon sınırına takılmamak için ayrı bir uç nokta yerine /api/data
- * üzerinden (kilitAction alanıyla) çalışır. */
-function useDuzenlemeKilidi(tur, id, aktifMi, benKimim) {
-  const [kilitleyen, setKilitleyen] = useState(null);
-  useEffect(() => {
-    if (!aktifMi || !id || !benKimim) { setKilitleyen(null); return; }
-    let iptal = false;
-    const kilitAl = () => {
-      fetch("/api/data", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ kilitAction: "al", tur, id, kisi: benKimim }),
-      })
-        .then((r) => r.json())
-        .then((res) => { if (!iptal) setKilitleyen(res.kilitli ? res.kilitleyen : null); })
-        .catch(() => {});
-    };
-    kilitAl();
-    const interval = setInterval(kilitAl, 45000);
-    return () => {
-      iptal = true;
-      clearInterval(interval);
-      fetch("/api/data", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ kilitAction: "birak", tur, id, kisi: benKimim }),
-      }).catch(() => {});
-    };
-    // eslint-disable-next-line
-  }, [tur, id, aktifMi]);
-  return kilitleyen;
-}
-
-function KilitUyarisi({ kisi }) {
-  if (!kisi) return null;
-  return (
-    <div style={{ background: T.warningSoft, color: T.warning, padding: "10px 14px", borderRadius: 10, fontSize: 12.5, fontFamily: "Inter", marginBottom: 12, display: "flex", alignItems: "flex-start", gap: 8, lineHeight: 1.5 }}>
-      <span>⚠️</span>
-      <span><strong>{kisi}</strong> şu anda bu kaydı düzenliyor olabilir. Aynı anda ikiniz kaydederseniz, son kaydeden diğerinizin değişikliğini fark ettirmeden silebilir — önce onunla konuşman daha güvenli olur.</span>
-    </div>
-  );
-}
-
-/** Reklam eklerken/düzenlerken marka adını elle yazmak yerine Müşteriler listesinden seçebilmek
- * için — ama listede olmayan bir isim gerekiyorsa (henüz müşteri olarak eklenmemiş bir marka
- * için reklam girecekse) "Diğer (elle yaz)" ile serbest metne de geçilebiliyor. */
-function MarkaSecici({ value, onChange, clientList }) {
-  const liste = clientList || [];
-  const listedeVarMi = liste.some((c) => c.ad === value);
-  const [serbest, setSerbest] = useState(!!value && !listedeVarMi);
-  return (
-    <div>
-      <select
-        value={serbest ? "__diger__" : (value || "")}
-        onChange={(e) => {
-          if (e.target.value === "__diger__") { setSerbest(true); onChange(""); }
-          else { setSerbest(false); onChange(e.target.value); }
-        }}
-        style={inputStyle}
-      >
-        <option value="">Seç…</option>
-        {liste.map((c) => <option key={c.id} value={c.ad}>{c.ad}</option>)}
-        <option value="__diger__">Diğer (elle yaz)</option>
-      </select>
-      {serbest && (
-        <input
-          autoFocus
-          value={value || ""}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="Marka adını yaz"
-          style={{ ...inputStyle, marginTop: 6 }}
-        />
-      )}
-    </div>
-  );
-}
-
-function FieldForm({ fields, initial, onSubmit, onCancel, submitLabel = "Kaydet", clientList }) {
-  const [values, setValues] = useState(() => {
-    const v = {};
-    fields.forEach((f) => {
-      if (initial && initial[f.key] !== undefined) { v[f.key] = initial[f.key]; return; }
-      if (f.type === "number") { v[f.key] = 0; return; }
-      if (f.type === "select") { v[f.key] = f.options[0].value; return; }
-      if (f.type === "month") { v[f.key] = new Date().toISOString().slice(0, 7); return; }
-      if (f.type === "date") { v[f.key] = bugunISOTarih(); return; }
-      v[f.key] = "";
-    });
-    return v;
-  });
-  return (
-    <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: fields.length > 3 ? "1fr 1fr" : "1fr", gap: 10, padding: 14, background: T.surfaceRaised, borderRadius: 12, border: `1px solid ${T.border}` }}>
-      {fields.map((f) => (
-        <div key={f.key}>
-          <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter, sans-serif", display: "block", marginBottom: 4 }}>{f.label}</label>
-          {f.type === "select" ? (
-            <select value={values[f.key]} onChange={(e) => setValues((v) => ({ ...v, [f.key]: e.target.value }))} style={inputStyle}>
-              {f.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          ) : f.type === "month" ? (
-            <AySeciciAlan value={values[f.key]} onChange={(val) => setValues((v) => ({ ...v, [f.key]: val }))} />
-          ) : f.type === "client-select" ? (
-            <MarkaSecici value={values[f.key]} onChange={(val) => setValues((v) => ({ ...v, [f.key]: val }))} clientList={clientList} />
-          ) : (
-            <input
-              type={f.type === "number" ? "number" : f.type === "date" ? "date" : "text"}
-              value={values[f.key]}
-              placeholder={f.placeholder}
-              onChange={(e) => setValues((v) => ({ ...v, [f.key]: f.type === "number" ? Number(e.target.value) : e.target.value }))}
-              style={inputStyle}
-            />
-          )}
-        </div>
-      ))}
-      <div style={{ display: "flex", gap: 8, gridColumn: "1 / -1", marginTop: 2 }}>
-        <button onClick={() => onSubmit(values)} style={saveBtnStyle}><Check size={13} /> {submitLabel}</button>
-        <button onClick={onCancel} style={cancelBtnStyle}>İptal</button>
-      </div>
-    </div>
-  );
-}
+// Tema, stiller, ortak arayüz parçaları ve genel yardımcılar tek bir dosyada toplandı
+// (bkz. src/tema.jsx) — App.jsx'i küçültmek ve bu parçaları bulunabilir kılmak için.
+import {
+  T, FONTS, fmt, fmtShort, nextId, uyelikEfektifAktifMi,
+  computeLive, monthKey, monthPaidAmount, monthRemaining, isMonthPaid, clientPaymentStatus,
+  clientOverdueMonths, clientOverdueBalance, DEFAULT_TEBLIG_SABLONU, renderTeblig, escapeHtml, tebligHtmlFromText,
+  yazdirTebligMetni, kopyalaMetin, clientFaturaliTutar, clientKarMarji, PW_KEY, OTURUM_KEY,
+  OTURUM_BITIS_KEY, getOturum, setOturum, clearOturum, getPw, setPw,
+  STAFF_USER_KEY, STAFF_PW_KEY, getStaffCreds, setStaffCreds, clearStaffCreds, MUSTERI_USER_KEY,
+  MUSTERI_PW_KEY, getMusteriCreds, setMusteriCreds, musteriHatirlaniyorMu, clearMusteriCreds, basligaCevir,
+  sadeceAscii, authHeaders, useIsMobile, Card, Pill, KpiCard,
+  SectionTitle, inputStyle, saveBtnStyle, cancelBtnStyle, iconBtnStyle, addBtnStyle,
+  AY_ADLARI, AySeciciAlan, gizlilikModuOku, gizlilikModuYaz,
+  reklamDurumu, reklamMetrikleri, istatistikVarMi, OLCUM_ALANLARI, olcumKarsilastir,
+  basligiTemizle, haftaBaslangici, tarihGoster, bugunISOTarih, parseTrTarih, tarihIso,
+  TR_AYLAR_KISA, MUSTERI_DURUM_ETIKET,
+  useDuzenlemeKilidi, KilitUyarisi, MarkaSecici, FieldForm,
+} from "./tema.jsx";
+import { DriveGorsel, DriveVideo, driveEmbedUrl, VIDEO_YONLERI } from "./drive.jsx";
+import { InstagramOnizleme, InstagramIzgara, aylikRaporAc } from "./instagram.jsx";
+import { MusteriPaneli } from "./musteriPaneli.jsx";
+import { Personel, avansToplami, avansKisiyeAitMi, odemeToplami, odemeKisiyeAitMi, AvansVerFormu, AvansListesi } from "./personel.jsx";
 
 /* ------------------------------------------------------------------ */
 /* KARAR ŞERİDİ                                                          */
@@ -1128,17 +504,6 @@ function gorseliBase64eCevir(file, onDone, onHata) {
 
 /** Başlığın başına elle yazılmış 🎬 gibi işaretleri temizler — arayüz zaten kendi
  * ikonunu koyduğu için, yoksa "🎬 🎬 🎬 Konu Başlığı" gibi üst üste binmiş görünüyordu. */
-function basligiTemizle(metin) {
-  if (!metin) return "";
-  return String(metin).replace(/^(?:[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F\s]+)/u, "").trim() || String(metin).trim();
-}
-
-const MUSTERI_DURUM_ETIKET = {
-  bekliyor: { label: "Bekliyor", color: T.warning, bg: T.warningSoft },
-  onaylandi: { label: "Onaylandı ✓", color: T.success, bg: T.successSoft },
-  revize: { label: "Revize İstendi", color: T.danger, bg: T.dangerSoft },
-};
-
 /** Bir markanın Müşteri Paneli'nde göreceği içerikleri (görsel/video) ekleyip listeleyen,
  * ClientDetail içine gömülü, kendi başına açılıp kapanan bir bölüm. */
 /**
@@ -1146,7 +511,7 @@ const MUSTERI_DURUM_ETIKET = {
  * Müşteri Paneli sekmesinde tam sayfa olarak (kompakt=false) kullanılır.
  * Tek bir yerde tanımlı olduğu için iki görünüm asla birbirinden ayrışmaz.
  */
-function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, onOnayla, kompakt = true, baslangicAcik = false }) {
+function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, onOnayla, onBildir, kompakt = true, baslangicAcik = false }) {
   const [acik, setAcik] = useState(baslangicAcik);
   const [ekleAcik, setEkleAcik] = useState(false);
   const [duzenlenenId, setDuzenlenenId] = useState(null); // düzenlenen kaydın id'si (yoksa yeni ekleme)
@@ -1156,6 +521,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
   const [gorselUrl, setGorselUrl] = useState(null);
   const [gorselHata, setGorselHata] = useState("");
   const [acikDetayId, setAcikDetayId] = useState(null); // detayı açık olan çekim planı
+  const [bildirimDurumu, setBildirimDurumu] = useState("");
   // Çekim planı alanları
   const [videoYonu, setVideoYonu] = useState("dikey"); // oynatıcı çerçevesinin şekli
   const [kategori, setKategori] = useState("Video"); // onaylanınca Operasyon'da hangi akışa düşecek
@@ -1222,6 +588,15 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
       onUpdate(duzenlenenId, { ...govdeVerisi, durum: "bekliyor", revizeNotu: null, operasyonaAktarildi: false, guncellemeTarihi: new Date().toLocaleDateString("tr-TR") });
     } else {
       onAdd(clientId, { ...govdeVerisi, tarih: new Date().toLocaleDateString("tr-TR") });
+      /* Müşteriye "onayını bekleyen içerik var" e-postası. Eskiden müşterinin haberi
+       * olmuyordu, panele girmesi gerekiyordu; girmezse onay beklemede kalıyordu. */
+      if (onBildir) {
+        onBildir(clientId, govdeVerisi.aciklama).then((sonuc) => {
+          if (sonuc && sonuc.ok) setBildirimDurumu("✓ Müşteriye e-posta gönderildi");
+          else if (sonuc && sonuc.skipped) setBildirimDurumu(sonuc.reason ? `E-posta gitmedi: ${sonuc.reason}` : "Müşterinin kayıtlı e-postası yok — bildirim gönderilmedi");
+          setTimeout(() => setBildirimDurumu(""), 6000);
+        });
+      }
     }
     formuTemizle();
   };
@@ -1445,9 +820,14 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
               </div>
             </div>
           ) : (
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <button style={saveBtnStyle} onClick={() => { setTur("cekim"); setEkleAcik(true); }}>🎬 Yeni Çekim Planı</button>
-              <button style={addBtnStyle} onClick={() => { setTur("gorsel"); setEkleAcik(true); }}><Plus size={13} /> İçerik Ekle</button>
+            <div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button style={saveBtnStyle} onClick={() => { setTur("cekim"); setEkleAcik(true); }}>🎬 Yeni Çekim Planı</button>
+                <button style={addBtnStyle} onClick={() => { setTur("gorsel"); setEkleAcik(true); }}><Plus size={13} /> İçerik Ekle</button>
+              </div>
+              {bildirimDurumu && (
+                <div style={{ fontSize: 11.5, color: bildirimDurumu.startsWith("✓") ? T.success : T.textFaint, fontFamily: "Inter", marginTop: 8, lineHeight: 1.6 }}>{bildirimDurumu}</div>
+              )}
             </div>
           )}
     </>
@@ -2049,50 +1429,16 @@ function Karsilastirma({ chartData }) {
 /* ------------------------------------------------------------------ */
 /* TAKVİM                                                                */
 /* ------------------------------------------------------------------ */
-const TR_AYLAR_KISA = ["oca", "şub", "mar", "nis", "may", "haz", "tem", "ağu", "eyl", "eki", "kas", "ara"];
 const TR_AYLAR_TAM = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
 const TR_GUNLER = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
 
 /** "26 Ağu" gibi serbest metin tarihleri gün/ay olarak ayrıştırır (yıl bilgisi yoktur, varsayılan olarak yok sayılır). */
 /** Bugünün tarihi, tarih seçicilerin (input type="date") beklediği YYYY-AA-GG biçiminde. */
-const bugunISOTarih = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
-
 /**
  * Tarihleri ekranda okunur gösterir. Tarih seçicilerden gelen YYYY-AA-GG değerini
  * "26 Ağustos 2026" biçimine çevirir; eski kayıtlardaki serbest metin tarihleri
  * ("26 Ağu", "11.08.2026") olduğu gibi geçirir — geçmiş veri bozulmasın diye.
  */
-function tarihGoster(str) {
-  if (!str) return "—";
-  const m = String(str).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return String(str);
-  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-  if (Number.isNaN(d.getTime())) return String(str);
-  return d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
-}
-
-function parseTrTarih(str) {
-  if (!str) return null;
-  // Tarih seçiciden gelen YYYY-AA-GG biçimi
-  const iso = String(str).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (iso) {
-    const day = parseInt(iso[3], 10);
-    const month = parseInt(iso[2], 10) - 1;
-    if (day >= 1 && day <= 31 && month >= 0 && month <= 11) return { day, month, year: Number(iso[1]) };
-    return null;
-  }
-  const m = String(str).trim().match(/(\d{1,2})\s*([a-zA-ZçğıöşüÇĞİÖŞÜ]+)/);
-  if (!m) return null;
-  const day = parseInt(m[1], 10);
-  const token = m[2].toLowerCase().slice(0, 3);
-  const monthIdx = TR_AYLAR_KISA.findIndex((a) => a === token);
-  if (monthIdx === -1 || day < 1 || day > 31) return null;
-  return { day, month: monthIdx };
-}
-
 function Takvim({ data }) {
   const [viewDate, setViewDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(null);
@@ -2520,37 +1866,6 @@ const REKLAM_FIELDS = [
 
 /** Reklam istatistiklerinden hesaplanan türetilmiş oranlar. Elle girilmez — girilen
  * rakamlardan hesaplanır ki tutarsızlık olmasın. */
-function reklamMetrikleri(r) {
-  const erisim = Number(r.erisim) || 0;
-  const gosterim = Number(r.gosterim) || 0;
-  const tiklama = Number(r.tiklama) || 0;
-  const butce = Number(r.butce) || 0;
-  const sonuc = Number(r.sonuc) || 0;
-  return {
-    erisim, gosterim, tiklama, butce, sonuc,
-    etkilesim: Number(r.etkilesim) || 0,
-    // Tıklama oranı (CTR): gösterim başına tıklama
-    ctr: gosterim > 0 ? (tiklama / gosterim) * 100 : null,
-    // Tıklama başına maliyet
-    tbm: tiklama > 0 && butce > 0 ? butce / tiklama : null,
-    // Sonuç başına maliyet — müşteriye en anlamlı gelen rakam
-    sonucMaliyeti: sonuc > 0 && butce > 0 ? butce / sonuc : null,
-    // Bin gösterim başına maliyet
-    bgm: gosterim > 0 && butce > 0 ? (butce / gosterim) * 1000 : null,
-  };
-}
-const istatistikVarMi = (r) => ["erisim", "gosterim", "tiklama", "etkilesim", "sonuc"].some((k) => Number(r[k]) > 0);
-
-function reklamDurumu(r) {
-  if (!r.bitisTarihi) return "aktif";
-  const bugun = new Date(); bugun.setHours(0, 0, 0, 0);
-  const bitis = new Date(r.bitisTarihi);
-  const farkGun = Math.round((bitis - bugun) / 86400000);
-  if (farkGun < 0) return "bitti";
-  if (farkGun <= 3) return "yakinda";
-  return "aktif";
-}
-
 /* ------------------------------------------------------------------ */
 /* HESAP GELİŞİMİ — takipçi ve görünürlük takibi                         */
 /* ------------------------------------------------------------------ */
@@ -2561,34 +1876,7 @@ function reklamDurumu(r) {
  * Artış rakamları SAKLANMAZ, girilen değerlerden hesaplanır (bu ay − geçen ay). Böylece
  * bir ayın rakamını düzeltince artışlar da kendiliğinden düzelir; tutarsızlık olamaz.
  */
-const OLCUM_ALANLARI = [
-  { key: "takipci", label: "Takipçi" },
-  { key: "erisim", label: "Erişim" },
-  { key: "profilZiyareti", label: "Profil Ziyareti" },
-  { key: "siteTiklama", label: "Web Sitesi Tıklaması" },
-];
-
 /** Bir markanın belirli aydaki ölçümü ve bir önceki aya göre değişimi. */
-function olcumKarsilastir(olcumler, clientId, ay) {
-  const kendi = (olcumler || []).filter((o) => String(o.clientId) === String(clientId));
-  const buAy = kendi.find((o) => o.ay === ay) || null;
-  // Bir önceki AY değil, bu aydan ÖNCEKİ EN YAKIN kayıt — arada boş ay varsa da çalışsın diye.
-  const oncekiler = kendi.filter((o) => o.ay < ay).sort((a, b) => (a.ay > b.ay ? -1 : 1));
-  const onceki = oncekiler[0] || null;
-  const fark = {};
-  OLCUM_ALANLARI.forEach(({ key }) => {
-    const simdi = Number(buAy && buAy[key]) || 0;
-    const eski = Number(onceki && onceki[key]) || 0;
-    fark[key] = {
-      simdi,
-      eski,
-      degisim: onceki ? simdi - eski : null,
-      yuzde: onceki && eski > 0 ? ((simdi - eski) / eski) * 100 : null,
-    };
-  });
-  return { buAy, onceki, fark };
-}
-
 function HesapGelisimi({ clients, olcumler, onKaydet, onSil }) {
   const [secili, setSecili] = useState(null);
   const [ay, setAy] = useState(monthKey());
@@ -2881,12 +2169,6 @@ function MarkaStokKarti({ client, stoklar, gecmis, subeler, onStokDegis, onAddSu
 
 const GUN_ADLARI = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
 /** Verilen tarihin (varsayılan bugün) içinde bulunduğu haftanın Pazartesi gününü YYYY-MM-DD olarak döner. */
-function haftaBaslangici(d = new Date()) {
-  const gun = (d.getDay() + 6) % 7; // Pazartesi=0
-  const pazartesi = new Date(d);
-  pazartesi.setDate(d.getDate() - gun);
-  return tarihIso(pazartesi);
-}
 function haftaEkle(haftaKeyStr, adet) {
   const d = new Date(haftaKeyStr);
   d.setDate(d.getDate() + adet * 7);
@@ -3082,13 +2364,6 @@ function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, onAd
  * sistem hâlâ "dün" sanıyordu (Günlük Kontrol geç sıfırlanıyordu, Haftalık Plan'ın "bugün"
  * hücresi bazen yanlış haftaya denk geliyordu). Bu fonksiyon o sorunu çözer.
  */
-function tarihIso(d) {
-  const parcalar = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(d);
-  const y = parcalar.find((p) => p.type === "year").value;
-  const m = parcalar.find((p) => p.type === "month").value;
-  const g = parcalar.find((p) => p.type === "day").value;
-  return `${y}-${m}-${g}`;
-}
 const bugunISO = () => tarihIso(new Date());
 
 /** Bir hesabın güncel bakiyesi: o hesaba kaydedilen tüm ödemeler + gelen transferler - giden transferler. */
@@ -3534,665 +2809,6 @@ function GunlukKontrol({ clients, stoklar, gecmis, kontrol, onToggle, onYenile, 
       <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 12 }}>
         Bir türe tıklamak "bugün paylaşıldı" demektir — o türün stoğundan 1 tane düşer ve Paylaşımlar sekmesindeki geçmişe işlenir. Bu liste her gün gece yarısı otomatik sıfırlanır. Henüz tamamlanmayan markalar en üstte gösterilir.
       </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* PERSONEL                                                              */
-/* ------------------------------------------------------------------ */
-const PERSONEL_FIELDS = [
-  { key: "ad", label: "Ad Soyad", type: "text" },
-  { key: "pozisyon", label: "Pozisyon", type: "text", placeholder: "örn. Video Editörü" },
-  { key: "maas", label: "Net Maaş (₺/ay)", type: "number" },
-  { key: "sigorta", label: "SGK / Sigorta (₺/ay)", type: "number" },
-  { key: "yemek", label: "Yemek Gideri (₺/ay)", type: "number" },
-  { key: "odemeGunu", label: "Maaş Ödeme Günü (ayın kaçı — örn. 5)", type: "number" },
-  { key: "tazminatBirikimi", label: "Kıdem Tazminatı Birikimi (₺/ay, opsiyonel)", type: "number" },
-  { key: "baslangic", label: "İşe Başlama (YYYY-AA)", type: "text", placeholder: "2026-01" },
-];
-
-/* ------------------------------------------------------------------ */
-/* AVANS SİSTEMİ                                                         */
-/* ------------------------------------------------------------------ */
-/**
- * ÖNEMLİ MUHASEBE NOTU
- * Avans YENİ BİR GİDER DEĞİLDİR — maaşın (ya da hak edişin) erken ödenmiş kısmıdır.
- * Bu yüzden Toplam Gider'e ayrıca EKLENMEZ; eklenseydi aynı para iki kez sayılır ve
- * kâr olduğundan düşük görünürdü. Avansın iki gerçek etkisi vardır:
- *   1. Ay sonunda o kişiye ödenecek tutar, avans kadar AZALIR.
- *   2. Avansın çıktığı hesabın bakiyesi, avans kadar AZALIR (gerçekten çıkan para).
- */
-
-/** Bir avans kaydının hangi kişiye ait olduğunu eşleştirir. Kadrolu personel id ile,
- * freelancer isim ile eşleşir — ikisi ayrı sistemler olarak tutulur. */
-function avansKisiyeAitMi(a, { personelId, kisiAd }) {
-  if (personelId != null) return a.tur === "personel" && String(a.kisiId) === String(personelId);
-  return a.tur === "freelancer" && a.kisiAd === kisiAd;
-}
-
-/** Belirli bir ayda, belirli bir kişiye verilen toplam avans. */
-function avansToplami(avanslar, hedef, ay) {
-  return (avanslar || [])
-    .filter((a) => avansKisiyeAitMi(a, hedef) && (!ay || a.ay === ay))
-    .reduce((s, a) => s + (Number(a.tutar) || 0), 0);
-}
-
-/** "Avans Ver" formu — tutar, kesileceği ay, çıkacağı hesap ve not. */
-function AvansVerFormu({ kisiAd, hesaplar, varsayilanAy, onKaydet, onKapat }) {
-  const liste = hesaplar && hesaplar.length ? hesaplar : [{ id: "ana", ad: "Marcus Medya", anaHesap: true }];
-  const [tutar, setTutar] = useState("");
-  const [ay, setAy] = useState(varsayilanAy || monthKey());
-  const [hesapId, setHesapId] = useState((liste.find((h) => h.anaHesap) || liste[0]).id);
-  const [tarih, setTarih] = useState(bugunISOTarih());
-  const [not, setNot] = useState("");
-
-  const kaydet = () => {
-    const miktar = Number(String(tutar).replace(",", "."));
-    if (!miktar || Number.isNaN(miktar) || miktar <= 0) { window.alert("Geçerli bir avans tutarı gir."); return; }
-    onKaydet({ tutar: miktar, ay, hesapId, not: not.trim(), tarih });
-    onKapat();
-  };
-
-  return (
-    <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 14px", marginTop: 8 }}>
-      <div style={{ fontSize: 12.5, color: T.text, fontWeight: 600, fontFamily: "Inter", marginBottom: 10 }}>{kisiAd} — Avans Ver</div>
-      <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-        <div>
-          <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Tutar (₺)</label>
-          <input autoFocus type="number" value={tutar} onChange={(e) => setTutar(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") kaydet(); }} style={{ ...inputStyle, marginBottom: 0 }} />
-        </div>
-        <div>
-          <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Hangi aydan kesilecek</label>
-          <AySeciciAlan value={ay} onChange={setAy} />
-        </div>
-        <div>
-          <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Avans Tarihi</label>
-          <input type="date" value={tarih} onChange={(e) => setTarih(e.target.value)} style={{ ...inputStyle, marginBottom: 0 }} />
-        </div>
-        <div>
-          <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Hangi hesaptan çıktı</label>
-          <select value={hesapId} onChange={(e) => setHesapId(e.target.value)} style={{ ...inputStyle, marginBottom: 0 }}>
-            {liste.map((h) => <option key={h.id} value={h.id}>{h.ad}{h.anaHesap ? " (Ana Hesap)" : ""}</option>)}
-          </select>
-        </div>
-        <div>
-          <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Not (opsiyonel)</label>
-          <input value={not} onChange={(e) => setNot(e.target.value)} placeholder="örn. acil ihtiyaç" style={{ ...inputStyle, marginBottom: 0 }} />
-        </div>
-      </div>
-      <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter", lineHeight: 1.6, marginBottom: 10 }}>
-        Bu tutar Toplam Gider'e ayrıca eklenmez (maaş zaten sayılıyor) — seçtiğin ayın ödemesinden düşülür
-        ve seçtiğin hesabın bakiyesinden çıkar.
-      </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <button style={saveBtnStyle} onClick={kaydet}>Avansı Kaydet</button>
-        <button style={cancelBtnStyle} onClick={onKapat}>İptal</button>
-      </div>
-    </div>
-  );
-}
-
-/** Bir kişiye verilmiş avansların listesi — her biri tek tıkla silinebilir (geri alınabilir). */
-function AvansListesi({ kayitlar, hesaplar, onDelete }) {
-  if (!kayitlar || kayitlar.length === 0) return null;
-  const hesapAdi = (id) => ((hesaplar || []).find((h) => h.id === id) || {}).ad || "—";
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 8 }}>
-      {kayitlar.map((a) => (
-        <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: T.surfaceRaised, borderRadius: 8, padding: "7px 10px", fontSize: 11.5, fontFamily: "Inter", flexWrap: "wrap" }}>
-          <span style={{ color: T.textDim }}>
-            <span style={{ color: T.textFaint }}>{tarihGoster(a.tarih)}</span>{" · "}
-            {hesapAdi(a.hesapId)} hesabından{a.not ? ` · ${a.not}` : ""}
-          </span>
-          <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <strong style={{ color: T.warning, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(a.tutar)}</strong>
-            {onDelete && (
-              <button style={iconBtnStyle} title="Bu avansı sil" onClick={() => { if (window.confirm(`${fmt(a.tutar)} tutarındaki avans silinsin mi? Hesap bakiyesi ve ödenecek tutar eski haline döner.`)) onDelete(a.id); }}>
-                <Trash2 size={13} color={T.danger} />
-              </button>
-            )}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* MAAŞ / HAK EDİŞ ÖDEMELERİ                                             */
-/* ------------------------------------------------------------------ */
-/**
- * Ödeme kayıtları da avans gibi Toplam Gider'i DEĞİŞTİRMEZ. Sebep:
- *   - Kadrolu personelin maaşı zaten her ay gider sayılıyor (personelGideri)
- *   - Freelancer'ın müşteri maliyeti zaten gider sayılıyor (clientCosts)
- * Ödeme kaydının işi "ödendi mi, ne kadarı kaldı" takibi yapmak ve ödemenin çıktığı
- * hesabın bakiyesini azaltmaktır.
- */
-function odemeKisiyeAitMi(o, { personelId, freelancerId }) {
-  if (personelId != null) return o.tur === "personel" && String(o.kisiId) === String(personelId);
-  return o.tur === "freelancer" && String(o.kisiId) === String(freelancerId);
-}
-function odemeToplami(odemeler, hedef, ay) {
-  return (odemeler || [])
-    .filter((o) => odemeKisiyeAitMi(o, hedef) && (!ay || o.ay === ay))
-    .reduce((s, o) => s + (Number(o.tutar) || 0), 0);
-}
-
-/** Maaş ödeme gününe göre durum: henüz vadesi gelmedi / bekliyor / gecikti / ödendi. */
-function maasOdemeDurumu(odemeGunu, kalan, ay) {
-  if (kalan <= 0) return { etiket: "Ödendi", renk: T.success };
-  const gun = Number(odemeGunu) || 0;
-  if (!gun) return { etiket: "Ödeme günü yok", renk: T.textFaint };
-  const bugun = new Date();
-  const buAy = monthKey(bugun);
-  if (ay > buAy) return { etiket: "Gelecek ay", renk: T.textFaint };
-  if (ay < buAy) return { etiket: "Gecikti", renk: T.danger };
-  const fark = gun - bugun.getDate();
-  if (fark > 0) return { etiket: `${fark} gün sonra`, renk: T.textFaint };
-  if (fark === 0) return { etiket: "Bugün", renk: T.warning };
-  if (fark >= -7) return { etiket: "Bekliyor", renk: T.warning };
-  return { etiket: "Gecikti", renk: T.danger };
-}
-
-/** Ödeme kaydetme formu — tutar, tarih, hangi hesaptan. */
-function OdemeKaydetFormu({ kisiAd, kalan, hesaplar, ay, onKaydet, onKapat }) {
-  const liste = hesaplar && hesaplar.length ? hesaplar : [{ id: "ana", ad: "Marcus Medya", anaHesap: true }];
-  const [tutar, setTutar] = useState(String(kalan > 0 ? kalan : ""));
-  const [hesapId, setHesapId] = useState((liste.find((h) => h.anaHesap) || liste[0]).id);
-  const [tarih, setTarih] = useState(bugunISOTarih());
-  const [not, setNot] = useState("");
-
-  const kaydet = () => {
-    const miktar = Number(String(tutar).replace(",", "."));
-    if (!miktar || Number.isNaN(miktar) || miktar <= 0) { window.alert("Geçerli bir tutar gir."); return; }
-    onKaydet({ tutar: miktar, ay, hesapId, tarih, not: not.trim() });
-    onKapat();
-  };
-
-  return (
-    <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 14px", marginTop: 8 }}>
-      <div style={{ fontSize: 12.5, color: T.text, fontWeight: 600, fontFamily: "Inter", marginBottom: 10 }}>{kisiAd} — Ödeme Kaydet</div>
-      <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
-        <div>
-          <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Tutar (₺)</label>
-          <input autoFocus type="number" value={tutar} onChange={(e) => setTutar(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") kaydet(); }} style={{ ...inputStyle, marginBottom: 0 }} />
-        </div>
-        <div>
-          <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Ödeme Tarihi</label>
-          <input type="date" value={tarih} onChange={(e) => setTarih(e.target.value)} style={{ ...inputStyle, marginBottom: 0 }} />
-        </div>
-        <div>
-          <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Hangi hesaptan</label>
-          <select value={hesapId} onChange={(e) => setHesapId(e.target.value)} style={{ ...inputStyle, marginBottom: 0 }}>
-            {liste.map((h) => <option key={h.id} value={h.id}>{h.ad}{h.anaHesap ? " (Ana Hesap)" : ""}</option>)}
-          </select>
-        </div>
-        <div>
-          <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Not (opsiyonel)</label>
-          <input value={not} onChange={(e) => setNot(e.target.value)} style={{ ...inputStyle, marginBottom: 0 }} />
-        </div>
-      </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <button style={saveBtnStyle} onClick={kaydet}>Ödemeyi Kaydet</button>
-        <button style={cancelBtnStyle} onClick={onKapat}>İptal</button>
-      </div>
-    </div>
-  );
-}
-
-/** Bir kişiye yapılmış ödemelerin listesi — her biri geri alınabilir. */
-function OdemeListesi({ kayitlar, hesaplar, onDelete }) {
-  if (!kayitlar || kayitlar.length === 0) return null;
-  const hesapAdi = (id) => ((hesaplar || []).find((h) => h.id === id) || {}).ad || "—";
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 8 }}>
-      {kayitlar.map((o) => (
-        <div key={o.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: T.surfaceRaised, borderRadius: 8, padding: "7px 10px", fontSize: 11.5, fontFamily: "Inter", flexWrap: "wrap" }}>
-          <span style={{ color: T.textDim }}>
-            <span style={{ color: T.textFaint }}>{tarihGoster(o.tarih)}</span>{" · "}{o.ay}{" · "}{hesapAdi(o.hesapId)} hesabından{o.not ? ` · ${o.not}` : ""}
-          </span>
-          <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <strong style={{ color: T.success, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(o.tutar)}</strong>
-            {onDelete && (
-              <button style={iconBtnStyle} title="Bu ödemeyi geri al" onClick={() => { if (window.confirm(`${fmt(o.tutar)} tutarındaki ödeme silinsin mi? Hesap bakiyesi ve kalan tutar eski haline döner.`)) onDelete(o.id); }}>
-                <Trash2 size={13} color={T.danger} />
-              </button>
-            )}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* FREELANCER SEKMESİ                                                    */
-/* ------------------------------------------------------------------ */
-const FREELANCER_FIELDS = [
-  { key: "ad", label: "Ad Soyad", type: "text" },
-  { key: "rol", label: "Rol / Uzmanlık", type: "text", placeholder: "örn. Videographer, Grafik Tasarımcı" },
-  { key: "telefon", label: "Telefon (opsiyonel)", type: "text" },
-  { key: "email", label: "E-posta (opsiyonel)", type: "text" },
-  { key: "not", label: "Not (opsiyonel)", type: "text" },
-];
-
-/**
- * Freelancer listesi — üç kaynaktan beslenir ve hepsi tek yerde toplanır:
- *   1. Müşteri detayındaki Maliyetler (o kişiye bağlanmış kalemler)
- *   2. Operasyon'da kameraman/editör olarak yaptığı işler (Aylık İş Raporu ile aynı hesap)
- *   3. Elle eklenen kayıtlar
- * Aylık tablo: hak ediş − avans − yapılan ödemeler = kalan.
- */
-function FreelancerBolumu({ freelancerlar, clients, jobs, isUcretleri, isUcretDetaylari, avanslar, odemeler, hesaplar, ay, onAy, onAdd, onUpdate, onDelete, onAddAvans, onDeleteAvans, onAddOdeme, onDeleteOdeme }) {
-  const [adding, setAdding] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [acikId, setAcikId] = useState(null);
-  const [avansAcikId, setAvansAcikId] = useState(null);
-  const [odemeAcikId, setOdemeAcikId] = useState(null);
-
-  const liste = freelancerlar || [];
-
-  /** Bu kişiye bağlanmış müşteri maliyetleri (marka adıyla birlikte). */
-  const musteriKalemleri = (f) => (clients || []).flatMap((c) =>
-    (c.maliyetler || [])
-      .filter((m) => String(m.freelancerId || "") === String(f.id))
-      .map((m) => ({ ...m, marka: c.ad }))
-  );
-  const musteriHakEdis = (f) => musteriKalemleri(f).reduce((s, m) => s + (Number(m.tutar) || 0), 0);
-  const operasyon = (f) => operasyonAylikHakEdis(jobs, f.ad, ay, isUcretleri, isUcretDetaylari);
-  const hakEdis = (f) => musteriHakEdis(f) + operasyon(f).tutar;
-  const avans = (f) => avansToplami(avanslar, { kisiAd: f.ad }, ay);
-  const odenen = (f) => odemeToplami(odemeler, { freelancerId: f.id }, ay);
-  const kalan = (f) => hakEdis(f) - avans(f) - odenen(f);
-
-  const avansKayitlari = (f) => (avanslar || []).filter((a) => avansKisiyeAitMi(a, { kisiAd: f.ad })).slice().reverse();
-  const odemeKayitlari = (f) => (odemeler || []).filter((o) => odemeKisiyeAitMi(o, { freelancerId: f.id })).slice().reverse();
-
-  // Operasyon'da geçen ama kayıtlı olmayan isimler — tek tıkla eklenebilir.
-  const kayitliAdlar = new Set(liste.map((f) => (f.ad || "").trim().toLocaleLowerCase("tr")));
-  const onerilenler = operasyonKisiIsimleri(jobs).filter((ad) => !kayitliAdlar.has(ad.trim().toLocaleLowerCase("tr")));
-
-  const toplamKalan = liste.reduce((s, f) => s + Math.max(0, kalan(f)), 0);
-
-  return (
-    <div>
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 18 }}>
-        <KpiCard label="FREELANCER SAYISI" value={liste.length} mono={false} />
-        <KpiCard label="BU AY ÖDENECEK KALAN" value={fmt(toplamKalan)} accent={T.warning} />
-      </div>
-
-      <Card style={{ padding: "10px 12px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter" }}>Ay:</span>
-          <div style={{ minWidth: 150 }}><AySeciciAlan value={ay} onChange={onAy} /></div>
-        </div>
-        <button style={addBtnStyle} onClick={() => { setAdding(true); setEditingId(null); }}><Plus size={14} /> Freelancer ekle</button>
-      </Card>
-
-      {onerilenler.length > 0 && (
-        <Card style={{ padding: "12px 16px", marginBottom: 16 }}>
-          <div style={{ fontSize: 12, color: T.textDim, fontFamily: "Inter", marginBottom: 8, lineHeight: 1.6 }}>
-            Operasyon'da bu isimlere iş atanmış ama henüz freelancer olarak kayıtlı değiller. Ekleyince işleri ve hak edişleri
-            otomatik buraya bağlanır:
-          </div>
-          <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-            {onerilenler.map((ad) => (
-              <button key={ad} style={addBtnStyle} onClick={() => onAdd({ ad, rol: "", telefon: "", email: "", not: "" })}>
-                <Plus size={12} /> {ad}
-              </button>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {adding && (
-        <div style={{ marginBottom: 16 }}>
-          <FieldForm fields={FREELANCER_FIELDS} onSubmit={(v) => { if (v.ad && v.ad.trim()) { onAdd(v); setAdding(false); } else window.alert("Ad Soyad gerekli."); }} onCancel={() => setAdding(false)} submitLabel="Freelancer'ı Ekle" />
-        </div>
-      )}
-
-      {liste.length === 0 && !adding && (
-        <Card style={{ padding: "24px 16px", textAlign: "center" }}>
-          <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", lineHeight: 1.7 }}>
-            Henüz freelancer eklenmedi. Ekledikten sonra müşteri detayındaki <strong>Maliyetler</strong> kalemlerini o kişiye
-            bağlayabilir, Operasyon'daki işlerini ve ödemelerini tek yerden takip edebilirsin.
-          </div>
-        </Card>
-      )}
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {liste.map((f) => {
-          const acik = acikId === f.id;
-          const op = operasyon(f);
-          const kalanTutar = kalan(f);
-          if (editingId === f.id) {
-            return (
-              <Card key={f.id} style={{ padding: 14 }}>
-                <FieldForm fields={FREELANCER_FIELDS} initial={f} onSubmit={(v) => { onUpdate(f.id, v); setEditingId(null); }} onCancel={() => setEditingId(null)} />
-              </Card>
-            );
-          }
-          return (
-            <Card key={f.id} style={{ padding: "14px 16px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
-                <button onClick={() => setAcikId(acik ? null : f.id)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
-                  <div style={{ fontSize: 14, color: T.text, fontWeight: 700, fontFamily: "Inter" }}>{f.ad}</div>
-                  <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>
-                    {f.rol || "Rol belirtilmemiş"}
-                    {op.isSayisi > 0 && ` · ${op.isSayisi} iş`}
-                    {musteriKalemleri(f).length > 0 && ` · ${musteriKalemleri(f).length} müşteri kalemi`}
-                  </div>
-                </button>
-                <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                  <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter" }}>KALAN ÖDENECEK</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", color: kalanTutar > 0 ? T.warning : T.success }}>{fmt(kalanTutar)}</div>
-                  </div>
-                  <button style={iconBtnStyle} title="Avans ver" onClick={() => { setAvansAcikId(avansAcikId === f.id ? null : f.id); setOdemeAcikId(null); setAcikId(f.id); }}><Wallet size={14} color={T.textFaint} /></button>
-                  <button style={saveBtnStyle} onClick={() => { setOdemeAcikId(odemeAcikId === f.id ? null : f.id); setAvansAcikId(null); setAcikId(f.id); }}>Ödeme Kaydet</button>
-                  <button style={iconBtnStyle} onClick={() => setEditingId(f.id)}><Pencil size={14} color={T.textFaint} /></button>
-                  <button style={iconBtnStyle} onClick={() => { if (window.confirm(`${f.ad} freelancer kaydı silinsin mi? (Avans ve ödeme kayıtları kalır)`)) onDelete(f.id); }}><Trash2 size={14} color={T.danger} /></button>
-                </div>
-              </div>
-
-              {(acik || avansAcikId === f.id || odemeAcikId === f.id) && (
-                <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.borderSoft}` }}>
-                  {/* Hak ediş dökümü */}
-                  <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 12.5, fontFamily: "Inter", marginBottom: 10 }}>
-                    <span style={{ color: T.textDim }}>Müşteri kalemleri: <strong style={{ color: T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(musteriHakEdis(f))}</strong></span>
-                    <span style={{ color: T.textDim }}>Operasyon işleri: <strong style={{ color: T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(op.tutar)}</strong></span>
-                    <span style={{ color: T.textDim }}>Toplam hak ediş: <strong style={{ color: T.accentText, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(hakEdis(f))}</strong></span>
-                    {avans(f) > 0 && <span style={{ color: T.textDim }}>Avans: <strong style={{ color: T.warning, fontFamily: "'IBM Plex Mono', monospace" }}>−{fmt(avans(f))}</strong></span>}
-                    {odenen(f) > 0 && <span style={{ color: T.textDim }}>Ödenen: <strong style={{ color: T.success, fontFamily: "'IBM Plex Mono', monospace" }}>−{fmt(odenen(f))}</strong></span>}
-                  </div>
-
-                  {musteriKalemleri(f).length > 0 && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 10 }}>
-                      {musteriKalemleri(f).map((m) => (
-                        <div key={`${m.marka}-${m.id}`} style={{ display: "flex", justifyContent: "space-between", background: T.surfaceRaised, borderRadius: 8, padding: "6px 10px", fontSize: 11.5, fontFamily: "Inter" }}>
-                          <span style={{ color: T.textDim }}><strong style={{ color: T.text }}>{m.marka}</strong> · {m.kalem}</span>
-                          <span style={{ fontFamily: "'IBM Plex Mono', monospace", color: T.text }}>{fmt(m.tutar)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {avansAcikId === f.id && (
-                    <AvansVerFormu
-                      kisiAd={f.ad}
-                      hesaplar={hesaplar}
-                      varsayilanAy={ay}
-                      onKaydet={(kayit) => onAddAvans({ ...kayit, tur: "freelancer", kisiId: null, kisiAd: f.ad })}
-                      onKapat={() => setAvansAcikId(null)}
-                    />
-                  )}
-                  {odemeAcikId === f.id && (
-                    <OdemeKaydetFormu
-                      kisiAd={f.ad}
-                      kalan={kalanTutar}
-                      hesaplar={hesaplar}
-                      ay={ay}
-                      onKaydet={(kayit) => onAddOdeme({ ...kayit, tur: "freelancer", kisiId: f.id, kisiAd: f.ad })}
-                      onKapat={() => setOdemeAcikId(null)}
-                    />
-                  )}
-
-                  <AvansListesi kayitlar={avansKayitlari(f)} hesaplar={hesaplar} onDelete={onDeleteAvans} />
-                  <OdemeListesi kayitlar={odemeKayitlari(f)} hesaplar={hesaplar} onDelete={onDeleteOdeme} />
-                </div>
-              )}
-            </Card>
-          );
-        })}
-      </div>
-
-      <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginTop: 12, lineHeight: 1.7 }}>
-        Müşteri kalemleri ve Operasyon işleri zaten Toplam Gider'e dahil — buradaki ödeme kayıtları gideri tekrar artırmaz,
-        sadece "ödendi mi, ne kadar kaldı" takibi yapar ve ödemenin çıktığı hesabın bakiyesini azaltır.
-      </div>
-    </div>
-  );
-}
-
-function KadroluBolumu({ personel, onAdd, onUpdate, onDelete, duzenleyenAdi, avanslar, hesaplar, onAddAvans, onDeleteAvans, odemeler, onAddOdeme, onDeleteOdeme, avansAy, setAvansAy }) {
-  const [adding, setAdding] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [avansAcikId, setAvansAcikId] = useState(null);   // avans formu açık olan kişi
-  const [avansListeId, setAvansListeId] = useState(null); // avans geçmişi açık olan kişi
-  const [odemeAcikId, setOdemeAcikId] = useState(null);   // ödeme formu açık olan kişi
-  const kilitleyen = useDuzenlemeKilidi("personel", editingId, !!editingId, duzenleyenAdi);
-  const kisiMaliyet = (p) => (Number(p.maas) || 0) + (Number(p.sigorta) || 0) + (Number(p.yemek) || 0) + (Number(p.tazminatBirikimi) || 0);
-  const toplam = personel.reduce((s, p) => s + kisiMaliyet(p), 0);
-
-  // Avans yalnızca yöneticide aktif (onAddAvans sadece owner ekranından geçiriliyor).
-  const avansAktif = !!onAddAvans;
-  const kisiAvansi = (p) => avansToplami(avanslar, { personelId: p.id }, avansAy);
-  const kisiAvansKayitlari = (p) => (avanslar || []).filter((a) => avansKisiyeAitMi(a, { personelId: p.id })).slice().reverse();
-  const kisiOdenen = (p) => odemeToplami(odemeler, { personelId: p.id }, avansAy);
-  const kisiOdemeKayitlari = (p) => (odemeler || []).filter((o) => odemeKisiyeAitMi(o, { personelId: p.id })).slice().reverse();
-  /** Ay sonunda o kişiye HÂLÂ ödenmesi gereken tutar: maaş − avans − yapılan ödemeler. */
-  const odenecek = (p) => (Number(p.maas) || 0) - kisiAvansi(p) - kisiOdenen(p);
-  const toplamAvans = personel.reduce((s, p) => s + kisiAvansi(p), 0);
-  const toplamOdenecek = personel.reduce((s, p) => s + Math.max(0, odenecek(p)), 0);
-
-  return (
-    <div>
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 22 }}>
-        <KpiCard label="EKİP BÜYÜKLÜĞÜ" value={personel.length} mono={false} />
-        <KpiCard label="TOPLAM PERSONEL GİDERİ (₺/AY)" value={fmt(toplam)} accent={T.warning} />
-        {avansAktif && toplamAvans > 0 && <KpiCard label="VERİLEN AVANS (SEÇİLİ AY)" value={fmt(toplamAvans)} accent={T.warning} />}
-        {avansAktif && <KpiCard label="ÖDENECEK KALAN (SEÇİLİ AY)" value={fmt(toplamOdenecek)} accent={T.warning} />}
-      </div>
-
-      <Card style={{ padding: "10px 12px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        {avansAktif ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter" }}>Avans ayı:</span>
-            <div style={{ minWidth: 150 }}><AySeciciAlan value={avansAy} onChange={setAvansAy} /></div>
-          </div>
-        ) : <span />}
-        <button style={addBtnStyle} onClick={() => { setAdding(true); setEditingId(null); }}><Plus size={14} /> Personel ekle</button>
-      </Card>
-
-      {adding && (
-        <div style={{ marginBottom: 16 }}>
-          <FieldForm fields={PERSONEL_FIELDS} onSubmit={(v) => { onAdd(v); setAdding(false); }} onCancel={() => setAdding(false)} submitLabel="Personeli Ekle" />
-        </div>
-      )}
-
-      <Card style={{ padding: 4 }}>
-        <div className="marcus-table-wrap">
-        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Inter, sans-serif", minWidth: 700 }}>
-          <thead>
-            <tr>
-              {(avansAktif
-                ? ["Ad Soyad", "Pozisyon", "Maaş", "SGK/Sigorta", "Yemek", "Tazminat Birikimi", "Aylık Toplam", "Ödeme Günü", "Avans", "Ödenen", "Kalan", "Durum", ""]
-                : ["Ad Soyad", "Pozisyon", "Maaş", "SGK/Sigorta", "Yemek", "Tazminat Birikimi", "Aylık Toplam", ""]
-              ).map((h, i) => (
-                <th key={i} style={{ textAlign: i >= 2 ? "right" : "left", padding: "12px 16px", fontSize: 11.5, color: T.textFaint, fontWeight: 600, letterSpacing: 0.3, borderBottom: `1px solid ${T.borderSoft}` }}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {personel.map((p) =>
-              editingId === p.id ? (
-                <tr key={p.id}>
-                  <td colSpan={8} style={{ padding: "12px 16px" }}>
-                    <KilitUyarisi kisi={kilitleyen} />
-                    <FieldForm fields={PERSONEL_FIELDS} initial={p} onSubmit={(v) => { onUpdate(p.id, v); setEditingId(null); }} onCancel={() => setEditingId(null)} />
-                  </td>
-                </tr>
-              ) : (
-                <tr key={p.id} style={{ borderBottom: `1px solid ${T.borderSoft}` }}>
-                  <td style={{ padding: "13px 16px" }}>
-                    <div style={{ color: T.text, fontSize: 13.5, fontWeight: 600 }}>{p.ad}</div>
-                    {p.baslangic && <div style={{ color: T.textFaint, fontSize: 11.5, marginTop: 2 }}>{p.baslangic}'den beri</div>}
-                  </td>
-                  <td style={{ padding: "13px 16px", color: T.textDim, fontSize: 13 }}>{p.pozisyon}</td>
-                  <td style={{ padding: "13px 16px", textAlign: "right", color: T.text, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>{fmt(p.maas)}</td>
-                  <td style={{ padding: "13px 16px", textAlign: "right", color: T.textDim, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>{fmt(p.sigorta)}</td>
-                  <td style={{ padding: "13px 16px", textAlign: "right", color: T.textDim, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>{p.yemek ? fmt(p.yemek) : "—"}</td>
-                  <td style={{ padding: "13px 16px", textAlign: "right", color: T.textDim, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>{p.tazminatBirikimi ? fmt(p.tazminatBirikimi) : "—"}</td>
-                  <td style={{ padding: "13px 16px", textAlign: "right", color: T.warning, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, fontWeight: 600 }}>{fmt(kisiMaliyet(p))}</td>
-                  {avansAktif && (
-                    <td style={{ padding: "13px 16px", textAlign: "right", color: p.odemeGunu ? T.textDim : T.textFaint, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>
-                      {p.odemeGunu ? `Ayın ${p.odemeGunu}'i` : "—"}
-                    </td>
-                  )}
-                  {avansAktif && (
-                    <td style={{ padding: "13px 16px", textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>
-                      <button
-                        onClick={() => setAvansListeId(avansListeId === p.id ? null : p.id)}
-                        style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", fontSize: 13, color: kisiAvansi(p) > 0 ? T.warning : T.textFaint, fontWeight: kisiAvansi(p) > 0 ? 600 : 400 }}
-                        title="Avans geçmişini göster"
-                      >
-                        {kisiAvansi(p) > 0 ? fmt(kisiAvansi(p)) : "—"}
-                      </button>
-                    </td>
-                  )}
-                  {avansAktif && (
-                    <td style={{ padding: "13px 16px", textAlign: "right", color: kisiOdenen(p) > 0 ? T.success : T.textFaint, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>
-                      {kisiOdenen(p) > 0 ? fmt(kisiOdenen(p)) : "—"}
-                    </td>
-                  )}
-                  {avansAktif && (
-                    <td style={{ padding: "13px 16px", textAlign: "right", color: odenecek(p) > 0 ? T.warning : T.success, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, fontWeight: 600 }}>
-                      {fmt(odenecek(p))}
-                    </td>
-                  )}
-                  {avansAktif && (() => {
-                    const durum = maasOdemeDurumu(p.odemeGunu, odenecek(p), avansAy);
-                    return (
-                      <td style={{ padding: "13px 16px", textAlign: "right", fontSize: 11.5, fontFamily: "Inter", color: durum.renk, fontWeight: 600 }}>{durum.etiket}</td>
-                    );
-                  })()}
-                  <td style={{ padding: "13px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
-                    {avansAktif && (
-                      <>
-                        <button style={iconBtnStyle} title="Avans ver" onClick={() => { setAvansAcikId(avansAcikId === p.id ? null : p.id); setAvansListeId(null); setOdemeAcikId(null); }}><Wallet size={14} color={T.textFaint} /></button>
-                        <button style={{ ...saveBtnStyle, marginRight: 6 }} title="Maaş ödemesi kaydet" onClick={() => { setOdemeAcikId(odemeAcikId === p.id ? null : p.id); setAvansAcikId(null); setAvansListeId(null); }}>Öde</button>
-                      </>
-                    )}
-                    <button style={iconBtnStyle} onClick={() => { setEditingId(p.id); setAdding(false); }}><Pencil size={14} color={T.textFaint} /></button>
-                    <button style={iconBtnStyle} onClick={() => { if (window.confirm(`${p.ad} silinsin mi?`)) onDelete(p.id); }}><Trash2 size={14} color={T.danger} /></button>
-                  </td>
-                </tr>
-              )
-            )}
-            {avansAktif && personel.map((p) => {
-              const formAcik = avansAcikId === p.id;
-              const listeAcik = avansListeId === p.id;
-              const odemeAcik = odemeAcikId === p.id;
-              if (!formAcik && !listeAcik && !odemeAcik) return null;
-              return (
-                <tr key={`avans-${p.id}`}>
-                  <td colSpan={13} style={{ padding: "0 16px 14px" }}>
-                    {formAcik && (
-                      <AvansVerFormu
-                        kisiAd={p.ad}
-                        hesaplar={hesaplar}
-                        varsayilanAy={avansAy}
-                        onKaydet={(kayit) => onAddAvans({ ...kayit, tur: "personel", kisiId: p.id, kisiAd: p.ad })}
-                        onKapat={() => setAvansAcikId(null)}
-                      />
-                    )}
-                    {odemeAcik && (
-                      <OdemeKaydetFormu
-                        kisiAd={p.ad}
-                        kalan={odenecek(p)}
-                        hesaplar={hesaplar}
-                        ay={avansAy}
-                        onKaydet={(kayit) => onAddOdeme({ ...kayit, tur: "personel", kisiId: p.id, kisiAd: p.ad })}
-                        onKapat={() => setOdemeAcikId(null)}
-                      />
-                    )}
-                    {listeAcik && (
-                      <>
-                        {kisiAvansKayitlari(p).length === 0 && kisiOdemeKayitlari(p).length === 0 && (
-                          <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginTop: 8 }}>{p.ad} için henüz avans veya ödeme kaydı yok.</div>
-                        )}
-                        <AvansListesi kayitlar={kisiAvansKayitlari(p)} hesaplar={hesaplar} onDelete={onDeleteAvans} />
-                        <OdemeListesi kayitlar={kisiOdemeKayitlari(p)} hesaplar={hesaplar} onDelete={onDeleteOdeme} />
-                      </>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-            {personel.length === 0 && (
-              <tr><td colSpan={avansAktif ? 13 : 8} style={{ padding: "24px 16px", textAlign: "center", color: T.textFaint, fontSize: 13 }}>Henüz personel eklenmedi.</td></tr>
-            )}
-          </tbody>
-        </table>
-        </div>
-      </Card>
-      <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginTop: 10, lineHeight: 1.7 }}>
-        Buradaki toplam, Dashboard ve Finans'taki Toplam Gider'e otomatik olarak eklenir.
-        {avansAktif && " Avanslar ve ödeme kayıtları Toplam Gider'i DEĞİŞTİRMEZ — maaş zaten sayıldığı için eklenseydi aynı para iki kez sayılırdı. Etkileri iki yerde: \"Kalan\" sütununda ve paranın çıktığı hesabın bakiyesinde."}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Personel sekmesi: "Kadrolu" ve "Freelancer" olmak üzere iki bölüm.
- * Ay seçici iki bölüm arasında PAYLAŞILIR — böylece bir aya bakarken sekme değiştirince
- * ay sıfırlanmaz ve iki liste hep aynı dönemi gösterir.
- */
-function Personel(props) {
-  const [altSekme, setAltSekme] = useState("kadrolu");
-  const [ay, setAy] = useState(monthKey());
-  const freelancerAktif = !!props.onAddFreelancer; // yalnızca yönetici ekranında geçiriliyor
-
-  if (!freelancerAktif) return <KadroluBolumu {...props} avansAy={ay} setAvansAy={setAy} />;
-
-  const sekmeler = [
-    { key: "kadrolu", label: `Kadrolu (${(props.personel || []).length})` },
-    { key: "freelancer", label: `Freelancer (${(props.freelancerlar || []).length})` },
-  ];
-
-  return (
-    <div>
-      <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap" }}>
-        {sekmeler.map((sk) => (
-          <button
-            key={sk.key}
-            onClick={() => setAltSekme(sk.key)}
-            style={{
-              padding: "10px 18px", borderRadius: 10, border: "none", cursor: "pointer", fontFamily: "Inter, sans-serif",
-              fontSize: 13.5, fontWeight: 600,
-              background: altSekme === sk.key ? T.accentSoft : "transparent",
-              color: altSekme === sk.key ? T.accentText : T.textDim,
-            }}
-          >
-            {sk.label}
-          </button>
-        ))}
-      </div>
-
-      {altSekme === "kadrolu" && <KadroluBolumu {...props} avansAy={ay} setAvansAy={setAy} />}
-      {altSekme === "freelancer" && (
-        <FreelancerBolumu
-          freelancerlar={props.freelancerlar || []}
-          clients={props.clients || []}
-          jobs={props.jobs || []}
-          isUcretleri={props.isUcretleri || {}}
-          isUcretDetaylari={props.isUcretDetaylari || {}}
-          avanslar={props.avanslar || []}
-          odemeler={props.odemeler || []}
-          hesaplar={props.hesaplar}
-          ay={ay}
-          onAy={setAy}
-          onAdd={props.onAddFreelancer}
-          onUpdate={props.onUpdateFreelancer}
-          onDelete={props.onDeleteFreelancer}
-          onAddAvans={props.onAddAvans}
-          onDeleteAvans={props.onDeleteAvans}
-          onAddOdeme={props.onAddOdeme}
-          onDeleteOdeme={props.onDeleteOdeme}
-        />
-      )}
     </div>
   );
 }
@@ -5725,337 +4341,6 @@ function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
 
 /** Instagram karesi için sade Drive görseli — aday adresleri sırayla dener,
  * hiçbiri açılmazsa kısa bir uyarı gösterir (kare düzeni bozulmasın diye kısa tutuldu). */
-function DriveKareGorsel({ link }) {
-  const adaylar = driveGorselAdaylari(link);
-  const [sira, setSira] = useState(0);
-  useEffect(() => { setSira(0); }, [link]);
-
-  if (adaylar.length === 0 || sira >= adaylar.length) {
-    return (
-      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#777", fontSize: 10.5, fontFamily: "Inter", textAlign: "center", padding: 12, lineHeight: 1.5 }}>
-        Görsel açılamadı —<br />Drive paylaşımı kapalı olabilir
-      </div>
-    );
-  }
-  return (
-    <img
-      src={adaylar[sira]}
-      alt=""
-      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-      referrerPolicy="no-referrer"
-      onError={() => setSira((n) => n + 1)}
-    />
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* INSTAGRAM ÖNİZLEME                                                    */
-/* ------------------------------------------------------------------ */
-/**
- * Planlanan bir paylaşımı Instagram gönderisi gibi gösterir. Hem yöneticinin
- * (Müşteri Paneli sekmesi) hem müşterinin ekranında AYNI bileşen kullanılır — iki taraf
- * asla farklı bir şey görmez.
- */
-function InstagramOnizleme({ marka, tur, gun, gorselUrl, altMetin, yapildi, kompakt = false }) {
-  const [metinAcik, setMetinAcik] = useState(false);
-  const uzunMetin = (altMetin || "").length > 125;
-  const gosterilenMetin = !uzunMetin || metinAcik ? altMetin : (altMetin || "").slice(0, 125) + "…";
-
-  return (
-    <div style={{ background: "#000", border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden", maxWidth: kompakt ? 320 : 400, width: "100%" }}>
-      {/* Üst şerit — profil satırı */}
-      <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 12px" }}>
-        <div style={{ width: 30, height: 30, borderRadius: "50%", background: "linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#000", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 11, fontWeight: 700, fontFamily: "Inter" }}>
-            {(marka || "M").charAt(0).toLocaleUpperCase("tr")}
-          </div>
-        </div>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 12.5, color: "#fff", fontWeight: 600, fontFamily: "Inter", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{marka || "Marka"}</div>
-          <div style={{ fontSize: 10.5, color: "#a8a8a8", fontFamily: "Inter" }}>{tur}{gun ? ` · ${gun}` : ""}</div>
-        </div>
-        {yapildi && <span style={{ fontSize: 10, color: "#4ade80", fontFamily: "Inter", fontWeight: 600 }}>✓ Paylaşıldı</span>}
-      </div>
-
-      {/* Görsel alanı — kare, Instagram gibi */}
-      <div style={{ width: "100%", aspectRatio: "1 / 1", background: "#111", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-        {/* gorselUrl ya eski base64 görsel ya da Drive bağlantısıdır — ikisi de desteklenir. */}
-        {gorselUrl && String(gorselUrl).startsWith("data:") ? (
-          <img src={gorselUrl} alt={altMetin || "Paylaşım görseli"} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-        ) : gorselUrl ? (
-          <DriveKareGorsel link={gorselUrl} />
-        ) : (
-          <div style={{ color: "#555", fontSize: 12, fontFamily: "Inter", textAlign: "center", padding: 20, lineHeight: 1.6 }}>
-            Görsel henüz eklenmedi
-          </div>
-        )}
-      </div>
-
-      {/* Alt ikon şeridi — sadece görsel amaçlı */}
-      <div style={{ display: "flex", gap: 13, padding: "9px 12px 4px", color: "#fff", fontSize: 16 }}>
-        <span>♡</span><span>💬</span><span>➤</span>
-      </div>
-
-      {/* Alt metin */}
-      <div style={{ padding: "2px 12px 12px" }}>
-        {altMetin ? (
-          <div style={{ fontSize: 12.5, color: "#fff", fontFamily: "Inter", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
-            <strong style={{ fontWeight: 600 }}>{marka} </strong>
-            {gosterilenMetin}
-            {uzunMetin && (
-              <button onClick={() => setMetinAcik((v) => !v)} style={{ background: "none", border: "none", color: "#a8a8a8", cursor: "pointer", fontSize: 12.5, fontFamily: "Inter", padding: "0 0 0 4px" }}>
-                {metinAcik ? "daha az" : "devamı"}
-              </button>
-            )}
-          </div>
-        ) : (
-          <div style={{ fontSize: 12, color: "#555", fontFamily: "Inter", fontStyle: "italic" }}>Açıklama metni henüz yazılmadı</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Instagram PROFİL IZGARASI — gönderiler 3'lü kare ızgarada, tıklayınca büyüyor.
- * Feed görünümü tek tek incelemek için iyi, ızgara ise "hesabın genel görünümü nasıl
- * duruyor?" sorusuna cevap verir; marka estetiğini değerlendirmek için asıl bakılan yer burasıdır.
- */
-function InstagramIzgara({ marka, gonderiler, onSec }) {
-  return (
-    <div style={{ maxWidth: 500, margin: "0 auto" }}>
-      {/* Profil başlığı */}
-      <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "4px 4px 18px" }}>
-        <div style={{ width: 66, height: 66, borderRadius: "50%", background: "linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <div style={{ width: 58, height: 58, borderRadius: "50%", background: T.bg, display: "flex", alignItems: "center", justifyContent: "center", color: T.text, fontSize: 22, fontWeight: 700, fontFamily: "Inter" }}>
-            {(marka || "M").charAt(0).toLocaleUpperCase("tr")}
-          </div>
-        </div>
-        <div>
-          <div style={{ fontSize: 15, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{marka}</div>
-          <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginTop: 3 }}>
-            <strong style={{ color: T.text }}>{gonderiler.length}</strong> planlanan gönderi
-          </div>
-        </div>
-      </div>
-
-      {/* 3'lü kare ızgara */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 3 }}>
-        {gonderiler.map((p) => (
-          <button
-            key={p.id}
-            onClick={() => onSec && onSec(p)}
-            style={{ position: "relative", aspectRatio: "1 / 1", background: "#111", border: "none", padding: 0, cursor: onSec ? "pointer" : "default", overflow: "hidden" }}
-          >
-            {p.gorselUrl && String(p.gorselUrl).startsWith("data:") ? (
-              <img src={p.gorselUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-            ) : p.gorselUrl ? (
-              <DriveKareGorsel link={p.gorselUrl} />
-            ) : (
-              <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#555", fontSize: 10, fontFamily: "Inter", textAlign: "center", padding: 6, lineHeight: 1.4 }}>
-                {p.tur}
-              </div>
-            )}
-            {/* Sol üstte gün etiketi, sağ altta paylaşıldı işareti */}
-            <span style={{ position: "absolute", top: 4, left: 4, background: "rgba(0,0,0,.62)", color: "#fff", fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 5, fontFamily: "Inter" }}>{p.gun}</span>
-            {p.yapildi && <span style={{ position: "absolute", bottom: 4, right: 5, color: "#4ade80", fontSize: 12 }}>✓</span>}
-          </button>
-        ))}
-      </div>
-      {gonderiler.length === 0 && (
-        <div style={{ textAlign: "center", padding: 30, color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Bu dönemde planlanmış gönderi yok.</div>
-      )}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* AYLIK MÜŞTERİ RAPORU                                                  */
-/* ------------------------------------------------------------------ */
-/**
- * Müşteriye gönderilecek aylık rapor. Yeni bir pencerede açılır; oradan yazdırılabilir
- * ya da "PDF olarak kaydet" ile PDF'e çevrilip WhatsApp/e-posta ile gönderilebilir.
- *
- * Rapor sistemdeki mevcut verilerden ÜRETİLİR — ayrıca veri girmen gerekmez:
- *   Neler yaptık      → o ay "Teslim Edildi"ye geçen Operasyon işleri
- *   Neler paylaştık   → o ay yapıldı işaretlenen gönderiler (görsel + alt metin)
- *   Neler paylaşacağız→ sonraki dönemin planı (tarih + alt metin)
- *   Reklamlar         → o ayla kesişen kampanyalar ve istatistikleri
- */
-/** Rapor HTML'i için görsel adresi. base64 kayıtlar olduğu gibi gömülür; Drive
- * bağlantıları ise doğrudan gösterilebilir thumbnail adresine çevrilir (ham paylaşım
- * linki bir <img> içinde açılmaz — yönlendirme sayfası döner). */
-function raporGorselAdresi(deger) {
-  if (!deger) return "";
-  if (String(deger).startsWith("data:")) return deger;
-  const adaylar = driveGorselAdaylari(deger);
-  return adaylar.length ? adaylar[0] : "";
-}
-
-function aylikRaporHtml({ marka, firmaAdi, ay, isler, paylasilanlar, planlananlar, reklamlar, logo, olcum }) {
-  const ayAdiYazi = (() => {
-    const [y, a] = ay.split("-").map(Number);
-    return new Date(y, a - 1, 1).toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
-  })();
-  const bugun = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
-  const sayi = (n) => (Number(n) || 0).toLocaleString("tr-TR");
-
-  const kutu = (etiket, deger) => `<div class="kpi"><div class="kpi-l">${escapeHtml(etiket)}</div><div class="kpi-v">${escapeHtml(String(deger))}</div></div>`;
-
-  const isSatirlari = isler.length
-    ? isler.map((j) => `<tr><td>${escapeHtml(j.icerikTuru || "")}</td><td>${escapeHtml(j.kategori || "—")}</td><td>${escapeHtml(j.uretilenAdet ? String(j.uretilenAdet) : "—")}</td><td>${escapeHtml(j.teslimEdilmeTarihi || "")}</td></tr>`).join("")
-    : `<tr><td colspan="4" class="bos">Bu ay teslim edilen iş kaydı yok.</td></tr>`;
-
-  const gonderiKarti = (p, tarihEtiketi) => `
-    <div class="post">
-      ${p.gorselUrl ? `<img src="${raporGorselAdresi(p.gorselUrl)}" alt="" />` : `<div class="post-bos">Görsel yok</div>`}
-      <div class="post-govde">
-        <div class="post-ust">${escapeHtml(p.tur || "")} · ${escapeHtml(tarihEtiketi)}</div>
-        ${p.altMetin ? `<div class="post-metin">${escapeHtml(p.altMetin).replace(/\n/g, "<br/>")}</div>` : `<div class="post-metin bos">Açıklama metni girilmedi</div>`}
-      </div>
-    </div>`;
-
-  const paylasilanHtml = paylasilanlar.length
-    ? `<div class="posts">${paylasilanlar.map((p) => gonderiKarti(p, p.yapildigiTarih || p.gun)).join("")}</div>`
-    : `<p class="bos">Bu ay paylaşıldı olarak işaretlenen gönderi yok.</p>`;
-
-  const planlananHtml = planlananlar.length
-    ? `<div class="posts">${planlananlar.map((p) => gonderiKarti(p, `${p.gun} · ${p.haftaKey} haftası`)).join("")}</div>`
-    : `<p class="bos">Önümüzdeki dönem için henüz plan girilmedi.</p>`;
-
-  const reklamHtml = reklamlar.length
-    ? reklamlar.map((r) => {
-        const m = reklamMetrikleri(r);
-        const varMi = istatistikVarMi(r);
-        return `
-        <div class="ad">
-          <div class="ad-ust">
-            <strong>${escapeHtml(r.reklamAdi || "Kampanya")}</strong>
-            <span>${escapeHtml(r.baslangicTarihi || "")} — ${escapeHtml(r.bitisTarihi || "")}</span>
-          </div>
-          ${r.not ? `<div class="ad-not">${escapeHtml(r.not)}</div>` : ""}
-          ${varMi ? `<div class="kpis">
-            ${m.erisim ? kutu("Erişim", sayi(m.erisim)) : ""}
-            ${m.gosterim ? kutu("Gösterim", sayi(m.gosterim)) : ""}
-            ${m.tiklama ? kutu("Tıklama", sayi(m.tiklama)) : ""}
-            ${m.etkilesim ? kutu("Etkileşim", sayi(m.etkilesim)) : ""}
-            ${m.sonuc ? kutu("Sonuç", sayi(m.sonuc)) : ""}
-            ${m.ctr != null ? kutu("Tıklama Oranı", m.ctr.toFixed(2) + "%") : ""}
-          </div>` : `<div class="bos">Bu kampanya için istatistik girilmedi.</div>`}
-        </div>`;
-      }).join("")
-    : `<p class="bos">Bu ayla kesişen reklam kampanyası yok.</p>`;
-
-  /* HESAP GELİŞİMİ — takipçi ve görünürlük. Sadece o ay için ölçüm girilmişse basılır;
-   * boş bir tablo müşteriye "ölçmüyorlar" izlenimi verirdi. */
-  const olcumHtml = (() => {
-    if (!olcum || !olcum.buAy) return "";
-    const satir = ({ key, label }) => {
-      const f = olcum.fark[key];
-      if (!f || !f.simdi) return "";
-      const yon = f.degisim == null ? "" : f.degisim > 0 ? "▲" : f.degisim < 0 ? "▼" : "";
-      const renk = f.degisim > 0 ? "#15803d" : f.degisim < 0 ? "#b91c1c" : "#6b7280";
-      const degisimYazi = f.degisim == null || f.degisim === 0
-        ? "—"
-        : `<span style="color:${renk}">${yon} ${Math.abs(f.degisim).toLocaleString("tr-TR")}${f.yuzde != null ? ` (%${Math.abs(f.yuzde).toFixed(1)})` : ""}</span>`;
-      return `<tr><td>${escapeHtml(label)}</td><td>${f.simdi.toLocaleString("tr-TR")}</td><td>${degisimYazi}</td></tr>`;
-    };
-    const satirlar = OLCUM_ALANLARI.map(satir).filter(Boolean).join("");
-    if (!satirlar) return "";
-    return `<h2>Hesap Gelişimi</h2>
-      <table>
-        <thead><tr><th>Ölçüm</th><th>Bu ay</th><th>Önceki döneme göre</th></tr></thead>
-        <tbody>${satirlar}</tbody>
-      </table>`;
-  })();
-
-  const toplamErisim = reklamlar.reduce((t, r) => t + (Number(r.erisim) || 0), 0);
-  const toplamSonuc = reklamlar.reduce((t, r) => t + (Number(r.sonuc) || 0), 0);
-
-  return `<!doctype html>
-<html lang="tr"><head><meta charset="utf-8" /><title>${escapeHtml(marka)} — ${escapeHtml(ayAdiYazi)} Raporu</title>
-<style>
-  * { box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif; max-width: 820px; margin: 0 auto; padding: 40px 28px 60px; color: #16181d; line-height: 1.6; }
-  .ust { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #16181d; padding-bottom: 18px; margin-bottom: 26px; }
-  .ust img { max-height: 46px; }
-  h1 { font-size: 25px; margin: 0 0 4px; letter-spacing: -0.4px; }
-  .alt { color: #6b7280; font-size: 13px; }
-  h2 { font-size: 16px; margin: 34px 0 12px; padding-bottom: 7px; border-bottom: 1px solid #e5e7eb; letter-spacing: -0.2px; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { text-align: left; color: #6b7280; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; padding: 7px 8px; border-bottom: 1px solid #e5e7eb; }
-  td { padding: 9px 8px; border-bottom: 1px solid #f3f4f6; }
-  .bos { color: #9ca3af; font-style: italic; font-size: 13px; }
-  .ozet { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
-  .kpi { background: #f7f8fa; border-radius: 9px; padding: 11px 15px; min-width: 108px; }
-  .kpi-l { font-size: 10px; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
-  .kpi-v { font-size: 19px; font-weight: 700; margin-top: 3px; }
-  .kpis { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
-  .posts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
-  .post { border: 1px solid #e5e7eb; border-radius: 11px; overflow: hidden; break-inside: avoid; }
-  .post img { width: 100%; aspect-ratio: 1/1; object-fit: cover; display: block; }
-  .post-bos { width: 100%; aspect-ratio: 1/1; background: #f3f4f6; display: flex; align-items: center; justify-content: center; color: #9ca3af; font-size: 12px; }
-  .post-govde { padding: 10px 12px; }
-  .post-ust { font-size: 11px; color: #6b7280; font-weight: 600; margin-bottom: 5px; }
-  .post-metin { font-size: 12px; white-space: pre-wrap; }
-  .ad { border: 1px solid #e5e7eb; border-radius: 11px; padding: 14px 16px; margin-bottom: 12px; break-inside: avoid; }
-  .ad-ust { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; flex-wrap: wrap; }
-  .ad-ust span { color: #6b7280; font-size: 12px; }
-  .ad-not { font-size: 12.5px; color: #4b5563; margin-top: 5px; }
-  .kapanis { margin-top: 40px; padding-top: 18px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 12px; text-align: center; }
-  @media print { body { padding: 0; } h2 { break-after: avoid; } }
-</style></head>
-<body>
-  <div class="ust">
-    <div>
-      <h1>${escapeHtml(marka)}</h1>
-      <div class="alt">${escapeHtml(ayAdiYazi)} · Aylık Çalışma Raporu</div>
-    </div>
-    <div style="text-align:right">
-      ${logo ? `<img src="${logo}" alt="" />` : `<strong>${escapeHtml(firmaAdi)}</strong>`}
-      <div class="alt" style="margin-top:4px">${escapeHtml(bugun)}</div>
-    </div>
-  </div>
-
-  <div class="ozet">
-    ${kutu("Teslim Edilen İş", isler.length)}
-    ${kutu("Paylaşılan Gönderi", paylasilanlar.length)}
-    ${kutu("Planlanan Gönderi", planlananlar.length)}
-    ${reklamlar.length ? kutu("Kampanya", reklamlar.length) : ""}
-    ${toplamErisim ? kutu("Toplam Erişim", sayi(toplamErisim)) : ""}
-    ${toplamSonuc ? kutu("Toplam Sonuç", sayi(toplamSonuc)) : ""}
-  </div>
-
-  <h2>Bu Ay Neler Yaptık</h2>
-  <table>
-    <thead><tr><th>İçerik</th><th>Kategori</th><th>Adet</th><th>Teslim</th></tr></thead>
-    <tbody>${isSatirlari}</tbody>
-  </table>
-
-  <h2>Bu Ay Neler Paylaştık</h2>
-  ${paylasilanHtml}
-
-  <h2>Önümüzdeki Dönem Ne Paylaşacağız</h2>
-  ${planlananHtml}
-
-  ${olcumHtml}
-
-  <h2>Reklam Kampanyaları</h2>
-  ${reklamHtml}
-
-  <div class="kapanis">${escapeHtml(firmaAdi)} · ${escapeHtml(ayAdiYazi)} raporu</div>
-</body></html>`;
-}
-
-function aylikRaporAc(veri) {
-  const html = aylikRaporHtml(veri);
-  const win = window.open("", "_blank");
-  if (!win) { window.alert("Yeni pencere açılamadı — tarayıcının pop-up engelleyicisini kontrol et."); return; }
-  win.document.write(html);
-  win.document.close();
-  win.focus();
-}
-
 /* ------------------------------------------------------------------ */
 /* MÜŞTERİ PANELİ YÖNETİMİ (kendi sekmesi)                               */
 /* ------------------------------------------------------------------ */
@@ -6066,7 +4351,7 @@ function aylikRaporAc(veri) {
  * Daha önce bunlar iki ayrı yere dağılmıştı (içerikler müşteri detayında, hesaplar
  * Ayarlar'da) ve müşteri detayı zaten kalabalık olduğu için içerik bölümü kayboluyordu.
  */
-function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, onOnayla, plan, reklamlar, isler, onAltMetin, firmaAdi, logo, olcumler }) {
+function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, onOnayla, onBildir, plan, reklamlar, isler, onAltMetin, firmaAdi, logo, olcumler }) {
   const [secili, setSecili] = useState(null);
 
   const aktifler = (clients || []).filter((c) => c.durum !== "ayrildi");
@@ -6132,6 +4417,7 @@ function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, 
             onUpdate={onUpdate}
             onDelete={onDelete}
             onOnayla={onOnayla}
+            onBildir={onBildir}
             kompakt={false}
           />
         </Card>
@@ -6624,7 +4910,115 @@ function Planim({ gorevler, onAdd, onUpdate, onDelete, onayKutusu }) {
   );
 }
 
-function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu, onSaveTeblig, staffPermissions, onUpdatePermissions, markaKimligiGorseli, onSaveMarkaKimligi, onRosterChange, clients, gizlilikModu, onToggleGizlilik, islemGecmisi }) {
+/**
+ * SİLİNENLER KUTUSU — silinen kayıtlar 30 gün burada durur ve tek tıkla geri gelir.
+ * Eskiden silme kalıcıydı; geri almanın tek yolu tüm veriyi bir yedekten geri yüklemekti,
+ * o da o andan sonraki her şeyi geri alırdı.
+ */
+/**
+ * GÜVENLİK DEFTERİ — kritik işlemlerin silinemez kaydı.
+ * Ana verinin içindeki İşlem Geçmişi'nden farkı: burası veriyle birlikte geri yüklenmez.
+ * Yani bir yedek geri alınsa bile "kim ne zaman ne yaptı" kaydı yerinde kalır.
+ */
+function GuvenlikDefteri() {
+  const [kayitlar, setKayitlar] = useState(null);
+  const [acik, setAcik] = useState(false);
+
+  const yukle = () => {
+    setKayitlar("yukleniyor");
+    fetch("/api/data?defter=1", { headers: authHeaders() })
+      .then((r) => r.json())
+      .then((res) => setKayitlar(Array.isArray(res.defter) ? res.defter.slice().reverse() : []))
+      .catch(() => setKayitlar([]));
+  };
+
+  const etiket = (olay) => ({
+    "giris-basarili": { ad: "Giriş yapıldı", renk: T.textDim },
+    "giris-basarisiz": { ad: "Başarısız giriş denemesi", renk: T.danger },
+    "tum-oturumlar-iptal": { ad: "Tüm cihazlardan çıkış yapıldı", renk: T.warning },
+    "yedek-geri-yuklendi": { ad: "Yedekten geri yükleme", renk: T.warning },
+    "hesap-islemi": { ad: "Hesap/yetki değişikliği", renk: T.textDim },
+  }[olay] || { ad: olay, renk: T.textFaint });
+
+  return (
+    <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+      <SectionTitle>Güvenlik Defteri</SectionTitle>
+      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 12 }}>
+        Girişler, başarısız giriş denemeleri, yedekten geri yüklemeler ve hesap/yetki değişiklikleri
+        burada kayıtlı. <strong>Veriyle birlikte geri yüklenmez</strong> — bir yedeğe dönsen bile bu
+        kayıtlar yerinde kalır. Son 500 işlem saklanır.
+      </p>
+      {!acik ? (
+        <button style={cancelBtnStyle} onClick={() => { setAcik(true); yukle(); }}>Defteri Aç</button>
+      ) : kayitlar === "yukleniyor" ? (
+        <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Yükleniyor…</div>
+      ) : (kayitlar || []).length === 0 ? (
+        <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Henüz kayıt yok.</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 320, overflowY: "auto" }}>
+          {kayitlar.map((k, i) => {
+            const e = etiket(k.olay);
+            return (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 10, background: T.surfaceRaised, borderRadius: 8, padding: "7px 11px", fontSize: 12, fontFamily: "Inter", flexWrap: "wrap" }}>
+                <span style={{ color: e.renk, fontWeight: 600 }}>{e.ad}</span>
+                <span style={{ color: T.textFaint }}>
+                  {new Date(k.zaman).toLocaleString("tr-TR")}
+                  {k.ad ? ` · ${k.ad}` : ""}{k.action ? ` · ${k.action}` : ""}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function SilinenlerKutusu({ silinenler, onGeriAl, onKaliciSil }) {
+  const liste = [...(silinenler || [])].sort((a, b) => (b.silmeZamani || 0) - (a.silmeZamani || 0));
+  const kalanGun = (zaman) => Math.max(0, 30 - Math.floor((Date.now() - (zaman || 0)) / 86400000));
+
+  return (
+    <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+      <SectionTitle>Silinenler Kutusu</SectionTitle>
+      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
+        Sildiğin müşteri, operasyon işi, panel içeriği, personel, freelancer ve reklam kayıtları
+        buraya düşer ve <strong>30 gün</strong> saklanır. Yanlışlıkla sildiysen tek tıkla geri alırsın —
+        tüm veriyi yedekten geri yüklemene gerek kalmaz. Süre dolunca kendiliğinden temizlenir.
+      </p>
+
+      {liste.length === 0 ? (
+        <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Kutu boş — silinmiş kayıt yok.</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 340, overflowY: "auto" }}>
+          {liste.map((x) => (
+            <div key={x.silmeId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, background: T.surfaceRaised, borderRadius: 9, padding: "9px 12px", flexWrap: "wrap" }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
+                  <span style={{ color: T.textFaint, fontWeight: 400 }}>{x.tur} · </span>{x.etiket || "(adsız kayıt)"}
+                </div>
+                <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>
+                  {new Date(x.silmeZamani).toLocaleString("tr-TR")} · {kalanGun(x.silmeZamani)} gün sonra kalıcı silinir
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <button style={saveBtnStyle} onClick={() => onGeriAl(x.silmeId)}>Geri Al</button>
+                <button
+                  style={{ ...cancelBtnStyle, color: T.danger }}
+                  onClick={() => { if (window.confirm(`"${x.etiket || x.tur}" KALICI olarak silinsin mi? Bu işlem geri alınamaz.`)) onKaliciSil(x.silmeId); }}
+                >
+                  Kalıcı Sil
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu, onSaveTeblig, staffPermissions, onUpdatePermissions, markaKimligiGorseli, onSaveMarkaKimligi, onRosterChange, clients, gizlilikModu, onToggleGizlilik, islemGecmisi }) {
   const fileInputRef = useRef(null);
   const rows = [
     { label: "İşletme Adı", value: "Marcus Medya" },
@@ -6647,8 +5041,10 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Gizlilik Modu</SectionTitle>
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
-          Açtığında, uygulamadaki <strong>tüm ₺ tutarları</strong> "₺ •••" olarak gizlenir — yanında biri varken ekranını
-          gösterirken rakamların görünmesini istemiyorsan kullanabilirsin. Sadece bu cihazda geçerlidir, kapatana kadar açık kalır.
+          Uygulamadaki <strong>tüm ₺ tutarları</strong> "₺ •••" olarak gizlenir: ciro, kâr, maaşlar, bakiyeler, ücretler.
+          <strong> Varsayılan olarak açıktır</strong> — panel çoğu zaman başkalarının da görebileceği ortamlarda açıldığı için,
+          rakamları göstermek bilinçli bir hareket olsun diye. Üst çubuktaki <strong>göz simgesinden</strong> her ekrandan tek
+          tıkla açıp kapatabilirsin. Seçimin bu cihazda hatırlanır.
         </p>
         <button
           onClick={() => onToggleGizlilik(!gizlilikModu)}
@@ -6761,8 +5157,38 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
         </p>
       </Card>
 
+      <GuvenlikDefteri />
+
+      <SilinenlerKutusu silinenler={silinenler} onGeriAl={onGeriAl} onKaliciSil={onKaliciSil} />
+
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Güvenlik</SectionTitle>
+
+        {/* Kurulum durumu — bir korumanın "kurulduğunu sanmak" ile gerçekten açık olması
+          * arasındaki farkı görünür kılar. Ortam değişkenleri tarayıcıya gönderilmediği için
+          * bu bilgi sunucudan geliyor. */}
+        {guvenlik && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 9, background: guvenlik.ikiAdimliAktif ? T.successSoft : T.dangerSoft, borderRadius: 10, padding: "11px 13px" }}>
+              <span style={{ fontSize: 15, lineHeight: 1 }}>{guvenlik.ikiAdimliAktif ? "✓" : "⚠"}</span>
+              <div style={{ fontSize: 12.5, fontFamily: "Inter", lineHeight: 1.6, color: guvenlik.ikiAdimliAktif ? T.success : T.danger }}>
+                {guvenlik.ikiAdimliAktif
+                  ? <><strong>İki adımlı doğrulama açık.</strong> Her girişte e-postana kod gönderiliyor.</>
+                  : <><strong>İki adımlı doğrulama KAPALI.</strong> Şu an şifreni bilen herkes girebilir. Açmak için Vercel → Settings → Environment Variables → <code>OWNER_EMAIL</code> = kendi e-postan → Save → Redeploy.</>}
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 9, background: guvenlik.yedekEpostaSayisi >= 2 ? T.successSoft : T.warningSoft, borderRadius: 10, padding: "11px 13px" }}>
+              <span style={{ fontSize: 15, lineHeight: 1 }}>{guvenlik.yedekEpostaSayisi >= 2 ? "✓" : "⚠"}</span>
+              <div style={{ fontSize: 12.5, fontFamily: "Inter", lineHeight: 1.6, color: guvenlik.yedekEpostaSayisi >= 2 ? T.success : T.warning }}>
+                {guvenlik.yedekEpostaSayisi >= 2
+                  ? <><strong>Yedek {guvenlik.yedekEpostaSayisi} adrese gidiyor.</strong> Bir posta hesabı kapansa bile kopya kalır.</>
+                  : guvenlik.yedekEpostaSayisi === 1
+                    ? <><strong>Yedek tek adrese gidiyor.</strong> Tüm veritabanı kopyaları aynı yerde (Upstash) durduğu için bu e-posta dışarıdaki TEK kopyan. Vercel'de <code>BACKUP_EMAIL</code> değerine virgülle ikinci bir adres ekle: <code>ben@x.com, yedek@gmail.com</code></>
+                    : <><strong>Gece yedeği gönderilmiyor.</strong> Vercel'de <code>BACKUP_EMAIL</code> tanımlı değil — veritabanı dışında hiç kopyan yok.</>}
+              </div>
+            </div>
+          </div>
+        )}
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 12 }}>
           Şifren artık tarayıcıda hiç saklanmıyor — girişten sonra sadece süreli bir oturum anahtarı tutuluyor
           (normal giriş 12 saat, "bu cihazı hatırla" seçilirse 30 gün). Tarayıcının şifreyi kaydedip otomatik
@@ -7482,632 +5908,6 @@ function LockScreen({ onSubmit, onKodSubmit, onKodIptal, kodAdimi, onStaffSubmit
 }
 
 /** Bağlantı bir Drive KLASÖRÜ mü? Klasörler tek bir dosya olarak gösterilemez. */
-function driveKlasorMu(link) {
-  return !!link && /\/drive\/(u\/\d+\/)?folders\//.test(link);
-}
-
-/** Drive bağlantısından dosya kimliğini çıkarır. Klasörlerde null döner. */
-function driveDosyaId(link) {
-  if (!link) return null;
-  if (driveKlasorMu(link)) return null;
-  const m = link.match(/\/d\/([a-zA-Z0-9_-]{10,})/)
-    || link.match(/[?&]id=([a-zA-Z0-9_-]{10,})/)
-    || link.match(/\/file\/d\/([a-zA-Z0-9_-]{10,})/);
-  return m ? m[1] : null;
-}
-
-/**
- * Bir Drive görselinin gösterilebileceği ADAY adresler, en güvenilirden en aza.
- * Google eski `uc?export=view` adresini artık çoğu dosya için doğrudan görsel olarak
- * servis etmiyor (yönlendirme/onay sayfası dönüyor), bu yüzden önce `thumbnail`
- * deneniyor. Hangisinin çalışacağı dosyaya göre değişebildiği için sırayla denenir.
- */
-function driveGorselAdaylari(link) {
-  const id = driveDosyaId(link);
-  if (!id) return [];
-  return [
-    `https://drive.google.com/thumbnail?id=${id}&sz=w1600`,
-    `https://lh3.googleusercontent.com/d/${id}=w1600`,
-    `https://drive.google.com/uc?export=view&id=${id}`,
-  ];
-}
-
-/**
- * Drive görselini gösterir. Aday adresleri sırayla dener; hiçbiri açılmazsa SESSİZCE
- * KAYBOLMAK YERİNE nedenini yazar (klasör mü, tanınmayan bağlantı mı, paylaşım kapalı mı).
- */
-function DriveGorsel({ link, yukseklik = 420, kapak = false, radius = 10 }) {
-  const adaylar = driveGorselAdaylari(link);
-  const [sira, setSira] = useState(0);
-  useEffect(() => { setSira(0); }, [link]);
-
-  const kutu = {
-    width: "100%", borderRadius: radius, background: T.surfaceRaised,
-    border: `1px dashed ${T.border}`, padding: "14px 16px",
-    fontSize: 12, color: T.textFaint, lineHeight: 1.6, fontFamily: "Inter",
-  };
-
-  if (driveKlasorMu(link)) return <div style={kutu}>Bu bir Drive <strong>klasör</strong> bağlantısı — klasörler önizlenemez. Tek bir dosyanın bağlantısını yapıştır.</div>;
-  if (adaylar.length === 0) return <div style={kutu}>Bu bağlantıdan bir Drive dosyası tanınamadı. Bağlantının drive.google.com/file/d/... biçiminde olduğundan emin ol.</div>;
-  if (sira >= adaylar.length) return <div style={kutu}>Görsel yüklenemedi. En yaygın sebep: dosyanın paylaşım ayarı kapalı. Drive'da dosyaya sağ tık → Paylaş → "Bağlantıya sahip olan herkes" → Görüntüleyen.</div>;
-
-  return (
-    <img
-      src={adaylar[sira]}
-      alt="Görsel"
-      style={{
-        width: "100%",
-        height: kapak ? yukseklik : undefined,
-        maxHeight: kapak ? undefined : yukseklik,
-        objectFit: kapak ? "cover" : "contain",
-        borderRadius: radius, background: T.surfaceRaised, display: "block",
-      }}
-      referrerPolicy="no-referrer"
-      onError={() => setSira((n) => n + 1)}
-    />
-  );
-}
-
-/** Google Drive paylaşım linkini, sayfa içinde doğrudan oynatılabilir (gömülü) önizleme
- * formatına çevirir. Dönüştürülemezse null döner, o zaman normal link olarak gösterilir. */
-function driveEmbedUrl(link) {
-  const id = driveDosyaId(link);
-  if (!id) return null;
-  return `https://drive.google.com/file/d/${id}/preview`;
-}
-
-/**
- * Drive video oynatıcısı — DİKEY/KARE/YATAY yön desteğiyle.
- *
- * SORUN: Drive'ın gömülü oynatıcısı, kendisine verilen çerçevenin şeklini alır. Çerçeve
- * 16:9 (yatay) olduğunda dikey bir Reels videosu ortada küçük kalır ve iki yanı siyah bantla
- * dolar. Çözüm videoyu değiştirmek değil, ÇERÇEVEYİ videonun şekline uydurmaktır.
- *
- * Varsayılan "dikey" — sosyal medya içeriklerinin neredeyse tamamı 9:16 olduğu için.
- * Yön kayıtta belirtilmemişse de dikey kabul edilir.
- */
-const VIDEO_YONLERI = [
-  { key: "dikey", label: "Dikey (Reels/Story)", oran: "9 / 16", maxGenislik: 340 },
-  { key: "kare", label: "Kare (1:1)", oran: "1 / 1", maxGenislik: 440 },
-  { key: "yatay", label: "Yatay (16:9)", oran: "16 / 9", maxGenislik: 640 },
-];
-const videoYonuBul = (yon) => VIDEO_YONLERI.find((y) => y.key === yon) || VIDEO_YONLERI[0];
-
-function DriveVideo({ link, yon, baslik }) {
-  const embed = driveEmbedUrl(link);
-  const y = videoYonuBul(yon);
-  if (!embed) return null;
-  return (
-    <div style={{ maxWidth: y.maxGenislik, margin: "0 auto", width: "100%" }}>
-      <div style={{ position: "relative", width: "100%", aspectRatio: y.oran, borderRadius: 10, overflow: "hidden", background: "#000" }}>
-        <iframe
-          src={embed}
-          title={baslik || "Video önizleme"}
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" }}
-          allow="autoplay"
-        />
-      </div>
-    </div>
-  );
-}
-
-/** Müşteri Paneli — owner/personel arayüzünden tamamen izole, sade bir onay ekranı.
- * Sadece kendi markasının içeriklerini görür; her içeriği onaylayabilir ya da revize isteyebilir. */
-function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
-  const [icerikler, setIcerikler] = useState(musteriData.icerikler || []);
-  // Sunucudan yeni veri geldiğinde listeyi tazele. useState başlangıç değeri SADECE ilk
-  // render'da okunur — bu senkron olmadan, yönetici bir içerik ekleyip düzenlese ya da
-  // onay sonrası veri yenilense bile müşterinin ekranı ilk açılıştaki hâlinde donuyordu.
-  useEffect(() => { setIcerikler(musteriData.icerikler || []); }, [musteriData]);
-  const [revizeAcikId, setRevizeAcikId] = useState(null);
-  const [acikIcerikId, setAcikIcerikId] = useState(null); // açık olan içerik kartı
-  const [sekme, setSekme] = useState("onay");
-  const [revizeMetni, setRevizeMetni] = useState("");
-  const [gonderiliyor, setGonderiliyor] = useState(null);
-
-  /**
-   * Hareketsizlik çıkışı — SADECE "Beni hatırla" seçilmemişse.
-   *
-   * Eskiden burada koşulsuz 1 DAKİKALIK bir çıkış vardı: müşteri uzun bir konuşma metnini
-   * okurken bile ekrandan atılıyor, üstelik çıkış kayıtlı giriş bilgilerini de sildiği için
-   * "Beni hatırla" tamamen işlevsiz kalıyordu.
-   *
-   * Yeni davranış:
-   *  - "Beni hatırla" seçiliyse: otomatik çıkış YOK. Müşteri istediği zaman çıkış butonuyla çıkar.
-   *  - Seçili değilse (ortak/paylaşılan bilgisayar): 20 dakika hareketsizlikte çıkış.
-   */
-  useEffect(() => {
-    if (musteriHatirlaniyorMu()) return undefined;
-    let zamanlayici = null;
-    const sifirla = () => {
-      if (zamanlayici) clearTimeout(zamanlayici);
-      zamanlayici = setTimeout(() => onCikis(), 20 * 60 * 1000);
-    };
-    const olaylar = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"];
-    olaylar.forEach((olay) => window.addEventListener(olay, sifirla, { passive: true }));
-    sifirla();
-    return () => {
-      if (zamanlayici) clearTimeout(zamanlayici);
-      olaylar.forEach((olay) => window.removeEventListener(olay, sifirla));
-    };
-    // eslint-disable-next-line
-  }, []);
-
-  const istekAt = (musteriAction, icerikId, revizeNotu) => {
-    setGonderiliyor(icerikId);
-    fetch("/api/data", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ musteriAction, icerikId, revizeNotu }),
-    })
-      .then((r) => r.json())
-      .then((res) => {
-        if (res.ok) {
-          setIcerikler((liste) => liste.map((i) => (i.id === icerikId
-            ? { ...i, durum: musteriAction === "onayla" ? "onaylandi" : "revize", revizeNotu: musteriAction === "onayla" ? null : revizeNotu }
-            : i)));
-          setRevizeAcikId(null);
-          setRevizeMetni("");
-          if (onIslemSonrasi) onIslemSonrasi();
-        } else {
-          window.alert(res.error || "Bir sorun oluştu.");
-        }
-      })
-      .catch(() => window.alert("Bağlantı hatası — tekrar dene."))
-      .finally(() => setGonderiliyor(null));
-  };
-
-  const DURUM_STIL = {
-    bekliyor: { label: "İncelemeni Bekliyor", color: T.warning, bg: T.warningSoft },
-    onaylandi: { label: "Onayladın ✓", color: T.success, bg: T.successSoft },
-    revize: { label: "Revize İstedin", color: T.danger, bg: T.dangerSoft },
-  };
-
-  const bekleyenler = icerikler.filter((i) => i.durum === "bekliyor");
-  const gecmis = icerikler.filter((i) => i.durum !== "bekliyor");
-
-  const sekmeler = [
-    { key: "onay", label: "Onay Bekleyenler", rozet: bekleyenler.length },
-    { key: "takvim", label: "Paylaşım Takvimi", rozet: 0 },
-    { key: "reklam", label: "Reklamlar", rozet: 0 },
-    { key: "uretim", label: "Üretim Durumu", rozet: 0 },
-  ];
-
-  return (
-    <div style={{ background: T.bg, minHeight: "100vh" }}>
-      <style>{FONTS}</style>
-      <div style={{ maxWidth: 880, margin: "0 auto", padding: "24px 18px 60px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-          <div>
-            <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter" }}>{musteriData.firmaAdi}</div>
-            <div style={{ fontSize: 19, color: T.text, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif" }}>{musteriData.marka}</div>
-          </div>
-          <button
-            onClick={() => { if (window.confirm("Çıkış yapılsın mı? Tekrar girmek için kullanıcı adı ve şifren gerekecek.")) onCikis(); }}
-            style={{ ...cancelBtnStyle, fontSize: 12.5, padding: "9px 15px", display: "flex", alignItems: "center", gap: 6 }}
-          >
-            <LogOut size={14} /> Çıkış Yap
-          </button>
-        </div>
-
-        {/* SEKMELER — her şey tek sayfada alt alta akmak yerine bölümlere ayrıldı. */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 20, overflowX: "auto", paddingBottom: 2 }}>
-          {sekmeler.map((sk) => (
-            <button
-              key={sk.key}
-              onClick={() => setSekme(sk.key)}
-              style={{
-                display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 10, border: "none",
-                cursor: "pointer", whiteSpace: "nowrap", fontFamily: "Inter, sans-serif", fontSize: 12.5, fontWeight: 600,
-                background: sekme === sk.key ? T.accent : T.surfaceRaised,
-                color: sekme === sk.key ? "#fff" : T.textDim,
-              }}
-            >
-              {sk.label}
-              {sk.rozet > 0 && (
-                <span style={{ background: sekme === sk.key ? "rgba(255,255,255,.25)" : T.warningSoft, color: sekme === sk.key ? "#fff" : T.warning, borderRadius: 999, padding: "1px 7px", fontSize: 10.5, fontWeight: 700 }}>{sk.rozet}</span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        {sekme === "onay" && <>
-        <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 10 }}>
-          İncelemeni Bekleyenler {bekleyenler.length > 0 && `(${bekleyenler.length})`}
-        </div>
-
-        {bekleyenler.length === 0 ? (
-          <Card style={{ padding: "24px", textAlign: "center", marginBottom: 28 }}>
-            <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Şu an incelemen gereken bir içerik yok.</div>
-          </Card>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 28 }}>
-            {bekleyenler.map((icerik) => {
-              const embed = driveEmbedUrl(icerik.driveLinki);
-              const cekimEmbed = icerik.tur === "cekim" ? driveEmbedUrl(icerik.referansLink) : null;
-              const kartAcik = acikIcerikId === icerik.id;
-              return (
-                <Card key={icerik.id} style={{ padding: 16, border: `1px solid ${T.warning}` }}>
-                  {/* Başlığa tıklayınca açılır/kapanır. Uzun konuşma metinleri listeyi
-                    * metrelerce uzatıyordu; artık hepsi kapalı başlar. */}
-                  <button
-                    onClick={() => setAcikIcerikId(kartAcik ? null : icerik.id)}
-                    style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
-                  >
-                    <span style={{ minWidth: 0 }}>
-                      <span style={{ display: "block", fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter", marginBottom: 4 }}>
-                        {icerik.tur === "cekim" && <span style={{ color: T.accentText }}>🎬 </span>}
-                        {basligiTemizle(icerik.aciklama) || (icerik.tur === "cekim" ? "Çekim Planı" : icerik.tur)}
-                      </span>
-                      <span style={{ display: "block", fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>
-                        {icerik.tarih}
-                        {icerik.tur === "cekim" && icerik.planlananTarih && ` · Planlanan çekim: ${tarihGoster(icerik.planlananTarih)}`}
-                      </span>
-                    </span>
-                    <span style={{ color: T.accentText, fontSize: 11.5, flexShrink: 0, fontFamily: "Inter", fontWeight: 600 }}>
-                      {kartAcik ? "Kapat ▲" : "Aç ▼"}
-                    </span>
-                  </button>
-
-                  {kartAcik && <div style={{ marginTop: 14 }}>
-
-                  {/* ÇEKİM PLANI: referans video + konuşma metni + çekim notu */}
-                  {icerik.tur === "cekim" && (
-                    <div style={{ marginBottom: 12 }}>
-                      {icerik.konusmali && (
-                        <div style={{ display: "inline-block", fontSize: 10.5, fontWeight: 700, color: T.accentText, background: T.accentSoft, padding: "3px 10px", borderRadius: 999, fontFamily: "Inter", marginBottom: 10 }}>
-                          {icerik.konusmali === "konusmali" ? "KONUŞMALI" : icerik.konusmali === "seslendirme" ? "DIŞ SES" : "KONUŞMASIZ"}
-                        </div>
-                      )}
-
-                      {cekimEmbed && (
-                        <div style={{ marginBottom: 10 }}>
-                          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 5 }}>REFERANS VİDEO</div>
-                          <DriveVideo link={icerik.referansLink} yon={icerik.videoYonu} baslik="Referans video" />
-                        </div>
-                      )}
-                      {!cekimEmbed && icerik.referansLink && (
-                        <a href={icerik.referansLink} target="_blank" rel="noreferrer" style={{ display: "block", marginBottom: 10, color: T.accentText, fontSize: 12.5, fontFamily: "Inter" }}>
-                          ▶ Referans videoyu izle ↗
-                        </a>
-                      )}
-
-                      {icerik.konusmaMetni && (
-                        <div style={{ marginBottom: 10 }}>
-                          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 5 }}>
-                            {icerik.konusmali === "seslendirme" ? "DIŞ SES METNİ" : "KONUŞMA METNİ"}
-                          </div>
-                          <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 14px", fontSize: 13.5, color: T.text, fontFamily: "Inter", lineHeight: 1.75, whiteSpace: "pre-wrap" }}>
-                            {icerik.konusmaMetni}
-                          </div>
-                        </div>
-                      )}
-
-                      {icerik.cekimNotu && (
-                        <div>
-                          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 5 }}>ÇEKİM NOTU</div>
-                          <div style={{ fontSize: 12.5, color: T.textDim, fontFamily: "Inter", lineHeight: 1.65, whiteSpace: "pre-wrap" }}>{icerik.cekimNotu}</div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Eski kayıtlar base64 görsel taşıyor, yeniler Drive bağlantısı — ikisi de desteklenir. */}
-                  {icerik.gorselUrl && (
-                    <img src={icerik.gorselUrl} alt={icerik.aciklama || ""} style={{ width: "100%", borderRadius: 10, marginBottom: 12, display: "block" }} />
-                  )}
-                  {!icerik.gorselUrl && icerik.tur === "gorsel" && icerik.driveLinki && (
-                    <div style={{ marginBottom: 12 }}><DriveGorsel link={icerik.driveLinki} yukseklik={460} /></div>
-                  )}
-                  {!icerik.gorselUrl && icerik.tur !== "gorsel" && embed && (
-                    <div style={{ marginBottom: 12 }}><DriveVideo link={icerik.driveLinki} yon={icerik.videoYonu} baslik={icerik.aciklama || "içerik"} /></div>
-                  )}
-                  {!icerik.gorselUrl && icerik.tur !== "gorsel" && !embed && icerik.driveLinki && (
-                    <a href={icerik.driveLinki} target="_blank" rel="noreferrer" style={{ display: "block", marginBottom: 12, color: T.accentText, fontSize: 12.5, fontFamily: "Inter" }}>İçeriği Görüntüle ↗</a>
-                  )}
-
-                  {revizeAcikId === icerik.id ? (
-                    <div>
-                      <textarea
-                        autoFocus
-                        value={revizeMetni}
-                        onChange={(e) => setRevizeMetni(e.target.value)}
-                        placeholder="Neyin değişmesini istiyorsun?"
-                        rows={3}
-                        style={{ ...inputStyle, width: "100%", resize: "vertical", marginBottom: 10, fontFamily: "Inter" }}
-                      />
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button style={cancelBtnStyle} onClick={() => { setRevizeAcikId(null); setRevizeMetni(""); }}>İptal</button>
-                        <button
-                          style={{ ...saveBtnStyle, background: T.danger }}
-                          disabled={gonderiliyor === icerik.id || !revizeMetni.trim()}
-                          onClick={() => istekAt("revizeIste", icerik.id, revizeMetni)}
-                        >
-                          {gonderiliyor === icerik.id ? "Gönderiliyor…" : "Revize İsteğini Gönder"}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <button
-                        style={{ ...saveBtnStyle, flex: 1, justifyContent: "center" }}
-                        disabled={gonderiliyor === icerik.id}
-                        onClick={() => istekAt("onayla", icerik.id)}
-                      >
-                        {gonderiliyor === icerik.id ? "…" : (icerik.tur === "cekim" ? "✓ Planı Onayla" : "✓ Onayla")}
-                      </button>
-                      <button style={{ ...cancelBtnStyle, flex: 1, justifyContent: "center" }} onClick={() => { setRevizeAcikId(icerik.id); setRevizeMetni(""); }}>
-                        Revize İste
-                      </button>
-                    </div>
-                  )}
-                  </div>}
-                </Card>
-              );
-            })}
-          </div>
-        )}
-
-        {gecmis.length > 0 && (
-          <>
-            <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 10 }}>Geçmiş</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {gecmis.map((icerik) => {
-                const stil = DURUM_STIL[icerik.durum] || DURUM_STIL.bekliyor;
-                return (
-                  <Card key={icerik.id} style={{ padding: "12px 16px" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: icerik.revizeNotu ? 6 : 0 }}>
-                      <div>
-                        <div style={{ fontSize: 12.5, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{basligiTemizle(icerik.aciklama) || icerik.tur}</div>
-                        <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter" }}>{icerik.tarih}</div>
-                      </div>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: stil.color, background: stil.bg, padding: "3px 10px", borderRadius: 999, fontFamily: "Inter" }}>{stil.label}</span>
-                    </div>
-                    {icerik.revizeNotu && <div style={{ fontSize: 12, color: T.textDim, fontFamily: "Inter", fontStyle: "italic" }}>"{icerik.revizeNotu}"</div>}
-                  </Card>
-                );
-              })}
-            </div>
-          </>
-        )}
-
-        </>}
-
-        {/* PAYLAŞIM TAKVİMİ — Instagram önizlemeleriyle */}
-        {sekme === "takvim" && <MusteriPaylasimPlani plan={musteriData.paylasimPlani || []} marka={musteriData.marka} />}
-
-        {/* REKLAMLAR — markanın aktif/biten kampanyaları. Bütçe bilgisi bilerek gönderilmez. */}
-        {sekme === "reklam" && <MusteriReklamlar reklamlar={musteriData.reklamlar || []} />}
-
-        {/* ÜRETİM — hangi iş hangi aşamada. */}
-        {sekme === "uretim" && <MusteriOperasyon isler={musteriData.operasyonIsleri || []} />}
-
-        {/* Alt çıkış — uzun listelerde en yukarı dönmek zorunda kalmamak için. */}
-        <div style={{ marginTop: 40, paddingTop: 20, borderTop: `1px solid ${T.borderSoft}`, textAlign: "center" }}>
-          <button
-            onClick={() => { if (window.confirm("Çıkış yapılsın mı? Tekrar girmek için kullanıcı adı ve şifren gerekecek.")) onCikis(); }}
-            style={{ ...cancelBtnStyle, fontSize: 12.5, padding: "9px 18px", display: "inline-flex", alignItems: "center", gap: 6 }}
-          >
-            <LogOut size={14} /> Çıkış Yap
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** Müşteri panelinde haftalık paylaşım planı. Gelecek haftalar önce gösterilir; geçmiş
- * haftalar "yapıldı" bilgisiyle altta kalır. */
-function MusteriPaylasimPlani({ plan, marka }) {
-  const [gecmisAcik, setGecmisAcik] = useState(false);
-  const [gorunum, setGorunum] = useState("izgara"); // "izgara" (genel görünüm) | "akis"
-  const [secili, setSecili] = useState(null);
-  if (!plan || plan.length === 0) {
-    return (
-      <Card style={{ padding: 24, textAlign: "center" }}>
-        <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Henüz paylaşım planı oluşturulmadı.</div>
-      </Card>
-    );
-  }
-
-  const buHafta = haftaBaslangici();
-  const gelecek = plan.filter((p) => p.haftaKey >= buHafta);
-  const gecmis = plan.filter((p) => p.haftaKey < buHafta).sort((a, b) => (a.haftaKey < b.haftaKey ? 1 : -1));
-
-  const haftaBasligi = (key) => {
-    const d = new Date(key);
-    if (Number.isNaN(d.getTime())) return key;
-    return `${d.toLocaleDateString("tr-TR", { day: "numeric", month: "long" })} haftası`;
-  };
-  const gruplar = {};
-  gelecek.forEach((p) => { (gruplar[p.haftaKey] = gruplar[p.haftaKey] || []).push(p); });
-  const siraliHaftalar = Object.keys(gruplar).sort();
-
-  /** Gönderiler Instagram akışı gibi gösterilir — müşteri neyin nasıl görüneceğini
-   * paylaşılmadan önce görsel olarak değerlendirebilsin diye. */
-  const Izgara = ({ liste }) => (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 14, justifyContent: "center" }}>
-      {liste.map((p) => (
-        <InstagramOnizleme
-          key={p.id}
-          marka={marka}
-          tur={p.tur}
-          gun={p.gun}
-          gorselUrl={p.gorselUrl}
-          altMetin={p.altMetin}
-          yapildi={p.yapildi}
-        />
-      ))}
-    </div>
-  );
-
-  const tumGonderiler = [...gecmis].reverse().concat(gelecek);
-
-  return (
-    <div>
-      {/* Görünüm seçici: ızgara = hesabın genel görünümü, akış = tek tek inceleme */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 18, justifyContent: "center" }}>
-        {[{ key: "izgara", label: "Genel Görünüm" }, { key: "akis", label: "Tek Tek" }].map((g) => (
-          <button
-            key={g.key}
-            onClick={() => { setGorunum(g.key); setSecili(null); }}
-            style={{ padding: "7px 16px", borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 12.5, fontWeight: 600,
-              background: gorunum === g.key ? T.accentSoft : T.surfaceRaised, color: gorunum === g.key ? T.accentText : T.textDim }}
-          >
-            {g.label}
-          </button>
-        ))}
-      </div>
-
-      {gorunum === "izgara" && (
-        <>
-          <InstagramIzgara marka={marka} gonderiler={tumGonderiler} onSec={setSecili} />
-          {secili && (
-            <div style={{ marginTop: 20, display: "flex", justifyContent: "center" }}>
-              <div>
-                <InstagramOnizleme marka={marka} tur={secili.tur} gun={secili.gun} gorselUrl={secili.gorselUrl} altMetin={secili.altMetin} yapildi={secili.yapildi} />
-                <button style={{ ...cancelBtnStyle, width: "100%", justifyContent: "center", marginTop: 8 }} onClick={() => setSecili(null)}>Kapat</button>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {gorunum === "akis" && <>
-      {siraliHaftalar.length === 0 && gecmis.length === 0 && (
-        <Card style={{ padding: 20, textAlign: "center" }}>
-          <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Henüz plan oluşturulmadı.</div>
-        </Card>
-      )}
-      {siraliHaftalar.map((hk) => (
-        <div key={hk} style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", fontWeight: 700, marginBottom: 12, letterSpacing: 0.3 }}>
-            {haftaBasligi(hk).toLocaleUpperCase("tr")}
-          </div>
-          <Izgara liste={gruplar[hk]} />
-        </div>
-      ))}
-      {gecmis.length > 0 && (
-        <div style={{ marginTop: 8 }}>
-          <button onClick={() => setGecmisAcik((v) => !v)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 12.5, color: T.textDim, fontFamily: "Inter", fontWeight: 600 }}>
-            {gecmisAcik ? "▾" : "▸"} Geçmiş paylaşımlar ({gecmis.length})
-          </button>
-          {gecmisAcik && <div style={{ marginTop: 14 }}><Izgara liste={gecmis} /></div>}
-        </div>
-      )}
-      </>}
-    </div>
-  );
-}
-
-/** Müşteri panelinde markanın reklam kampanyaları. */
-function MusteriReklamlar({ reklamlar }) {
-  if (!reklamlar || reklamlar.length === 0) {
-    return (
-      <Card style={{ padding: 24, textAlign: "center" }}>
-        <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Şu an kayıtlı bir reklam kampanyası yok.</div>
-      </Card>
-    );
-  }
-  const durumStil = { aktif: { label: "Yayında", color: T.success, bg: T.successSoft }, yakinda: { label: "Yakında bitiyor", color: T.warning, bg: T.warningSoft }, bitti: { label: "Sona erdi", color: T.textFaint, bg: T.surfaceRaised } };
-  return (
-    <div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {reklamlar.map((r) => {
-          const st = durumStil[reklamDurumu(r)] || durumStil.aktif;
-          return (
-            <div key={r.id} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "10px 13px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{r.reklamAdi}</span>
-                <span style={{ fontSize: 10.5, fontWeight: 600, color: st.color, background: st.bg, padding: "2px 9px", borderRadius: 999, fontFamily: "Inter" }}>{st.label}</span>
-              </div>
-              <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 3 }}>
-                {tarihGoster(r.baslangicTarihi)} — {tarihGoster(r.bitisTarihi)}
-              </div>
-              {r.not && <div style={{ fontSize: 12, color: T.textDim, fontFamily: "Inter", marginTop: 5, lineHeight: 1.6 }}>{r.not}</div>}
-              {istatistikVarMi(r) && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
-                  {[
-                    { l: "Erişim", v: r.erisim },
-                    { l: "Gösterim", v: r.gosterim },
-                    { l: "Tıklama", v: r.tiklama },
-                    { l: "Etkileşim", v: r.etkilesim },
-                    { l: "Sonuç", v: r.sonuc },
-                  ].filter((x) => Number(x.v) > 0).map((x) => (
-                    <div key={x.l} style={{ background: T.surface, borderRadius: 9, padding: "7px 12px", minWidth: 78 }}>
-                      <div style={{ fontSize: 9.5, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, letterSpacing: 0.3 }}>{x.l.toLocaleUpperCase("tr")}</div>
-                      <div style={{ fontSize: 14, color: T.text, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", marginTop: 2 }}>{Number(x.v).toLocaleString("tr-TR")}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/** Müşteri panelinde üretim süreci — hangi iş hangi aşamada. */
-function MusteriOperasyon({ isler }) {
-  const [hepsiAcik, setHepsiAcik] = useState(false);
-  if (!isler || isler.length === 0) {
-    return (
-      <Card style={{ padding: 24, textAlign: "center" }}>
-        <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Şu an devam eden bir üretim kaydı yok.</div>
-      </Card>
-    );
-  }
-
-  const devamEden = isler.filter((j) => j.asama !== "Teslim Edildi");
-  const bitenler = isler.filter((j) => j.asama === "Teslim Edildi");
-  const gosterilen = hepsiAcik ? bitenler : bitenler.slice(-5);
-
-  const Satir = ({ j }) => (
-    <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "10px 13px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-      <div>
-        <div style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
-          {j.icerikTuru}{j.kategori ? ` · ${j.kategori}` : ""}{j.uretilenAdet ? ` · ${j.uretilenAdet} parça` : ""}
-        </div>
-        <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>
-          {j.asama === "Teslim Edildi" && j.teslimEdilmeTarihi
-            ? `Teslim: ${tarihGoster(j.teslimEdilmeTarihi)}`
-            : j.teslimTarihi ? `Planlanan teslim: ${tarihGoster(j.teslimTarihi)}` : ""}
-        </div>
-      </div>
-      <span style={{ fontSize: 10.5, fontWeight: 600, fontFamily: "Inter", padding: "3px 10px", borderRadius: 999,
-        color: j.asama === "Teslim Edildi" ? T.success : T.warning,
-        background: j.asama === "Teslim Edildi" ? T.successSoft : T.warningSoft }}>
-        {j.asama}
-      </span>
-    </div>
-  );
-
-  return (
-    <div>
-      {devamEden.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: bitenler.length > 0 ? 12 : 0 }}>
-          {devamEden.map((j) => <Satir key={j.id} j={j} />)}
-        </div>
-      )}
-      {bitenler.length > 0 && (
-        <>
-          <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 6 }}>Tamamlananlar</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {gosterilen.map((j) => <Satir key={j.id} j={j} />)}
-          </div>
-          {bitenler.length > 5 && (
-            <button onClick={() => setHepsiAcik((v) => !v)} style={{ background: "none", border: "none", padding: "8px 0 0", cursor: "pointer", fontSize: 12, color: T.textDim, fontFamily: "Inter", fontWeight: 600 }}>
-              {hepsiAcik ? "Daha az göster" : `+ ${bitenler.length - 5} tane daha göster`}
-            </button>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
 function BackupReminder({ onBackupNow, onDismiss }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
@@ -8215,45 +6015,22 @@ export default function MarcusOS() {
     try { localStorage.setItem("marcus-os-son-sekme", tab); } catch (e) { /* localStorage erişilemezse sessizce geç */ }
   }, [tab]);
 
-  // Hareketsizlik koruması: bir sayfa (özellikle bir düzenleme formu açık) 1 dakika boyunca
-  // hiç dokunulmadan açık kalırsa, otomatik olarak Dashboard'a (hiçbir düzenleme/kayıt
-  // riski taşımayan bir sayfa) yönlendirir. Amaç: biri sayfayı açık unutup gidince, geri
-  // dönüldüğünde yanlışlıkla eski/yarım bir formun kaydedilmesi riskini azaltmak.
-  useEffect(() => {
-    let zamanlayici = null;
-    // Doldurulmuş ama henüz kaydedilmemiş bir form açıksa yönlendirme yapılmaz —
-    // eskiden 60 saniyede yarım kalan bir form uyarısız siliniyordu. Arama kutusu
-    // bu kontrolün dışında tutulur (o bir form değil).
-    const yarimFormVarMi = () => {
-      try {
-        const alanlar = document.querySelectorAll("input:not([data-marcus-arama]), textarea");
-        for (const alan of alanlar) {
-          if (alan.type === "file" || alan.type === "checkbox" || alan.type === "radio") continue;
-          if (alan.value && String(alan.value).trim() !== "") return true;
-        }
-      } catch (e) { return true; } // emin olamıyorsak yönlendirme YAPMA (güvenli taraf)
-      return false;
-    };
-    const sifirla = () => {
-      if (zamanlayici) clearTimeout(zamanlayici);
-      zamanlayici = setTimeout(() => {
-        if (yarimFormVarMi()) { sifirla(); return; }
-        if (saveTimer.current || saveStatusRef.current === "saving") { sifirla(); return; }
-        setTab("dashboard");
-      }, 180000);
-    };
-    const olaylar = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"];
-    olaylar.forEach((olay) => window.addEventListener(olay, sifirla, { passive: true }));
-    sifirla();
-    return () => {
-      if (zamanlayici) clearTimeout(zamanlayici);
-      olaylar.forEach((olay) => window.removeEventListener(olay, sifirla));
-    };
-  }, []);
-  const [gizlilikModu, setGizlilikModuState] = useState(GIZLILIK_MODU);
+  /* HAREKETSİZLİK YÖNLENDİRMESİ KALDIRILDI.
+   *
+   * Eskiden 3 dakika hiç dokunulmazsa sayfa otomatik Dashboard'a dönüyordu. Gerekçesi
+   * "açık unutulan yarım bir form yanlışlıkla kaydedilmesin" idi — ama zaten dolu bir form
+   * varken yönlendirme yapılmıyordu, yani koruma sadece ortada korunacak bir şey YOKKEN
+   * devreye giriyordu. Gizlilik açısından da bir kazancı yoktu: Dashboard finansal rakamları
+   * gösteriyor. Geriye sadece "bir rapora dalmışken sayfanın altından kayması" kaldığı için
+   * tamamen kaldırıldı.
+   *
+   * Yerine geçen gerçek korumalar duruyor: kaydedilmemiş değişiklikte sekme kapatma uyarısı,
+   * çıkışta kayıt kontrolü ve Gizlilik Modu. */
+
+  const [guvenlikDurumu, setGuvenlikDurumu] = useState(null);
+  const [gizlilikModu, setGizlilikModuState] = useState(gizlilikModuOku());
   const setGizlilikModu = (deger) => {
-    GIZLILIK_MODU = deger;
-    try { localStorage.setItem("marcus-os-gizlilik", deger ? "1" : "0"); } catch (e) { /* sessizce geç */ }
+    gizlilikModuYaz(deger);
     setGizlilikModuState(deger);
   };
   const [aiOpen, setAiOpen] = useState(false);
@@ -8343,6 +6120,7 @@ export default function MarcusOS() {
           return;
         }
         if (res.role) setRole(res.role);
+        if (res.guvenlik) setGuvenlikDurumu(res.guvenlik);
         if (res.staffName) setLoggedStaffName(res.staffName);
         if (res.data) {
           setData(res.data);
@@ -8613,8 +6391,72 @@ export default function MarcusOS() {
     return { ...d, clients: [...d.clients, yeniClient], markalasmaSurecleri: [...(d.markalasmaSurecleri || []), yeniSurec] };
   });
   const updateClient = (id, patch) => setData((d) => ({ ...d, clients: d.clients.map((c) => (c.id === id ? { ...c, ...patch } : c)) }));
+  /* ------------------------------------------------------------------ *
+   * SİLİNENLER KUTUSU (yumuşak silme)
+   *
+   * Eskiden bir kayıt silinince kalıcı olarak gidiyordu; geri almanın tek yolu tüm veriyi
+   * bir yedekten geri yüklemekti — o da o andan sonraki HER ŞEYİ geri alırdı. Yani küçük
+   * bir yanlış tıklamanın bedeli çok büyüktü.
+   *
+   * Artık silinen kayıt "silinenler" listesine taşınır: 30 gün orada durur, tek tıkla geri
+   * gelir. Süre dolunca kendiliğinden temizlenir.
+   *
+   * Not: "tur" alanı hangi listeye geri konulacağını söyler — geri yükleme bu alana bakar.
+   * ------------------------------------------------------------------ */
+  const SILINEN_SAKLAMA_GUNU = 30;
+
+  /** Süresi dolmuş silinmiş kayıtları ayıklar. Her silme/geri yükleme işleminde çalışır. */
+  const silinenleriTemizle = (liste) => {
+    const sinir = Date.now() - SILINEN_SAKLAMA_GUNU * 24 * 60 * 60 * 1000;
+    return (liste || []).filter((x) => !x.silmeZamani || x.silmeZamani > sinir);
+  };
+
+  /**
+   * Bir kaydı listeden çıkarıp silinenler kutusuna taşır.
+   * @param alan  veri içindeki liste adı ("clients", "cekimIsleri" …)
+   * @param tur   kullanıcıya gösterilecek tür etiketi
+   * @param id    silinecek kaydın id'si
+   * @param etiket kutuda görünecek kısa açıklama (marka adı, iş adı…)
+   */
+  const yumusakSil = (alan, tur, id, etiket) => setData((d) => {
+    const liste = d[alan] || [];
+    const kayit = liste.find((x) => String(x.id) === String(id));
+    if (!kayit) return d;
+    return {
+      ...d,
+      [alan]: liste.filter((x) => String(x.id) !== String(id)),
+      silinenler: [
+        ...silinenleriTemizle(d.silinenler),
+        { silmeId: `${alan}-${id}-${Date.now()}`, alan, tur, etiket: etiket || "", kayit, silmeZamani: Date.now(), silen: "Yönetici (CEO)" },
+      ],
+    };
+  });
+
+  /** Silinen kaydı ait olduğu listeye geri koyar. Aynı id zaten varsa çakışmasın diye
+   * geri koymadan önce kontrol edilir. */
+  const silinmisiGeriAl = (silmeId) => setData((d) => {
+    const kutu = d.silinenler || [];
+    const giris = kutu.find((x) => x.silmeId === silmeId);
+    if (!giris) return d;
+    const mevcut = d[giris.alan] || [];
+    const zatenVar = mevcut.some((x) => String(x.id) === String(giris.kayit.id));
+    return {
+      ...d,
+      [giris.alan]: zatenVar ? mevcut : [...mevcut, giris.kayit],
+      silinenler: kutu.filter((x) => x.silmeId !== silmeId),
+    };
+  });
+
+  /** Kutudan kalıcı olarak siler (geri dönüşü yok). */
+  const silinmisiKaliciSil = (silmeId) => setData((d) => ({
+    ...d,
+    silinenler: (d.silinenler || []).filter((x) => x.silmeId !== silmeId),
+  }));
+
   const deleteClient = (id) => {
-    setData((d) => ({ ...d, clients: d.clients.filter((c) => c.id !== id) }));
+    // Kalıcı silme yerine silinenler kutusuna taşınır (30 gün geri alınabilir).
+    const marka = (data && (data.clients || []).find((c) => c.id === id)) || {};
+    yumusakSil("clients", "Müşteri", id, marka.ad || "");
     // Silinen markaya bağlı Müşteri Paneli giriş hesabı varsa, o da otomatik kapatılır —
     // aksi halde silinen bir müşterinin giriş bilgisi hâlâ geçerli kalırdı.
     // Not: bu uç nokta sadece yöneticide çalışır. Personel bir müşteri silerse burada
@@ -8712,7 +6554,10 @@ export default function MarcusOS() {
 
   const addFreelancer = (f) => setData((d) => ({ ...d, freelancerlar: [...(d.freelancerlar || []), { ...f, id: nextId(d.freelancerlar || []) }] }));
   const updateFreelancer = (id, patch) => setData((d) => ({ ...d, freelancerlar: (d.freelancerlar || []).map((f) => (f.id === id ? { ...f, ...patch } : f)) }));
-  const deleteFreelancer = (id) => setData((d) => ({ ...d, freelancerlar: (d.freelancerlar || []).filter((f) => f.id !== id) }));
+  const deleteFreelancer = (id) => {
+    const f = (data && (data.freelancerlar || []).find((x) => x.id === id)) || {};
+    yumusakSil("freelancerlar", "Freelancer", id, f.ad || "");
+  };
 
   /** İş bazlı ücretlendirme (sabit tutar / ücretsiz). İş kayıtları personelin tarayıcısına
    * olduğu gibi gönderildiği için, bu bilgi işin ÜZERİNDE değil ayrı bir haritada tutulur —
@@ -8793,7 +6638,10 @@ export default function MarcusOS() {
     }
     return { ...d, cekimIsleri: yeniIsler, musteriIcerikleri };
   });
-  const deleteCekimIsi = (id) => setData((d) => ({ ...d, cekimIsleri: (d.cekimIsleri || []).filter((j) => j.id !== id) }));
+  const deleteCekimIsi = (id) => {
+    const is = (data && (data.cekimIsleri || []).find((j) => j.id === id)) || {};
+    yumusakSil("cekimIsleri", "Operasyon işi", id, `${is.marka || ""} — ${is.icerikTuru || ""}`.trim());
+  };
   const deleteSablon = (id) => setData((d) => ({ ...d, teklifSablonlari: (d.teklifSablonlari || []).filter((s) => s.id !== id) }));
 
   const toggleMarkalasmaGorev = (surecId, gorevId) => setData((d) => ({
@@ -8840,6 +6688,28 @@ export default function MarcusOS() {
 
   const deleteMarkalasmaSureci = (surecId) => setData((d) => ({ ...d, markalasmaSurecleri: (d.markalasmaSurecleri || []).filter((s) => s.id !== surecId) }));
 
+  /** Müşteriye "panelinde onayını bekleyen içerik var" e-postası. Sessizce çalışır —
+   * e-posta yoksa ya da gönderilemezse içerik yine de eklenmiş olur, akış bozulmaz. */
+  const musteriyeIcerikBildir = (clientId, icerikAdi) => {
+    const client = (data && (data.clients || []).find((c) => String(c.id) === String(clientId))) || null;
+    if (!client || !client.email) return Promise.resolve({ skipped: true });
+    return fetch("/api/notify-job", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({
+        mod: "musteriIcerik",
+        email: client.email,
+        ad: client.yetkiliAd || "",
+        marka: client.ad,
+        icerikTuru: icerikAdi || "",
+        adet: 1,
+        firmaAdi: data.firmaAdi,
+        logo: data.markaKimligiGorseli,
+        panelLinki: typeof window !== "undefined" ? window.location.origin : "",
+      }),
+    }).then((r) => r.json()).catch(() => ({ skipped: true }));
+  };
+
   const addMusteriIcerik = (clientId, icerik) => setData((d) => ({
     ...d,
     musteriIcerikleri: [...(d.musteriIcerikleri || []), { ...icerik, id: nextId(d.musteriIcerikleri || []), clientId, durum: "bekliyor", revizeNotu: null, kaynakIsId: null, olusturmaTarihi: new Date().toLocaleDateString("tr-TR") }],
@@ -8884,7 +6754,10 @@ export default function MarcusOS() {
     return yeni;
   });
 
-  const deleteMusteriIcerik = (icerikId) => setData((d) => ({ ...d, musteriIcerikleri: (d.musteriIcerikleri || []).filter((i) => i.id !== icerikId) }));
+  const deleteMusteriIcerik = (icerikId) => {
+    const ic = (data && (data.musteriIcerikleri || []).find((i) => i.id === icerikId)) || {};
+    yumusakSil("musteriIcerikleri", "Panel içeriği", icerikId, ic.aciklama || "");
+  };
 
   const addUyelik = (u) => paylasimIstek({ action: "uyelikEkle", uyelik: u }, "Bağlantı hatası — üyelik eklenemedi, tekrar dene.");
   const deleteUyelik = (id) => paylasimIstek({ action: "uyelikSil", uyelikId: id }, "Bağlantı hatası — üyelik silinemedi, tekrar dene.");
@@ -8896,7 +6769,10 @@ export default function MarcusOS() {
 
   const addReklam = (r) => setData((d) => ({ ...d, reklamlar: [...(d.reklamlar || []), { ...r, id: nextId(d.reklamlar || []) }] }));
   const updateReklam = (id, patch) => setData((d) => ({ ...d, reklamlar: (d.reklamlar || []).map((r) => (r.id === id ? { ...r, ...patch } : r)) }));
-  const deleteReklam = (id) => setData((d) => ({ ...d, reklamlar: (d.reklamlar || []).filter((r) => r.id !== id) }));
+  const deleteReklam = (id) => {
+    const r = (data && (data.reklamlar || []).find((x) => x.id === id)) || {};
+    yumusakSil("reklamlar", "Reklam", id, `${r.marka || ""} — ${r.reklamAdi || ""}`.trim());
+  };
 
   /** Sunucu tarafında zaten kaydedilmiş bir paylaşım/stok güncellemesini, tüm veriyi yeniden
    * yazıp olası eski/bayat verilerin üzerine yazma riski oluşturmadan yerel duruma yansıtır. */
@@ -9016,7 +6892,10 @@ export default function MarcusOS() {
 
   const addPersonel = (p) => setData((d) => ({ ...d, personel: [...(d.personel || []), { ...p, id: nextId(d.personel || []) }] }));
   const updatePersonel = (id, patch) => setData((d) => ({ ...d, personel: (d.personel || []).map((p) => (p.id === id ? { ...p, ...patch } : p)) }));
-  const deletePersonel = (id) => setData((d) => ({ ...d, personel: (d.personel || []).filter((p) => p.id !== id) }));
+  const deletePersonel = (id) => {
+    const kisi = (data && (data.personel || []).find((x) => x.id === id)) || {};
+    yumusakSil("personel", "Personel", id, kisi.ad || "");
+  };
 
   const addFon = (f) => setData((d) => ({ ...d, birikimler: [...(d.birikimler || []), { ...f, bakiye: 0, hareketler: [], id: nextId(d.birikimler || []) }] }));
   const deleteFon = (id) => setData((d) => ({ ...d, birikimler: (d.birikimler || []).filter((f) => f.id !== id) }));
@@ -9817,6 +7696,16 @@ export default function MarcusOS() {
                 </div>
               )}
             </div>
+            {/* GİZLİLİK ANAHTARI — rakamlar varsayılan olarak gizli geldiği için, göstermenin
+              * tek tıkla ve her ekrandan ulaşılabilir olması gerekiyor. Ayarlar'a gitmek
+              * zorunda kalmak bu özelliği kullanılmaz hâle getirirdi. */}
+            <div
+              onClick={() => setGizlilikModu(!gizlilikModu)}
+              title={gizlilikModu ? "Rakamlar gizli — göstermek için tıkla" : "Rakamlar görünür — gizlemek için tıkla"}
+              style={{ width: 34, height: 34, borderRadius: 10, background: gizlilikModu ? T.warningSoft : T.surface, border: `1px solid ${gizlilikModu ? T.warning : T.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+            >
+              {gizlilikModu ? <EyeOff size={15} color={T.warning} /> : <Eye size={15} color={T.textDim} />}
+            </div>
             <div style={{ position: "relative" }}>
               <div
                 onClick={() => setNotifOpen((v) => !v)}
@@ -9875,6 +7764,7 @@ export default function MarcusOS() {
               onUpdate={updateMusteriIcerik}
               onDelete={deleteMusteriIcerik}
               onOnayla={yoneticiOnayla}
+              onBildir={musteriyeIcerikBildir}
               plan={data.haftalikPaylasimlar || []}
               reklamlar={data.reklamlar || []}
               isler={data.cekimIsleri || []}
@@ -9984,6 +7874,19 @@ export default function MarcusOS() {
               isUcretleri={data.isUcretleri || {}}
               isUcretDetaylari={data.isUcretDetaylari || {}}
               onAddFreelancer={addFreelancer} onUpdateFreelancer={updateFreelancer} onDeleteFreelancer={deleteFreelancer}
+              aylikRapor={
+                <AylikIsRaporu
+                  jobs={data.cekimIsleri || []}
+                  ucretler={data.isUcretleri || {}}
+                  onSaveUcret={setIsUcreti}
+                  ucretDetaylari={data.isUcretDetaylari || {}}
+                  onSaveUcretDetayi={setIsUcretDetayi}
+                  avanslar={data.avanslar || []}
+                  hesaplar={data.hesaplar || []}
+                  onAddAvans={addAvans}
+                  onDeleteAvans={deleteAvans}
+                />
+              }
             />
           )}
           {tab === "birikim" && (
@@ -10014,6 +7917,10 @@ export default function MarcusOS() {
           )}
           {tab === "ayarlar" && (
             <Ayarlar
+              guvenlik={guvenlikDurumu}
+              silinenler={data.silinenler || []}
+              onGeriAl={silinmisiGeriAl}
+              onKaliciSil={silinmisiKaliciSil}
               onExport={exportCsv} onExportJson={exportJson} onImportJson={importJson}
               firmaAdi={data.firmaAdi} tebligSablonu={data.tebligSablonu}
               onSaveTeblig={(ad, sablon) => setData((d) => ({ ...d, firmaAdi: ad, tebligSablonu: sablon }))}

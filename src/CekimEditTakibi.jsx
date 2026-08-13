@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
+// Para gösterimleri Gizlilik Modu'na uymalı — aksi halde ücretler gizliyken de görünür kalırdı.
+import { fmt } from "./tema.jsx";
 import {
   Camera, Plus, X, Clock, AlertTriangle, CheckCircle2, User, Link2,
   MessageSquare, History, ChevronRight, ChevronLeft, Pencil, Trash2, LayoutGrid, BarChart3, ListTodo, Rocket,
@@ -847,7 +849,7 @@ function isUcretiHesapla(job, kisiAdi, detay, kisiVarsayilanUcret) {
 /** Ücret modunu kısa, okunur bir etikete çevirir. */
 function ucretEtiketi(job, detay, kisiVarsayilanUcret) {
   const mod = (detay && detay.mod) || "varsayilan";
-  const para = (n) => Number(n).toLocaleString("tr-TR") + " ₺";
+  const para = (n) => fmt(n); // Gizlilik Modu açıkken "₺ •••" gösterir
   if (mod === "ucretsiz") return "Ücretsiz";
   if (mod === "sabit") {
     const kime = (detay && detay.kime) || varsayilanKime(job);
@@ -1042,7 +1044,7 @@ function AvansMiniForm({ kisiAd, hesaplar, ay, onKaydet, onKapat }) {
   );
 }
 
-function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onSaveUcretDetayi, avanslar, hesaplar, onAddAvans, onDeleteAvans }) {
+export function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onSaveUcretDetayi, avanslar, hesaplar, onAddAvans, onDeleteAvans }) {
   const [ay, setAy] = useState(ayKeyi());
   const [acikKisi, setAcikKisi] = useState(null);
   const [ucretDuzenle, setUcretDuzenle] = useState(null);
@@ -1092,7 +1094,7 @@ function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onSaveUcre
   const genelAvans = kisiler.reduce((s, k) => s + kisiAvansi(k.ad), 0);
   const genelToplam = kisiler.reduce((s, k) => s + kisiToplami(k), 0);
   const genelParca = oAyinIsleri.reduce((t, j) => t + (Number(j.uretilenAdet) || 0), 0);
-  const paraYaz = (n) => Number(n).toLocaleString("tr-TR") + " ₺";
+  const paraYaz = (n) => fmt(n); // Gizlilik Modu açıkken "₺ •••" gösterir
 
   const bekleyenSayisi = (ad) => bekleyenler.filter((j) => j.kameraman === ad || j.editor === ad).length;
 
@@ -1369,9 +1371,6 @@ export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, 
           <button onClick={() => setView("pano")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "none", background: view === "pano" ? C.accentSoft : "transparent", color: view === "pano" ? C.accentText : C.textDim, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><LayoutGrid size={14} /> Tüm İşler</button>
           <button onClick={() => setView("markalasma")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "none", background: view === "markalasma" ? C.accentSoft : "transparent", color: view === "markalasma" ? C.accentText : C.textDim, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><Rocket size={14} /> Markalaşma</button>
           {role === "owner" && (
-            <button onClick={() => setView("rapor")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "none", background: view === "rapor" ? C.accentSoft : "transparent", color: view === "rapor" ? C.accentText : C.textDim, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><Wallet size={14} /> Aylık İş Raporu</button>
-          )}
-          {role === "owner" && (
             <button onClick={() => setView("istatistik")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "none", background: view === "istatistik" ? C.accentSoft : "transparent", color: view === "istatistik" ? C.accentText : C.textDim, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><BarChart3 size={14} /> İstatistikler</button>
           )}
         </div>
@@ -1391,22 +1390,10 @@ export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, 
       {view === "panom" && role === "staff" && <PersonelPaneli jobs={isler} staffName={staffName} onOpen={setAcikIs} />}
 
       {view === "istatistik" && role === "owner" && <YoneticiIstatistik jobs={isler} />}
-      {/* Aylık İş Raporu SADECE yöneticiye açık: hem sekme butonu, hem bu koşul owner
-        * kontrolü yapıyor. Ayrıca iş başı ücret bilgisi sunucuda personel izin listesinde
-        * yer almadığı için personelin tarayıcısına hiç gönderilmiyor. */}
-      {view === "rapor" && role === "owner" && (
-        <AylikIsRaporu
-          jobs={isler}
-          ucretler={isUcretleri || {}}
-          onSaveUcret={onSaveIsUcreti}
-          ucretDetaylari={isUcretDetaylari || {}}
-          onSaveUcretDetayi={onSaveIsUcretDetayi}
-          avanslar={avanslar || []}
-          hesaplar={hesaplar || []}
-          onAddAvans={onAddAvans}
-          onDeleteAvans={onDeleteAvans}
-        />
-      )}
+      {/* Aylık İş Raporu buradan KALDIRILDI — Personel > Freelancer sekmesine taşındı.
+        * Sebep: aynı bilgiyi (kimin ne kadar hak ettiği) iki ayrı yerde göstermek
+        * "hangisine bakacağım?" sorusunu doğuruyordu. Ödemeyle ilgili her şey artık
+        * Personel sekmesinde toplu duruyor; Operasyon yalnızca üretim takibine odaklı. */}
 
       {view === "markalasma" && (
         <MarkalasmaGorunumu

@@ -1359,3 +1359,192 @@ Kilitli hesap, izni yanlışlıkla açık bırakılsa bile Finans/Personel gibi 
 - ✓ 12 uç noktanın hepsi ayakta
 
 **Sonuç: 35 kontrolün tamamı geçti.**
+
+## Güncelleme 47: Müşteri Bildirimi, Telefona Kurulum, Otomatik Rapor Hatırlatması, Operasyon Sadeleştirme
+
+### 1. Müşteriye içerik bildirimi (en önemlisi)
+Panele çekim planı ya da içerik eklendiğinde müşterinin **haberi olmuyordu** — girip bakması
+gerekiyordu, girmezse onay beklemede kalıyor ve tüm akış tıkanıyordu.
+
+Artık içerik eklenince müşteriye otomatik e-posta gidiyor: hangi marka, ne eklendi ve panele
+gitmek için bir buton. Formun altında sonucu da görüyorsun ("✓ Müşteriye e-posta gönderildi"
+ya da "Müşterinin kayıtlı e-postası yok").
+
+E-posta müşterinin kartındaki **Yetkili E-postası** alanından alınır. Boşsa bildirim gönderilmez
+ama içerik yine de eklenir — akış hiçbir durumda durmaz.
+
+### 2. Telefona uygulama gibi kurulabiliyor (PWA)
+Artık hem senin hem müşterilerin siteyi ana ekrana ekleyip **kendi ikonuyla, tarayıcı çubuğu
+olmadan** açabilirsiniz.
+
+- **iPhone:** Safari'de siteyi aç → Paylaş → "Ana Ekrana Ekle"
+- **Android:** Chrome'da siteyi aç → menü → "Uygulamayı yükle"
+
+**Önemli teknik karar:** Service worker bilerek **önbellekleme yapmıyor**. Yapsaydı, yeni sürüm
+yüklediğinde telefonlarda eski sürüm açılmaya devam ederdi — düzelttiğimiz bir hata düzelmemiş
+gibi görünürdü. Veri hassasiyeti olan bir uygulamada bu riski almadık.
+
+### 3. Aylık rapor hatırlatması
+Her ayın 1'inde e-posta geliyor: hangi markaların raporu hazır, her birinde kaç teslim, kaç
+paylaşım, kaç kampanya var.
+
+**Rapor müşteriye otomatik GÖNDERİLMEZ** — bilerek böyle. Gözden geçirilmemiş bir rapor
+müşteriye gitseydi, eksik ya da yanlış bir rakam fark edilmeden dışarı çıkabilirdi. Sen açıp
+kontrol edip gönderiyorsun.
+
+### 4. Operasyon sadeleşti
+**Aylık İş Raporu**, Operasyon'dan **Personel → Freelancer** sekmesine taşındı. Aynı bilgiyi
+(kimin ne kadar hak ettiği) iki ayrı yerde göstermek "hangisine bakacağım?" sorusunu
+doğuruyordu. Artık ödemeyle ilgili her şey Personel sekmesinde toplu; Operasyon yalnızca
+üretim takibine odaklı (Tüm İşler · Markalaşma · İstatistikler).
+
+Bir şey kaybolmadı — rapor aynı rapor, sadece daha mantıklı bir yerde.
+
+### Doğrulama
+35 denetim kontrolünün tamamı bu değişikliklerden sonra da geçiyor.
+
+## Güncelleme 48: App.jsx Bölündü (10.068 → 7.763 satır)
+
+Bu paket **sadece bu işi** içeriyor. Bilerek: dosya bölme ile yeni özellikleri aynı pakete
+koymak, bir şey ters gittiğinde sebebi bulmayı imkânsızlaştırırdı.
+
+### Neden gerekliydi
+`App.jsx` 10.068 satıra ulaşmıştı ve bu kendi başına bir risk hâline gelmişti. Bir kez tam
+olarak bu yüzden uygulama hiç açılmadı: yeni bir bileşen eklenirken kod, bir metin şablonunun
+ortasına düştü ve dosya derlenemez oldu. Dosya ne kadar büyükse böyle bir hatanın olma ve
+gözden kaçma ihtimali o kadar yüksek.
+
+### Yeni yapı
+
+| Dosya | Satır | İçerik |
+|---|---|---|
+| `src/tema.jsx` | 807 | Tema, stiller, ortak arayüz parçaları, genel yardımcılar |
+| `src/drive.jsx` | 121 | Google Drive görsel/video gösterimi |
+| `src/instagram.jsx` | 342 | Instagram önizleme/ızgara + aylık rapor HTML'i |
+| `src/musteriPaneli.jsx` | 536 | Müşterinin gördüğü panel |
+| `src/personel.jsx` | 694 | Kadrolu personel + freelancer, avans, ödeme |
+| `src/App.jsx` | 7.763 | Geri kalan ekranlar ve ana uygulama |
+
+Hiçbir davranış değişmedi — sadece kodun yeri değişti.
+
+### Nasıl doğrulandı
+Tarayıcı derleyicisi olmadan bölme yapmak riskli olduğu için üç denetleyici yazıldı ve her
+adımda çalıştırıldı (`testler/` klasöründe, kullanım talimatıyla birlikte):
+
+1. **Sözdizimi** — JSX-farkında kontrol, tüm dosyalar temiz
+2. **Şablon bozulması** — kod parçasının metin içine kaçması, tüm dosyalar temiz
+3. **Eksik import** — bölmenin asıl riski. Her dosyada kullanılan ama tanımlanmayan/import
+   edilmeyen adlar arandı; bulunanların hepsi düzeltildi
+4. **Eksik export** — import edilen her adın kaynağında gerçekten export edildiği doğrulandı (0 eksik)
+5. **Döngüsel bağımlılık** — bağımlılık haritası çıkarıldı, döngü yok (tek yönlü akış)
+6. **Sunucu denetimleri** — 35 kontrolün tamamı bölme sonrası da geçiyor
+
+### Yol boyunca çıkan bir sorun
+`GIZLILIK_MODU` bayrağı App.jsx içinde tanımlanıp doğrudan **yazılıyordu**. Dosya bölününce bu
+geçersiz hâle geldi: ES modüllerinde import edilmiş bir değişkene atama yapılamaz. Okuma/yazma
+fonksiyonlarına çevrildi (`gizlilikModuOku` / `gizlilikModuYaz`).
+
+### Not
+App.jsx hâlâ 7.763 satır. Daha fazla bölünebilir (Finans, Müşteriler, Ayarlar kendi
+dosyalarına), ama bu paket oturmadan devam etmek doğru olmaz — her bölme adımı ayrı ayrı
+doğrulanmalı.
+
+## Güncelleme 49: CEO Panelinde Otomatik Dashboard'a Dönme Kaldırıldı
+
+**Sorun:** Bir sekmede çalışırken 3 dakika hiçbir şeye dokunmayınca sayfa kendiliğinden
+Dashboard'a dönüyordu. Uzun bir raporu okurken, bir listeyi incelerken ya da telefonda başka
+bir işle uğraşırken sürekli yerini kaybediyordun.
+
+**Kaldırıldı.** Koda bakınca özelliğin **kendi amacını zaten karşılamadığı** görüldü:
+
+- Gerekçesi "açık unutulan yarım bir form yanlışlıkla kaydedilmesin" idi — ama zaten **dolu
+  bir form varken yönlendirme yapılmıyordu.** Yani koruma, ortada korunacak bir şey YOKKEN
+  devreye giriyordu.
+- Gizlilik açısından da bir kazancı yoktu: Dashboard finansal rakamları gösteriyor.
+
+Geriye sadece rahatsızlık kalıyordu, o yüzden tamamen kaldırıldı.
+
+**Yerinde duran gerçek korumalar:**
+- Kaydedilmemiş değişiklik varken sekme kapatma uyarısı
+- Çıkış butonunda bekleyen kayıt kontrolü
+- Gizlilik Modu (tüm ₺ tutarlarını gizler)
+
+Personel panelinde böyle bir yönlendirme zaten yoktu; müşteri panelindeki otomatik çıkış ise
+44. güncellemede "Beni hatırla" seçimine bağlanmıştı.
+
+## Güncelleme 50: Rakamlar Varsayılan Olarak Gizli
+
+**Gizlilik Modu artık varsayılan olarak AÇIK.** Uygulamayı açtığında tüm ₺ tutarları
+"₺ •••" olarak gelir; görmek istediğinde sen açarsın.
+
+Gerekçe: panel çoğu zaman başkalarının da görebileceği ortamlarda açılıyor — çekimde, kafede,
+birinin yanında. Varsayılan görünür olsaydı her seferinde gizlemeyi hatırlaman gerekirdi;
+varsayılan gizli olunca **göstermek bilinçli bir hareket** oluyor.
+
+### Üst çubuğa göz simgesi eklendi
+Rakamları göstermek/gizlemek için artık Ayarlar'a gitmene gerek yok — üst çubukta, bildirim
+zilinin yanında bir **göz simgesi** var. Her ekrandan tek tıkla açıp kapatırsın. Gizliyken
+simge turuncu yanar, böylece hangi durumda olduğun bir bakışta belli olur.
+
+Seçimin bu cihazda hatırlanır: bir kez açık bırakırsan sonraki açılışlarda açık gelir.
+
+### Kapsam genişletildi
+Operasyon'daki freelancer ücret gösterimleri (iş başı ücret, aylık hak ediş) Gizlilik Modu'nu
+**atlıyordu** — kendi para biçimlendirmelerini kullanıyorlardı. Onlar da ortak `fmt()`
+fonksiyonuna bağlandı. Artık gizlilik açıkken hiçbir ekranda rakam görünmüyor:
+
+Dashboard KPI'ları · Finans · Müşteri ücretleri · Personel maaşları · Avans ve ödemeler ·
+Hesap bakiyeleri · Birikimler · Teklifler · **Operasyon ücretleri (yeni)**
+
+## Güncelleme 51: Güvenlik ve Veri Dayanıklılığı — Altı Geliştirme
+
+Denetim sonucu bulunan altı boşluk kapatıldı. Önce iyi haber: **XSS riski yok** (hiçbir yerde
+ham HTML basılmıyor) ve gece yedeği **tam veriyi** ek dosya olarak gönderiyor.
+
+### 1. 🗑 Silinenler Kutusu — en çok işine yarayacak olan
+Bir müşteriyi, işi, panel içeriğini, personeli, freelancer'ı ya da reklamı silince artık
+**kalıcı olarak gitmiyor**: 30 gün Ayarlar → Silinenler Kutusu'nda duruyor, tek tıkla geri
+geliyor.
+
+Eskiden geri almanın tek yolu tüm veriyi bir yedekten geri yüklemekti — o da o andan sonraki
+**her şeyi** geri alırdı. Yani küçük bir yanlış tıklamanın bedeli çok büyüktü. Artık sıfır.
+
+Süre dolunca kendiliğinden temizlenir; istersen "Kalıcı Sil" ile hemen de çıkarabilirsin.
+
+### 2. 📦 Yedek artık tek yere bağlı değil
+**Bu bir felaket senaryosuydu:** günlük, saatlik ve geri-yükleme-öncesi kopyaların hepsi aynı
+veritabanının (Upstash) içinde. O hesap silinir ya da askıya alınırsa hepsi birden giderdi.
+
+- `BACKUP_EMAIL` artık **virgülle birden fazla adres** kabul ediyor:
+  `ben@ornek.com, yedek@gmail.com` — farklı sağlayıcılarda adres kullanmak en güçlü koruma
+- Her **pazar** ayrı konuyla bir **haftalık arşiv** kopyası gönderiliyor ("SAKLA" etiketli),
+  çünkü günlük yedekler posta kutusunda birikip kayboluyor
+
+### 3. 🔐 Güvenlik durumu artık görünür
+Ayarlar → Güvenlik'te iki uyarı kartı var. Bir korumanın **"kurulduğunu sanmak" ile gerçekten
+açık olması** arasındaki farkı gösteriyor (ortam değişkenleri tarayıcıya gönderilmediği için bu
+bilgi sunucudan geliyor):
+
+- İki adımlı doğrulama açık mı? Kapalıysa nasıl açılacağı yazılı
+- Yedek kaç adrese gidiyor? Tek adresse neden yetersiz olduğu açıklanıyor
+
+### 4. 📋 Güvenlik Defteri
+Girişler, **başarısız giriş denemeleri**, yedekten geri yüklemeler ve hesap/yetki değişiklikleri
+ayrı bir deftere yazılıyor. Ayarlar → Güvenlik Defteri'nden okunur.
+
+Kritik farkı: **veriyle birlikte geri yüklenmez.** Bir yedeğe dönsen bile "kim ne zaman ne yaptı"
+kaydı yerinde kalır. Test edildi: geri yükleme sonrası defter siliniyor mu → hayır, duruyor.
+
+### 5. 📊 Veri boyutu otomatik uyarısı
+Veri ~4.5 MB sınırına yaklaşınca (%60'ta uyarı, %85'te "ACİL") e-posta geliyor. Bu sınır
+aşılırsa **kayıtlar sessizce durur** — hata mesajı bile çıkmaz. Ayarlar'daki gösterge duruyordu
+ama oraya bakmak gerekiyordu; artık uyarı ayağına geliyor.
+
+### 6. Silinenler kutusu personele sızmıyor
+`silinenler` alanı marka kilitli hesaplardan ve personel izin listesinden dışlandı — silinmiş
+kayıtlar üzerinden veri sızıntısı olmaz.
+
+### Doğrulama
+45 otomatik kontrolün tamamı geçiyor (`testler/` klasörü, t5–t10). Yeni eklenen t9 ve t10
+özellikle şunları doğruluyor: güvenlik durumu doğru raporlanıyor, silinenler personele
+gitmiyor, başarısız girişler deftere yazılıyor, defter geri yüklemeden etkilenmiyor.

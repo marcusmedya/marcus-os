@@ -82,6 +82,41 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: "Bu bildirimi göndermek için Marka Yöneticisi yetkisi gerekiyor." });
     }
 
+    /* MÜŞTERİ PANELİNE İÇERİK GÖNDERİLDİ BİLDİRİMİ
+     * Eskiden panele çekim planı ya da içerik eklendiğinde müşterinin haberi olmuyordu;
+     * girip bakması gerekiyordu. Girmezse onay beklemede kalıyor ve tüm akış tıkanıyordu.
+     * Bu bildirim o döngüyü kapatır. */
+    if (mod === "musteriIcerik") {
+      const { adet, panelLinki } = req.body || {};
+      const sayi = Number(adet) || 1;
+      const html = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 520px; margin: 0 auto;">
+          ${req.body.logo ? `<div style="text-align:center;margin-bottom:18px;"><img src="${req.body.logo}" alt="" style="max-height:52px;max-width:200px;object-fit:contain;" /></div>` : ""}
+          <h2 style="color:#16181d;margin:0 0 6px;font-size:19px;">Onayınızı bekleyen içerik var</h2>
+          <p style="color:#4b5563;font-size:14px;line-height:1.7;margin:0 0 16px;">
+            Merhaba${ad ? ` ${ad}` : ""},<br/>
+            <strong>${marka || "markanız"}</strong> için ${sayi > 1 ? `<strong>${sayi} yeni içerik</strong>` : "yeni bir içerik"} paneline eklendi.
+            İnceleyip onaylayabilir ya da revize isteyebilirsiniz.
+          </p>
+          ${icerikTuru ? `<div style="background:#f7f8fa;border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:13.5px;color:#16181d;"><strong>${icerikTuru}</strong></div>` : ""}
+          ${panelLinki ? `<p style="margin:0 0 18px;"><a href="${panelLinki}" style="display:inline-block;background:#5B5BD6;color:#fff;text-decoration:none;padding:11px 22px;border-radius:9px;font-size:14px;font-weight:600;">Panele Git ve İncele</a></p>` : ""}
+          <p style="color:#9ca3af;font-size:12px;line-height:1.6;margin:0;">
+            Panele kendi kullanıcı adınız ve şifrenizle giriş yapabilirsiniz.<br/>
+            ${firmaAdi || "Marcus Medya"}
+          </p>
+        </div>`;
+      const r = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ from: "Marcus Medya App <bildirim@marcusmedya.com>", to: [email], subject: `${marka || "Markanız"} — onayınızı bekleyen içerik`, html }),
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        return res.status(200).json({ skipped: true, reason: `E-posta gönderilemedi: ${err.message || err.error || JSON.stringify(err)}` });
+      }
+      return res.status(200).json({ ok: true });
+    }
+
     if (mod === "uyelik") {
       const html = `
         <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">

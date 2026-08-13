@@ -30,7 +30,20 @@ export default async function handler(req, res) {
     }
 
     const resendKey = process.env.RESEND_API_KEY;
-    const toEmail = process.env.BACKUP_EMAIL;
+    /* YEDEK ADRESLERİ — birden fazla olabilir.
+     *
+     * NEDEN ÖNEMLİ: günlük, saatlik ve geri-yükleme-öncesi kopyaların HEPSİ aynı veritabanının
+     * (Upstash) içinde duruyor. O hesap silinir, askıya alınır ya da bir fatura sorunu çıkarsa
+     * hepsi birden gider. Bu e-posta, verinin veritabanı DIŞINDAKİ tek kopyası — dolayısıyla
+     * tek bir adrese bağlı kalmamalı.
+     *
+     * BACKUP_EMAIL virgülle ayrılmış birden fazla adres kabul eder:
+     *   BACKUP_EMAIL = "ben@ornek.com, yedek@gmail.com, ortak@ornek.com"
+     * Farklı sağlayıcılarda (biri Gmail, biri kurumsal) adres kullanmak, tek bir posta
+     * hesabının kapanması hâlinde de bir kopyanın kalmasını sağlar. */
+    const alicilar = String(process.env.BACKUP_EMAIL || "")
+      .split(",").map((x) => x.trim()).filter(Boolean);
+    const toEmail = alicilar[0];
     if (!resendKey || !toEmail) {
       return res.status(200).json({
         skipped: true,
@@ -50,12 +63,32 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         from: "Marcus Medya App <bildirim@marcusmedya.com>",
-        to: [toEmail],
+        to: alicilar,
         subject: `Marcus Medya App Günlük Yedek — ${today}`,
-        text: `Merhaba,\n\nEkte ${today} tarihli Marcus Medya App tam veri yedeğin bulunuyor. Bu e-postayı ve ekindeki dosyayı sakla — bir sorun olursa Ayarlar sayfasından bu dosyayı geri yükleyebilirsin.\n\nMarcus Medya App`,
+        text: `Merhaba,\n\nEkte ${today} tarihli Marcus Medya App tam veri yedeğin bulunuyor. Bu e-postayı ve ekindeki dosyayı sakla — bir sorun olursa Ayarlar sayfasından bu dosyayı geri yükleyebilirsin.\n\nÖNEMLİ: Bu dosya, verinin veritabanı DIŞINDAKİ tek kopyasıdır. Ayda bir tanesini bilgisayarına ya da buluta indirip saklaman, veritabanı hesabında bir sorun çıkması ihtimaline karşı en güçlü korumadır.\n\nMarcus Medya App`,
         attachments: [{ filename: `marcus-os-yedek-${today}.json`, content: base64 }],
       }),
     });
+
+    /* HAFTALIK ARŞİV — her pazar ayrı konuyla ikinci bir kopya gönderilir.
+     * Günlük yedekler posta kutusunda kaybolup gidiyor; haftalık olan "sakla" etiketiyle
+     * geldiği için arşivlenmesi kolay. */
+    const pazarMi = new Date().getDay() === 0;
+    if (pazarMi) {
+      try {
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            from: "Marcus Medya App <bildirim@marcusmedya.com>",
+            to: alicilar,
+            subject: `📦 HAFTALIK ARŞİV — Marcus Medya App (${today}) — SAKLA`,
+            text: `Bu haftalık arşiv kopyasıdır. Bu e-postayı SİLME — ayrı bir klasöre taşıyıp sakla.\n\nGünlük yedekler posta kutusunda birikip kayboluyor; bu kopya bilinçli olarak arşivlenmek için gönderiliyor. Veritabanı hesabında bir sorun çıkarsa geri dönebileceğin nokta budur.\n\nMarcus Medya App`,
+            attachments: [{ filename: `marcus-os-HAFTALIK-ARSIV-${today}.json`, content: base64 }],
+          }),
+        });
+      } catch (e) { /* arşiv gönderilemezse günlük yedek yine de geçerli */ }
+    }
 
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));

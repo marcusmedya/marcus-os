@@ -164,6 +164,100 @@ export default async function handler(req, res) {
       }
     }
 
+    /* ---------------------------------------------------------------- *
+     * AYLIK RAPOR HATIRLATMASI — her ayın 1'inde
+     *
+     * Rapor müşteriye OTOMATİK GÖNDERİLMEZ. Bilerek böyle: gözden geçirilmemiş bir rapor
+     * müşteriye gitseydi, eksik ya da yanlış bir rakam fark edilmeden dışarı çıkabilirdi.
+     * Bunun yerine hangi markanın raporunun hazır olduğu ve içinde ne olduğu sana e-postayla
+     * bildirilir; sen açıp göz atıp gönderirsin.
+     * ---------------------------------------------------------------- */
+    const bugunGun = new Date().getDate();
+    if (bugunGun === 1 && backupEmail && resendKey) {
+      const oncekiAy = (() => {
+        const d = new Date();
+        d.setDate(0); // bir önceki ayın son günü
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      })();
+      const ayAdi = (() => {
+        const [y, a] = oncekiAy.split("-").map(Number);
+        return new Date(y, a - 1, 1).toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
+      })();
+
+      const aktifMarkalar = (data.clients || []).filter((c) => c.durum !== "ayrildi" && c.durum !== "donduruldu");
+      const satirlar = aktifMarkalar.map((c) => {
+        const isler = (data.cekimIsleri || []).filter((j) =>
+          String(j.marka || "").trim().toLocaleLowerCase("tr") === String(c.ad || "").trim().toLocaleLowerCase("tr")
+          && j.teslimEdilmeTarihi && String(j.teslimEdilmeTarihi).slice(0, 7) === oncekiAy);
+        const paylasimlar = (data.haftalikPaylasimlar || []).filter((p) =>
+          String(p.clientId) === String(c.id) && p.yapildi
+          && String(p.yapildigiTarih || p.haftaKey || "").slice(0, 7) === oncekiAy);
+        const kampanyalar = (data.reklamlar || []).filter((r) =>
+          String(r.marka || "").trim().toLocaleLowerCase("tr") === String(c.ad || "").trim().toLocaleLowerCase("tr")
+          && (r.baslangicTarihi || "") <= `${oncekiAy}-31` && (r.bitisTarihi || "9999-12-31") >= `${oncekiAy}-01`);
+        const toplam = isler.length + paylasimlar.length + kampanyalar.length;
+        if (toplam === 0) return "";
+        return `<tr><td style="padding:7px 10px;border-bottom:1px solid #f0f0f0;">${c.ad}</td>
+          <td style="padding:7px 10px;border-bottom:1px solid #f0f0f0;text-align:center;">${isler.length}</td>
+          <td style="padding:7px 10px;border-bottom:1px solid #f0f0f0;text-align:center;">${paylasimlar.length}</td>
+          <td style="padding:7px 10px;border-bottom:1px solid #f0f0f0;text-align:center;">${kampanyalar.length}</td></tr>`;
+      }).filter(Boolean).join("");
+
+      if (satirlar) {
+        const html = `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 560px; margin: 0 auto;">
+            <h2 style="color:#16181d;margin:0 0 6px;font-size:19px;">${ayAdi} raporları hazır</h2>
+            <p style="color:#4b5563;font-size:13.5px;line-height:1.7;margin:0 0 16px;">
+              Aşağıdaki markalar için ${ayAdi} raporu oluşturulabilir durumda. Uygulamada
+              <strong>Müşteri Paneli → markayı seç → Aylık Müşteri Raporu</strong> bölümünden açıp
+              PDF olarak kaydedip gönderebilirsin.
+            </p>
+            <table style="border-collapse:collapse;width:100%;font-size:13px;border:1px solid #eee;border-radius:8px;overflow:hidden;">
+              <tr style="background:#f7f8fa;">
+                <th style="padding:8px 10px;text-align:left;">Marka</th>
+                <th style="padding:8px 10px;">Teslim</th>
+                <th style="padding:8px 10px;">Paylaşım</th>
+                <th style="padding:8px 10px;">Kampanya</th>
+              </tr>
+              ${satirlar}
+            </table>
+            <p style="font-size:12px;color:#9ca3af;margin-top:18px;line-height:1.6;">
+              Rapor otomatik gönderilmez — göz atman için hazırlanır.<br/>Marcus Medya App
+            </p>
+          </div>`;
+        sonuc.aylikRaporHatirlatmasi = await epostaGonder(resendKey, backupEmail, `${ayAdi} müşteri raporları hazır`, html);
+      }
+    }
+
+    /* VERİ BOYUTU UYARISI
+     * Tüm veri tek bir blok hâlinde yazılıyor ve Vercel tek istekte ~4.5 MB kabul ediyor.
+     * Bu sınır aşılırsa KAYITLAR TAMAMEN DURUR — üstelik sessizce, hata mesajı olmadan.
+     * Ayarlar'da bir gösterge var ama oraya bakmak gerekiyor; bu uyarı ayağına gelir. */
+    if (backupEmail && resendKey) {
+      const boyut = Buffer.byteLength(JSON.stringify(data || {}), "utf-8");
+      const SINIR = 4.5 * 1024 * 1024;
+      const oran = boyut / SINIR;
+      if (oran > 0.6) {
+        const mb = (boyut / (1024 * 1024)).toFixed(2);
+        const html = `
+          <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+            <h2 style="color:${oran > 0.85 ? "#b91c1c" : "#b45309"};">Veri boyutu uyarısı — %${Math.round(oran * 100)}</h2>
+            <p style="color:#333;line-height:1.7;">
+              Marcus Medya App verisi <strong>${mb} MB</strong> boyutuna ulaştı. Sunucu tek istekte
+              en fazla ~4.5 MB kabul ediyor; bu sınır aşılırsa <strong>kayıtlar tamamen durur.</strong>
+            </p>
+            <p style="color:#333;line-height:1.7;">
+              Yer açmak için: müşteri detaylarındaki eski içerik görsellerini sil, artık kullanılmayan
+              markaların eski kayıtlarını temizle. Ayarlar → <strong>Veri Boyutu</strong> kartından
+              güncel durumu görebilirsin.
+            </p>
+            <p style="font-size:12px;color:#999;margin-top:20px;">Marcus Medya App</p>
+          </div>`;
+        sonuc.veriBoyutuUyarisi = await epostaGonder(resendKey, backupEmail,
+          `${oran > 0.85 ? "ACİL" : "Uyarı"}: Veri boyutu %${Math.round(oran * 100)} (${mb} MB)`, html);
+      }
+    }
+
     return res.status(200).json({ ok: true, ...sonuc });
   } catch (e) {
     return res.status(500).json({ error: "Sunucu hatası: " + e.message });

@@ -1,6 +1,6 @@
 import { kv } from "@vercel/kv";
 import crypto from "crypto";
-import { KEY, guvenliGuncelle } from "../lib/kv-yaz.js";
+import { KEY, guvenliGuncelle, deftereYaz } from "../lib/kv-yaz.js";
 import { ownerYetkiliMi } from "../lib/oturum.js";
 
 const DEFAULT_PERMS = {
@@ -100,6 +100,8 @@ export default async function handler(req, res) {
           : { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ad, kullaniciAdi, email: email || "", izinler: { ...DEFAULT_PERMS }, sifreHash: hashSifre(sifre, salt), sifreSalt: salt };
         const guncel = [...hesaplar, yeni];
         if (!(await hesaplariYaz(alanAdi, guncel))) return res.status(500).json({ error: "Kaydedilemedi, tekrar dene." });
+        // Hesap açma/silme ve yetki değişiklikleri güvenlik defterine yazılır.
+        await deftereYaz("hesap-islemi", { hesapTuru: hesapTuru || "personel", action, id: id || null, ad: ad || null });
         return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel) });
       }
 
@@ -109,6 +111,8 @@ export default async function handler(req, res) {
         const salt = crypto.randomBytes(16).toString("hex");
         const guncel = hesaplar.map((h) => (h.id === id ? { ...h, sifreHash: hashSifre(sifre, salt), sifreSalt: salt } : h));
         if (!(await hesaplariYaz(alanAdi, guncel))) return res.status(500).json({ error: "Kaydedilemedi, tekrar dene." });
+        // Hesap açma/silme ve yetki değişiklikleri güvenlik defterine yazılır.
+        await deftereYaz("hesap-islemi", { hesapTuru: hesapTuru || "personel", action, id: id || null, ad: ad || null });
         return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel) });
       }
 
@@ -130,6 +134,8 @@ export default async function handler(req, res) {
           return yeni;
         });
         if (!(await hesaplariYaz(alanAdi, guncel))) return res.status(500).json({ error: "Kaydedilemedi, tekrar dene." });
+        // Hesap açma/silme ve yetki değişiklikleri güvenlik defterine yazılır.
+        await deftereYaz("hesap-islemi", { hesapTuru: hesapTuru || "personel", action, id: id || null, ad: ad || null });
         return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel) });
       }
 
@@ -137,6 +143,8 @@ export default async function handler(req, res) {
         if (!id) return res.status(400).json({ error: "id gerekli." });
         const guncel = hesaplar.filter((h) => h.id !== id);
         if (!(await hesaplariYaz(alanAdi, guncel))) return res.status(500).json({ error: "Kaydedilemedi, tekrar dene." });
+        // Hesap açma/silme ve yetki değişiklikleri güvenlik defterine yazılır.
+        await deftereYaz("hesap-islemi", { hesapTuru: hesapTuru || "personel", action, id: id || null, ad: ad || null });
         return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel) });
       }
 
@@ -147,6 +155,8 @@ export default async function handler(req, res) {
         if (clientId === undefined || clientId === null) return res.status(400).json({ error: "clientId gerekli." });
         const guncel = hesaplar.filter((h) => String(h.clientId) !== String(clientId));
         if (!(await hesaplariYaz(alanAdi, guncel))) return res.status(500).json({ error: "Kaydedilemedi, tekrar dene." });
+        // Hesap açma/silme ve yetki değişiklikleri güvenlik defterine yazılır.
+        await deftereYaz("hesap-islemi", { hesapTuru: hesapTuru || "personel", action, id: id || null, ad: ad || null });
         return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel) });
       }
 

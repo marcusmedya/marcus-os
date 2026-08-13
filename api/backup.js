@@ -1,6 +1,7 @@
 import { kv } from "@vercel/kv";
 import { KEY as MAIN_KEY, guvenliYaz, kilitAl, kilitBirak } from "../lib/kv-yaz.js";
 import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
+import { deftereYaz } from "../lib/kv-yaz.js";
 
 const PREFIX = "marcus-os-snapshot-";
 const SAATLIK_PREFIX = "marcus-os-saatlik-";
@@ -96,6 +97,8 @@ export default async function handler(req, res) {
         const snapshotV = typeof snapshot._v === "number" ? snapshot._v : 0;
         const yazilan = await guvenliYaz({ ...snapshot, _v: Math.max(mevcutV, snapshotV) });
 
+        // Geri yükleme en kritik işlemlerden biri — veriyi tamamen değiştirir.
+        await deftereYaz("yedek-geri-yuklendi", { kaynak: anahtar, geriAlmaEtiketi, ozet: ozetle(yazilan) });
         return res.status(200).json({ ok: true, _v: yazilan._v, geriAlmaEtiketi, ozet: ozetle(yazilan) });
       } finally {
         await kilitBirak(kilitAlindi);

@@ -22,6 +22,7 @@ export const DEFAULT_DATA = {
   avanslar: [],
   kisiselGorevler: [],
   hesapOlcumleri: [],
+  silinenler: [],
   freelancerlar: [],
   personelOdemeleri: [],
   islemGecmisi: [],

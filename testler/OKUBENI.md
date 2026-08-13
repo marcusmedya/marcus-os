@@ -25,3 +25,24 @@ Normalde bunları çalıştırmana gerek yok; her güncellemede Claude çalışt
 
 `t8` özellikle değerlidir: `api/backup.js` dosyasında eksik bir import yüzünden **yedekten
 geri yükleme özelliğinin tamamen çöktüğü** bu testle yakalandı.
+
+## Kod denetleyicileri (Python)
+
+Dosya bölme sonrası eklendi. Her paket öncesi çalıştırılır:
+
+```
+python3 testler/jsxdenetle.py src/*.jsx src/*.js api/*.js lib/*.js
+python3 testler/bozulma.py src/*.jsx
+python3 testler/importdenetle.py src/*.jsx src/*.js
+```
+
+- **jsxdenetle.py** — JSX-farkında sözdizimi kontrolü. Dize, şablon, yorum, regex ve JSX
+  etiketlerini doğru ayırt eder; Türkçe kesme işaretlerinde (`Drive'ın`) yanılmaz.
+- **bozulma.py** — bir kod parçasının yanlışlıkla metin şablonunun ortasına girmesini yakalar.
+  (Bir kez tam olarak bu yüzden uygulama hiç açılmadı.)
+- **importdenetle.py** — bir dosyanın kullandığı ama tanımlamadığı/import etmediği adları
+  bulur. Dosya bölerken en tehlikeli hata budur: sözdiziminden geçer, tarayıcıda patlar.
+
+**Bilinen yanlış alarmlar (normal):** `App.jsx → C, labelStyle`, `CekimEditTakibi → Personel`,
+`personel.jsx → Dashboard, Finans`. Bunlar JSX metninde geçen kelimeler. Bu üçünün dışında bir
+ad çıkarsa gerçek hatadır.
