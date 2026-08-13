@@ -262,9 +262,14 @@ export default async function handler(req, res) {
        *  - Her türlü maliyet, ücret ve personel bilgisi
        * ---------------------------------------------------------------- */
       const markaAdi = kendiMarka ? kendiMarka.ad : "";
+      /** Reklam ve Operasyon kayıtlarında marka, ID ile değil ADIYLA tutuluyor ve "Diğer
+       * (elle yaz)" seçeneğiyle serbest metin de girilebiliyor. Bu yüzden eşleştirme baştaki/
+       * sondaki boşluğa ve büyük-küçük harfe takılmadan yapılır — yoksa "Kanatçı Diren " gibi
+       * tek bir boşluk farkı, o markanın hiçbir reklamının görünmemesine yol açardı. */
+      const markaEsit = (deger) => String(deger || "").trim().toLocaleLowerCase("tr") === String(markaAdi).trim().toLocaleLowerCase("tr");
 
       const kendiReklamlari = (data.reklamlar || [])
-        .filter((r) => r.marka === markaAdi)
+        .filter((r) => markaEsit(r.marka))
         .map((r) => ({
           id: r.id,
           reklamAdi: r.reklamAdi,
@@ -286,7 +291,7 @@ export default async function handler(req, res) {
         }));
 
       const kendiIsleri = (data.cekimIsleri || [])
-        .filter((j) => j.marka === markaAdi)
+        .filter((j) => markaEsit(j.marka))
         .map((j) => ({
           id: j.id,
           icerikTuru: j.icerikTuru || "",

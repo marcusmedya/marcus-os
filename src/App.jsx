@@ -5191,9 +5191,12 @@ function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
   const [duzenlenen, setDuzenlenen] = useState(null);
   const [taslak, setTaslak] = useState("");
 
+  // Sunucudaki eşleştirmenin AYNISI: boşluk ve büyük-küçük harf farkını yok sayar.
+  // İki taraf aynı kuralı kullanmazsa, burada görünen bir kayıt müşteride görünmeyebilir.
+  const markaEsit = (deger) => String(deger || "").trim().toLocaleLowerCase("tr") === String(marka.ad || "").trim().toLocaleLowerCase("tr");
   const markaPlani = (plan || []).filter((p) => String(p.clientId) === String(marka.id));
-  const markaReklamlari = (reklamlar || []).filter((r) => r.marka === marka.ad);
-  const markaIsleri = (isler || []).filter((j) => j.marka === marka.ad);
+  const markaReklamlari = (reklamlar || []).filter((r) => markaEsit(r.marka));
+  const markaIsleri = (isler || []).filter((j) => markaEsit(j.marka));
 
   const buHafta = haftaBaslangici();
   const yaklasanPlan = markaPlani.filter((p) => p.haftaKey >= buHafta).sort((a, b) => (a.haftaKey > b.haftaKey ? 1 : -1));
@@ -6384,7 +6387,11 @@ function driveEmbedUrl(link) {
 /** Müşteri Paneli — owner/personel arayüzünden tamamen izole, sade bir onay ekranı.
  * Sadece kendi markasının içeriklerini görür; her içeriği onaylayabilir ya da revize isteyebilir. */
 function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
-  const [icerikler, setIcerikler] = useState(musteriData.icerikler);
+  const [icerikler, setIcerikler] = useState(musteriData.icerikler || []);
+  // Sunucudan yeni veri geldiğinde listeyi tazele. useState başlangıç değeri SADECE ilk
+  // render'da okunur — bu senkron olmadan, yönetici bir içerik ekleyip düzenlese ya da
+  // onay sonrası veri yenilense bile müşterinin ekranı ilk açılıştaki hâlinde donuyordu.
+  useEffect(() => { setIcerikler(musteriData.icerikler || []); }, [musteriData]);
   const [revizeAcikId, setRevizeAcikId] = useState(null);
   const [revizeMetni, setRevizeMetni] = useState("");
   const [gonderiliyor, setGonderiliyor] = useState(null);
@@ -6955,7 +6962,18 @@ export default function MarcusOS() {
         // akışına hiç girmez, kendi state'inde tutulur.
         if (res.role === "musteri") {
           setRole("musteri");
-          setMusteriData({ musteriAd: res.musteriAd, marka: res.marka, firmaAdi: res.firmaAdi, icerikler: res.icerikler || [] });
+          // Sunucudan gelen TÜM müşteri alanları alınır. Eskiden burada sadece dört alan
+          // tek tek kopyalanıyordu, bu yüzden sunucu reklamları/planı/operasyon işlerini
+          // gönderse bile tarayıcı onları sessizce atıyordu.
+          setMusteriData({
+            musteriAd: res.musteriAd,
+            marka: res.marka,
+            firmaAdi: res.firmaAdi,
+            icerikler: res.icerikler || [],
+            reklamlar: res.reklamlar || [],
+            paylasimPlani: res.paylasimPlani || [],
+            operasyonIsleri: res.operasyonIsleri || [],
+          });
           setNeedsAuth(false);
           setAuthError("");
           return;

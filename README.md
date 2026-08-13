@@ -742,3 +742,27 @@ bırakılanlar:
 Bu yaklaşım ileriye dönük de korur: bu kayıtlara sonradan eklenecek yeni bir iç alan (yeni bir
 maliyet kalemi, personel notu vb.) müşteri paneline kendiliğinden sızamaz — açıkça eklenmedikçe
 gitmez.
+
+## Güncelleme 28: Müşteri Panelinde Reklam/Plan/Durum Görünmeme Sorunu
+
+Bir önceki güncellemede eklenen bölümler müşteri panelinde boş çıkıyordu. **İki ayrı hata** vardı:
+
+### 1. Veri sunucudan geliyordu ama tarayıcı atıyordu (asıl sebep)
+Müşteri girişinden dönen yanıt işlenirken alanlar tek tek kopyalanıyordu:
+`{ musteriAd, marka, firmaAdi, icerikler }`. Yeni eklenen `reklamlar`, `paylasimPlani` ve
+`operasyonIsleri` bu listede olmadığı için sunucu göndermesine rağmen **sessizce siliniyordu**.
+Artık üçü de alınıyor.
+
+### 2. İçerik listesi ilk açılıştan sonra hiç tazelenmiyordu
+Müşteri panelindeki içerik listesi `useState(musteriData.icerikler)` ile kuruluyordu. Bu başlangıç
+değeri **sadece ilk render'da** okunur — sonrasında sunucudan yeni veri gelse bile liste
+güncellenmiyordu. Yani yönetici bir içerik ekleyip düzenlediğinde ya da onay sonrası veri
+yenilendiğinde müşterinin ekranı ilk açılıştaki hâlinde donuyordu. Artık sunucu verisi
+değiştiğinde liste otomatik tazeleniyor.
+
+### Ek sağlamlaştırma: marka eşleştirmesi
+Reklam ve Operasyon kayıtlarında marka, ID ile değil **adıyla** tutuluyor ve "Diğer (elle yaz)"
+seçeneğiyle serbest metin de girilebiliyor. Tek bir fazla boşluk ya da büyük/küçük harf farkı
+("Kanatçı Diren " vs "Kanatçı Diren") o markanın hiçbir reklamının görünmemesine yol açabilirdi.
+E�leştirme artık boşluk ve harf büyüklüğüne takılmıyor — hem sunucuda hem yönetici ekranında
+**aynı kural** kullanılıyor, böylece iki taraf asla farklı sonuç gösteremez.
