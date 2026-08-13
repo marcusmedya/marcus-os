@@ -1099,3 +1099,27 @@ belirtilmemiş eski kayıtlar da dikey kabul edilir.
 
 Değişiklik hem senin ekranında hem müşteri panelinde geçerli — ikisi de aynı çerçeve mantığını
 kullanıyor.
+
+## Güncelleme 39: ACİL DÜZELTME — Siyah Ekran
+
+**Sorun:** 58. sürümden sonra uygulama açılmıyordu, ekran siyah kalıyordu.
+
+**Sebep — benim hatam.** Video yönü özelliğini eklerken yeni bileşen, `driveEmbedUrl`
+fonksiyonunun içindeki metin şablonunun **ortasına** yazılmış. Şöyle bozulmuştu:
+
+```
+return `https://drive.google.com/file/d/${id}/
+   ...bileşen kodu araya girmiş...
+preview`;
+```
+
+JavaScript dosyası bu hâlde derlenemez; derlenemeyince de sayfa tamamen boş kalır. Düzenleme
+ikonuyla ilgisi yoktu — uygulama zaten hiç çalışmıyordu, sadece o tıklamada fark edildi.
+
+**Düzeltme:** Fonksiyon ve bileşen doğru sırayla ayrıldı, araya kaçan kalıntı temizlendi.
+Video yönü özelliği (58. güncelleme) olduğu gibi çalışıyor.
+
+**Bir daha olmaması için:** Bu tür bozulma parantez sayımıyla dengeli görünür, o yüzden
+mevcut kontrollerden kaçmıştı. Artık her pakete çıkmadan önce şablon literallerinin içinde
+kod parçası (fonksiyon tanımı, yorum bloğu, import satırı) olup olmadığı ayrıca taranıyor —
+tam olarak bu hatayı yakalayan bir kontrol.

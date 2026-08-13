@@ -7254,7 +7254,8 @@ function DriveGorsel({ link, yukseklik = 420, kapak = false, radius = 10 }) {
 function driveEmbedUrl(link) {
   const id = driveDosyaId(link);
   if (!id) return null;
-  return `https://drive.google.com/file/d/${id}/
+  return `https://drive.google.com/file/d/${id}/preview`;
+}
 
 /**
  * Drive video oynatıcısı — DİKEY/KARE/YATAY yön desteğiyle.
@@ -7271,11 +7272,11 @@ const VIDEO_YONLERI = [
   { key: "kare", label: "Kare (1:1)", oran: "1 / 1", maxGenislik: 440 },
   { key: "yatay", label: "Yatay (16:9)", oran: "16 / 9", maxGenislik: 640 },
 ];
-const videoYonu = (yon) => VIDEO_YONLERI.find((y) => y.key === yon) || VIDEO_YONLERI[0];
+const videoYonuBul = (yon) => VIDEO_YONLERI.find((y) => y.key === yon) || VIDEO_YONLERI[0];
 
 function DriveVideo({ link, yon, baslik }) {
   const embed = driveEmbedUrl(link);
-  const y = videoYonu(yon);
+  const y = videoYonuBul(yon);
   if (!embed) return null;
   return (
     <div style={{ maxWidth: y.maxGenislik, margin: "0 auto", width: "100%" }}>
@@ -7289,9 +7290,6 @@ function DriveVideo({ link, yon, baslik }) {
       </div>
     </div>
   );
-}
-
-preview`;
 }
 
 /** Müşteri Paneli — owner/personel arayüzünden tamamen izole, sade bir onay ekranı.
