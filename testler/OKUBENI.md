@@ -46,3 +46,19 @@ python3 testler/importdenetle.py src/*.jsx src/*.js
 **Bilinen yanlış alarmlar (normal):** `App.jsx → C, labelStyle`, `CekimEditTakibi → Personel`,
 `personel.jsx → Dashboard, Finans`. Bunlar JSX metninde geçen kelimeler. Bu üçünün dışında bir
 ad çıkarsa gerçek hatadır.
+
+## Sonradan eklenen iki denetleyici
+
+```
+python3 testler/ciftdenetle.py src/*.jsx src/*.js api/*.js lib/*.js
+python3 testler/jsxyapi.py src/*.jsx
+```
+
+- **ciftdenetle.py** — aynı isimde iki `const/let` tanımı. Bir düzenleme yanlışlıkla iki kez
+  uygulandığında oluşur; derlemeyi kırar ama parantez dengesi bozulmadığı için diğer
+  kontrollerden geçer.
+- **jsxyapi.py** — bir JSX bloğunun, açılmış başka bir bloğun ortasına girmesi. Aynı şekilde
+  dengeli görünür ama derlenmez.
+
+İkisi de gerçek bir deploy hatasından sonra yazıldı: `{saveBlocked && (` satırının ortasına
+bir uyarı şeridi eklenmiş ve aynı state iki kez tanımlanmıştı.

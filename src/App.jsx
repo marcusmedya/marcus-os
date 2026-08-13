@@ -6042,7 +6042,6 @@ export default function MarcusOS() {
   const [needsAuth, setNeedsAuth] = useState(false);
   const [kodAdimi, setKodAdimi] = useState(false); // iki adımlı doğrulamada kod ekranı
   const [ikiAdimliUyari, setIkiAdimliUyari] = useState(""); // kod adımı atlandıysa sebebi
-  const [ikiAdimliUyari, setIkiAdimliUyari] = useState(""); // kod adımı atlandıysa sebebi
   const [role, setRole] = useState(null); // "owner" | "staff" | "musteri"
   const [loggedStaffName, setLoggedStaffName] = useState("");
   const [musteriData, setMusteriData] = useState(null);
@@ -7956,7 +7955,6 @@ export default function MarcusOS() {
           onDismiss={() => setShowBackupReminder(false)}
         />
       )}
-      {saveBlocked && (
       {/* İki adımlı doğrulama atlandıysa uyar. Sunucu, e-posta gönderilemediğinde kod adımını
         * atlayıp girişe izin veriyor (kilitlenmeyi önlemek için bilinçli bir tercih) — ama
         * bunu sessizce yapıyordu, dolayısıyla korumanın çalıştığı sanılabilirdi. */}
@@ -7965,6 +7963,8 @@ export default function MarcusOS() {
           ⚠ İki adımlı doğrulama bu girişte ÇALIŞMADI — {ikiAdimliUyari} Ayarlar → Güvenlik'ten kontrol et.
         </div>
       )}
+
+      {saveBlocked && (
         <SaveBlockedModal
           info={saveBlocked}
           onCancel={() => setSaveBlocked(null)}
