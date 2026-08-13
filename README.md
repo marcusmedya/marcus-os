@@ -545,3 +545,29 @@ olduğunda geri dönecek bir şey kalmazdı.
 Personele Finans/Ödeme Takvimi açtıysan, onların gördüğü bakiyeler avans ve personel ödemelerini
 içermez (bu veriler güvenlik gereği personele hiç gönderilmiyor), dolayısıyla senin gördüğünden
 yüksek görünebilir. Bu sekmeler personele varsayılan olarak kapalıdır.
+
+## Güncelleme 22: "Planım" — Kişisel Not Defteri (sadece yönetici)
+
+Sol menüye, Dashboard'ın hemen altına **Planım** sekmesi eklendi. Yapman gerekenleri not
+aldığın kişisel alan — müşteri işlerinden (Operasyon) tamamen ayrı.
+
+### Nasıl çalışıyor
+- Kutuya yaz, **Enter**'a bas — not eklenir. Çoğu not için başka hiçbir şeye dokunman gerekmez.
+- **Tarih** isteğe bağlı. Verirsen not otomatik olarak doğru gruba düşer:
+  *Tarihi Geçti · Bugün · Bu Hafta · Sonra · Tarihsiz*
+- **● Önemli** işaretlediklerin kendi grubunun en üstünde ve kalın görünür
+- Nota tıklayınca metnini düzenlersin, soldaki kutucukla tamamlarsın
+- Tamamlananlar listeden çıkar, altta kapalı bir bölümde birikir (istersen geri alabilirsin)
+
+### Unutulmaya karşı
+Tarih verdiğin notlardan **bugüne ait** ve **tarihi geçmiş** olanlar, üstteki zil (bildirimler)
+listesine de düşer. Böylece not aldıktan sonra Planım'a girmeyi unutsan bile karşına çıkar.
+
+### Sadece sen görürsün
+`kisiselGorevler` sunucudaki personel izin listesinde yer almıyor — personelin tarayıcısına hiç
+gönderilmiyor. Personel menüsünde Planım sekmesi de yok.
+
+### Not: Operasyon'un dağınıklığı
+Operasyon şu an dört ayrı işi birden yapıyor (günlük takip / markalaşma / ay sonu ödeme raporu /
+istatistik) ve **Aylık İş Raporu** ile yeni **Personel → Freelancer** sekmesi büyük ölçüde aynı
+bilgiyi gösteriyor. Sadeleştirme için bir öneri hazır ama henüz uygulanmadı — karar senin.

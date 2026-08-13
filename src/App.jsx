@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Wallet, Settings, Sparkles,
   ArrowUpRight, ArrowDownRight, X, Send, Plus, Pencil, Trash2, Check,
   ChevronRight,
-  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp, Menu, Calendar, ChevronLeft, ListChecks, FileText, Megaphone, Share2, Lock, Camera, Shield, ClipboardCheck, Video, Copy, KeyRound, Eye, EyeOff, RefreshCw, CreditCard
+  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp, Menu, Calendar, ChevronLeft, ListChecks, FileText, Megaphone, Share2, Lock, Camera, Shield, ClipboardCheck, Video, Copy, KeyRound, Eye, EyeOff, RefreshCw, CreditCard, NotebookPen
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
@@ -4958,6 +4958,197 @@ function VeriBoyutuKarti() {
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* PLANIM — kişisel not defteri (sadece yönetici)                        */
+/* ------------------------------------------------------------------ */
+/**
+ * Yapılacak işlerini not aldığın kişisel alan. Bilerek sade tutuldu: hızlıca yaz, Enter'a bas.
+ * Tarih ve öncelik isteğe bağlı — çoğu not için hiç dokunmana gerek yok.
+ *
+ * Müşteri işlerinden (Operasyon) tamamen ayrıdır ve personele hiç gönderilmez.
+ */
+function Planim({ gorevler, onAdd, onUpdate, onDelete }) {
+  const [metin, setMetin] = useState("");
+  const [tarih, setTarih] = useState("");
+  const [onemli, setOnemli] = useState(false);
+  const [tamamlananlarAcik, setTamamlananlarAcik] = useState(false);
+  const [duzenleId, setDuzenleId] = useState(null);
+  const [duzenleMetin, setDuzenleMetin] = useState("");
+
+  const liste = gorevler || [];
+  const acikGorevler = liste.filter((g) => !g.tamamlandi);
+  const bitenler = liste.filter((g) => g.tamamlandi).slice().reverse();
+
+  const ekle = () => {
+    if (!metin.trim()) return;
+    onAdd({ baslik: metin.trim(), tarih: tarih || null, onemli, tamamlandi: false, olusturma: bugunISOTarih() });
+    setMetin("");
+    setTarih("");
+    setOnemli(false);
+  };
+
+  // Gruplama: tarihi geçmişler, bugün, bu hafta, sonrası, tarihsiz.
+  const bugun = bugunISOTarih();
+  const haftaSonu = (() => { const d = new Date(); d.setDate(d.getDate() + 7); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; })();
+
+  const gruplar = [
+    { key: "gecikmis", baslik: "Tarihi Geçti", renk: T.danger, filtre: (g) => g.tarih && g.tarih < bugun },
+    { key: "bugun", baslik: "Bugün", renk: T.warning, filtre: (g) => g.tarih === bugun },
+    { key: "hafta", baslik: "Bu Hafta", renk: T.text, filtre: (g) => g.tarih && g.tarih > bugun && g.tarih <= haftaSonu },
+    { key: "sonra", baslik: "Sonra", renk: T.textDim, filtre: (g) => g.tarih && g.tarih > haftaSonu },
+    { key: "tarihsiz", baslik: "Tarihsiz", renk: T.textFaint, filtre: (g) => !g.tarih },
+  ];
+
+  const gecikmisSayisi = acikGorevler.filter((g) => g.tarih && g.tarih < bugun).length;
+  const bugunSayisi = acikGorevler.filter((g) => g.tarih === bugun).length;
+
+  // Önemliler her grubun başında.
+  const sirala = (a, b) => (a.onemli === b.onemli ? 0 : a.onemli ? -1 : 1);
+
+  const duzenlemeyiKaydet = (g) => {
+    if (!duzenleMetin.trim()) { setDuzenleId(null); return; }
+    onUpdate(g.id, { baslik: duzenleMetin.trim() });
+    setDuzenleId(null);
+  };
+
+  const GorevSatiri = ({ g }) => (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", background: T.surfaceRaised, borderRadius: 10 }}>
+      <button
+        onClick={() => onUpdate(g.id, { tamamlandi: !g.tamamlandi, tamamlanmaTarihi: g.tamamlandi ? null : bugunISOTarih() })}
+        title={g.tamamlandi ? "Geri al" : "Tamamlandı olarak işaretle"}
+        style={{
+          width: 19, height: 19, minWidth: 19, marginTop: 1, borderRadius: 6, cursor: "pointer",
+          border: `1.5px solid ${g.tamamlandi ? T.success : T.border}`,
+          background: g.tamamlandi ? T.success : "transparent",
+          display: "flex", alignItems: "center", justifyContent: "center", padding: 0,
+        }}
+      >
+        {g.tamamlandi && <Check size={12} color="#fff" />}
+      </button>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {duzenleId === g.id ? (
+          <input
+            autoFocus
+            value={duzenleMetin}
+            onChange={(e) => setDuzenleMetin(e.target.value)}
+            onBlur={() => duzenlemeyiKaydet(g)}
+            onKeyDown={(e) => { if (e.key === "Enter") duzenlemeyiKaydet(g); if (e.key === "Escape") setDuzenleId(null); }}
+            style={{ ...inputStyle, marginBottom: 0 }}
+          />
+        ) : (
+          <button
+            onClick={() => { setDuzenleId(g.id); setDuzenleMetin(g.baslik); }}
+            title="Düzenlemek için tıkla"
+            style={{
+              background: "none", border: "none", padding: 0, cursor: "text", textAlign: "left", width: "100%",
+              fontSize: 13.5, fontFamily: "Inter, sans-serif", lineHeight: 1.5,
+              color: g.tamamlandi ? T.textFaint : T.text,
+              textDecoration: g.tamamlandi ? "line-through" : "none",
+              fontWeight: g.onemli && !g.tamamlandi ? 600 : 400,
+            }}
+          >
+            {g.onemli && !g.tamamlandi && <span style={{ color: T.warning, marginRight: 5 }}>●</span>}
+            {g.baslik}
+          </button>
+        )}
+        {g.tarih && (
+          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 3 }}>{tarihGoster(g.tarih)}</div>
+        )}
+      </div>
+
+      {!g.tamamlandi && (
+        <button style={iconBtnStyle} title={g.onemli ? "Önemli işaretini kaldır" : "Önemli olarak işaretle"} onClick={() => onUpdate(g.id, { onemli: !g.onemli })}>
+          <span style={{ color: g.onemli ? T.warning : T.textFaint, fontSize: 13 }}>●</span>
+        </button>
+      )}
+      <button style={iconBtnStyle} title="Sil" onClick={() => { if (window.confirm("Bu not silinsin mi?")) onDelete(g.id); }}>
+        <Trash2 size={13} color={T.textFaint} />
+      </button>
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 18 }}>
+        <KpiCard label="AÇIK NOT" value={acikGorevler.length} mono={false} />
+        {gecikmisSayisi > 0 && <KpiCard label="TARİHİ GEÇTİ" value={gecikmisSayisi} accent={T.danger} mono={false} />}
+        {bugunSayisi > 0 && <KpiCard label="BUGÜN" value={bugunSayisi} accent={T.warning} mono={false} />}
+      </div>
+      <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 16, lineHeight: 1.6 }}>
+        Yapman gerekenleri buraya not al. Sadece sen görürsün — personel paneline hiç gönderilmez.
+      </div>
+
+      {/* Hızlı ekleme */}
+      <Card style={{ padding: "14px 16px", marginBottom: 16 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            value={metin}
+            onChange={(e) => setMetin(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") ekle(); }}
+            placeholder="Ne yapman gerekiyor? Yaz ve Enter'a bas…"
+            style={{ ...inputStyle, flex: "1 1 260px", marginBottom: 0 }}
+          />
+          <input
+            type="date"
+            value={tarih}
+            onChange={(e) => setTarih(e.target.value)}
+            title="Tarih (isteğe bağlı)"
+            style={{ ...inputStyle, width: 150, marginBottom: 0 }}
+          />
+          <button
+            onClick={() => setOnemli((v) => !v)}
+            title="Önemli olarak işaretle"
+            style={{ padding: "9px 13px", borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 12.5, fontWeight: 600, background: onemli ? T.warningSoft : T.surfaceRaised, color: onemli ? T.warning : T.textFaint }}
+          >
+            ● Önemli
+          </button>
+          <button style={saveBtnStyle} onClick={ekle}>Ekle</button>
+        </div>
+      </Card>
+
+      {acikGorevler.length === 0 && (
+        <Card style={{ padding: "28px 16px", textAlign: "center" }}>
+          <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", lineHeight: 1.7 }}>
+            Şu an açık bir notun yok.{bitenler.length > 0 ? " Tamamladıklarını aşağıdan görebilirsin." : " Yukarıdan ilk notunu ekleyebilirsin."}
+          </div>
+        </Card>
+      )}
+
+      {gruplar.map((grup) => {
+        const items = acikGorevler.filter(grup.filtre).sort(sirala);
+        if (items.length === 0) return null;
+        return (
+          <div key={grup.key} style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 11.5, color: grup.renk, fontFamily: "Inter", fontWeight: 700, marginBottom: 8, letterSpacing: 0.3 }}>
+              {grup.baslik.toLocaleUpperCase("tr")} ({items.length})
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {items.map((g) => <GorevSatiri key={g.id} g={g} />)}
+            </div>
+          </div>
+        );
+      })}
+
+      {bitenler.length > 0 && (
+        <div style={{ marginTop: 20 }}>
+          <button
+            onClick={() => setTamamlananlarAcik((v) => !v)}
+            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 12, color: T.textDim, fontFamily: "Inter", fontWeight: 600 }}
+          >
+            {tamamlananlarAcik ? "▾" : "▸"} Tamamlananlar ({bitenler.length})
+          </button>
+          {tamamlananlarAcik && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+              {bitenler.slice(0, 50).map((g) => <GorevSatiri key={g.id} g={g} />)}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu, onSaveTeblig, staffPermissions, onUpdatePermissions, markaKimligiGorseli, onSaveMarkaKimligi, onRosterChange, clients, gizlilikModu, onToggleGizlilik, islemGecmisi }) {
   const fileInputRef = useRef(null);
   const rows = [
@@ -5916,6 +6107,7 @@ function SaveBlockedModal({ info, onCancel, onForce }) {
 /* ------------------------------------------------------------------ */
 const NAV = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { key: "planim", label: "Planım", icon: NotebookPen },
   { key: "musteriler", label: "Müşteriler", icon: Users },
   { key: "finans", label: "Finans", icon: Wallet },
   { key: "takvim", label: "Takvim", icon: Calendar },
@@ -6622,6 +6814,12 @@ export default function MarcusOS() {
 
   const addFon = (f) => setData((d) => ({ ...d, birikimler: [...(d.birikimler || []), { ...f, bakiye: 0, hareketler: [], id: nextId(d.birikimler || []) }] }));
   const deleteFon = (id) => setData((d) => ({ ...d, birikimler: (d.birikimler || []).filter((f) => f.id !== id) }));
+  /** Planım — kişisel notlar. Sadece yöneticiye ait; sunucudaki personel izin listesinde
+   * yer almadığı için personelin tarayıcısına hiç gönderilmez. */
+  const addGorev = (g) => setData((d) => ({ ...d, kisiselGorevler: [...(d.kisiselGorevler || []), { ...g, id: nextId(d.kisiselGorevler || []) }] }));
+  const updateGorev = (id, patch) => setData((d) => ({ ...d, kisiselGorevler: (d.kisiselGorevler || []).map((g) => (g.id === id ? { ...g, ...patch } : g)) }));
+  const deleteGorev = (id) => setData((d) => ({ ...d, kisiselGorevler: (d.kisiselGorevler || []).filter((g) => g.id !== id) }));
+
   const addFonHareket = (fonId, tip, tutar, not, tarih) => setData((d) => ({
     ...d,
     birikimler: (d.birikimler || []).map((f) => {
@@ -6777,6 +6975,13 @@ export default function MarcusOS() {
   const notifications = useMemo(() => {
     if (!data || role === "staff" || !data.clients) return [];
     const items = [];
+    // Planım'daki kişisel notlar — tarihi geçmiş ve bugüne ait olanlar bildirime düşer,
+    // böylece not aldıktan sonra unutulup gitmez.
+    const buGun = bugunISOTarih();
+    (data.kisiselGorevler || []).filter((g) => !g.tamamlandi && g.tarih).forEach((g) => {
+      if (g.tarih < buGun) items.push({ text: `Planım: ${g.baslik} — tarihi geçti (${tarihGoster(g.tarih)})`, level: "danger" });
+      else if (g.tarih === buGun) items.push({ text: `Planım: ${g.baslik} — bugün`, level: "warning" });
+    });
     data.clients.filter((c) => c.durum !== "ayrildi" && c.durum !== "donduruldu").forEach((c) => {
       const st = clientPaymentStatus(c);
       if (st && st.status === "gecikti") items.push({ text: `${c.ad}: ödeme ${st.label} — ${fmt(c.aylikUcret)}`, level: "danger" });
@@ -7262,6 +7467,7 @@ export default function MarcusOS() {
 
         <div style={{ padding: isMobile ? "16px 16px 32px" : "20px 30px 40px" }}>
           {tab === "dashboard" && <Dashboard data={data} onAsk={() => openAi()} />}
+          {tab === "planim" && <Planim gorevler={data.kisiselGorevler || []} onAdd={addGorev} onUpdate={updateGorev} onDelete={deleteGorev} />}
           {tab === "musteriler" && (
             <Musteriler
               clients={data.clients}

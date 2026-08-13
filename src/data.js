@@ -20,6 +20,7 @@ export const DEFAULT_DATA = {
   isUcretleri: {},
   isUcretDetaylari: {},
   avanslar: [],
+  kisiselGorevler: [],
   freelancerlar: [],
   personelOdemeleri: [],
   islemGecmisi: [],
