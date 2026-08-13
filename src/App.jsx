@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import TeklifSozlesme from "./TeklifSozlesme.jsx";
-import CekimEditTakibi, { operasyonAylikHakEdis, operasyonKisiIsimleri } from "./CekimEditTakibi.jsx";
+import CekimEditTakibi, { operasyonAylikHakEdis, operasyonKisiIsimleri, ASAMALAR_VIDEO, ASAMALAR_TASARIM } from "./CekimEditTakibi.jsx";
 import {
   LayoutDashboard, Users, Wallet, Settings, Sparkles,
   ArrowUpRight, ArrowDownRight, X, Send, Plus, Pencil, Trash2, Check,
@@ -1165,7 +1165,9 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, k
       // Düzenlenen içerik müşteriye tekrar sunulur: durum "bekliyor"a döner ve varsa eski
       // revize notu temizlenir — yoksa müşteri değiştirdiğin metni onaylayamaz, ekranında
       // eski "revize istendi" durumu asılı kalırdı.
-      onUpdate(duzenlenenId, { ...govdeVerisi, durum: "bekliyor", revizeNotu: null, guncellemeTarihi: new Date().toLocaleDateString("tr-TR") });
+      // operasyonaAktarildi sıfırlanır: bu düzeltilmiş sürüm müşteriye yeniden gidiyor,
+      // bundan sonra gelecek yeni bir revize isteği onay kutusuna tekrar düşebilmeli.
+      onUpdate(duzenlenenId, { ...govdeVerisi, durum: "bekliyor", revizeNotu: null, operasyonaAktarildi: false, guncellemeTarihi: new Date().toLocaleDateString("tr-TR") });
     } else {
       onAdd(clientId, { ...govdeVerisi, tarih: new Date().toLocaleDateString("tr-TR") });
     }
@@ -5914,16 +5916,21 @@ function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, 
  */
 function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, onOperasyonaAktar, onAta, onGit }) {
   const [acikId, setAcikId] = useState(null);
-  const [form, setForm] = useState({ kategori: "Video", kameraman: "", editor: "", teslimTarihi: "" });
+  const [form, setForm] = useState({ kategori: "Video", kameraman: "", editor: "", teslimTarihi: "", asama: "" });
 
   const markaAdi = (clientId) => ((clients || []).find((c) => String(c.id) === String(clientId)) || {}).ad || "Müşteri";
 
-  const revizeler = (icerikler || []).filter((i) => i.durum === "revize");
+  // Aktarılmış olanlar listeden düşer — ama müşteri panelindeki "Revize İstendi" durumu
+  // korunur, çünkü müşteri düzeltilmiş içeriği henüz görmedi.
+  const revizeler = (icerikler || []).filter((i) => i.durum === "revize" && !i.operasyonaAktarildi);
+  /** Müşterinin ONAYLADIĞI ama henüz Operasyon'a aktarılmamış çekim planları. Artık otomatik
+   * iş açılmıyor — kimin yapacağına ve hangi aşamada başlayacağına sen karar veriyorsun. */
+  const onaylananlar = (icerikler || []).filter((i) => i.tur === "cekim" && i.durum === "onaylandi" && !i.olusturulanIsId);
   const atanmamislar = (isler || []).filter(
     (j) => j.asama !== "Teslim Edildi" && !String(j.kameraman || "").trim() && !String(j.editor || "").trim()
   );
 
-  if (revizeler.length === 0 && atanmamislar.length === 0) return null;
+  if (revizeler.length === 0 && onaylananlar.length === 0 && atanmamislar.length === 0) return null;
 
   // Atama için isim havuzu: kayıtlı personel + freelancer'lar, tekrarsız.
   const kisiler = Array.from(new Set([
@@ -5931,13 +5938,26 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, onOperas
     ...(freelancerlar || []).map((f) => f.ad),
   ].filter(Boolean)));
 
+  /** Aktarım formunu açar. Varsayılan aşama duruma göre değişir:
+   *  - Müşteri ONAYLADIYSA: çekim zaten yapılmış oluyor → "Çekim Yapıldı" (Grafik'te
+   *    "Tasarım Bekliyor"), yani iş doğrudan edit/tasarım sırasına girer.
+   *  - REVİZE isteğiyse: "Revize İstendi".
+   * Her durumda aşamayı formdan değiştirebilirsin. */
+  const varsayilanAsama = (kategori, onaylandiMi) => {
+    if (!onaylandiMi) return "Revize İstendi";
+    return kategori === "Grafik Tasarım" ? "Tasarım Bekliyor" : "Çekim Yapıldı";
+  };
+
   const formuAc = (i) => {
+    const kat = i.kategori === "Grafik Tasarım" ? "Grafik Tasarım" : "Video";
+    const onaylandiMi = i.durum === "onaylandi";
     setAcikId(i.id);
     setForm({
-      kategori: i.kategori === "Grafik Tasarım" ? "Grafik Tasarım" : "Video",
+      kategori: kat,
       kameraman: "",
       editor: "",
       teslimTarihi: i.planlananTarih || bugunISOTarih(),
+      asama: varsayilanAsama(kat, onaylandiMi),
     });
   };
 
@@ -5949,20 +5969,10 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, onOperas
     setAcikId(null);
   };
 
-  const KisiSecici = ({ deger, onChange, etiket }) => (
-    <div style={{ flex: "1 1 150px" }}>
-      <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>{etiket}</label>
-      <select value={deger} onChange={(e) => onChange(e.target.value)} style={{ ...inputStyle, marginBottom: 0 }}>
-        <option value="">— seçilmedi —</option>
-        {kisiler.map((ad) => <option key={ad} value={ad}>{ad}</option>)}
-      </select>
-    </div>
-  );
-
   return (
     <Card style={{ padding: "16px 18px", marginBottom: 18, border: `1px solid ${T.warning}` }}>
       <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 4 }}>
-        Onayını Bekleyenler ({revizeler.length + atanmamislar.length})
+        Onayını Bekleyenler ({revizeler.length + onaylananlar.length + atanmamislar.length})
       </div>
       <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 14, lineHeight: 1.6 }}>
         Müşteriden gelen revize istekleri ve kimseye atanmamış işler. Buradan kişi atayıp Operasyon'a düşürebilirsin.
@@ -5990,35 +6000,28 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, onOperas
             )}
           </div>
 
-          {acikId === i.id && (
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
-              <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 5 }}>Hangi alana düşsün?</label>
-              <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-                {["Video", "Grafik Tasarım"].map((k) => (
-                  <button
-                    key={k}
-                    onClick={() => setForm((f) => ({ ...f, kategori: k }))}
-                    style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 12, fontWeight: 600,
-                      background: form.kategori === k ? T.accentSoft : T.surface, color: form.kategori === k ? T.accentText : T.textDim }}
-                  >
-                    {k}
-                  </button>
-                ))}
+          {acikId === i.id && <AktarimFormu i={i} form={form} setForm={setForm} kisiler={kisiler} varsayilanAsama={varsayilanAsama} onAktar={() => aktar(i)} onVazgec={() => setAcikId(null)} />}
+        </div>
+      ))}
+
+      {onaylananlar.map((i) => (
+        <div key={`ony-${i.id}`} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "11px 13px", marginBottom: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
+                <span style={{ color: T.success }}>Müşteri onayladı · </span>
+                {markaAdi(i.clientId)} — {basligiTemizle(i.aciklama) || "Çekim Planı"}
               </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
-                {form.kategori === "Video" && <KisiSecici etiket="Kameraman" deger={form.kameraman} onChange={(v) => setForm((f) => ({ ...f, kameraman: v }))} />}
-                <KisiSecici etiket={form.kategori === "Video" ? "Editör" : "Tasarımcı"} deger={form.editor} onChange={(v) => setForm((f) => ({ ...f, editor: v }))} />
-                <div style={{ flex: "1 1 140px" }}>
-                  <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Teslim tarihi</label>
-                  <input type="date" value={form.teslimTarihi} onChange={(e) => setForm((f) => ({ ...f, teslimTarihi: e.target.value }))} style={{ ...inputStyle, marginBottom: 0 }} />
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button style={saveBtnStyle} onClick={() => aktar(i)}>Operasyona Aktar</button>
-                <button style={cancelBtnStyle} onClick={() => setAcikId(null)}>Vazgeç</button>
+              <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>
+                {i.kategori || "Video"}
+                {i.planlananTarih ? ` · Planlanan çekim: ${tarihGoster(i.planlananTarih)}` : ""}
               </div>
             </div>
-          )}
+            {acikId !== i.id && (
+              <button style={saveBtnStyle} onClick={() => formuAc(i)}>Operasyona Aktar</button>
+            )}
+          </div>
+          {acikId === i.id && <AktarimFormu i={i} form={form} setForm={setForm} kisiler={kisiler} varsayilanAsama={varsayilanAsama} onAktar={() => aktar(i)} onVazgec={() => setAcikId(null)} />}
         </div>
       ))}
 
@@ -6026,6 +6029,61 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, onOperas
         <AtanmamisIsSatiri key={`is-${j.id}`} job={j} kisiler={kisiler} onAta={onAta} />
       ))}
     </Card>
+  );
+}
+
+/**
+ * Aktarım formu — hem revize istekleri hem müşterinin onayladığı planlar için AYNI form.
+ * Tek yerde tanımlı olduğu için iki akış zamanla birbirinden ayrışamaz.
+ */
+function AktarimFormu({ i, form, setForm, kisiler, varsayilanAsama, onAktar, onVazgec }) {
+  const KisiSecici = ({ deger, onChange, etiket }) => (
+    <div style={{ flex: "1 1 150px" }}>
+      <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>{etiket}</label>
+      <select value={deger} onChange={(e) => onChange(e.target.value)} style={{ ...inputStyle, marginBottom: 0 }}>
+        <option value="">— seçilmedi —</option>
+        {kisiler.map((ad) => <option key={ad} value={ad}>{ad}</option>)}
+      </select>
+    </div>
+  );
+  const onaylandiMi = i.durum === "onaylandi";
+
+  return (
+    <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
+      <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 5 }}>Hangi alana düşsün?</label>
+      <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+        {["Video", "Grafik Tasarım"].map((k) => (
+          <button
+            key={k}
+            onClick={() => setForm((f) => ({ ...f, kategori: k, asama: varsayilanAsama(k, onaylandiMi) }))}
+            style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 12, fontWeight: 600,
+              background: form.kategori === k ? T.accentSoft : T.surface, color: form.kategori === k ? T.accentText : T.textDim }}
+          >
+            {k}
+          </button>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+        {form.kategori === "Video" && <KisiSecici etiket="Kameraman" deger={form.kameraman} onChange={(v) => setForm((f) => ({ ...f, kameraman: v }))} />}
+        <KisiSecici etiket={form.kategori === "Video" ? "Editör" : "Tasarımcı"} deger={form.editor} onChange={(v) => setForm((f) => ({ ...f, editor: v }))} />
+        <div style={{ flex: "1 1 140px" }}>
+          <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Teslim tarihi</label>
+          <input type="date" value={form.teslimTarihi} onChange={(e) => setForm((f) => ({ ...f, teslimTarihi: e.target.value }))} style={{ ...inputStyle, marginBottom: 0 }} />
+        </div>
+        <div style={{ flex: "1 1 160px" }}>
+          <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Hangi aşamada başlasın?</label>
+          <select value={form.asama} onChange={(e) => setForm((f) => ({ ...f, asama: e.target.value }))} style={{ ...inputStyle, marginBottom: 0 }}>
+            {(form.kategori === "Grafik Tasarım" ? ASAMALAR_TASARIM : ASAMALAR_VIDEO)
+              .filter((a) => a !== "Teslim Edildi")
+              .map((a) => <option key={a} value={a}>{a}</option>)}
+          </select>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button style={saveBtnStyle} onClick={onAktar}>Operasyona Aktar</button>
+        <button style={cancelBtnStyle} onClick={onVazgec}>Vazgeç</button>
+      </div>
+    </div>
   );
 }
 
@@ -8522,23 +8580,27 @@ export default function MarcusOS() {
    * Bağlı bir iş zaten varsa onu "Revize İstendi" aşamasına alır ve atamayı günceller;
    * yoksa seçtiğin kategorinin ilk aşamasında yeni bir iş açar.
    */
-  const revizeyiOperasyonaAktar = (icerikId, { kategori, kameraman, editor, teslimTarihi }) => setData((d) => {
+  const revizeyiOperasyonaAktar = (icerikId, { kategori, kameraman, editor, teslimTarihi, asama }) => setData((d) => {
     const icerik = (d.musteriIcerikleri || []).find((i) => i.id === icerikId);
     if (!icerik) return d;
     const marka = ((d.clients || []).find((c) => String(c.id) === String(icerik.clientId)) || {}).ad || "";
     const isler = d.cekimIsleri || [];
     const zaman = new Date().toLocaleString("tr-TR");
-    const notMetni = `Revize Operasyon'a aktarıldı${icerik.revizeNotu ? `: "${icerik.revizeNotu}"` : ""}`;
+    const onaylandiMi = icerik.durum === "onaylandi";
+    const notMetni = onaylandiMi
+      ? "Müşteri onayladı — yönetici Operasyon'a aktardı."
+      : `Revize Operasyon'a aktarıldı${icerik.revizeNotu ? `: "${icerik.revizeNotu}"` : ""}`;
 
     // Bağlı iş varsa onu güncelle
     if (icerik.kaynakIsId && isler.some((j) => j.id === icerik.kaynakIsId)) {
       return {
         ...d,
+        musteriIcerikleri: (d.musteriIcerikleri || []).map((i) => (i.id === icerikId ? { ...i, operasyonaAktarildi: true } : i)),
         cekimIsleri: isler.map((j) => {
           if (j.id !== icerik.kaynakIsId) return j;
           return {
             ...j,
-            asama: "Revize İstendi",
+            asama: asama || "Revize İstendi",
             kameraman: kameraman || j.kameraman,
             editor: editor || j.editor,
             teslimTarihi: teslimTarihi || j.teslimTarihi,
@@ -8555,8 +8617,10 @@ export default function MarcusOS() {
       id: yeniId,
       kategori: kat,
       marka,
-      icerikTuru: (icerik.aciklama || "Revize işi").slice(0, 120),
-      asama: kat === "Grafik Tasarım" ? "Talep Alındı" : "Çekim Planlandı",
+      icerikTuru: (icerik.aciklama || (onaylandiMi ? "Çekim planı" : "Revize işi")).slice(0, 120),
+      // Aşamayı formda sen seçiyorsun. Varsayılanlar: müşteri onayladıysa "Çekim Yapıldı"
+      // (Grafik'te "Tasarım Bekliyor"), revize isteğiyse "Revize İstendi".
+      asama: asama || "Revize İstendi",
       cekimTarihi: teslimTarihi || bugunISOTarih(),
       teslimTarihi: teslimTarihi || bugunISOTarih(),
       kameraman: kameraman || "",
@@ -8566,6 +8630,7 @@ export default function MarcusOS() {
       uretilenAdet: "",
       brief: [
         icerik.revizeNotu ? `MÜŞTERİ REVİZE NOTU:\n${icerik.revizeNotu}` : "",
+        icerik.konusmali ? `Tip: ${icerik.konusmali === "konusmali" ? "Konuşmalı" : icerik.konusmali === "seslendirme" ? "Dış ses" : "Konuşmasız"}` : "",
         icerik.konusmaMetni ? `\nKONUŞMA METNİ:\n${icerik.konusmaMetni}` : "",
         icerik.cekimNotu ? `\nÇEKİM NOTU:\n${icerik.cekimNotu}` : "",
       ].filter(Boolean).join("\n"),
@@ -8576,9 +8641,11 @@ export default function MarcusOS() {
     return {
       ...d,
       cekimIsleri: [...isler, yeniIs],
-      // Kaydı işe bağla ki onay kutusunda tekrar tekrar çıkmasın ve sonraki müşteri
-      // yanıtları doğru işi güncellesin.
-      musteriIcerikleri: (d.musteriIcerikleri || []).map((i) => (i.id === icerikId ? { ...i, durum: "bekliyor", kaynakIsId: yeniId, olusturulanIsId: yeniId } : i)),
+      // Kaydı işe bağla ve "aktarıldı" olarak işaretle: onay kutusundan düşer ama müşteri
+      // panelindeki durumu "Revize İstendi" olarak KALIR. Durumu "bekliyor"a çekmek yanlış
+      // olurdu — müşteriye "incelemeni bekliyor" derdi, oysa ortada inceleyeceği yeni bir
+      // şey yok; düzeltilmiş içerik gönderildiğinde durum zaten kendiliğinden değişir.
+      musteriIcerikleri: (d.musteriIcerikleri || []).map((i) => (i.id === icerikId ? { ...i, kaynakIsId: yeniId, olusturulanIsId: yeniId, operasyonaAktarildi: true } : i)),
     };
   });
 

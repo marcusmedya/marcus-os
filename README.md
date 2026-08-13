@@ -960,3 +960,66 @@ hallolduğunda kutudan kendiliğinden düşer — senkronu bozacak ikinci bir ko
 ### Bildirimler
 Üstteki zil listesine artık **atanmamış işler** de düşüyor. Revize bildirimleri de nereden
 işlem yapacağını söylüyor ("Planım'daki onay kutusundan Operasyon'a aktarabilirsin").
+
+## Güncelleme 34: Revize Doğru Aşamaya Düşüyor
+
+**Hata:** Onay kutusundan "Operasyona Aktar" dendiğinde, henüz bir işe bağlı olmayan revize
+istekleri için **"Çekim Planlandı"** (Grafik Tasarım'da "Talep Alındı") aşamasında iş
+açılıyordu. Bu yanlış — o aşama yeni bir çekim için ayrılmış olmalı.
+
+**Düzeltme:** Revizeden açılan iş artık doğrudan **"Revize İstendi"** aşamasında başlıyor.
+Her iki kategoride de geçerli. Zaten bağlı bir iş varsa o da eskisi gibi "Revize İstendi"ye
+alınıyor — yani iki yol da aynı yere çıkıyor.
+
+Akış artık şöyle:
+
+| Olay | Düştüğü aşama |
+|---|---|
+| Müşteri çekim planını **ilk kez onaylar** | Video → **Çekim Planlandı** · Grafik → **Talep Alındı** |
+| Müşteri **revize ister**, sen aktarırsın | **Revize İstendi** |
+
+### Yan etki de düzeltildi
+Aktarım sonrası kaydın durumu "bekliyor"a çekiliyordu — müşteri panelinde "incelemeni
+bekliyor" diye görünüyordu, oysa müşterinin inceleyeceği yeni bir şey yoktu.
+
+Artık durum **"Revize İstendi"** olarak kalıyor; kayıt onay kutusundan ayrı bir işaretle
+(`operasyonaAktarildi`) düşüyor. Düzeltilmiş içeriği gönderdiğinde durum kendiliğinden
+"Bekliyor"a dönüyor.
+
+Bu işaret iki yerde sıfırlanıyor, böylece kilitlenme olmuyor:
+- Sen içeriği düzenleyip tekrar gönderdiğinde
+- Müşteri **yeniden** revize istediğinde (önceki istek aktarılmış olsa bile yeni istek
+  onay kutusunda tekrar görünür)
+
+## Güncelleme 35: Onaylanan Çekim Planları da Senin Onayınla ve Atamanla Düşüyor
+
+**Önceki durum:** Müşteri bir çekim planını onaylayınca Operasyon'da iş **otomatik** açılıyordu —
+kimseye atanmamış hâlde ve her zaman "Çekim Planlandı" aşamasında. Oysa siz içerik fikrini
+çekimden önce gönderiyorsunuz; onay geldiğinde çekim çoktan yapılmış oluyor ve iş doğrudan edit
+sırasına girmeli.
+
+**Yeni akış:** Otomatik iş açılması **kaldırıldı**. Müşteri onayladığında kayıt
+**Planım → Onayını Bekleyenler** kutusuna düşüyor. Sen "Operasyona Aktar" dediğinde açılan formda:
+
+- **Hangi alana düşsün?** Video / Grafik Tasarım
+- **Kim yapacak?** Kameraman ve Editör/Tasarımcı
+- **Teslim tarihi**
+- **Hangi aşamada başlasın?** — tüm aşamalar listelenir, istediğini seçersin
+
+Varsayılan aşamalar duruma göre farklı:
+
+| Durum | Varsayılan aşama |
+|---|---|
+| Müşteri **onayladı** (Video) | **Çekim Yapıldı** |
+| Müşteri **onayladı** (Grafik Tasarım) | **Tasarım Bekliyor** |
+| Müşteri **revize istedi** | **Revize İstendi** |
+
+Hepsi formdan değiştirilebilir — varsayılan sadece en sık kullanılan seçenek.
+
+Konuşma metni, çekim notu, içerik tipi ve varsa müşterinin revize notu işin **brief**'ine
+yazılıyor; işlem geçmişine de kimin aktardığı kaydediliyor.
+
+### Kod tarafında
+Revize ve onay akışları **aynı aktarım formunu** (`AktarimFormu`) kullanıyor — tek yerde tanımlı
+olduğu için iki akış zamanla birbirinden ayrışamaz. Kutu hâlâ hesaplanan bir liste, saklanmıyor;
+aktarılan kayıt kendiliğinden düşüyor.

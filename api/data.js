@@ -345,47 +345,11 @@ export default async function handler(req, res) {
           if (musteriAction === "onayla") {
             yeni.musteriIcerikleri = liste.map((i) => (i.id === icerikId ? { ...i, durum: "onaylandi", revizeNotu: null, yanitTarihi: new Date().toLocaleDateString("tr-TR") } : i));
 
-            /* SENKRON: müşteri bir ÇEKİM PLANINI onayladığında Operasyon'da otomatik iş açılır.
-             * Kategoriye göre doğru akışa düşer (Video → Çekim Planlandı, Grafik Tasarım →
-             * Talep Alındı). Böylece onaylanan plan üretime elle aktarılmak zorunda kalmaz.
-             *
-             * Zaten bir işe bağlıysa (kaynakIsId doluysa) YENİ İŞ AÇILMAZ — müşteri onayı
-             * geri alıp tekrar onaylarsa aynı iş ikinci kez oluşmasın diye. */
-            if (icerik.tur === "cekim" && !icerik.kaynakIsId) {
-              const kategori = icerik.kategori === "Grafik Tasarım" ? "Grafik Tasarım" : "Video";
-              const marka = ((guncel.clients || []).find((c) => String(c.id) === String(musteriClientId)) || {}).ad || "";
-              const bugun = new Date().toISOString().slice(0, 10);
-              const mevcutIsler = guncel.cekimIsleri || [];
-              const yeniId = mevcutIsler.reduce((m, j) => Math.max(m, Number(j.id) || 0), 0) + 1;
+            /* NOT: Müşteri bir çekim planını onayladığında Operasyon'da iş OTOMATİK AÇILMAZ.
+             * İş, yöneticinin Planım > Onay Kutusu'ndan onaylamasıyla ve orada yaptığı
+             * atamalarla (kim yapacak, hangi aşamada başlayacak) açılır. Böylece panoya
+             * kimsenin üstünde olmayan, aşaması yanlış işler düşmez. */
 
-              const yeniIs = {
-                id: yeniId,
-                kategori,
-                marka,
-                icerikTuru: (icerik.aciklama || "Çekim planı").slice(0, 120),
-                asama: kategori === "Grafik Tasarım" ? "Talep Alındı" : "Çekim Planlandı",
-                cekimTarihi: icerik.planlananTarih || bugun,
-                teslimTarihi: icerik.planlananTarih || bugun,
-                kameraman: "",
-                editor: "",
-                oncelik: "Normal",
-                istenenAdet: "",
-                uretilenAdet: "",
-                // Konuşma metni ve çekim notu brief'e taşınır — ekip planı Operasyon'da görsün.
-                brief: [
-                  icerik.konusmali ? `Tip: ${icerik.konusmali === "konusmali" ? "Konuşmalı" : icerik.konusmali === "seslendirme" ? "Dış ses" : "Konuşmasız"}` : "",
-                  icerik.konusmaMetni ? `\nKONUŞMA METNİ:\n${icerik.konusmaMetni}` : "",
-                  icerik.cekimNotu ? `\nÇEKİM NOTU:\n${icerik.cekimNotu}` : "",
-                ].filter(Boolean).join("\n"),
-                editliDosyaLink: icerik.referansLink || "",
-                gecmis: [{ id: 1, tarih: new Date().toLocaleString("tr-TR"), yazan: "Müşteri", aciklama: "Müşteri çekim planını onayladı — iş otomatik oluşturuldu." }],
-                yorumlar: [],
-              };
-              yeni.cekimIsleri = [...mevcutIsler, yeniIs];
-              // İçeriği yeni işe bağla: hem tekrar oluşmasını önler hem de sonraki
-              // onay/revize işlemlerinin doğru işi güncellemesini sağlar.
-              yeni.musteriIcerikleri = yeni.musteriIcerikleri.map((i) => (i.id === icerikId ? { ...i, kaynakIsId: yeniId, olusturulanIsId: yeniId } : i));
-            }
             // Bağlı bir Operasyon işi varsa (Kontrol Bekliyor'dan otomatik düşmüşse), müşteri
             // onaylayınca o iş de "Teslim Edildi" olarak işaretlenir — döngü kapanır.
             //
@@ -402,7 +366,9 @@ export default async function handler(req, res) {
               });
             }
           } else {
-            yeni.musteriIcerikleri = liste.map((i) => (i.id === icerikId ? { ...i, durum: "revize", revizeNotu: revizeNotu.trim(), yanitTarihi: new Date().toLocaleDateString("tr-TR") } : i));
+            // operasyonaAktarildi sıfırlanır — bu YENİ bir revize isteği, yöneticinin onay
+            // kutusunda tekrar görünmeli (önceki istek aktarılmış olsa bile).
+            yeni.musteriIcerikleri = liste.map((i) => (i.id === icerikId ? { ...i, durum: "revize", revizeNotu: revizeNotu.trim(), operasyonaAktarildi: false, yanitTarihi: new Date().toLocaleDateString("tr-TR") } : i));
             // Bağlı bir Operasyon işi varsa, otomatik olarak "Revize İstendi" aşamasına döner ve
             // müşterinin notu işin geçmişine düşer — ekip ekstra bir yere bakmadan görsün.
             if (icerik.kaynakIsId && yeni.cekimIsleri) {
