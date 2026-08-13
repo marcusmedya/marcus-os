@@ -807,3 +807,120 @@ asla ayrışamaz.
   görsel sıfırlanmaz
 - Görseller base64 olarak veri bloğunda saklandığı için sıkıştırma önemli — Ayarlar'daki
   **Veri Boyutu** kartından toplam boyutu takip edebilirsin
+
+## Güncelleme 30: Instagram Genel Görünüm + Reklam İstatistikleri + Aylık Müşteri Raporu
+
+### 1. Instagram genel görünümü (ızgara)
+Paylaşım Takvimi'ne **Genel Görünüm / Tek Tek** geçişi eklendi. Genel görünüm, gerçek bir
+Instagram profili gibi: yuvarlak marka avatarı, gönderi sayısı ve **3'lü kare ızgara**.
+Her karenin sol üstünde gün etiketi, paylaşılmışsa sağ altında ✓ işareti var. Bir kareye
+tıklayınca o gönderi tam önizlemesiyle (alt metniyle birlikte) altta açılıyor.
+
+Bu görünüm "hesabın genel estetiği nasıl duruyor?" sorusuna cevap verir — marka bütünlüğünü
+değerlendirmek için asıl bakılan yer burasıdır. Hem sen hem müşteri aynı görünümü kullanır.
+
+### 2. Reklam istatistikleri
+Reklam kaydına yeni alanlar eklendi: **Erişim · Gösterim · Tıklama · Etkileşim · Sonuç**.
+Girilen rakamlardan **tıklama oranı (CTR)**, tıklama başına maliyet, sonuç başına maliyet ve
+bin gösterim başına maliyet otomatik hesaplanır — elle girilmez, böylece tutarsızlık olmaz.
+
+İstatistikler müşteri panelindeki Reklamlar sekmesinde kutucuklar hâlinde görünür.
+**Bütçe müşteriye hâlâ gönderilmiyor** (iç bilgi olarak kalıyor).
+
+### 3. Aylık Müşteri Raporu
+**Müşteri Paneli** sekmesi → markayı seç → **Aylık Müşteri Raporu** kartı → ayı seç →
+"Raporu Aç". Yeni pencerede açılır; oradan yazdırabilir ya da **PDF olarak kaydedip**
+WhatsApp/e-posta ile müşteriye gönderebilirsin.
+
+Rapor mevcut verilerden **otomatik üretilir**, ayrıca veri girmen gerekmez:
+
+| Bölüm | Kaynağı |
+|---|---|
+| **Bu ay neler yaptık** | O ay "Teslim Edildi"ye geçen Operasyon işleri (içerik, kategori, adet, teslim tarihi) |
+| **Bu ay neler paylaştık** | O ay paylaşıldı işaretlenen gönderiler — görselleri ve alt metinleriyle |
+| **Ne paylaşacağız** | Bu haftadan itibaren planlanan gönderiler — gün, hafta ve alt metinleriyle |
+| **Reklam kampanyaları** | O ayla kesişen kampanyalar ve tüm istatistikleri |
+
+Üstte özet kutuları (teslim edilen iş, paylaşılan, planlanan, kampanya, toplam erişim, toplam
+sonuç), üstte marka kimliği görselin ve tarih. Kart üzerinde raporu açmadan önce bu sayıları
+görebilirsin — boş bir ay için rapor göndermezsin.
+
+Uzun süren kampanyalar, ay içinde başlamamış olsalar bile o ay yayındaysa rapora dahil edilir.
+
+## Güncelleme 31: Görseller Artık Drive Bağlantısıyla (Dosya Yükleme Kaldırıldı)
+
+### Neden değişti
+Müşteri paneli içeriklerinde "Görsel" türü dosya yükleme istiyordu ve yüklenen görsel base64
+olarak veri bloğunun içinde saklanıyordu. Bu hem veri boyutunu şişiriyor (Vercel'in ~4.5 MB
+istek sınırına yaklaştırıyor) hem de zaten Drive kullanılan bir akışta gereksiz ikinci bir
+yöntem yaratıyordu.
+
+### Ne değişti
+**Müşteri Paneli → İçerik Ekle → Görsel** artık dosya değil **Drive bağlantısı** istiyor —
+Video ve Çekim Planı ile aynı mantık. Bağlantıyı yapıştırdığın anda **önizleme** çıkıyor,
+böylece yanlış link müşteriye gitmeden fark ediliyor.
+
+**Paylaşım Takvimi görselleri** de aynı şekilde Drive bağlantısına geçti.
+
+### Drive adres sorunu çözülmüş hâliyle taşındı
+Google, eski `uc?export=view` adresini artık çoğu dosya için doğrudan görsel olarak servis
+etmiyor. Operasyon'da çözülen bu sorunun aynı çözümü buraya da getirildi: sırayla
+`thumbnail` → `lh3` → `uc` adresleri deneniyor. Hiçbiri açılmazsa **sessizce kaybolmuyor**,
+nedenini yazıyor: klasör bağlantısı mı, tanınmayan bağlantı mı, yoksa paylaşım ayarı mı kapalı.
+
+Form altında da hatırlatma var: *Drive'da görsele sağ tık → Paylaş → "Bağlantıya sahip olan
+herkes / Görüntüleyen"*.
+
+### Eski kayıtlar bozulmadı
+Daha önce yüklenmiş base64 görseller olduğu gibi çalışmaya devam ediyor — hem müşteri
+panelinde, hem Instagram önizlemesinde, hem ızgarada, hem aylık raporda. Sistem kaydın
+base64 mi Drive bağlantısı mı olduğunu kendi anlıyor.
+
+Aylık raporda Drive bağlantıları otomatik olarak gösterilebilir `thumbnail` adresine çevriliyor
+(ham paylaşım linki bir `<img>` etiketinde açılmaz).
+
+### Dosya yükleme nerede kaldı
+Marka kimliği görseli ve teklif/sözleşme logoları hâlâ dosya yüklemeyle çalışıyor — onlar tek
+seferlik, küçük ve sıkıştırılmış kayıtlar; Drive'a taşınmaları anlamsız olurdu.
+
+## Güncelleme 32: Çekim Planı → Operasyon Senkronu + Müşteri Girişi "Beni Hatırla"
+
+### 1. Onaylanan çekim planı Operasyon'da otomatik iş açıyor
+Müşteri bir çekim planını onayladığında, Operasyon'da **otomatik olarak iş oluşuyor** — elle
+aktarmana gerek yok. Kategoriye göre doğru akışa düşüyor:
+
+| Kategori | Açılan aşama |
+|---|---|
+| **Video** | Çekim Planlandı |
+| **Grafik Tasarım** | Talep Alındı |
+
+Çekim planı formuna **"Onaylanınca Operasyon'da açılacak iş türü"** seçimi eklendi (Video /
+Grafik Tasarım). Konuşma metni ve çekim notu işin **brief** alanına taşınıyor, referans video
+bağlantısı da işe ekleniyor — ekip planı Operasyon'da görüyor, müşteri paneline bakmasına gerek
+kalmıyor.
+
+Onaylanan planın yanında **"✓ Operasyon'da iş açıldı"** işareti çıkıyor.
+
+**Çift iş açılmasına karşı:** plan bir kez bir işe bağlandıktan sonra tekrar onaylanırsa yeni iş
+oluşmuyor.
+
+**Dikkat edilen bir tuzak:** sistemde "müşteri onayladıysa işi Teslim Edildi yap" kuralı vardı.
+Çekim planları bu kuralın dışında tutuldu — çünkü bir çekim planının onaylanması "iş bitti"
+değil, **"çekime başlayabiliriz"** demektir. Bu ayrım olmasaydı revize sonrası tekrar onaylanan
+bir plan, çekim hiç yapılmadan "Teslim Edildi"ye atlardı.
+
+### 2. Müşteri girişinde "Beni hatırla"
+Giriş ekranına **varsayılan olarak açık** bir "Beni hatırla" seçeneği eklendi:
+- **İşaretliyken:** bilgiler kalıcı saklanır, müşteri bir daha şifre yazmaz
+- **Kapatılırsa:** sadece o sekme açık kaldığı sürece hatırlanır, sekme kapanınca silinir
+
+Ayrıca **kullanıcı adı önceki girişten hazır geliyor** — müşteri en fazla şifresini yazar.
+
+*Not: bazı tarayıcılar (özellikle iPhone Safari) uzun süre girilmeyen sitelerin kayıtlı
+bilgilerini kendiliğinden siler. Bu tarayıcı davranışıdır; o durumda müşteri bir kez daha
+giriş yapar.*
+
+### 3. Çıkış butonu belirginleştirildi
+Müşteri panelinde çıkış butonu zaten vardı ama küçük ve dikkat çekmiyordu. Artık ikonlu ve
+belirgin, üstelik **panelin altına da bir tane** eklendi (uzun listelerde en yukarı dönmek
+zorunda kalınmasın). İkisi de onay soruyor, yanlışlıkla çıkış olmuyor.

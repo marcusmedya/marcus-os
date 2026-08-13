@@ -276,6 +276,13 @@ export default async function handler(req, res) {
           baslangicTarihi: r.baslangicTarihi || null,
           bitisTarihi: r.bitisTarihi || null,
           not: r.not || null,
+          // Kampanya sonuçları — müşterinin görmesi gereken performans rakamları.
+          // Bütçe hâlâ gönderilmiyor (iç bilgi).
+          erisim: r.erisim || null,
+          gosterim: r.gosterim || null,
+          tiklama: r.tiklama || null,
+          etkilesim: r.etkilesim || null,
+          sonuc: r.sonuc || null,
         }));
 
       const kendiPaylasimPlani = (data.haftalikPaylasimlar || [])
@@ -337,9 +344,55 @@ export default async function handler(req, res) {
           const yeni = { ...guncel };
           if (musteriAction === "onayla") {
             yeni.musteriIcerikleri = liste.map((i) => (i.id === icerikId ? { ...i, durum: "onaylandi", revizeNotu: null, yanitTarihi: new Date().toLocaleDateString("tr-TR") } : i));
+
+            /* SENKRON: müşteri bir ÇEKİM PLANINI onayladığında Operasyon'da otomatik iş açılır.
+             * Kategoriye göre doğru akışa düşer (Video → Çekim Planlandı, Grafik Tasarım →
+             * Talep Alındı). Böylece onaylanan plan üretime elle aktarılmak zorunda kalmaz.
+             *
+             * Zaten bir işe bağlıysa (kaynakIsId doluysa) YENİ İŞ AÇILMAZ — müşteri onayı
+             * geri alıp tekrar onaylarsa aynı iş ikinci kez oluşmasın diye. */
+            if (icerik.tur === "cekim" && !icerik.kaynakIsId) {
+              const kategori = icerik.kategori === "Grafik Tasarım" ? "Grafik Tasarım" : "Video";
+              const marka = ((guncel.clients || []).find((c) => String(c.id) === String(musteriClientId)) || {}).ad || "";
+              const bugun = new Date().toISOString().slice(0, 10);
+              const mevcutIsler = guncel.cekimIsleri || [];
+              const yeniId = mevcutIsler.reduce((m, j) => Math.max(m, Number(j.id) || 0), 0) + 1;
+
+              const yeniIs = {
+                id: yeniId,
+                kategori,
+                marka,
+                icerikTuru: (icerik.aciklama || "Çekim planı").slice(0, 120),
+                asama: kategori === "Grafik Tasarım" ? "Talep Alındı" : "Çekim Planlandı",
+                cekimTarihi: icerik.planlananTarih || bugun,
+                teslimTarihi: icerik.planlananTarih || bugun,
+                kameraman: "",
+                editor: "",
+                oncelik: "Normal",
+                istenenAdet: "",
+                uretilenAdet: "",
+                // Konuşma metni ve çekim notu brief'e taşınır — ekip planı Operasyon'da görsün.
+                brief: [
+                  icerik.konusmali ? `Tip: ${icerik.konusmali === "konusmali" ? "Konuşmalı" : icerik.konusmali === "seslendirme" ? "Dış ses" : "Konuşmasız"}` : "",
+                  icerik.konusmaMetni ? `\nKONUŞMA METNİ:\n${icerik.konusmaMetni}` : "",
+                  icerik.cekimNotu ? `\nÇEKİM NOTU:\n${icerik.cekimNotu}` : "",
+                ].filter(Boolean).join("\n"),
+                editliDosyaLink: icerik.referansLink || "",
+                gecmis: [{ id: 1, tarih: new Date().toLocaleString("tr-TR"), yazan: "Müşteri", aciklama: "Müşteri çekim planını onayladı — iş otomatik oluşturuldu." }],
+                yorumlar: [],
+              };
+              yeni.cekimIsleri = [...mevcutIsler, yeniIs];
+              // İçeriği yeni işe bağla: hem tekrar oluşmasını önler hem de sonraki
+              // onay/revize işlemlerinin doğru işi güncellemesini sağlar.
+              yeni.musteriIcerikleri = yeni.musteriIcerikleri.map((i) => (i.id === icerikId ? { ...i, kaynakIsId: yeniId, olusturulanIsId: yeniId } : i));
+            }
             // Bağlı bir Operasyon işi varsa (Kontrol Bekliyor'dan otomatik düşmüşse), müşteri
             // onaylayınca o iş de "Teslim Edildi" olarak işaretlenir — döngü kapanır.
-            if (icerik.kaynakIsId && yeni.cekimIsleri) {
+            //
+            // ÇEKİM PLANLARI HARİÇ: bir çekim planının onaylanması "iş bitti" demek değil,
+            // "çekime başlayabiliriz" demektir. Bu ayrım olmasaydı, revize sonrası tekrar
+            // onaylanan bir plan, çekim hiç yapılmadan "Teslim Edildi"ye atlardı.
+            if (icerik.tur !== "cekim" && icerik.kaynakIsId && yeni.cekimIsleri) {
               yeni.cekimIsleri = yeni.cekimIsleri.map((j) => {
                 if (j.id !== icerik.kaynakIsId) return j;
                 const not = { id: (j.gecmis || []).length + 1, tarih: new Date().toLocaleString("tr-TR"), yazan: "Müşteri", aciklama: "Müşteri içeriği onayladı." };

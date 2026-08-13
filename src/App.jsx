@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Wallet, Settings, Sparkles,
   ArrowUpRight, ArrowDownRight, X, Send, Plus, Pencil, Trash2, Check,
   ChevronRight,
-  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp, Menu, Calendar, ChevronLeft, ListChecks, FileText, Megaphone, Share2, Lock, Camera, Shield, ClipboardCheck, Video, Copy, KeyRound, Eye, EyeOff, RefreshCw, CreditCard, NotebookPen, MonitorSmartphone
+  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp, Menu, Calendar, ChevronLeft, ListChecks, FileText, Megaphone, Share2, Lock, Camera, Shield, ClipboardCheck, Video, Copy, KeyRound, Eye, EyeOff, RefreshCw, CreditCard, NotebookPen, MonitorSmartphone, LogOut
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
@@ -353,9 +353,35 @@ const clearStaffCreds = () => { if (typeof window !== "undefined") { localStorag
 /** Müşteri Paneli girişi — personelden tamamen ayrı bir kimlik. */
 const MUSTERI_USER_KEY = "marcus-os-musteri-user";
 const MUSTERI_PW_KEY = "marcus-os-musteri-pw";
-const getMusteriCreds = () => (typeof window !== "undefined" ? { kullaniciAdi: localStorage.getItem(MUSTERI_USER_KEY) || "", sifre: localStorage.getItem(MUSTERI_PW_KEY) || "" } : { kullaniciAdi: "", sifre: "" });
-const setMusteriCreds = (kullaniciAdi, sifre) => { if (typeof window !== "undefined") { localStorage.setItem(MUSTERI_USER_KEY, kullaniciAdi); localStorage.setItem(MUSTERI_PW_KEY, sifre); } };
-const clearMusteriCreds = () => { if (typeof window !== "undefined") { localStorage.removeItem(MUSTERI_USER_KEY); localStorage.removeItem(MUSTERI_PW_KEY); } };
+/**
+ * Müşteri giriş bilgileri. "Beni hatırla" işaretliyse localStorage'a yazılır (tarayıcı
+ * kapansa da kalır); işaretli değilse sessionStorage'a yazılır ve sekme kapanınca silinir.
+ * Okuma her ikisine de bakar — hangisinde varsa oradan alır.
+ */
+const getMusteriCreds = () => {
+  if (typeof window === "undefined") return { kullaniciAdi: "", sifre: "" };
+  try {
+    const ku = localStorage.getItem(MUSTERI_USER_KEY) || sessionStorage.getItem(MUSTERI_USER_KEY) || "";
+    const sf = localStorage.getItem(MUSTERI_PW_KEY) || sessionStorage.getItem(MUSTERI_PW_KEY) || "";
+    return { kullaniciAdi: ku, sifre: sf };
+  } catch (e) { return { kullaniciAdi: "", sifre: "" }; }
+};
+const setMusteriCreds = (kullaniciAdi, sifre, hatirla = true) => {
+  if (typeof window === "undefined") return;
+  try {
+    clearMusteriCreds();
+    const depo = hatirla ? localStorage : sessionStorage;
+    depo.setItem(MUSTERI_USER_KEY, kullaniciAdi);
+    depo.setItem(MUSTERI_PW_KEY, sifre);
+  } catch (e) { /* depolama kapalıysa oturum yine de açılır, sadece hatırlanmaz */ }
+};
+const clearMusteriCreds = () => {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(MUSTERI_USER_KEY); localStorage.removeItem(MUSTERI_PW_KEY);
+    sessionStorage.removeItem(MUSTERI_USER_KEY); sessionStorage.removeItem(MUSTERI_PW_KEY);
+  } catch (e) { /* sessizce geç */ }
+};
 
 /** /api/data isteklerine hem olası tek-şifre hem de kişisel personel kimliğini ekler. */
 const authHeaders = () => {
@@ -1083,6 +1109,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, k
   const [gorselHata, setGorselHata] = useState("");
   const [acikDetayId, setAcikDetayId] = useState(null); // detayı açık olan çekim planı
   // Çekim planı alanları
+  const [kategori, setKategori] = useState("Video"); // onaylanınca Operasyon'da hangi akışa düşecek
   const [konusmali, setKonusmali] = useState("konusmali");
   const [konusmaMetni, setKonusmaMetni] = useState("");
   const [cekimNotu, setCekimNotu] = useState("");
@@ -1092,7 +1119,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, k
 
   const formuTemizle = () => {
     setAciklama(""); setDriveLinki(""); setGorselUrl(null); setGorselHata("");
-    setKonusmaMetni(""); setCekimNotu(""); setPlanlananTarih(""); setKonusmali("konusmali");
+    setKonusmaMetni(""); setCekimNotu(""); setPlanlananTarih(""); setKonusmali("konusmali"); setKategori("Video");
     setEkleAcik(false); setDuzenlenenId(null);
   };
 
@@ -1101,9 +1128,10 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, k
     setDuzenlenenId(i.id);
     setTur(i.tur || "gorsel");
     setAciklama(i.aciklama || "");
-    setDriveLinki(i.tur === "cekim" ? (i.referansLink || "") : (i.driveLinki || ""));
+    setDriveLinki(i.tur === "cekim" ? (i.referansLink || "") : (i.driveLinki || ""));  // görsel ve video aynı alanı kullanır
     setGorselUrl(i.gorselUrl || null);
     setKonusmali(i.konusmali || "konusmali");
+    setKategori(i.kategori || "Video");
     setKonusmaMetni(i.konusmaMetni || "");
     setCekimNotu(i.cekimNotu || "");
     setPlanlananTarih(i.planlananTarih || "");
@@ -1113,17 +1141,21 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, k
   };
 
   const ekle = () => {
-    if (tur === "gorsel" && !gorselUrl) { setGorselHata("Bir görsel seç."); return; }
+    if (tur === "gorsel" && !driveLinki.trim() && !gorselUrl) { setGorselHata("Görselin Drive bağlantısını yapıştır."); return; }
     if (tur === "video" && !driveLinki.trim()) { setGorselHata("Video için bir Drive linki gir."); return; }
     if (tur === "cekim" && !aciklama.trim()) { setGorselHata("Çekim planına bir başlık yaz (örn. \"Reels 1 — Ürün tanıtımı\")."); return; }
     const govdeVerisi = {
       tur,
       aciklama: aciklama.trim(),
-      gorselUrl: tur === "gorsel" ? gorselUrl : null,
-      driveLinki: tur === "video" ? driveLinki.trim() : null,
+      // Görseller artık Drive bağlantısıyla saklanıyor (base64 yerine) — veri bloğunu
+      // şişirmiyor. gorselUrl sadece ESKİ kayıtlarla uyum için korunuyor; yeni kayıtlarda
+      // link girildiyse base64 taşınmaz.
+      gorselUrl: tur === "gorsel" && !driveLinki.trim() ? gorselUrl : null,
+      driveLinki: (tur === "video" || tur === "gorsel") ? driveLinki.trim() : null,
       // Çekim planına özel alanlar — diğer türlerde boş kalır
       referansLink: tur === "cekim" ? driveLinki.trim() : null,
       konusmali: tur === "cekim" ? konusmali : null,
+      kategori: tur === "cekim" ? kategori : null,
       konusmaMetni: tur === "cekim" ? konusmaMetni.trim() : null,
       cekimNotu: tur === "cekim" ? cekimNotu.trim() : null,
       planlananTarih: tur === "cekim" ? (planlananTarih || null) : null,
@@ -1180,7 +1212,9 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, k
                               {i.konusmali === "konusmali" ? "KONUŞMALI" : i.konusmali === "seslendirme" ? "DIŞ SES" : "KONUŞMASIZ"}
                             </span>
                           )}
+                          {i.kategori && <span style={{ fontSize: 10, fontWeight: 700, color: T.textDim, background: T.surface, padding: "2px 9px", borderRadius: 999, fontFamily: "Inter" }}>{i.kategori.toLocaleUpperCase("tr")}</span>}
                           {i.planlananTarih && <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>Planlanan çekim: {tarihGoster(i.planlananTarih)}</span>}
+                          {i.olusturulanIsId && <span style={{ fontSize: 10.5, color: T.success, fontFamily: "Inter", fontWeight: 600 }}>✓ Operasyon'da iş açıldı</span>}
                         </div>
                         {i.referansLink && (
                           <a href={i.referansLink} target="_blank" rel="noreferrer" style={{ display: "block", fontSize: 11.5, color: T.accentText, fontFamily: "Inter", marginBottom: 8 }}>▶ Referans videoyu aç ↗</a>
@@ -1226,21 +1260,25 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, k
                 onChange={(e) => setAciklama(e.target.value)}
                 style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "7px 10px" }}
               />
-              {tur === "gorsel" && (
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => {
-                    const file = e.target.files && e.target.files[0];
-                    if (!file) return;
-                    setGorselHata("");
-                    gorseliBase64eCevir(file, setGorselUrl, setGorselHata);
-                  }}
-                  style={{ ...inputStyle, marginBottom: 8, fontSize: 12, padding: "7px 10px" }}
-                />
-              )}
-              {tur === "video" && (
-                <input type="text" placeholder="https://drive.google.com/..." value={driveLinki} onChange={(e) => setDriveLinki(e.target.value)} style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "7px 10px" }} />
+              {(tur === "gorsel" || tur === "video") && (
+                <>
+                  <input
+                    type="text"
+                    placeholder="https://drive.google.com/file/d/..."
+                    value={driveLinki}
+                    onChange={(e) => { setDriveLinki(e.target.value); setGorselHata(""); }}
+                    style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "7px 10px" }}
+                  />
+                  {tur === "gorsel" && (
+                    <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 8, lineHeight: 1.6 }}>
+                      Drive'da görsele sağ tık → Paylaş → <strong>"Bağlantıya sahip olan herkes / Görüntüleyen"</strong> yap, sonra bağlantıyı buraya yapıştır.
+                    </div>
+                  )}
+                  {/* Yapıştırdığın anda önizleme — link yanlışsa müşteriye göndermeden fark edersin. */}
+                  {tur === "gorsel" && driveLinki.trim() && (
+                    <div style={{ marginBottom: 8 }}><DriveGorsel link={driveLinki.trim()} yukseklik={220} /></div>
+                  )}
+                </>
               )}
               {tur === "cekim" && (
                 <>
@@ -1251,6 +1289,19 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, k
                     onChange={(e) => setDriveLinki(e.target.value)}
                     style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "7px 10px" }}
                   />
+                  {/* Onaylanınca Operasyon'da hangi akışa düşeceğini bu belirler. */}
+                  <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 4 }}>Onaylanınca Operasyon'da açılacak iş türü</div>
+                  <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                    {["Video", "Grafik Tasarım"].map((k) => (
+                      <button
+                        key={k}
+                        onClick={() => setKategori(k)}
+                        style={{ flex: 1, padding: "6px 0", borderRadius: 8, border: "none", background: kategori === k ? T.accentSoft : T.surface, color: kategori === k ? T.accentText : T.textDim, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "Inter" }}
+                      >
+                        {k}
+                      </button>
+                    ))}
+                  </div>
                   <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
                     {[
                       { key: "konusmali", label: "Konuşmalı" },
@@ -2363,7 +2414,36 @@ const REKLAM_FIELDS = [
   { key: "bitisTarihi", label: "Bitiş Tarihi", type: "date" },
   { key: "butce", label: "Bütçe (₺, opsiyonel)", type: "number" },
   { key: "not", label: "Not (opsiyonel)", type: "text" },
+  // --- Kampanya sonuçları (aylık raporda müşteriye gösterilir) ---
+  { key: "erisim", label: "Erişim (kaç kişiye ulaştı)", type: "number" },
+  { key: "gosterim", label: "Gösterim (kaç kez görüntülendi)", type: "number" },
+  { key: "tiklama", label: "Tıklama / Link tıklaması", type: "number" },
+  { key: "etkilesim", label: "Etkileşim (beğeni, yorum, kaydetme)", type: "number" },
+  { key: "sonuc", label: "Sonuç (mesaj, arama, form vb.)", type: "number" },
 ];
+
+/** Reklam istatistiklerinden hesaplanan türetilmiş oranlar. Elle girilmez — girilen
+ * rakamlardan hesaplanır ki tutarsızlık olmasın. */
+function reklamMetrikleri(r) {
+  const erisim = Number(r.erisim) || 0;
+  const gosterim = Number(r.gosterim) || 0;
+  const tiklama = Number(r.tiklama) || 0;
+  const butce = Number(r.butce) || 0;
+  const sonuc = Number(r.sonuc) || 0;
+  return {
+    erisim, gosterim, tiklama, butce, sonuc,
+    etkilesim: Number(r.etkilesim) || 0,
+    // Tıklama oranı (CTR): gösterim başına tıklama
+    ctr: gosterim > 0 ? (tiklama / gosterim) * 100 : null,
+    // Tıklama başına maliyet
+    tbm: tiklama > 0 && butce > 0 ? butce / tiklama : null,
+    // Sonuç başına maliyet — müşteriye en anlamlı gelen rakam
+    sonucMaliyeti: sonuc > 0 && butce > 0 ? butce / sonuc : null,
+    // Bin gösterim başına maliyet
+    bgm: gosterim > 0 && butce > 0 ? (butce / gosterim) * 1000 : null,
+  };
+}
+const istatistikVarMi = (r) => ["erisim", "gosterim", "tiklama", "etkilesim", "sonuc"].some((k) => Number(r[k]) > 0);
 
 function reklamDurumu(r) {
   if (!r.bitisTarihi) return "aktif";
@@ -5181,6 +5261,86 @@ function VeriBoyutuKarti() {
  * Müşteri işlerinden (Operasyon) tamamen ayrıdır ve personele hiç gönderilmez.
  */
 /**
+ * Aylık raporu hazırlayıp açan kart. Rapor mevcut verilerden üretilir — ayrıca veri
+ * girmeye gerek yok. Açılan pencereden yazdırılabilir ya da "PDF olarak kaydet" ile
+ * PDF'e çevrilip müşteriye gönderilebilir.
+ */
+function AylikRaporKarti({ marka, firmaAdi, logo, plan, reklamlar, isler }) {
+  const [ay, setAy] = useState(monthKey());
+
+  const markaEsit = (deger) => String(deger || "").trim().toLocaleLowerCase("tr") === String(marka.ad || "").trim().toLocaleLowerCase("tr");
+  const markaPlani = (plan || []).filter((p) => String(p.clientId) === String(marka.id));
+
+  /** O ay teslim edilen işler — Operasyon'daki gerçek teslim tarihine göre. */
+  const ayinIsleri = (isler || []).filter((j) => {
+    if (!markaEsit(j.marka)) return false;
+    const t = j.teslimEdilmeTarihi || null;
+    return t && String(t).slice(0, 7) === ay;
+  });
+
+  /** O ay paylaşılanlar: yapıldı işaretli ve o aya denk gelenler. */
+  const paylasilanlar = markaPlani.filter((p) => {
+    if (!p.yapildi) return false;
+    const kaynak = p.yapildigiTarih || p.haftaKey;
+    return String(kaynak).slice(0, 7) === ay;
+  });
+
+  /** Bundan sonra paylaşılacaklar — bu haftadan itibaren, henüz paylaşılmamış olanlar. */
+  const buHafta = haftaBaslangici();
+  const planlananlar = markaPlani.filter((p) => !p.yapildi && p.haftaKey >= buHafta).sort((a, b) => (a.haftaKey > b.haftaKey ? 1 : -1));
+
+  /** O ayla KESİŞEN kampanyalar — ay içinde başlamış olması gerekmez, o ay yayında
+   * olması yeterli (uzun süren kampanyalar her ayın raporunda görünsün). */
+  const ayBaslangic = `${ay}-01`;
+  const ayBitis = `${ay}-31`;
+  const ayinReklamlari = (reklamlar || []).filter((r) => {
+    if (!markaEsit(r.marka)) return false;
+    const bas = r.baslangicTarihi || "";
+    const bit = r.bitisTarihi || "9999-12-31";
+    return bas <= ayBitis && bit >= ayBaslangic;
+  });
+
+  const ayAdiYazi = (() => {
+    const [y, a] = ay.split("-").map(Number);
+    return new Date(y, a - 1, 1).toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
+  })();
+
+  const ac = () => aylikRaporAc({
+    marka: marka.ad, firmaAdi: firmaAdi || "Marcus Medya", ay, logo,
+    isler: ayinIsleri, paylasilanlar, planlananlar, reklamlar: ayinReklamlari,
+  });
+
+  return (
+    <Card style={{ padding: "16px 18px", marginBottom: 16 }}>
+      <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 4 }}>Aylık Müşteri Raporu</div>
+      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 12, lineHeight: 1.6 }}>
+        Rapor sistemdeki verilerden otomatik üretilir. Açılan pencereden yazdırabilir ya da
+        <strong> PDF olarak kaydedip</strong> müşteriye gönderebilirsin.
+      </div>
+
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+        <div style={{ minWidth: 150 }}><AySeciciAlan value={ay} onChange={setAy} /></div>
+        <button style={saveBtnStyle} onClick={ac}>{ayAdiYazi} Raporunu Aç</button>
+      </div>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        {[
+          { l: "Teslim edilen iş", v: ayinIsleri.length },
+          { l: "Paylaşılan", v: paylasilanlar.length },
+          { l: "Paylaşılacak", v: planlananlar.length },
+          { l: "Kampanya", v: ayinReklamlari.length },
+        ].map((x) => (
+          <div key={x.l} style={{ background: T.surfaceRaised, borderRadius: 9, padding: "8px 13px", minWidth: 92 }}>
+            <div style={{ fontSize: 9.5, color: T.textFaint, fontFamily: "Inter", fontWeight: 700, letterSpacing: 0.3 }}>{x.l.toLocaleUpperCase("tr")}</div>
+            <div style={{ fontSize: 16, color: x.v > 0 ? T.text : T.textFaint, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", marginTop: 2 }}>{x.v}</div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+/**
  * Müşterinin panelinde içeriklerin YANI SIRA gördükleri: paylaşım planı, reklamlar ve
  * üretim durumu. Bu veriler başka sekmelerde yönetiliyor (Paylaşımlar, Reklamlar,
  * Operasyon) — burada müşterinin göreceği hâliyle gösteriliyor ki "müşteri ne görüyor?"
@@ -5190,6 +5350,7 @@ function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
   const [acik, setAcik] = useState(null); // "plan" | "reklam" | "operasyon"
   const [duzenlenen, setDuzenlenen] = useState(null);
   const [taslak, setTaslak] = useState("");
+  const [gorselTaslak, setGorselTaslak] = useState("");
 
   // Sunucudaki eşleştirmenin AYNISI: boşluk ve büyük-küçük harf farkını yok sayar.
   // İki taraf aynı kuralı kullanmazsa, burada görünen bir kayıt müşteride görünmeyebilir.
@@ -5201,7 +5362,11 @@ function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
   const buHafta = haftaBaslangici();
   const yaklasanPlan = markaPlani.filter((p) => p.haftaKey >= buHafta).sort((a, b) => (a.haftaKey > b.haftaKey ? 1 : -1));
 
-  const kaydet = (planId) => { onAltMetin(planId, taslak, undefined); setDuzenlenen(null); setTaslak(""); };
+  const kaydet = (planId) => {
+    // Metin ve görsel bağlantısı birlikte kaydedilir.
+    onAltMetin(planId, taslak, gorselTaslak.trim() || null);
+    setDuzenlenen(null); setTaslak(""); setGorselTaslak("");
+  };
 
   const Bolum = ({ anahtar, baslik, adet, children }) => (
     <div style={{ borderTop: `1px solid ${T.borderSoft}`, paddingTop: 12, marginTop: 12 }}>
@@ -5242,24 +5407,17 @@ function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
                 />
                 {duzenlenen === p.id ? (
                   <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: 10 }}>
-                    <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 5 }}>Görsel</label>
+                    <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 5 }}>Görselin Drive bağlantısı</label>
                     <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files && e.target.files[0];
-                        if (!file) return;
-                        // Görsel tarayıcıda küçültülüp sıkıştırılır (bkz. gorselKucult.js) —
-                        // veri bloğunu şişirip kayıtları durdurmasın diye.
-                        gorseliKucult(file, { maxKenar: 1080, hedefBayt: 400 * 1024 })
-                          .then((veri) => onAltMetin(p.id, undefined, veri))
-                          .catch((err) => window.alert(err.message || "Görsel yüklenemedi."));
-                      }}
-                      style={{ ...inputStyle, marginBottom: 8, fontSize: 12, padding: "7px 10px" }}
+                      type="text"
+                      value={gorselTaslak}
+                      onChange={(e) => setGorselTaslak(e.target.value)}
+                      placeholder="https://drive.google.com/file/d/..."
+                      style={{ ...inputStyle, marginBottom: 6, fontSize: 12, padding: "7px 10px" }}
                     />
-                    {p.gorselUrl && (
-                      <button style={{ ...cancelBtnStyle, marginBottom: 8, color: T.danger }} onClick={() => { if (window.confirm("Görsel kaldırılsın mı?")) onAltMetin(p.id, undefined, null); }}>Görseli Kaldır</button>
-                    )}
+                    <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 8, lineHeight: 1.6 }}>
+                      Drive'da görsele sağ tık → Paylaş → "Bağlantıya sahip olan herkes / Görüntüleyen" yap, sonra bağlantıyı yapıştır.
+                    </div>
                     <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 5 }}>Açıklama metni</label>
                     <textarea
                       value={taslak}
@@ -5274,7 +5432,7 @@ function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
                     </div>
                   </div>
                 ) : (
-                  <button style={addBtnStyle} onClick={() => { setDuzenlenen(p.id); setTaslak(p.altMetin || ""); }}>
+                  <button style={addBtnStyle} onClick={() => { setDuzenlenen(p.id); setTaslak(p.altMetin || ""); setGorselTaslak(p.gorselUrl && !String(p.gorselUrl).startsWith("data:") ? p.gorselUrl : ""); }}>
                     <Pencil size={12} /> {p.gorselUrl || p.altMetin ? "Düzenle" : "Görsel / metin ekle"}
                   </button>
                 )}
@@ -5317,6 +5475,31 @@ function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
   );
 }
 
+/** Instagram karesi için sade Drive görseli — aday adresleri sırayla dener,
+ * hiçbiri açılmazsa kısa bir uyarı gösterir (kare düzeni bozulmasın diye kısa tutuldu). */
+function DriveKareGorsel({ link }) {
+  const adaylar = driveGorselAdaylari(link);
+  const [sira, setSira] = useState(0);
+  useEffect(() => { setSira(0); }, [link]);
+
+  if (adaylar.length === 0 || sira >= adaylar.length) {
+    return (
+      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#777", fontSize: 10.5, fontFamily: "Inter", textAlign: "center", padding: 12, lineHeight: 1.5 }}>
+        Görsel açılamadı —<br />Drive paylaşımı kapalı olabilir
+      </div>
+    );
+  }
+  return (
+    <img
+      src={adaylar[sira]}
+      alt=""
+      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+      referrerPolicy="no-referrer"
+      onError={() => setSira((n) => n + 1)}
+    />
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* INSTAGRAM ÖNİZLEME                                                    */
 /* ------------------------------------------------------------------ */
@@ -5348,11 +5531,14 @@ function InstagramOnizleme({ marka, tur, gun, gorselUrl, altMetin, yapildi, komp
 
       {/* Görsel alanı — kare, Instagram gibi */}
       <div style={{ width: "100%", aspectRatio: "1 / 1", background: "#111", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-        {gorselUrl ? (
+        {/* gorselUrl ya eski base64 görsel ya da Drive bağlantısıdır — ikisi de desteklenir. */}
+        {gorselUrl && String(gorselUrl).startsWith("data:") ? (
           <img src={gorselUrl} alt={altMetin || "Paylaşım görseli"} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        ) : gorselUrl ? (
+          <DriveKareGorsel link={gorselUrl} />
         ) : (
           <div style={{ color: "#555", fontSize: 12, fontFamily: "Inter", textAlign: "center", padding: 20, lineHeight: 1.6 }}>
-            Görsel henüz yüklenmedi
+            Görsel henüz eklenmedi
           </div>
         )}
       </div>
@@ -5382,6 +5568,221 @@ function InstagramOnizleme({ marka, tur, gun, gorselUrl, altMetin, yapildi, komp
   );
 }
 
+/**
+ * Instagram PROFİL IZGARASI — gönderiler 3'lü kare ızgarada, tıklayınca büyüyor.
+ * Feed görünümü tek tek incelemek için iyi, ızgara ise "hesabın genel görünümü nasıl
+ * duruyor?" sorusuna cevap verir; marka estetiğini değerlendirmek için asıl bakılan yer burasıdır.
+ */
+function InstagramIzgara({ marka, gonderiler, onSec }) {
+  return (
+    <div style={{ maxWidth: 500, margin: "0 auto" }}>
+      {/* Profil başlığı */}
+      <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "4px 4px 18px" }}>
+        <div style={{ width: 66, height: 66, borderRadius: "50%", background: "linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <div style={{ width: 58, height: 58, borderRadius: "50%", background: T.bg, display: "flex", alignItems: "center", justifyContent: "center", color: T.text, fontSize: 22, fontWeight: 700, fontFamily: "Inter" }}>
+            {(marka || "M").charAt(0).toLocaleUpperCase("tr")}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 15, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{marka}</div>
+          <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginTop: 3 }}>
+            <strong style={{ color: T.text }}>{gonderiler.length}</strong> planlanan gönderi
+          </div>
+        </div>
+      </div>
+
+      {/* 3'lü kare ızgara */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 3 }}>
+        {gonderiler.map((p) => (
+          <button
+            key={p.id}
+            onClick={() => onSec && onSec(p)}
+            style={{ position: "relative", aspectRatio: "1 / 1", background: "#111", border: "none", padding: 0, cursor: onSec ? "pointer" : "default", overflow: "hidden" }}
+          >
+            {p.gorselUrl && String(p.gorselUrl).startsWith("data:") ? (
+              <img src={p.gorselUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            ) : p.gorselUrl ? (
+              <DriveKareGorsel link={p.gorselUrl} />
+            ) : (
+              <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#555", fontSize: 10, fontFamily: "Inter", textAlign: "center", padding: 6, lineHeight: 1.4 }}>
+                {p.tur}
+              </div>
+            )}
+            {/* Sol üstte gün etiketi, sağ altta paylaşıldı işareti */}
+            <span style={{ position: "absolute", top: 4, left: 4, background: "rgba(0,0,0,.62)", color: "#fff", fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 5, fontFamily: "Inter" }}>{p.gun}</span>
+            {p.yapildi && <span style={{ position: "absolute", bottom: 4, right: 5, color: "#4ade80", fontSize: 12 }}>✓</span>}
+          </button>
+        ))}
+      </div>
+      {gonderiler.length === 0 && (
+        <div style={{ textAlign: "center", padding: 30, color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Bu dönemde planlanmış gönderi yok.</div>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* AYLIK MÜŞTERİ RAPORU                                                  */
+/* ------------------------------------------------------------------ */
+/**
+ * Müşteriye gönderilecek aylık rapor. Yeni bir pencerede açılır; oradan yazdırılabilir
+ * ya da "PDF olarak kaydet" ile PDF'e çevrilip WhatsApp/e-posta ile gönderilebilir.
+ *
+ * Rapor sistemdeki mevcut verilerden ÜRETİLİR — ayrıca veri girmen gerekmez:
+ *   Neler yaptık      → o ay "Teslim Edildi"ye geçen Operasyon işleri
+ *   Neler paylaştık   → o ay yapıldı işaretlenen gönderiler (görsel + alt metin)
+ *   Neler paylaşacağız→ sonraki dönemin planı (tarih + alt metin)
+ *   Reklamlar         → o ayla kesişen kampanyalar ve istatistikleri
+ */
+/** Rapor HTML'i için görsel adresi. base64 kayıtlar olduğu gibi gömülür; Drive
+ * bağlantıları ise doğrudan gösterilebilir thumbnail adresine çevrilir (ham paylaşım
+ * linki bir <img> içinde açılmaz — yönlendirme sayfası döner). */
+function raporGorselAdresi(deger) {
+  if (!deger) return "";
+  if (String(deger).startsWith("data:")) return deger;
+  const adaylar = driveGorselAdaylari(deger);
+  return adaylar.length ? adaylar[0] : "";
+}
+
+function aylikRaporHtml({ marka, firmaAdi, ay, isler, paylasilanlar, planlananlar, reklamlar, logo }) {
+  const ayAdiYazi = (() => {
+    const [y, a] = ay.split("-").map(Number);
+    return new Date(y, a - 1, 1).toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
+  })();
+  const bugun = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+  const sayi = (n) => (Number(n) || 0).toLocaleString("tr-TR");
+
+  const kutu = (etiket, deger) => `<div class="kpi"><div class="kpi-l">${escapeHtml(etiket)}</div><div class="kpi-v">${escapeHtml(String(deger))}</div></div>`;
+
+  const isSatirlari = isler.length
+    ? isler.map((j) => `<tr><td>${escapeHtml(j.icerikTuru || "")}</td><td>${escapeHtml(j.kategori || "—")}</td><td>${escapeHtml(j.uretilenAdet ? String(j.uretilenAdet) : "—")}</td><td>${escapeHtml(j.teslimEdilmeTarihi || "")}</td></tr>`).join("")
+    : `<tr><td colspan="4" class="bos">Bu ay teslim edilen iş kaydı yok.</td></tr>`;
+
+  const gonderiKarti = (p, tarihEtiketi) => `
+    <div class="post">
+      ${p.gorselUrl ? `<img src="${raporGorselAdresi(p.gorselUrl)}" alt="" />` : `<div class="post-bos">Görsel yok</div>`}
+      <div class="post-govde">
+        <div class="post-ust">${escapeHtml(p.tur || "")} · ${escapeHtml(tarihEtiketi)}</div>
+        ${p.altMetin ? `<div class="post-metin">${escapeHtml(p.altMetin).replace(/\n/g, "<br/>")}</div>` : `<div class="post-metin bos">Açıklama metni girilmedi</div>`}
+      </div>
+    </div>`;
+
+  const paylasilanHtml = paylasilanlar.length
+    ? `<div class="posts">${paylasilanlar.map((p) => gonderiKarti(p, p.yapildigiTarih || p.gun)).join("")}</div>`
+    : `<p class="bos">Bu ay paylaşıldı olarak işaretlenen gönderi yok.</p>`;
+
+  const planlananHtml = planlananlar.length
+    ? `<div class="posts">${planlananlar.map((p) => gonderiKarti(p, `${p.gun} · ${p.haftaKey} haftası`)).join("")}</div>`
+    : `<p class="bos">Önümüzdeki dönem için henüz plan girilmedi.</p>`;
+
+  const reklamHtml = reklamlar.length
+    ? reklamlar.map((r) => {
+        const m = reklamMetrikleri(r);
+        const varMi = istatistikVarMi(r);
+        return `
+        <div class="ad">
+          <div class="ad-ust">
+            <strong>${escapeHtml(r.reklamAdi || "Kampanya")}</strong>
+            <span>${escapeHtml(r.baslangicTarihi || "")} — ${escapeHtml(r.bitisTarihi || "")}</span>
+          </div>
+          ${r.not ? `<div class="ad-not">${escapeHtml(r.not)}</div>` : ""}
+          ${varMi ? `<div class="kpis">
+            ${m.erisim ? kutu("Erişim", sayi(m.erisim)) : ""}
+            ${m.gosterim ? kutu("Gösterim", sayi(m.gosterim)) : ""}
+            ${m.tiklama ? kutu("Tıklama", sayi(m.tiklama)) : ""}
+            ${m.etkilesim ? kutu("Etkileşim", sayi(m.etkilesim)) : ""}
+            ${m.sonuc ? kutu("Sonuç", sayi(m.sonuc)) : ""}
+            ${m.ctr != null ? kutu("Tıklama Oranı", m.ctr.toFixed(2) + "%") : ""}
+          </div>` : `<div class="bos">Bu kampanya için istatistik girilmedi.</div>`}
+        </div>`;
+      }).join("")
+    : `<p class="bos">Bu ayla kesişen reklam kampanyası yok.</p>`;
+
+  const toplamErisim = reklamlar.reduce((t, r) => t + (Number(r.erisim) || 0), 0);
+  const toplamSonuc = reklamlar.reduce((t, r) => t + (Number(r.sonuc) || 0), 0);
+
+  return `<!doctype html>
+<html lang="tr"><head><meta charset="utf-8" /><title>${escapeHtml(marka)} — ${escapeHtml(ayAdiYazi)} Raporu</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, sans-serif; max-width: 820px; margin: 0 auto; padding: 40px 28px 60px; color: #16181d; line-height: 1.6; }
+  .ust { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #16181d; padding-bottom: 18px; margin-bottom: 26px; }
+  .ust img { max-height: 46px; }
+  h1 { font-size: 25px; margin: 0 0 4px; letter-spacing: -0.4px; }
+  .alt { color: #6b7280; font-size: 13px; }
+  h2 { font-size: 16px; margin: 34px 0 12px; padding-bottom: 7px; border-bottom: 1px solid #e5e7eb; letter-spacing: -0.2px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: #6b7280; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; padding: 7px 8px; border-bottom: 1px solid #e5e7eb; }
+  td { padding: 9px 8px; border-bottom: 1px solid #f3f4f6; }
+  .bos { color: #9ca3af; font-style: italic; font-size: 13px; }
+  .ozet { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  .kpi { background: #f7f8fa; border-radius: 9px; padding: 11px 15px; min-width: 108px; }
+  .kpi-l { font-size: 10px; color: #6b7280; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+  .kpi-v { font-size: 19px; font-weight: 700; margin-top: 3px; }
+  .kpis { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+  .posts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+  .post { border: 1px solid #e5e7eb; border-radius: 11px; overflow: hidden; break-inside: avoid; }
+  .post img { width: 100%; aspect-ratio: 1/1; object-fit: cover; display: block; }
+  .post-bos { width: 100%; aspect-ratio: 1/1; background: #f3f4f6; display: flex; align-items: center; justify-content: center; color: #9ca3af; font-size: 12px; }
+  .post-govde { padding: 10px 12px; }
+  .post-ust { font-size: 11px; color: #6b7280; font-weight: 600; margin-bottom: 5px; }
+  .post-metin { font-size: 12px; white-space: pre-wrap; }
+  .ad { border: 1px solid #e5e7eb; border-radius: 11px; padding: 14px 16px; margin-bottom: 12px; break-inside: avoid; }
+  .ad-ust { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; flex-wrap: wrap; }
+  .ad-ust span { color: #6b7280; font-size: 12px; }
+  .ad-not { font-size: 12.5px; color: #4b5563; margin-top: 5px; }
+  .kapanis { margin-top: 40px; padding-top: 18px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 12px; text-align: center; }
+  @media print { body { padding: 0; } h2 { break-after: avoid; } }
+</style></head>
+<body>
+  <div class="ust">
+    <div>
+      <h1>${escapeHtml(marka)}</h1>
+      <div class="alt">${escapeHtml(ayAdiYazi)} · Aylık Çalışma Raporu</div>
+    </div>
+    <div style="text-align:right">
+      ${logo ? `<img src="${logo}" alt="" />` : `<strong>${escapeHtml(firmaAdi)}</strong>`}
+      <div class="alt" style="margin-top:4px">${escapeHtml(bugun)}</div>
+    </div>
+  </div>
+
+  <div class="ozet">
+    ${kutu("Teslim Edilen İş", isler.length)}
+    ${kutu("Paylaşılan Gönderi", paylasilanlar.length)}
+    ${kutu("Planlanan Gönderi", planlananlar.length)}
+    ${reklamlar.length ? kutu("Kampanya", reklamlar.length) : ""}
+    ${toplamErisim ? kutu("Toplam Erişim", sayi(toplamErisim)) : ""}
+    ${toplamSonuc ? kutu("Toplam Sonuç", sayi(toplamSonuc)) : ""}
+  </div>
+
+  <h2>Bu Ay Neler Yaptık</h2>
+  <table>
+    <thead><tr><th>İçerik</th><th>Kategori</th><th>Adet</th><th>Teslim</th></tr></thead>
+    <tbody>${isSatirlari}</tbody>
+  </table>
+
+  <h2>Bu Ay Neler Paylaştık</h2>
+  ${paylasilanHtml}
+
+  <h2>Önümüzdeki Dönem Ne Paylaşacağız</h2>
+  ${planlananHtml}
+
+  <h2>Reklam Kampanyaları</h2>
+  ${reklamHtml}
+
+  <div class="kapanis">${escapeHtml(firmaAdi)} · ${escapeHtml(ayAdiYazi)} raporu</div>
+</body></html>`;
+}
+
+function aylikRaporAc(veri) {
+  const html = aylikRaporHtml(veri);
+  const win = window.open("", "_blank");
+  if (!win) { window.alert("Yeni pencere açılamadı — tarayıcının pop-up engelleyicisini kontrol et."); return; }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+}
+
 /* ------------------------------------------------------------------ */
 /* MÜŞTERİ PANELİ YÖNETİMİ (kendi sekmesi)                               */
 /* ------------------------------------------------------------------ */
@@ -5392,7 +5793,7 @@ function InstagramOnizleme({ marka, tur, gun, gorselUrl, altMetin, yapildi, komp
  * Daha önce bunlar iki ayrı yere dağılmıştı (içerikler müşteri detayında, hesaplar
  * Ayarlar'da) ve müşteri detayı zaten kalabalık olduğu için içerik bölümü kayboluyordu.
  */
-function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, plan, reklamlar, isler, onAltMetin }) {
+function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, plan, reklamlar, isler, onAltMetin, firmaAdi, logo }) {
   const [secili, setSecili] = useState(null);
 
   const aktifler = (clients || []).filter((c) => c.durum !== "ayrildi");
@@ -5470,6 +5871,17 @@ function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, 
 
       {/* Müşterinin panelinde ayrıca gördükleri: paylaşım planı (alt metinleriyle),
         * reklamlar ve üretim durumu. Alt metinler buradan yazılır. */}
+      {seciliMarka && (
+        <AylikRaporKarti
+          marka={seciliMarka}
+          firmaAdi={firmaAdi}
+          logo={logo}
+          plan={plan || []}
+          reklamlar={reklamlar || []}
+          isler={isler || []}
+        />
+      )}
+
       {seciliMarka && (
         <MusteriPanelEkleri
           marka={seciliMarka}
@@ -6326,9 +6738,12 @@ function LockScreen({ onSubmit, onKodSubmit, onKodIptal, kodAdimi, onStaffSubmit
   const [value, setValue] = useState("");
   const [kodDeger, setKodDeger] = useState("");
   const [hatirla, setHatirla] = useState(false);
+  // Müşteri daha önce girdiyse kullanıcı adı hazır gelsin — sadece şifre yazması yeter.
+  const [musteriHatirla, setMusteriHatirla] = useState(true);
   const [kullaniciAdi, setKullaniciAdi] = useState("");
   const [personelSifre, setPersonelSifre] = useState("");
-  const [musteriKullaniciAdi, setMusteriKullaniciAdi] = useState("");
+  // Daha önce giriş yapılmışsa kullanıcı adı hazır gelir — müşteri sadece şifresini yazar.
+  const [musteriKullaniciAdi, setMusteriKullaniciAdi] = useState(() => getMusteriCreds().kullaniciAdi || "");
   const [musteriSifre, setMusteriSifre] = useState("");
 
   return (
@@ -6444,11 +6859,17 @@ function LockScreen({ onSubmit, onKodSubmit, onKodIptal, kodAdimi, onStaffSubmit
               data-lpignore="true"
               value={musteriSifre}
               onChange={(e) => setMusteriSifre(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && onMusteriSubmit(musteriKullaniciAdi, musteriSifre)}
+              onKeyDown={(e) => e.key === "Enter" && onMusteriSubmit(musteriKullaniciAdi, musteriSifre, musteriHatirla)}
               placeholder="Şifre"
               style={{ ...inputStyle, textAlign: "center", marginBottom: 12, padding: "11px 12px" }}
             />
-            <button onClick={() => onMusteriSubmit(musteriKullaniciAdi, musteriSifre)} disabled={checking} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", padding: "11px 12px", opacity: checking ? 0.6 : 1 }}>
+            {/* Varsayılan olarak AÇIK — müşteri her girişte şifre yazmak zorunda kalmasın.
+              * Kapatılırsa bilgiler sadece o sekme açık kaldığı sürece hatırlanır. */}
+            <label style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginBottom: 12, cursor: "pointer", fontSize: 12.5, color: T.textDim, fontFamily: "Inter" }}>
+              <input type="checkbox" checked={musteriHatirla} onChange={(e) => setMusteriHatirla(e.target.checked)} style={{ cursor: "pointer", width: 16, height: 16 }} />
+              Beni hatırla (bu cihazda şifre sorma)
+            </label>
+            <button onClick={() => onMusteriSubmit(musteriKullaniciAdi, musteriSifre, musteriHatirla)} disabled={checking} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", padding: "11px 12px", opacity: checking ? 0.6 : 1 }}>
               {checking ? "Kontrol ediliyor…" : "Giriş Yap"}
             </button>
           </>
@@ -6459,13 +6880,79 @@ function LockScreen({ onSubmit, onKodSubmit, onKodIptal, kodAdimi, onStaffSubmit
   );
 }
 
+/** Bağlantı bir Drive KLASÖRÜ mü? Klasörler tek bir dosya olarak gösterilemez. */
+function driveKlasorMu(link) {
+  return !!link && /\/drive\/(u\/\d+\/)?folders\//.test(link);
+}
+
+/** Drive bağlantısından dosya kimliğini çıkarır. Klasörlerde null döner. */
+function driveDosyaId(link) {
+  if (!link) return null;
+  if (driveKlasorMu(link)) return null;
+  const m = link.match(/\/d\/([a-zA-Z0-9_-]{10,})/)
+    || link.match(/[?&]id=([a-zA-Z0-9_-]{10,})/)
+    || link.match(/\/file\/d\/([a-zA-Z0-9_-]{10,})/);
+  return m ? m[1] : null;
+}
+
+/**
+ * Bir Drive görselinin gösterilebileceği ADAY adresler, en güvenilirden en aza.
+ * Google eski `uc?export=view` adresini artık çoğu dosya için doğrudan görsel olarak
+ * servis etmiyor (yönlendirme/onay sayfası dönüyor), bu yüzden önce `thumbnail`
+ * deneniyor. Hangisinin çalışacağı dosyaya göre değişebildiği için sırayla denenir.
+ */
+function driveGorselAdaylari(link) {
+  const id = driveDosyaId(link);
+  if (!id) return [];
+  return [
+    `https://drive.google.com/thumbnail?id=${id}&sz=w1600`,
+    `https://lh3.googleusercontent.com/d/${id}=w1600`,
+    `https://drive.google.com/uc?export=view&id=${id}`,
+  ];
+}
+
+/**
+ * Drive görselini gösterir. Aday adresleri sırayla dener; hiçbiri açılmazsa SESSİZCE
+ * KAYBOLMAK YERİNE nedenini yazar (klasör mü, tanınmayan bağlantı mı, paylaşım kapalı mı).
+ */
+function DriveGorsel({ link, yukseklik = 420, kapak = false, radius = 10 }) {
+  const adaylar = driveGorselAdaylari(link);
+  const [sira, setSira] = useState(0);
+  useEffect(() => { setSira(0); }, [link]);
+
+  const kutu = {
+    width: "100%", borderRadius: radius, background: T.surfaceRaised,
+    border: `1px dashed ${T.border}`, padding: "14px 16px",
+    fontSize: 12, color: T.textFaint, lineHeight: 1.6, fontFamily: "Inter",
+  };
+
+  if (driveKlasorMu(link)) return <div style={kutu}>Bu bir Drive <strong>klasör</strong> bağlantısı — klasörler önizlenemez. Tek bir dosyanın bağlantısını yapıştır.</div>;
+  if (adaylar.length === 0) return <div style={kutu}>Bu bağlantıdan bir Drive dosyası tanınamadı. Bağlantının drive.google.com/file/d/... biçiminde olduğundan emin ol.</div>;
+  if (sira >= adaylar.length) return <div style={kutu}>Görsel yüklenemedi. En yaygın sebep: dosyanın paylaşım ayarı kapalı. Drive'da dosyaya sağ tık → Paylaş → "Bağlantıya sahip olan herkes" → Görüntüleyen.</div>;
+
+  return (
+    <img
+      src={adaylar[sira]}
+      alt="Görsel"
+      style={{
+        width: "100%",
+        height: kapak ? yukseklik : undefined,
+        maxHeight: kapak ? undefined : yukseklik,
+        objectFit: kapak ? "cover" : "contain",
+        borderRadius: radius, background: T.surfaceRaised, display: "block",
+      }}
+      referrerPolicy="no-referrer"
+      onError={() => setSira((n) => n + 1)}
+    />
+  );
+}
+
 /** Google Drive paylaşım linkini, sayfa içinde doğrudan oynatılabilir (gömülü) önizleme
  * formatına çevirir. Dönüştürülemezse null döner, o zaman normal link olarak gösterilir. */
 function driveEmbedUrl(link) {
-  if (!link) return null;
-  const m = link.match(/\/d\/([a-zA-Z0-9_-]+)/) || link.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-  if (!m) return null;
-  return `https://drive.google.com/file/d/${m[1]}/preview`;
+  const id = driveDosyaId(link);
+  if (!id) return null;
+  return `https://drive.google.com/file/d/${id}/preview`;
 }
 
 /** Müşteri Paneli — owner/personel arayüzünden tamamen izole, sade bir onay ekranı.
@@ -6550,7 +7037,12 @@ function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
             <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter" }}>{musteriData.firmaAdi}</div>
             <div style={{ fontSize: 19, color: T.text, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif" }}>{musteriData.marka}</div>
           </div>
-          <button onClick={onCikis} style={{ ...cancelBtnStyle, fontSize: 12 }}>Çıkış Yap</button>
+          <button
+            onClick={() => { if (window.confirm("Çıkış yapılsın mı? Tekrar girmek için kullanıcı adı ve şifren gerekecek.")) onCikis(); }}
+            style={{ ...cancelBtnStyle, fontSize: 12.5, padding: "9px 15px", display: "flex", alignItems: "center", gap: 6 }}
+          >
+            <LogOut size={14} /> Çıkış Yap
+          </button>
         </div>
 
         {/* SEKMELER — her şey tek sayfada alt alta akmak yerine bölümlere ayrıldı. */}
@@ -6655,13 +7147,17 @@ function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
                     </div>
                   )}
 
+                  {/* Eski kayıtlar base64 görsel taşıyor, yeniler Drive bağlantısı — ikisi de desteklenir. */}
                   {icerik.gorselUrl && (
                     <img src={icerik.gorselUrl} alt={icerik.aciklama || ""} style={{ width: "100%", borderRadius: 10, marginBottom: 12, display: "block" }} />
                   )}
-                  {!icerik.gorselUrl && embed && (
+                  {!icerik.gorselUrl && icerik.tur === "gorsel" && icerik.driveLinki && (
+                    <div style={{ marginBottom: 12 }}><DriveGorsel link={icerik.driveLinki} yukseklik={460} /></div>
+                  )}
+                  {!icerik.gorselUrl && icerik.tur !== "gorsel" && embed && (
                     <iframe src={embed} title={icerik.aciklama || "içerik"} style={{ width: "100%", height: 280, border: "none", borderRadius: 10, marginBottom: 12 }} allow="autoplay" />
                   )}
-                  {!icerik.gorselUrl && !embed && icerik.driveLinki && (
+                  {!icerik.gorselUrl && icerik.tur !== "gorsel" && !embed && icerik.driveLinki && (
                     <a href={icerik.driveLinki} target="_blank" rel="noreferrer" style={{ display: "block", marginBottom: 12, color: T.accentText, fontSize: 12.5, fontFamily: "Inter" }}>İçeriği Görüntüle ↗</a>
                   )}
 
@@ -6740,6 +7236,16 @@ function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
 
         {/* ÜRETİM — hangi iş hangi aşamada. */}
         {sekme === "uretim" && <MusteriOperasyon isler={musteriData.operasyonIsleri || []} />}
+
+        {/* Alt çıkış — uzun listelerde en yukarı dönmek zorunda kalmamak için. */}
+        <div style={{ marginTop: 40, paddingTop: 20, borderTop: `1px solid ${T.borderSoft}`, textAlign: "center" }}>
+          <button
+            onClick={() => { if (window.confirm("Çıkış yapılsın mı? Tekrar girmek için kullanıcı adı ve şifren gerekecek.")) onCikis(); }}
+            style={{ ...cancelBtnStyle, fontSize: 12.5, padding: "9px 18px", display: "inline-flex", alignItems: "center", gap: 6 }}
+          >
+            <LogOut size={14} /> Çıkış Yap
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -6749,6 +7255,8 @@ function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
  * haftalar "yapıldı" bilgisiyle altta kalır. */
 function MusteriPaylasimPlani({ plan, marka }) {
   const [gecmisAcik, setGecmisAcik] = useState(false);
+  const [gorunum, setGorunum] = useState("izgara"); // "izgara" (genel görünüm) | "akis"
+  const [secili, setSecili] = useState(null);
   if (!plan || plan.length === 0) {
     return (
       <Card style={{ padding: 24, textAlign: "center" }}>
@@ -6788,8 +7296,39 @@ function MusteriPaylasimPlani({ plan, marka }) {
     </div>
   );
 
+  const tumGonderiler = [...gecmis].reverse().concat(gelecek);
+
   return (
     <div>
+      {/* Görünüm seçici: ızgara = hesabın genel görünümü, akış = tek tek inceleme */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 18, justifyContent: "center" }}>
+        {[{ key: "izgara", label: "Genel Görünüm" }, { key: "akis", label: "Tek Tek" }].map((g) => (
+          <button
+            key={g.key}
+            onClick={() => { setGorunum(g.key); setSecili(null); }}
+            style={{ padding: "7px 16px", borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 12.5, fontWeight: 600,
+              background: gorunum === g.key ? T.accentSoft : T.surfaceRaised, color: gorunum === g.key ? T.accentText : T.textDim }}
+          >
+            {g.label}
+          </button>
+        ))}
+      </div>
+
+      {gorunum === "izgara" && (
+        <>
+          <InstagramIzgara marka={marka} gonderiler={tumGonderiler} onSec={setSecili} />
+          {secili && (
+            <div style={{ marginTop: 20, display: "flex", justifyContent: "center" }}>
+              <div>
+                <InstagramOnizleme marka={marka} tur={secili.tur} gun={secili.gun} gorselUrl={secili.gorselUrl} altMetin={secili.altMetin} yapildi={secili.yapildi} />
+                <button style={{ ...cancelBtnStyle, width: "100%", justifyContent: "center", marginTop: 8 }} onClick={() => setSecili(null)}>Kapat</button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {gorunum === "akis" && <>
       {siraliHaftalar.length === 0 && gecmis.length === 0 && (
         <Card style={{ padding: 20, textAlign: "center" }}>
           <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Henüz plan oluşturulmadı.</div>
@@ -6811,6 +7350,7 @@ function MusteriPaylasimPlani({ plan, marka }) {
           {gecmisAcik && <div style={{ marginTop: 14 }}><Izgara liste={gecmis} /></div>}
         </div>
       )}
+      </>}
     </div>
   );
 }
@@ -6840,6 +7380,22 @@ function MusteriReklamlar({ reklamlar }) {
                 {tarihGoster(r.baslangicTarihi)} — {tarihGoster(r.bitisTarihi)}
               </div>
               {r.not && <div style={{ fontSize: 12, color: T.textDim, fontFamily: "Inter", marginTop: 5, lineHeight: 1.6 }}>{r.not}</div>}
+              {istatistikVarMi(r) && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                  {[
+                    { l: "Erişim", v: r.erisim },
+                    { l: "Gösterim", v: r.gosterim },
+                    { l: "Tıklama", v: r.tiklama },
+                    { l: "Etkileşim", v: r.etkilesim },
+                    { l: "Sonuç", v: r.sonuc },
+                  ].filter((x) => Number(x.v) > 0).map((x) => (
+                    <div key={x.l} style={{ background: T.surface, borderRadius: 9, padding: "7px 12px", minWidth: 78 }}>
+                      <div style={{ fontSize: 9.5, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, letterSpacing: 0.3 }}>{x.l.toLocaleUpperCase("tr")}</div>
+                      <div style={{ fontSize: 14, color: T.text, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", marginTop: 2 }}>{Number(x.v).toLocaleString("tr-TR")}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           );
         })}
@@ -7275,11 +7831,11 @@ export default function MarcusOS() {
     setStaffCreds(kullaniciAdi, sifre);
     loadData(true);
   };
-  const handleMusteriAuthSubmit = (kullaniciAdi, sifre) => {
+  const handleMusteriAuthSubmit = (kullaniciAdi, sifre, hatirla) => {
     clearOturum();
     clearStaffCreds();
     setMusteriBlockedMsg("");
-    setMusteriCreds(kullaniciAdi, sifre);
+    setMusteriCreds(kullaniciAdi, sifre, hatirla !== false);
     loadData(true);
   };
 
@@ -8456,6 +9012,8 @@ export default function MarcusOS() {
               reklamlar={data.reklamlar || []}
               isler={data.cekimIsleri || []}
               onAltMetin={setPlanAltMetin}
+              firmaAdi={data.firmaAdi}
+              logo={data.markaKimligiGorseli}
             />
           )}
           {tab === "musteriler" && (
