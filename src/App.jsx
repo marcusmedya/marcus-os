@@ -5898,7 +5898,190 @@ function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, 
   );
 }
 
-function Planim({ gorevler, onAdd, onUpdate, onDelete }) {
+/* ------------------------------------------------------------------ */
+/* ONAY KUTUSU — müşteri revize istekleri ve atanmamış işler              */
+/* ------------------------------------------------------------------ */
+/**
+ * Planım sekmesinin üstünde duran, SENİN aksiyonunu bekleyen kutu. İki tür kayıt gösterir:
+ *
+ *  1. Müşterinin REVİZE istediği içerik/çekim planları — "Operasyona Aktar" ile kişi
+ *     atayarak üretime düşürürsün.
+ *  2. Onaylanıp Operasyon'a düşmüş ama HENÜZ KİMSEYE ATANMAMIŞ işler — kimin yapacağı
+ *     belli olmadan panoda kaybolmasınlar diye burada da görünürler.
+ *
+ * Bu liste kalıcı olarak SAKLANMAZ, her seferinde mevcut veriden hesaplanır. Böylece bir
+ * kayıt hallolduğunda kutudan kendiliğinden düşer; senkronu bozacak ikinci bir kopya oluşmaz.
+ */
+function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, onOperasyonaAktar, onAta, onGit }) {
+  const [acikId, setAcikId] = useState(null);
+  const [form, setForm] = useState({ kategori: "Video", kameraman: "", editor: "", teslimTarihi: "" });
+
+  const markaAdi = (clientId) => ((clients || []).find((c) => String(c.id) === String(clientId)) || {}).ad || "Müşteri";
+
+  const revizeler = (icerikler || []).filter((i) => i.durum === "revize");
+  const atanmamislar = (isler || []).filter(
+    (j) => j.asama !== "Teslim Edildi" && !String(j.kameraman || "").trim() && !String(j.editor || "").trim()
+  );
+
+  if (revizeler.length === 0 && atanmamislar.length === 0) return null;
+
+  // Atama için isim havuzu: kayıtlı personel + freelancer'lar, tekrarsız.
+  const kisiler = Array.from(new Set([
+    ...(roster || []).map((p) => p.ad),
+    ...(freelancerlar || []).map((f) => f.ad),
+  ].filter(Boolean)));
+
+  const formuAc = (i) => {
+    setAcikId(i.id);
+    setForm({
+      kategori: i.kategori === "Grafik Tasarım" ? "Grafik Tasarım" : "Video",
+      kameraman: "",
+      editor: "",
+      teslimTarihi: i.planlananTarih || bugunISOTarih(),
+    });
+  };
+
+  const aktar = (i) => {
+    if (!form.kameraman && !form.editor) {
+      if (!window.confirm("Kimseye atamadan aktarılsın mı? Sonradan Operasyon'dan atayabilirsin.")) return;
+    }
+    onOperasyonaAktar(i.id, form);
+    setAcikId(null);
+  };
+
+  const KisiSecici = ({ deger, onChange, etiket }) => (
+    <div style={{ flex: "1 1 150px" }}>
+      <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>{etiket}</label>
+      <select value={deger} onChange={(e) => onChange(e.target.value)} style={{ ...inputStyle, marginBottom: 0 }}>
+        <option value="">— seçilmedi —</option>
+        {kisiler.map((ad) => <option key={ad} value={ad}>{ad}</option>)}
+      </select>
+    </div>
+  );
+
+  return (
+    <Card style={{ padding: "16px 18px", marginBottom: 18, border: `1px solid ${T.warning}` }}>
+      <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 4 }}>
+        Onayını Bekleyenler ({revizeler.length + atanmamislar.length})
+      </div>
+      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 14, lineHeight: 1.6 }}>
+        Müşteriden gelen revize istekleri ve kimseye atanmamış işler. Buradan kişi atayıp Operasyon'a düşürebilirsin.
+      </div>
+
+      {revizeler.map((i) => (
+        <div key={`rev-${i.id}`} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "11px 13px", marginBottom: 8 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
+                <span style={{ color: T.danger }}>Revize · </span>
+                {markaAdi(i.clientId)} — {basligiTemizle(i.aciklama) || (i.tur === "cekim" ? "Çekim Planı" : "İçerik")}
+              </div>
+              {i.revizeNotu && (
+                <div style={{ fontSize: 12, color: T.textDim, fontFamily: "Inter", fontStyle: "italic", marginTop: 4, lineHeight: 1.55 }}>
+                  "{i.revizeNotu}"
+                </div>
+              )}
+            </div>
+            {acikId !== i.id && (
+              <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                <button style={cancelBtnStyle} onClick={() => onGit && onGit()}>Planı Düzenle</button>
+                <button style={saveBtnStyle} onClick={() => formuAc(i)}>Operasyona Aktar</button>
+              </div>
+            )}
+          </div>
+
+          {acikId === i.id && (
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
+              <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 5 }}>Hangi alana düşsün?</label>
+              <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                {["Video", "Grafik Tasarım"].map((k) => (
+                  <button
+                    key={k}
+                    onClick={() => setForm((f) => ({ ...f, kategori: k }))}
+                    style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 12, fontWeight: 600,
+                      background: form.kategori === k ? T.accentSoft : T.surface, color: form.kategori === k ? T.accentText : T.textDim }}
+                  >
+                    {k}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                {form.kategori === "Video" && <KisiSecici etiket="Kameraman" deger={form.kameraman} onChange={(v) => setForm((f) => ({ ...f, kameraman: v }))} />}
+                <KisiSecici etiket={form.kategori === "Video" ? "Editör" : "Tasarımcı"} deger={form.editor} onChange={(v) => setForm((f) => ({ ...f, editor: v }))} />
+                <div style={{ flex: "1 1 140px" }}>
+                  <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Teslim tarihi</label>
+                  <input type="date" value={form.teslimTarihi} onChange={(e) => setForm((f) => ({ ...f, teslimTarihi: e.target.value }))} style={{ ...inputStyle, marginBottom: 0 }} />
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button style={saveBtnStyle} onClick={() => aktar(i)}>Operasyona Aktar</button>
+                <button style={cancelBtnStyle} onClick={() => setAcikId(null)}>Vazgeç</button>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+
+      {atanmamislar.map((j) => (
+        <AtanmamisIsSatiri key={`is-${j.id}`} job={j} kisiler={kisiler} onAta={onAta} />
+      ))}
+    </Card>
+  );
+}
+
+/** Operasyon'a düşmüş ama kimsenin üstünde olmayan iş — buradan tek tıkla atanır. */
+function AtanmamisIsSatiri({ job, kisiler, onAta }) {
+  const [acik, setAcik] = useState(false);
+  const [kameraman, setKameraman] = useState("");
+  const [editor, setEditor] = useState("");
+  const video = job.kategori !== "Grafik Tasarım";
+
+  const kaydet = () => {
+    if (!kameraman && !editor) { window.alert("En az bir kişi seç."); return; }
+    onAta(job.id, { kameraman, editor });
+    setAcik(false);
+  };
+
+  return (
+    <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "11px 13px", marginBottom: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
+            <span style={{ color: T.warning }}>Atanmadı · </span>{job.marka} — {job.icerikTuru}
+          </div>
+          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>
+            {job.kategori || "Video"} · {job.asama}
+          </div>
+        </div>
+        {!acik && <button style={saveBtnStyle} onClick={() => setAcik(true)}>Kişi Ata</button>}
+      </div>
+      {acik && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.border}`, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+          {video && (
+            <div style={{ flex: "1 1 140px" }}>
+              <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Kameraman</label>
+              <select value={kameraman} onChange={(e) => setKameraman(e.target.value)} style={{ ...inputStyle, marginBottom: 0 }}>
+                <option value="">— seçilmedi —</option>
+                {kisiler.map((ad) => <option key={ad} value={ad}>{ad}</option>)}
+              </select>
+            </div>
+          )}
+          <div style={{ flex: "1 1 140px" }}>
+            <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>{video ? "Editör" : "Tasarımcı"}</label>
+            <select value={editor} onChange={(e) => setEditor(e.target.value)} style={{ ...inputStyle, marginBottom: 0 }}>
+              <option value="">— seçilmedi —</option>
+              {kisiler.map((ad) => <option key={ad} value={ad}>{ad}</option>)}
+            </select>
+          </div>
+          <button style={saveBtnStyle} onClick={kaydet}>Ata</button>
+          <button style={cancelBtnStyle} onClick={() => setAcik(false)}>Vazgeç</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Planim({ gorevler, onAdd, onUpdate, onDelete, onayKutusu }) {
   const [metin, setMetin] = useState("");
   const [tarih, setTarih] = useState("");
   const [onemli, setOnemli] = useState(false);
@@ -6009,6 +6192,10 @@ function Planim({ gorevler, onAdd, onUpdate, onDelete }) {
       <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 16, lineHeight: 1.6 }}>
         Yapman gerekenleri buraya not al. Sadece sen görürsün — personel paneline hiç gönderilmez.
       </div>
+
+      {/* Müşteriden gelen revize istekleri ve atanmamış işler — kendi notlarının üstünde,
+        * çünkü bunlar bekleyen gerçek aksiyonlar. */}
+      {onayKutusu}
 
       {/* Hızlı ekleme */}
       <Card style={{ padding: "14px 16px", marginBottom: 16 }}>
@@ -8330,6 +8517,81 @@ export default function MarcusOS() {
   const updateGorev = (id, patch) => setData((d) => ({ ...d, kisiselGorevler: (d.kisiselGorevler || []).map((g) => (g.id === id ? { ...g, ...patch } : g)) }));
   const deleteGorev = (id) => setData((d) => ({ ...d, kisiselGorevler: (d.kisiselGorevler || []).filter((g) => g.id !== id) }));
 
+  /**
+   * Müşterinin revize istediği bir kaydı, SENİN onayınla Operasyon'a düşürür.
+   * Bağlı bir iş zaten varsa onu "Revize İstendi" aşamasına alır ve atamayı günceller;
+   * yoksa seçtiğin kategorinin ilk aşamasında yeni bir iş açar.
+   */
+  const revizeyiOperasyonaAktar = (icerikId, { kategori, kameraman, editor, teslimTarihi }) => setData((d) => {
+    const icerik = (d.musteriIcerikleri || []).find((i) => i.id === icerikId);
+    if (!icerik) return d;
+    const marka = ((d.clients || []).find((c) => String(c.id) === String(icerik.clientId)) || {}).ad || "";
+    const isler = d.cekimIsleri || [];
+    const zaman = new Date().toLocaleString("tr-TR");
+    const notMetni = `Revize Operasyon'a aktarıldı${icerik.revizeNotu ? `: "${icerik.revizeNotu}"` : ""}`;
+
+    // Bağlı iş varsa onu güncelle
+    if (icerik.kaynakIsId && isler.some((j) => j.id === icerik.kaynakIsId)) {
+      return {
+        ...d,
+        cekimIsleri: isler.map((j) => {
+          if (j.id !== icerik.kaynakIsId) return j;
+          return {
+            ...j,
+            asama: "Revize İstendi",
+            kameraman: kameraman || j.kameraman,
+            editor: editor || j.editor,
+            teslimTarihi: teslimTarihi || j.teslimTarihi,
+            gecmis: [...(j.gecmis || []), { id: (j.gecmis || []).length + 1, tarih: zaman, yazan: "Yönetici (CEO)", aciklama: notMetni }],
+          };
+        }),
+      };
+    }
+
+    // Yoksa yeni iş aç
+    const yeniId = isler.reduce((m, j) => Math.max(m, Number(j.id) || 0), 0) + 1;
+    const kat = kategori === "Grafik Tasarım" ? "Grafik Tasarım" : "Video";
+    const yeniIs = {
+      id: yeniId,
+      kategori: kat,
+      marka,
+      icerikTuru: (icerik.aciklama || "Revize işi").slice(0, 120),
+      asama: kat === "Grafik Tasarım" ? "Talep Alındı" : "Çekim Planlandı",
+      cekimTarihi: teslimTarihi || bugunISOTarih(),
+      teslimTarihi: teslimTarihi || bugunISOTarih(),
+      kameraman: kameraman || "",
+      editor: editor || "",
+      oncelik: "Normal",
+      istenenAdet: "",
+      uretilenAdet: "",
+      brief: [
+        icerik.revizeNotu ? `MÜŞTERİ REVİZE NOTU:\n${icerik.revizeNotu}` : "",
+        icerik.konusmaMetni ? `\nKONUŞMA METNİ:\n${icerik.konusmaMetni}` : "",
+        icerik.cekimNotu ? `\nÇEKİM NOTU:\n${icerik.cekimNotu}` : "",
+      ].filter(Boolean).join("\n"),
+      editliDosyaLink: icerik.referansLink || "",
+      gecmis: [{ id: 1, tarih: zaman, yazan: "Yönetici (CEO)", aciklama: notMetni }],
+      yorumlar: [],
+    };
+    return {
+      ...d,
+      cekimIsleri: [...isler, yeniIs],
+      // Kaydı işe bağla ki onay kutusunda tekrar tekrar çıkmasın ve sonraki müşteri
+      // yanıtları doğru işi güncellesin.
+      musteriIcerikleri: (d.musteriIcerikleri || []).map((i) => (i.id === icerikId ? { ...i, durum: "bekliyor", kaynakIsId: yeniId, olusturulanIsId: yeniId } : i)),
+    };
+  });
+
+  /** Atanmamış bir işe kişi atar (Onay Kutusu'ndan). */
+  const iseKisiAta = (isId, { kameraman, editor }) => setData((d) => ({
+    ...d,
+    cekimIsleri: (d.cekimIsleri || []).map((j) => {
+      if (j.id !== isId) return j;
+      const not = { id: (j.gecmis || []).length + 1, tarih: new Date().toLocaleString("tr-TR"), yazan: "Yönetici (CEO)", aciklama: `Atama yapıldı${kameraman ? ` — kameraman: ${kameraman}` : ""}${editor ? ` — editör: ${editor}` : ""}` };
+      return { ...j, kameraman: kameraman || j.kameraman, editor: editor || j.editor, gecmis: [...(j.gecmis || []), not] };
+    }),
+  }));
+
   const addFonHareket = (fonId, tip, tutar, not, tarih) => setData((d) => ({
     ...d,
     birikimler: (d.birikimler || []).map((f) => {
@@ -8498,8 +8760,14 @@ export default function MarcusOS() {
     (data.musteriIcerikleri || []).forEach((i) => {
       const marka = ((data.clients || []).find((c) => String(c.id) === String(i.clientId)) || {}).ad || "Müşteri";
       const ad = i.aciklama || (i.tur === "cekim" ? "Çekim planı" : "İçerik");
-      if (i.durum === "revize") items.push({ text: `${marka}: "${ad}" için revize istedi${i.revizeNotu ? ` — "${i.revizeNotu}"` : ""}`, level: "danger" });
+      if (i.durum === "revize") items.push({ text: `${marka}: "${ad}" için revize istedi — Planım'daki onay kutusundan Operasyon'a aktarabilirsin`, level: "danger" });
       else if (i.durum === "bekliyor" && i.tur === "cekim") items.push({ text: `${marka}: "${ad}" çekim planı müşteri onayı bekliyor`, level: "warning" });
+    });
+    // Operasyon'a düşmüş ama kimseye atanmamış işler — panoda sahipsiz kalmasınlar.
+    (data.cekimIsleri || []).forEach((j) => {
+      if (j.asama === "Teslim Edildi") return;
+      if (String(j.kameraman || "").trim() || String(j.editor || "").trim()) return;
+      items.push({ text: `${j.marka || "İş"}: "${j.icerikTuru || j.kategori || "iş"}" kimseye atanmadı`, level: "warning" });
     });
     data.clients.filter((c) => c.durum !== "ayrildi" && c.durum !== "donduruldu").forEach((c) => {
       const st = clientPaymentStatus(c);
@@ -9000,7 +9268,24 @@ export default function MarcusOS() {
 
         <div style={{ padding: isMobile ? "16px 16px 32px" : "20px 30px 40px" }}>
           {tab === "dashboard" && <Dashboard data={data} onAsk={() => openAi()} />}
-          {tab === "planim" && <Planim gorevler={data.kisiselGorevler || []} onAdd={addGorev} onUpdate={updateGorev} onDelete={deleteGorev} />}
+          {tab === "planim" && (
+            <Planim
+              gorevler={data.kisiselGorevler || []}
+              onAdd={addGorev} onUpdate={updateGorev} onDelete={deleteGorev}
+              onayKutusu={
+                <OnayKutusu
+                  icerikler={data.musteriIcerikleri || []}
+                  isler={data.cekimIsleri || []}
+                  clients={data.clients || []}
+                  roster={data.personelRosteri || []}
+                  freelancerlar={data.freelancerlar || []}
+                  onOperasyonaAktar={revizeyiOperasyonaAktar}
+                  onAta={iseKisiAta}
+                  onGit={() => setTab("musteri-paneli")}
+                />
+              }
+            />
+          )}
           {tab === "musteri-paneli" && (
             <MusteriPaneliYonetimi
               clients={data.clients || []}

@@ -924,3 +924,39 @@ giriş yapar.*
 Müşteri panelinde çıkış butonu zaten vardı ama küçük ve dikkat çekmiyordu. Artık ikonlu ve
 belirgin, üstelik **panelin altına da bir tane** eklendi (uzun listelerde en yukarı dönmek
 zorunda kalınmasın). İkisi de onay soruyor, yanlışlıkla çıkış olmuyor.
+
+## Güncelleme 33: Onay Kutusu — Revize İstekleri Senin Onayınla Operasyon'a Düşüyor
+
+Müşteri revize istediğinde bunu görmek için Müşteri Paneli sekmesine girmen gerekiyordu ve
+üretime aktarmanın otomatik bir yolu yoktu. Artık **Planım** sekmesinin en üstünde
+**"Onayını Bekleyenler"** kutusu var.
+
+### Kutuda ne görünüyor
+**1. Müşterinin revize istedikleri** — marka adı, hangi içerik ve müşterinin notu.
+İki seçenek:
+- **Planı Düzenle** → doğrudan Müşteri Paneli sekmesine götürür (metni düzeltip tekrar
+  göndermek istiyorsan)
+- **Operasyona Aktar** → küçük bir form açılır:
+  - **Hangi alana düşsün?** Video / Grafik Tasarım
+  - **Kim yapacak?** Kameraman ve Editör (kayıtlı personel + freelancer'lar tek listede)
+  - **Teslim tarihi**
+
+  Aktarınca iş doğru sütunda ve doğru kişinin üstünde açılır. Müşterinin revize notu işin
+  **brief**'ine yazılır, işlem geçmişine de kayıt düşer.
+
+**2. Kimseye atanmamış işler** — Operasyon'a düşmüş ama üstünde kimse olmayan işler (örneğin
+müşteri bir çekim planını onayladığında otomatik açılanlar). Buradan tek tıkla kişi atarsın.
+Atanınca kutudan kendiliğinden düşer.
+
+### Bağlı iş varsa yeni iş açılmaz
+Revize edilen içerik zaten bir Operasyon işine bağlıysa yeni iş açılmaz — mevcut iş
+**"Revize İstendi"** aşamasına alınır ve atama güncellenir. Böylece aynı iş için ikinci bir
+kart oluşmaz.
+
+### Liste saklanmıyor, hesaplanıyor
+Onay kutusu kalıcı bir kayıt tutmaz; her açılışta mevcut veriden hesaplanır. Bir kayıt
+hallolduğunda kutudan kendiliğinden düşer — senkronu bozacak ikinci bir kopya oluşmaz.
+
+### Bildirimler
+Üstteki zil listesine artık **atanmamış işler** de düşüyor. Revize bildirimleri de nereden
+işlem yapacağını söylüyor ("Planım'daki onay kutusundan Operasyon'a aktarabilirsin").
