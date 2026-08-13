@@ -86,17 +86,40 @@ function markayaGoreSuz(data, izinliMarkalar) {
   const clientAlani = (kayit) => idSeti.has(String(kayit.clientId));
 
   const suzulmus = { ...data };
-  if (data.clients) suzulmus.clients = izinliClientlar;
-  if (data.reklamlar) suzulmus.reklamlar = data.reklamlar.filter(markaAlani);
-  if (data.cekimIsleri) suzulmus.cekimIsleri = data.cekimIsleri.filter(markaAlani);
-  if (data.markalasmaSurecleri) suzulmus.markalasmaSurecleri = data.markalasmaSurecleri.filter(markaAlani);
-  if (data.haftalikPaylasimlar) suzulmus.haftalikPaylasimlar = data.haftalikPaylasimlar.filter(clientAlani);
-  if (data.musteriIcerikleri) suzulmus.musteriIcerikleri = data.musteriIcerikleri.filter(clientAlani);
-  if (data.stoklar) suzulmus.stoklar = data.stoklar.filter((x) => clientAlani(x) || markaAlani(x));
-  if (data.paylasimGecmisi) suzulmus.paylasimGecmisi = data.paylasimGecmisi.filter((x) => clientAlani(x) || markaAlani(x));
-  if (data.gunlukKontrol) suzulmus.gunlukKontrol = data.gunlukKontrol.filter((x) => clientAlani(x) || markaAlani(x));
-  if (data.subeler) suzulmus.subeler = data.subeler.filter((x) => clientAlani(x) || markaAlani(x));
-  if (data.hesapOlcumleri) suzulmus.hesapOlcumleri = data.hesapOlcumleri.filter(clientAlani);
+
+  /** Dizi alanlarını süzer. Alan dizi DEĞİLSE hiç dokunmaz — bu kontrol olmadan, nesne
+   * biçiminde saklanan bir alanda (.filter yok) sunucu çöküyordu. */
+  const diziSuz = (ad, kural) => {
+    if (Array.isArray(data[ad])) suzulmus[ad] = data[ad].filter(kural);
+  };
+
+  suzulmus.clients = izinliClientlar;
+  diziSuz("reklamlar", markaAlani);
+  diziSuz("cekimIsleri", markaAlani);
+  diziSuz("markalasmaSurecleri", markaAlani);
+  diziSuz("haftalikPaylasimlar", clientAlani);
+  diziSuz("musteriIcerikleri", clientAlani);
+  diziSuz("paylasimGecmisi", (x) => clientAlani(x) || markaAlani(x));
+  diziSuz("subeler", (x) => clientAlani(x) || markaAlani(x));
+  diziSuz("hesapOlcumleri", clientAlani);
+
+  /* stoklar bir DİZİ DEĞİL, anahtarları "clientId_tür" (ve şube için "clientId_subeId_tür")
+   * olan bir NESNE. Bu yüzden anahtarın başındaki müşteri kimliğine bakarak süzülür. */
+  if (data.stoklar && typeof data.stoklar === "object" && !Array.isArray(data.stoklar)) {
+    const yeniStok = {};
+    Object.entries(data.stoklar).forEach(([anahtar, deger]) => {
+      const clientId = String(anahtar).split("_")[0];
+      if (idSeti.has(clientId)) yeniStok[anahtar] = deger;
+    });
+    suzulmus.stoklar = yeniStok;
+  }
+
+  /* gunlukKontrol null ya da nesne olabilir — dizi olduğu durumda süzülür, değilse
+   * olduğu gibi bırakılır (marka bilgisi taşımıyor). */
+  if (Array.isArray(data.gunlukKontrol)) {
+    suzulmus.gunlukKontrol = data.gunlukKontrol.filter((x) => clientAlani(x) || markaAlani(x));
+  }
+
   return suzulmus;
 }
 
@@ -105,8 +128,8 @@ function markayaGoreSuz(data, izinliMarkalar) {
 function icBilgiyiTemizle(data, kilitliMi) {
   if (!kilitliMi) return data;
   const temiz = { ...data };
-  if (temiz.reklamlar) temiz.reklamlar = temiz.reklamlar.map(({ butce, ...r }) => r);
-  if (temiz.clients) {
+  if (Array.isArray(temiz.reklamlar)) temiz.reklamlar = temiz.reklamlar.map(({ butce, ...r }) => r);
+  if (Array.isArray(temiz.clients)) {
     temiz.clients = temiz.clients.map((c) => {
       const { maliyetler, odemeKayitlari, aylikUcret, sozlesmeBedeli, ...kalan } = c;
       return kalan;
@@ -612,6 +635,26 @@ export default async function handler(req, res) {
                 merged[f] = [...baskalarininki, ...benimkiler];
                 return;
               }
+
+              /* stoklar dizi değil, anahtarları "clientId_..." olan bir NESNE. Kilitli hesap
+               * sadece kendi markalarının anahtarlarını gördüğü için, nesneyi olduğu gibi geri
+               * yazarsa diğer markaların stokları SİLİNİRDİ. Anahtar bazında birleştiriliyor. */
+              if (yaziKilitli && f === "stoklar"
+                  && data[f] && typeof data[f] === "object" && !Array.isArray(data[f])
+                  && existing[f] && typeof existing[f] === "object" && !Array.isArray(existing[f])) {
+                const birlesik = {};
+                // Önce başkalarının anahtarları sunucudaki hâliyle korunur
+                Object.entries(existing[f]).forEach(([anahtar, deger]) => {
+                  if (!yaziIdSeti.has(String(anahtar).split("_")[0])) birlesik[anahtar] = deger;
+                });
+                // Sonra bu hesabın markalarına ait anahtarlar gönderilen veriyle güncellenir
+                Object.entries(data[f]).forEach(([anahtar, deger]) => {
+                  if (yaziIdSeti.has(String(anahtar).split("_")[0])) birlesik[anahtar] = deger;
+                });
+                merged[f] = birlesik;
+                return;
+              }
+
               merged[f] = data[f];
             });
           });

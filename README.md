@@ -1274,3 +1274,30 @@ düz) gerçek istekle test edildi, hepsi geçti.
 Önceki mesaj her hata için "internet bağlantını kontrol et" diyordu — oysa aynı blok, yanıt
 işlenirken oluşan kod hatalarında da çalışıyor. Bu, insanı saatlerce yanlış yönde arattırabilir.
 Artık gerçek ağ hatası ile kod hatası ayrılıyor ve hatanın teknik açıklaması da gösteriliyor.
+
+## Güncelleme 45: Marka Kilidi Sunucuyu Çökertiyordu (stoklar nesne, dizi değil)
+
+Türkçe karakter düzeltmesi (44) işe yaradı — istek artık sunucuya ulaşıyor. Ardından çıkan
+gerçek hata: **`data.stoklar.filter is not a function`**.
+
+**Sebep:** 41. güncellemedeki marka kilidi süzgecini yazarken, süzülen alanların hepsinin dizi
+olduğunu varsaymıştım. Oysa:
+- **`stoklar` bir NESNE** — anahtarları `clientId_tür` (ve şubeler için `clientId_subeId_tür`)
+- **`gunlukKontrol` null olabiliyor**
+
+Dizi olmayan bir alanda `.filter()` çağrılınca sunucu çöküyor ve marka kilitli her personel
+girişi hata veriyordu.
+
+**Düzeltme:**
+- Dizi alanları artık `Array.isArray` kontrolünden geçiyor; dizi olmayan alana hiç dokunulmuyor
+- `stoklar` kendi yapısına göre süzülüyor: anahtarın başındaki müşteri kimliğine bakılıyor
+- `gunlukKontrol` null/nesne olduğunda olduğu gibi bırakılıyor
+
+### Ayrıca kapatılan bir VERİ KAYBI deliği
+Kilitli hesap `stoklar` nesnesinin sadece kendi markasına ait anahtarlarını görüyor. Kaydederken
+bu nesneyi olduğu gibi geri yazsaydı **diğer markaların stokları silinirdi.** Dizi alanları için
+zaten birleştirme vardı ama nesneler için yoktu.
+
+Artık `stoklar` da anahtar bazında birleştiriliyor: başkasının anahtarları sunucudaki hâliyle
+korunuyor, sadece o hesabın markalarına ait olanlar güncelleniyor. Gerçek veriyle test edildi —
+kilitli hesap kendi stoğunu değiştirdiğinde diğer markanın stoğu ve reklamı korunuyor.
