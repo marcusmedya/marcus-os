@@ -47,6 +47,12 @@ async function rateLimitAsildiMi(req) {
     return false; // KV'ye ulaşılamıyorsa girişi tamamen engelleme, sadece koruma devre dışı kalır
   }
 }
+/** Başarılı girişte sayaç sıfırlanır. Bu olmadan, gün içinde biriken hatalı denemeler
+ * (çoğu zaman kendi test denemelerin) 15 dakika boyunca PERSONEL ve MÜŞTERİ girişlerini de
+ * kilitliyordu — sayaç IP başına tutulduğu için doğru şifreyi bilen kişi de giremiyordu. */
+async function basariliGirisiSifirla(req) {
+  try { await kv.del(`login-fail-${istekIP(req)}`); } catch (e) { /* kritik değil */ }
+}
 async function basarisizGirisiKaydet(req) {
   try {
     const key = `login-fail-${istekIP(req)}`;
@@ -208,6 +214,29 @@ async function resolveRole(req) {
 }
 
 export default async function handler(req, res) {
+  /* KİLİT AÇMA, hız sınırının ÖNÜNDE çalışır — aksi halde kısır döngü olurdu: kilitliyken
+   * kilidi açma isteği de engellenirdi. Erişim vermez, sadece sayacı sıfırlar ve yönetici
+   * şifresi ister.
+   *
+   * Bunun sınırsız bir şifre deneme kapısına dönüşmemesi için AYRI ve çok daha dar bir
+   * sayaç kullanılır: saatte 5 hatalı deneme. */
+  if (req.method === "POST" && req.body && req.body.authAction === "kilidiAc") {
+    const ownerPw = process.env.SITE_PASSWORD;
+    const acmaKey = `unlock-fail-${istekIP(req)}`;
+    let acmaSayac = 0;
+    try { acmaSayac = (await kv.get(acmaKey)) || 0; } catch (e) { acmaSayac = 0; }
+    if (acmaSayac >= 5) {
+      return res.status(429).json({ error: "Kilit açma da geçici olarak durduruldu. 1 saat sonra tekrar dene." });
+    }
+    if (ownerPw && (!req.body.sifre || !esitMi(req.body.sifre, ownerPw))) {
+      try { await kv.set(acmaKey, acmaSayac + 1, { ex: 3600 }); } catch (e) { /* kritik değil */ }
+      return res.status(401).json({ error: "Şifre hatalı." });
+    }
+    await basariliGirisiSifirla(req);
+    try { await kv.del(acmaKey); } catch (e) { /* kritik değil */ }
+    return res.status(200).json({ ok: true });
+  }
+
   if (await rateLimitAsildiMi(req)) {
     return res.status(429).json({ error: "Çok fazla başarısız giriş denemesi. 15 dakika sonra tekrar dene." });
   }
@@ -233,6 +262,7 @@ export default async function handler(req, res) {
       }
       if (!ikiAdimliAktifMi()) {
         // E-posta doğrulaması yapılandırılmamış — kilitlenmeyi önlemek için doğrudan giriş.
+        await basariliGirisiSifirla(req);
         const { token, sure } = await oturumAc(!!hatirla);
         return res.status(200).json({ ok: true, token, sure, kodGerekli: false });
       }
@@ -278,6 +308,9 @@ export default async function handler(req, res) {
   }
 
   const auth = await resolveRole(req);
+  // Kimlik doğrulandıysa hatalı deneme sayacını temizle — yoksa eski denemeler geçerli
+  // girişleri de engellemeye devam ederdi.
+  if (auth) await basariliGirisiSifirla(req);
   if (!auth) {
     await basarisizGirisiKaydet(req);
     return res.status(401).json({ error: "Yetkisiz. Şifre gerekli." });

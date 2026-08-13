@@ -7416,7 +7416,25 @@ function LockScreen({ onSubmit, onKodSubmit, onKodIptal, kodAdimi, onStaffSubmit
             </button>
           </>
         )}
-        {error && <div style={{ color: T.danger, fontSize: 12.5, fontFamily: "Inter", marginTop: 12 }}>{error}</div>}
+        {error && <div style={{ color: T.danger, fontSize: 12.5, fontFamily: "Inter", marginTop: 12, lineHeight: 1.6 }}>{error}</div>}
+        {/* Hız sınırı sayacı IP başına tutulduğu için, yöneticinin hatalı denemeleri personel
+          * ve müşteri girişlerini de kilitleyebiliyor. Bu bağlantı, yönetici şifresiyle
+          * beklemeden açmayı sağlar. */}
+        {error && error.includes("Çok fazla") && (
+          <button
+            onClick={() => {
+              const pw = window.prompt("Kilidi açmak için yönetici şifresini gir:");
+              if (!pw) return;
+              fetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ authAction: "kilidiAc", sifre: pw }) })
+                .then((r) => r.json())
+                .then((res) => window.alert(res.ok ? "Kilit açıldı — tekrar giriş yapabilirsin." : (res.error || "Açılamadı.")))
+                .catch(() => window.alert("Bağlantı hatası."));
+            }}
+            style={{ background: "none", border: "none", color: T.accentText, fontSize: 12, cursor: "pointer", marginTop: 8, fontFamily: "Inter", textDecoration: "underline" }}
+          >
+            Yönetici şifresiyle kilidi aç
+          </button>
+        )}
       </div>
     </div>
   );
@@ -8249,7 +8267,17 @@ export default function MarcusOS() {
         }
         if (!r.ok) {
           // Sunucu/veritabanı hatası: ASLA demo veriyle üzerine yazma, sadece hata göster.
+          //
+          // ÖNEMLİ: giriş ekranındayken bu hatanın GÖRÜNMESİ gerekiyor. Render sırasında
+          // needsAuth kontrolü loadError'dan önce geldiği için, eskiden 401 dışındaki her
+          // hata (429 hız sınırı, 500 sunucu hatası) sessizce yutuluyordu: kullanıcı
+          // "Giriş Yap"a basıyor, hiçbir şey olmuyor, hiçbir mesaj da çıkmıyordu.
+          const res = await r.json().catch(() => ({}));
+          const mesaj = r.status === 429
+            ? "Çok fazla başarısız giriş denemesi yapıldı. 15 dakika bekleyip tekrar dene."
+            : (res.error || `Sunucu hatası (${r.status}). Birkaç saniye sonra tekrar dene.`);
           setLoadError(true);
+          setAuthError(mesaj);
           return;
         }
         const res = await r.json();
@@ -8287,7 +8315,7 @@ export default function MarcusOS() {
         setNeedsAuth(false);
         setAuthError("");
       })
-      .catch(() => setLoadError(true)) // ağ hatası — data state'ine ASLA dokunma
+      .catch(() => { setLoadError(true); setAuthError("Sunucuya ulaşılamadı — internet bağlantını kontrol edip tekrar dene."); }) // ağ hatası — data state'ine ASLA dokunma
       .finally(() => { setLoading(false); setAuthChecking(false); });
   };
 

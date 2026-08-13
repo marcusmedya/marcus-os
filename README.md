@@ -1192,3 +1192,38 @@ diyebilirsin. Ölçüm girilmemişse bölüm rapora hiç basılmaz — boş tabl
 Biten ama **sonuç istatistiği girilmemiş** kampanyalar artık Planım → Onayını Bekleyenler
 kutusunda ve menü sayacında görünüyor. "İstatistikleri Gir" butonu doğrudan Reklamlar'a götürür.
 Böylece istatistiği girilmemiş bir kampanya gözden kaçıp raporu eksik bırakmaz.
+
+## Güncelleme 42: Personel/Müşteri Girişi "Giriş Yap"a Basınca Tepki Vermiyordu
+
+Sunucu tarafı test edildi ve sorunsuz çıktı (personel ve müşteri girişleri, marka kilidi,
+bütçe gizleme — hepsi doğru çalışıyor). Sorun **hatanın hiç gösterilmemesiydi.**
+
+### Asıl sebep: sessizce yutulan hata
+Giriş ekranı, ekran sırasında `needsAuth` kontrolünden geçiyor ve bu kontrol `loadError`
+kontrolünden **önce** geliyor. Yani 401 dışındaki her hata (429 hız sınırı, 500 sunucu hatası,
+ağ kopukluğu) hiçbir yere yansımıyordu: butona basıyorsun, istek gidiyor, hata dönüyor ve
+ekranda **hiçbir şey olmuyor.**
+
+Artık bütün hatalar giriş ekranında net bir mesajla görünüyor.
+
+### Muhtemel tetikleyici: IP başına hız sınırı
+Sistem 15 dakika içinde 20 başarısız giriş denemesinden sonra o IP'yi kilitliyordu. İki sorun:
+
+1. **Başarılı girişte sayaç sıfırlanmıyordu** — gün içinde biriken hatalı denemeler (genelde
+   kendi testlerin) sonradan yapılan doğru girişleri de engelliyordu
+2. Sayaç IP başına olduğu için, **senin hatalı denemelerin personel ve müşteri girişlerini de
+   kilitliyordu** — doğru şifreyi bilen kişi bile giremiyordu
+
+**Düzeltmeler:**
+- Başarılı her girişte sayaç sıfırlanıyor
+- Giriş ekranında hız sınırı mesajı çıkınca **"Yönetici şifresiyle kilidi aç"** bağlantısı
+  beliriyor — 15 dakika beklemene gerek yok
+- Kilit açma isteği hız sınırının önünde çalışıyor (yoksa kısır döngü olurdu: kilitliyken
+  kilidi açamazdın), ama sınırsız şifre deneme kapısına dönüşmesin diye kendi dar sayacı var:
+  saatte 5 hatalı deneme
+
+### Ayrıca: gerçek bir JSX sözdizimi denetleyicisi
+39. güncellemedeki siyah ekran olayından sonra eklenen şablon kontrolü yetersizdi. Artık dize,
+şablon, yorum, **regex literali** ve JSX etiketlerini (`</div>`, `/>`) doğru ayırt eden tam bir
+denetleyici var — Türkçe metindeki kesme işaretlerini (`Drive'ın`, `</strong>'e`) yanlış
+yorumlamıyor. Her paket öncesi tüm kaynak dosyalarda çalıştırılıyor.
