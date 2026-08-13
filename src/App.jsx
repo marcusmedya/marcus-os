@@ -6041,6 +6041,8 @@ export default function MarcusOS() {
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [needsAuth, setNeedsAuth] = useState(false);
   const [kodAdimi, setKodAdimi] = useState(false); // iki adımlı doğrulamada kod ekranı
+  const [ikiAdimliUyari, setIkiAdimliUyari] = useState(""); // kod adımı atlandıysa sebebi
+  const [ikiAdimliUyari, setIkiAdimliUyari] = useState(""); // kod adımı atlandıysa sebebi
   const [role, setRole] = useState(null); // "owner" | "staff" | "musteri"
   const [loggedStaffName, setLoggedStaffName] = useState("");
   const [musteriData, setMusteriData] = useState(null);
@@ -6238,6 +6240,14 @@ export default function MarcusOS() {
         setAuthChecking(false);
         if (!ok) { setAuthError(res.error || "Giriş yapılamadı."); return; }
         if (res.kodGerekli) { setKodAdimi(true); return; }
+        /* Sunucu, e-posta gönderilemediğinde kod adımını atlayıp girişe izin veriyor
+         * (kilitlenmeyi önlemek için, bilinçli bir tercih). Ama bunu SESSİZCE yapıyordu:
+         * kullanıcı iki adımlı doğrulamanın çalıştığını sanıp korumasız kalabilirdi.
+         * Artık sebep ekranda görünüyor ve 12 saniye kalıyor. */
+        if (res.uyari) {
+          setIkiAdimliUyari(res.uyari);
+          setTimeout(() => setIkiAdimliUyari(""), 12000);
+        }
         setOturum(res.token, res.sure);
         clearStaffCreds();
         clearMusteriCreds();
@@ -7947,6 +7957,14 @@ export default function MarcusOS() {
         />
       )}
       {saveBlocked && (
+      {/* İki adımlı doğrulama atlandıysa uyar. Sunucu, e-posta gönderilemediğinde kod adımını
+        * atlayıp girişe izin veriyor (kilitlenmeyi önlemek için bilinçli bir tercih) — ama
+        * bunu sessizce yapıyordu, dolayısıyla korumanın çalıştığı sanılabilirdi. */}
+      {ikiAdimliUyari && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 200, background: T.warning, color: "#1a1a1a", padding: "10px 16px", fontSize: 13, fontFamily: "Inter, sans-serif", fontWeight: 600, textAlign: "center", lineHeight: 1.5 }}>
+          ⚠ İki adımlı doğrulama bu girişte ÇALIŞMADI — {ikiAdimliUyari} Ayarlar → Güvenlik'ten kontrol et.
+        </div>
+      )}
         <SaveBlockedModal
           info={saveBlocked}
           onCancel={() => setSaveBlocked(null)}

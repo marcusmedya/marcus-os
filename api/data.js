@@ -221,7 +221,7 @@ export default async function handler(req, res) {
       if (!sonuc.gonderildi) {
         // E-posta gönderilemedi — sistemden tamamen kilitlenme, şifreyle devam et.
         const { token, sure } = await oturumAc(!!hatirla);
-        return res.status(200).json({ ok: true, token, sure, kodGerekli: false, uyari: "E-posta gönderilemediği için kod adımı atlandı." });
+        return res.status(200).json({ ok: true, token, sure, kodGerekli: false, uyari: `Kod e-postası gönderilemedi (${sonuc.sebep || "sebep bilinmiyor"}), bu yüzden kod adımı atlandı.` });
       }
       return res.status(200).json({ ok: true, kodGerekli: true });
     }

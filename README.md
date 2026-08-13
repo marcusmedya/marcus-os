@@ -1548,3 +1548,22 @@ kayıtlar üzerinden veri sızıntısı olmaz.
 45 otomatik kontrolün tamamı geçiyor (`testler/` klasörü, t5–t10). Yeni eklenen t9 ve t10
 özellikle şunları doğruluyor: güvenlik durumu doğru raporlanıyor, silinenler personele
 gitmiyor, başarısız girişler deftere yazılıyor, defter geri yüklemeden etkilenmiyor.
+
+## Güncelleme 52: İki Adımlı Doğrulama Sessizce Atlanıyordu
+
+**Sorun:** OWNER_EMAIL tanımlanmasına rağmen giriş yaparken kod sorulmadı, doğrudan içeri alındı.
+
+**Sebep — tasarımın görünmeyen yüzü:** Sistem, kod e-postası gönderilemediğinde kod adımını
+atlayıp şifreyle girişe izin verecek şekilde kurulmuştu. Bu bilinçli bir tercihti (e-posta
+servisi çalışmazsa kendi uygulamandan kilitlenmeyesin diye). **Ama bunu sessizce yapıyordu.**
+
+Sonuç: koruma çalışmıyorken çalışıyor sanılıyordu — güvenlik açısından en kötü durum.
+
+**Düzeltmeler:**
+- Kod adımı atlandığında ekranın üstünde **turuncu bir uyarı şeridi** çıkıyor
+- Uyarıda **gerçek sebep** yazıyor (alan adı doğrulanmamış, adres hatalı, kota dolmuş vb.) —
+  önceden genel bir "gönderilemedi" mesajı sorunu gizliyordu; artık Resend'in kendi hata
+  metni taşınıyor
+
+Bu iki değişiklik sorunu çözmüyor, **görünür kılıyor** — asıl sebebi ancak uyarıdaki metinle
+teşhis edebiliriz.
