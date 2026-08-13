@@ -1,4 +1,5 @@
 // Bu dosya tarayıcıda değil, Vercel'in sunucusunda çalışır.
+import { ownerYetkiliMi } from "../lib/oturum.js";
 // ANTHROPIC_API_KEY hiçbir zaman tarayıcıya gönderilmez.
 
 export default async function handler(req, res) {
@@ -7,7 +8,7 @@ export default async function handler(req, res) {
   }
 
   const required = process.env.SITE_PASSWORD;
-  if (required && req.headers["x-site-password"] !== required) {
+  if (required && !(await ownerYetkiliMi(req))) {
     return res.status(401).json({ error: "Yetkisiz. Şifre gerekli." });
   }
 

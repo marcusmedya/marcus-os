@@ -1,6 +1,7 @@
 import { kv } from "@vercel/kv";
 import crypto from "crypto";
 import { KEY, guvenliGuncelle, kilitAl, kilitBirak, guvenliYaz } from "../lib/kv-yaz.js";
+import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, tumOturumlariIptalEt, ikiAdimliAktifMi, esitMi } from "../lib/oturum.js";
 
 /** Bir kayıt (eski veri, yeni veri) arasındaki ÖNEMLİ değişiklikleri (müşteri/personel/üyelik
  * ekleme-silme, müşteri durum değişikliği) otomatik tespit edip okunabilir işlem geçmişi
@@ -118,6 +119,9 @@ async function resolveRole(req) {
   const staffPwLegacy = process.env.STAFF_PASSWORD;
   const provided = req.headers["x-site-password"];
 
+  // Yeni yol: tarayıcı artık şifre yerine süreli bir oturum anahtarı gönderiyor.
+  if (req.headers["x-oturum"] && (await oturumGecerliMi(req.headers["x-oturum"]))) return { role: "owner" };
+
   if (!ownerPw && !staffPwLegacy) {
     const username = req.headers["x-staff-username"];
     if (!username) return { role: "owner" };
@@ -155,6 +159,72 @@ export default async function handler(req, res) {
   if (await rateLimitAsildiMi(req)) {
     return res.status(429).json({ error: "Çok fazla başarısız giriş denemesi. 15 dakika sonra tekrar dene." });
   }
+
+  /* ---------------------------------------------------------------- *
+   * GİRİŞ AKIŞI (oturum + iki adımlı doğrulama)
+   * Yeni bir api dosyası açmamak için buraya "authAction" olarak eklendi.
+   * Bu blok resolveRole'den ÖNCE çalışır, çünkü giriş yapan kişinin henüz oturumu yoktur.
+   * ---------------------------------------------------------------- */
+  if (req.method === "POST" && req.body && req.body.authAction) {
+    const { authAction, sifre, kod, hatirla } = req.body;
+    const ownerPw = process.env.SITE_PASSWORD;
+
+    // Adım 1: şifre kontrolü. Doğruysa ya kod gönderilir ya da doğrudan oturum açılır.
+    if (authAction === "girisBasla") {
+      if (!ownerPw) {
+        const { token, sure } = await oturumAc(!!hatirla);
+        return res.status(200).json({ ok: true, token, sure, kodGerekli: false });
+      }
+      if (!sifre || !esitMi(sifre, ownerPw)) {
+        await basarisizGirisiKaydet(req);
+        return res.status(401).json({ error: "Şifre hatalı." });
+      }
+      if (!ikiAdimliAktifMi()) {
+        // E-posta doğrulaması yapılandırılmamış — kilitlenmeyi önlemek için doğrudan giriş.
+        const { token, sure } = await oturumAc(!!hatirla);
+        return res.status(200).json({ ok: true, token, sure, kodGerekli: false });
+      }
+      const sonuc = await girisKoduGonder(req.headers["x-forwarded-for"] || null);
+      if (!sonuc.gonderildi) {
+        // E-posta gönderilemedi — sistemden tamamen kilitlenme, şifreyle devam et.
+        const { token, sure } = await oturumAc(!!hatirla);
+        return res.status(200).json({ ok: true, token, sure, kodGerekli: false, uyari: "E-posta gönderilemediği için kod adımı atlandı." });
+      }
+      return res.status(200).json({ ok: true, kodGerekli: true });
+    }
+
+    // Adım 2: e-postaya gelen kodun doğrulanması.
+    if (authAction === "kodDogrula") {
+      if (ownerPw && (!sifre || !esitMi(sifre, ownerPw))) {
+        await basarisizGirisiKaydet(req);
+        return res.status(401).json({ error: "Şifre hatalı." });
+      }
+      if (!(await koduDogrula(kod))) {
+        await basarisizGirisiKaydet(req);
+        return res.status(401).json({ error: "Kod hatalı ya da süresi dolmuş." });
+      }
+      const { token, sure } = await oturumAc(!!hatirla);
+      return res.status(200).json({ ok: true, token, sure });
+    }
+
+    // Bu cihazdan çıkış.
+    if (authAction === "cikis") {
+      await oturumKapat(req.headers["x-oturum"]);
+      return res.status(200).json({ ok: true });
+    }
+
+    // Tüm cihazlardan çıkış — sadece yetkili yapabilir.
+    if (authAction === "tumCihazlardanCikis") {
+      const yetkili = (req.headers["x-oturum"] && (await oturumGecerliMi(req.headers["x-oturum"])))
+        || (ownerPw && esitMi(req.headers["x-site-password"], ownerPw));
+      if (!yetkili) return res.status(401).json({ error: "Yetkisiz." });
+      await tumOturumlariIptalEt();
+      return res.status(200).json({ ok: true });
+    }
+
+    return res.status(400).json({ error: "Geçersiz giriş işlemi." });
+  }
+
   const auth = await resolveRole(req);
   if (!auth) {
     await basarisizGirisiKaydet(req);

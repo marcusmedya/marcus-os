@@ -632,3 +632,75 @@ için), ama başlığında "asıl yönetim: Müşteri Paneli sekmesi" notu var. 
 kullanıyor, yani birinde yaptığın değişiklik diğerinde de aynen görünür; ayrışma riski yok.
 
 Ayarlar'daki hesap bölümünün yerinde de nereye taşındığını söyleyen kısa bir not bırakıldı.
+
+## Güncelleme 25: GÜVENLİK — Şifre Otomatik Doldurma Açığı Kapatıldı, Oturum + İki Adımlı Doğrulama
+
+### Açık neydi
+İki ayrı hata birleşince, o cihaza oturan herkes CEO paneline girebiliyordu:
+
+1. **Giriş alanı `autocomplete="current-password"` idi** → tarayıcı şifreyi kaydediyor ve bir
+   sonraki açılışta otomatik dolduruyordu. "Şifre otomatik çıkıyor" sorununun kaynağı buydu.
+2. **Şifre localStorage'da SÜRESİZ duruyordu** → tarayıcıyı açan herkes zaten yetkiliydi,
+   oturum hiç sona ermiyordu.
+
+### Yapılan düzeltmeler
+
+**1. Otomatik doldurma tamamen kapatıldı**
+Yönetici, personel ve müşteri giriş alanlarının üçünde de `autoComplete="off"` ve şifre
+yöneticilerini de kapsayan işaretler (`data-lpignore`, `data-1p-ignore`) eklendi. Alan adı da
+tarayıcının tanıyamayacağı bir isimle değiştirildi.
+
+**2. Şifre artık tarayıcıda HİÇ saklanmıyor**
+Girişten sonra sadece süreli bir **oturum anahtarı** saklanıyor:
+- Normal giriş: **12 saat**, "Bu cihazı 30 gün hatırla" seçilirse **30 gün**
+- Süresi dolunca giriş ekranı geri gelir
+- Anahtar ele geçse bile şifreyi ifşa etmez
+- Eski sürümden kalan düz şifre, ilk girişte otomatik silinir
+
+**3. İki adımlı doğrulama (e-posta kodu)**
+Vercel'de `OWNER_EMAIL` ortam değişkenine e-posta adresini yazman yeterli. Sonrasında her
+girişte o adrese **6 haneli kod** gider; kod 10 dakika geçerli ve tek kullanımlık.
+Şifreni bilen biri bile e-postana erişemeden giremez.
+
+**4. Tüm cihazlardan çıkış**
+Ayarlar → Güvenlik → **"Tüm Cihazlardan Çıkış Yap"**. Bir şüphe duyduğunda tek tıkla her
+cihazdaki oturum geçersiz olur.
+
+**5. Çıkış artık gerçekten çıkış yapıyor**
+Eskiden sadece tarayıcıdan siliniyordu; artık sunucudaki oturum da kapatılıyor.
+
+### Kilitlenme koruması (önemli)
+`OWNER_EMAIL` veya `RESEND_API_KEY` tanımlı değilse, ya da e-posta gönderilemezse, kod adımı
+**otomatik atlanır** ve şifreyle giriş yapılır. Yani e-posta servisi çalışmasa bile kendi
+uygulamandan kilitlenmezsin.
+
+### Yol boyunca bulunan ikinci bir hata
+`daily-backup`, `daily-reminders` ve `daily-summary` uç noktalarında yetki kontrolü `await`
+edilmeden çağrılıyordu. JavaScript'te bu, kontrolün **her zaman "yetkili" sayılması** demek —
+yani bu üç uç nokta şifresiz tetiklenebilir durumdaydı. Düzeltildi.
+
+### Teknik not
+Oturum katmanı `lib/oturum.js` içinde; `api/` dışında olduğu için Vercel fonksiyon sayısı
+**12/12** olarak kaldı. Giriş uç noktaları `api/data.js` içine `authAction` olarak eklendi.
+
+## Güncelleme 26: İçerik / Çekim Planı Düzenleme
+
+### Düzenleme eklendi
+Müşteri Paneli sekmesinde (ve müşteri detayındaki kısa görünümde) her kaydın yanına
+**kalem ikonu** geldi. Tıklayınca form o kaydın bilgileriyle dolar; başlığı, referans linkini,
+konuşma metnini, çekim notunu, tarihi — hepsini değiştirip **"Değişiklikleri Kaydet"** dersin.
+Eskiden tek yol silip yeniden yazmaktı.
+
+**Kaydedince içerik müşteriye yeniden onaya gider:** durumu "Bekliyor"a döner ve varsa eski
+revize notu temizlenir. Bu bilerek böyle — müşteri revize istedi, sen metni düzelttin, müşterinin
+düzeltilmiş hâli görüp onaylaması gerekiyor. Düzenleme modundayken formun üstünde bunu
+hatırlatan bir uyarı çıkar. Liste satırında da "düzenlendi <tarih>" notu görünür.
+
+Düzenleme sırasında kaydın kimliği, bağlı olduğu marka ve Operasyon iş bağlantısı korunur —
+düzenleme bir kaydı yanlışlıkla başka markaya taşıyamaz ya da iş bağlantısını koparamaz.
+
+### Başlıklardaki üst üste binen 🎬 düzeltildi
+Arayüz çekim planlarının başına kendi 🎬 ikonunu koyuyor. Başlığa elle de 🎬 yazıldığında
+"🎬 🎬 🎬 Konu Başlığı" gibi görünüyordu. Artık başlığın başındaki emojiler gösterimde
+otomatik temizleniyor — kayıtlı veriye dokunulmuyor, sadece ekranda düzgün görünüyor.
+Hem senin listende hem müşterinin panelinde geçerli.

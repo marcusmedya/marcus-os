@@ -1,8 +1,9 @@
+import { ownerYetkiliMi } from "../lib/oturum.js";
 async function yetkiKontrol(req) {
   const ownerPw = process.env.SITE_PASSWORD;
   const provided = req.headers["x-site-password"];
   if (!ownerPw) return { yetkili: true, owner: true, markaYoneticisi: true };
-  if (provided === ownerPw) return { yetkili: true, owner: true, markaYoneticisi: true };
+  if (await ownerYetkiliMi(req)) return { yetkili: true, owner: true, markaYoneticisi: true };
 
   const username = req.headers["x-staff-username"];
   const password = req.headers["x-staff-password"];

@@ -1,4 +1,5 @@
 import { kv } from "@vercel/kv";
+import { ownerYetkiliMi } from "../lib/oturum.js";
 
 // Her gün (vercel.json'daki zamanlamaya göre) otomatik çalışır — CRON_SECRET ile korunur,
 // ayrıca Ayarlar sayfasındaki "Şimdi Test Et" ile elle de tetiklenebilir — SITE_PASSWORD ile korunur.
@@ -7,12 +8,12 @@ import { kv } from "@vercel/kv";
 // 2) Bugün için Günlük Kontrol'de hâlâ işaretlenmemiş (paylaşılmamış) marka/tür varsa,
 //    bunların özetini owner'a (BACKUP_EMAIL) gönderir.
 
-function yetkiliMi(req) {
+async function yetkiliMi(req) {
   const cronSecret = process.env.CRON_SECRET;
   const sitePw = process.env.SITE_PASSWORD;
   if (!cronSecret && !sitePw) return true;
   if (cronSecret && req.headers["authorization"] === `Bearer ${cronSecret}`) return true;
-  if (sitePw && req.headers["x-site-password"] === sitePw) return true;
+  if (sitePw && (await ownerYetkiliMi(req))) return true;
   return false;
 }
 
@@ -41,7 +42,7 @@ async function epostaGonder(resendKey, to, subject, html, cc) {
 }
 
 export default async function handler(req, res) {
-  if (!yetkiliMi(req)) return res.status(401).json({ error: "Yetkisiz." });
+  if (!(await yetkiliMi(req))) return res.status(401).json({ error: "Yetkisiz." });
   try {
     const data = await kv.get("marcus-os-data");
     if (!data) return res.status(200).json({ skipped: true, reason: "Henüz kayıtlı veri yok." });

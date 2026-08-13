@@ -298,11 +298,50 @@ function clientKarMarji(c) {
   return Number(c.karMarji) || 0;
 }
 
-/** Şifre koruması: tarayıcıda saklanan şifreyi her API isteğine ekler. Sunucuda SITE_PASSWORD
- * ortam değişkeni tanımlı değilse koruma devre dışıdır (geriye dönük uyumluluk). */
+/**
+ * YÖNETİCİ OTURUMU
+ * ----------------
+ * ÖNEMLİ GÜVENLİK DEĞİŞİKLİĞİ: yönetici şifresi artık tarayıcıda HİÇ saklanmıyor.
+ * Eskiden şifre localStorage'da süresiz duruyordu ve giriş alanı tarayıcıya kaydedilip
+ * otomatik dolduruluyordu — o cihaza oturan herkes CEO paneline girebiliyordu.
+ *
+ * Artık girişten sonra sadece süreli bir "oturum anahtarı" saklanıyor. Bu anahtar:
+ *  - kendiliğinden sona erer (normal giriş 12 saat, "bu cihazı hatırla" 30 gün)
+ *  - Ayarlar'dan tek tıkla tüm cihazlarda iptal edilebilir
+ *  - ele geçse bile şifreyi ifşa etmez
+ */
 const PW_KEY = "marcus-os-pw";
+const OTURUM_KEY = "marcus-os-oturum";
+const OTURUM_BITIS_KEY = "marcus-os-oturum-bitis";
+
+const getOturum = () => {
+  if (typeof window === "undefined") return "";
+  try {
+    const bitis = Number(localStorage.getItem(OTURUM_BITIS_KEY) || 0);
+    if (bitis && Date.now() > bitis) { clearOturum(); return ""; }
+    return localStorage.getItem(OTURUM_KEY) || "";
+  } catch (e) { return ""; }
+};
+const setOturum = (token, sureSaniye) => {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(OTURUM_KEY, token);
+    localStorage.setItem(OTURUM_BITIS_KEY, String(Date.now() + (Number(sureSaniye) || 43200) * 1000));
+    // Eski sürümlerden kalmış olabilecek düz şifreyi temizle — artık asla saklanmıyor.
+    localStorage.removeItem(PW_KEY);
+  } catch (e) { /* localStorage kapalıysa sessizce geç */ }
+};
+const clearOturum = () => {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(OTURUM_KEY);
+    localStorage.removeItem(OTURUM_BITIS_KEY);
+    localStorage.removeItem(PW_KEY);
+  } catch (e) { /* sessizce geç */ }
+};
+/** Geriye dönük: eski sürümde saklanmış şifre varsa okunur ama artık hiç yazılmaz. */
 const getPw = () => (typeof window !== "undefined" ? localStorage.getItem(PW_KEY) || "" : "");
-const setPw = (v) => { if (typeof window !== "undefined") localStorage.setItem(PW_KEY, v); };
+const setPw = (v) => { if (typeof window !== "undefined" && !v) localStorage.removeItem(PW_KEY); };
 
 /** Kişiye özel personel girişi: kullanıcı adı + şifre, ayrı bir localStorage anahtarında. */
 const STAFF_USER_KEY = "marcus-os-staff-user";
@@ -322,7 +361,7 @@ const clearMusteriCreds = () => { if (typeof window !== "undefined") { localStor
 const authHeaders = () => {
   const staff = getStaffCreds();
   const musteri = getMusteriCreds();
-  return { "X-Site-Password": getPw(), "X-Staff-Username": staff.kullaniciAdi, "X-Staff-Password": staff.sifre, "X-Musteri-Username": musteri.kullaniciAdi, "X-Musteri-Password": musteri.sifre };
+  return { "X-Oturum": getOturum(), "X-Site-Password": getPw(), "X-Staff-Username": staff.kullaniciAdi, "X-Staff-Password": staff.sifre, "X-Musteri-Username": musteri.kullaniciAdi, "X-Musteri-Password": musteri.sifre };
 };
 
 /** Ekran genişliğine göre mobil/masaüstü ayrımı yapar; pencere yeniden boyutlandırıldığında güncellenir. */
@@ -652,7 +691,7 @@ function AiOzet({ data }) {
     setNotConfigured(false);
     fetch("/api/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Site-Password": getPw() },
+      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": getPw() },
       body: JSON.stringify({
         question:
           "Bugün için kısa bir CEO özeti hazırla. Bu ayki ciro/net/kâr marjı durumuna, en dikkat çeken 1-2 noktaya (örn. kâr marjı düşük müşteri, tek müşteriye bağımlılık) değin. " +
@@ -726,7 +765,7 @@ const CLIENT_DURUM = {
   ayrildi: { label: "Ayrıldı", color: T.textFaint, soft: T.borderSoft },
 };
 
-function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, freelancerlar, onAdd, onUpdate, onDelete, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, openClient, onOpenClientHandled, duzenleyenAdi, musteriIcerikleri, onAddIcerik, onDeleteIcerik, firmaAdi }) {
+function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, freelancerlar, onAdd, onUpdate, onDelete, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, openClient, onOpenClientHandled, duzenleyenAdi, musteriIcerikleri, onAddIcerik, onUpdateIcerik, onDeleteIcerik, firmaAdi }) {
   const [filter, setFilter] = useState("hepsi");
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -907,6 +946,7 @@ function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, freelancerlar, onA
           duzenleyenAdi={duzenleyenAdi}
           detailClientId={detailClientId}
           musteriIcerikleri={musteriIcerikleri}
+          onUpdateIcerik={onUpdateIcerik}
           onAddIcerik={onAddIcerik}
           firmaAdi={firmaAdi}
           onDeleteIcerik={onDeleteIcerik}
@@ -1012,6 +1052,13 @@ function gorseliBase64eCevir(file, onDone, onHata) {
   gorseliKucult(file).then(onDone).catch((e) => onHata(e.message || "Görsel işlenemedi."));
 }
 
+/** Başlığın başına elle yazılmış 🎬 gibi işaretleri temizler — arayüz zaten kendi
+ * ikonunu koyduğu için, yoksa "🎬 🎬 🎬 Konu Başlığı" gibi üst üste binmiş görünüyordu. */
+function basligiTemizle(metin) {
+  if (!metin) return "";
+  return String(metin).replace(/^(?:[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\uFE0F\s]+)/u, "").trim() || String(metin).trim();
+}
+
 const MUSTERI_DURUM_ETIKET = {
   bekliyor: { label: "Bekliyor", color: T.warning, bg: T.warningSoft },
   onaylandi: { label: "Onaylandı ✓", color: T.success, bg: T.successSoft },
@@ -1025,9 +1072,10 @@ const MUSTERI_DURUM_ETIKET = {
  * Müşteri Paneli sekmesinde tam sayfa olarak (kompakt=false) kullanılır.
  * Tek bir yerde tanımlı olduğu için iki görünüm asla birbirinden ayrışmaz.
  */
-function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onDelete, kompakt = true, baslangicAcik = false }) {
+function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, kompakt = true, baslangicAcik = false }) {
   const [acik, setAcik] = useState(baslangicAcik);
   const [ekleAcik, setEkleAcik] = useState(false);
+  const [duzenlenenId, setDuzenlenenId] = useState(null); // düzenlenen kaydın id'si (yoksa yeni ekleme)
   const [tur, setTur] = useState("gorsel");
   const [aciklama, setAciklama] = useState("");
   const [driveLinki, setDriveLinki] = useState("");
@@ -1045,17 +1093,32 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onDelete, kompakt = t
   const formuTemizle = () => {
     setAciklama(""); setDriveLinki(""); setGorselUrl(null); setGorselHata("");
     setKonusmaMetni(""); setCekimNotu(""); setPlanlananTarih(""); setKonusmali("konusmali");
-    setEkleAcik(false);
+    setEkleAcik(false); setDuzenlenenId(null);
+  };
+
+  /** Bir kaydı düzenlemek için formu onun bilgileriyle doldurur. */
+  const duzenlemeyeAl = (i) => {
+    setDuzenlenenId(i.id);
+    setTur(i.tur || "gorsel");
+    setAciklama(i.aciklama || "");
+    setDriveLinki(i.tur === "cekim" ? (i.referansLink || "") : (i.driveLinki || ""));
+    setGorselUrl(i.gorselUrl || null);
+    setKonusmali(i.konusmali || "konusmali");
+    setKonusmaMetni(i.konusmaMetni || "");
+    setCekimNotu(i.cekimNotu || "");
+    setPlanlananTarih(i.planlananTarih || "");
+    setGorselHata("");
+    setEkleAcik(true);
+    setAcikDetayId(null);
   };
 
   const ekle = () => {
     if (tur === "gorsel" && !gorselUrl) { setGorselHata("Bir görsel seç."); return; }
     if (tur === "video" && !driveLinki.trim()) { setGorselHata("Video için bir Drive linki gir."); return; }
     if (tur === "cekim" && !aciklama.trim()) { setGorselHata("Çekim planına bir başlık yaz (örn. \"Reels 1 — Ürün tanıtımı\")."); return; }
-    onAdd(clientId, {
+    const govdeVerisi = {
       tur,
       aciklama: aciklama.trim(),
-      tarih: new Date().toLocaleDateString("tr-TR"),
       gorselUrl: tur === "gorsel" ? gorselUrl : null,
       driveLinki: tur === "video" ? driveLinki.trim() : null,
       // Çekim planına özel alanlar — diğer türlerde boş kalır
@@ -1064,7 +1127,16 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onDelete, kompakt = t
       konusmaMetni: tur === "cekim" ? konusmaMetni.trim() : null,
       cekimNotu: tur === "cekim" ? cekimNotu.trim() : null,
       planlananTarih: tur === "cekim" ? (planlananTarih || null) : null,
-    });
+    };
+
+    if (duzenlenenId != null) {
+      // Düzenlenen içerik müşteriye tekrar sunulur: durum "bekliyor"a döner ve varsa eski
+      // revize notu temizlenir — yoksa müşteri değiştirdiğin metni onaylayamaz, ekranında
+      // eski "revize istendi" durumu asılı kalırdı.
+      onUpdate(duzenlenenId, { ...govdeVerisi, durum: "bekliyor", revizeNotu: null, guncellemeTarihi: new Date().toLocaleDateString("tr-TR") });
+    } else {
+      onAdd(clientId, { ...govdeVerisi, tarih: new Date().toLocaleDateString("tr-TR") });
+    }
     formuTemizle();
   };
 
@@ -1086,13 +1158,17 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onDelete, kompakt = t
                       >
                         <div style={{ fontSize: 12, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
                           {i.tur === "cekim" && <span style={{ color: T.accentText, fontWeight: 700 }}>🎬 </span>}
-                          {i.aciklama || (i.tur === "gorsel" ? "Görsel" : i.tur === "cekim" ? "Çekim Planı" : "Video")} <span style={{ color: T.textFaint, fontWeight: 400 }}>· {i.tarih}</span>
+                          {basligiTemizle(i.aciklama) || (i.tur === "gorsel" ? "Görsel" : i.tur === "cekim" ? "Çekim Planı" : "Video")} <span style={{ color: T.textFaint, fontWeight: 400 }}>· {i.tarih}</span>
+                          {i.guncellemeTarihi && <span style={{ color: T.textFaint, fontWeight: 400 }}> · düzenlendi {i.guncellemeTarihi}</span>}
                         </div>
                         {i.revizeNotu && <div style={{ fontSize: 11, color: T.danger, fontFamily: "Inter", fontStyle: "italic" }}>"{i.revizeNotu}"</div>}
                       </button>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{ fontSize: 10.5, fontWeight: 600, color: etiket.color, background: etiket.bg, padding: "2px 8px", borderRadius: 999, fontFamily: "Inter" }}>{etiket.label}</span>
-                        <button onClick={() => { if (window.confirm("Bu içerik silinsin mi?")) onDelete(i.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><Trash2 size={12} color={T.textFaint} /></button>
+                        {onUpdate && (
+                          <button title="Düzenle" onClick={() => duzenlemeyeAl(i)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><Pencil size={12} color={T.textFaint} /></button>
+                        )}
+                        <button title="Sil" onClick={() => { if (window.confirm("Bu içerik silinsin mi?")) onDelete(i.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><Trash2 size={12} color={T.textFaint} /></button>
                       </div>
                     </div>
 
@@ -1133,6 +1209,11 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onDelete, kompakt = t
 
           {ekleAcik ? (
             <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: 12 }}>
+              {duzenlenenId != null && (
+                <div style={{ fontSize: 11.5, color: T.warning, fontFamily: "Inter", marginBottom: 8, lineHeight: 1.6 }}>
+                  Düzenleme modundasın. Kaydedince bu içerik müşteriye <strong>yeniden onaya</strong> gider ve durumu "Bekliyor"a döner.
+                </div>
+              )}
               <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
                 <button onClick={() => { setTur("gorsel"); setGorselHata(""); }} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: tur === "gorsel" ? T.accent : T.surface, color: tur === "gorsel" ? "#fff" : T.textDim, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "Inter" }}>Görsel</button>
                 <button onClick={() => { setTur("video"); setGorselHata(""); }} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: tur === "video" ? T.accent : T.surface, color: tur === "video" ? "#fff" : T.textDim, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "Inter" }}>Video</button>
@@ -1213,7 +1294,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onDelete, kompakt = t
               {gorselHata && <div style={{ color: T.danger, fontSize: 11.5, fontFamily: "Inter", marginBottom: 8 }}>{gorselHata}</div>}
               <div style={{ display: "flex", gap: 8 }}>
                 <button style={cancelBtnStyle} onClick={formuTemizle}>İptal</button>
-                <button style={saveBtnStyle} onClick={ekle}>{tur === "cekim" ? "Çekim Planını Gönder" : "Müşteri Paneline Ekle"}</button>
+                <button style={saveBtnStyle} onClick={ekle}>{duzenlenenId != null ? "Değişiklikleri Kaydet" : (tur === "cekim" ? "Çekim Planını Gönder" : "Müşteri Paneline Ekle")}</button>
               </div>
             </div>
           ) : (
@@ -1238,7 +1319,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onDelete, kompakt = t
   );
 }
 
-function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, freelancerlar, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, onClose, kilitleyen, musteriIcerikleri, onAddIcerik, onDeleteIcerik, firmaAdi }) {
+function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, freelancerlar, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, onClose, kilitleyen, musteriIcerikleri, onAddIcerik, onUpdateIcerik, onDeleteIcerik, firmaAdi }) {
   const [addingCost, setAddingCost] = useState(false);
   const [odemeModalOpen, setOdemeModalOpen] = useState(false);
   if (!client) return null;
@@ -1262,7 +1343,7 @@ function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, freelancerlar, on
 
         <KilitUyarisi kisi={kilitleyen} />
 
-        <IcerikYonetimMotoru clientId={client.id} icerikler={musteriIcerikleri} onAdd={onAddIcerik} onDelete={onDeleteIcerik} />
+        <IcerikYonetimMotoru clientId={client.id} icerikler={musteriIcerikleri} onAdd={onAddIcerik} onUpdate={onUpdateIcerik} onDelete={onDeleteIcerik} />
 
         <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
           <Pill color={cd.color} soft={cd.soft}>{cd.label}</Pill>
@@ -4095,7 +4176,7 @@ function EmailYedekTest({ endpoint = "/api/daily-backup" }) {
 
   const test = () => {
     setStatus("loading");
-    fetch(endpoint, { headers: { "X-Site-Password": getPw() } })
+    fetch(endpoint, { headers: { "X-Oturum": getOturum(), "X-Site-Password": getPw() } })
       .then((r) => r.json())
       .then((res) => {
         if (res.ok) {
@@ -4132,7 +4213,7 @@ function YedekGecmisi() {
   const [gorunum, setGorunum] = useState("gunluk"); // "gunluk" | "saatlik" | "geriAlma"
 
   const listeyiCek = () => {
-    fetch("/api/backup", { headers: { "X-Site-Password": getPw() } })
+    fetch("/api/backup", { headers: { "X-Oturum": getOturum(), "X-Site-Password": getPw() } })
       .then((r) => r.json())
       .then((res) => setListe({ dates: res.dates || [], saatlikler: res.saatlikler || [], geriAlmalar: res.geriAlmalar || [] }))
       .catch(() => setListe({ dates: [], saatlikler: [], geriAlmalar: [] }));
@@ -4142,7 +4223,7 @@ function YedekGecmisi() {
   /** Geri yüklemeden ÖNCE o yedeğin içinde ne olduğunu gösterir. Yanlış tarihe dönmenin
    * en yaygın sebebi, içeriğini görmeden karar vermekti. */
   const restore = (anahtar, etiket) => {
-    fetch(`/api/backup?key=${encodeURIComponent(anahtar)}&ozet=1`, { headers: { "X-Site-Password": getPw() } })
+    fetch(`/api/backup?key=${encodeURIComponent(anahtar)}&ozet=1`, { headers: { "X-Oturum": getOturum(), "X-Site-Password": getPw() } })
       .then((r) => r.json())
       .then((res) => {
         const o = res.ozet;
@@ -4151,7 +4232,7 @@ function YedekGecmisi() {
           : "";
         if (!window.confirm(`${etiket} yedeğine dönülecek.\n\n${ozetMetni}Şu anki verinin tam bir kopyası otomatik olarak saklanacak — yanlış olursa "Geri Yükleme Öncesi" sekmesinden geri dönebilirsin.\n\nDevam edilsin mi?`)) return;
         setRestoring(anahtar);
-        return fetch("/api/backup", { method: "POST", headers: { "Content-Type": "application/json", "X-Site-Password": getPw() }, body: JSON.stringify({ key: anahtar }) })
+        return fetch("/api/backup", { method: "POST", headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": getPw() }, body: JSON.stringify({ key: anahtar }) })
           .then((r) => r.json())
           .then((res2) => {
             if (res2.ok) { window.alert("Geri yüklendi. Sayfa yenileniyor…"); window.location.reload(); }
@@ -4163,7 +4244,7 @@ function YedekGecmisi() {
 
   const indir = (anahtar, etiket) => {
     setIndiriliyor(anahtar);
-    fetch(`/api/backup?key=${encodeURIComponent(anahtar)}`, { headers: { "X-Site-Password": getPw() } })
+    fetch(`/api/backup?key=${encodeURIComponent(anahtar)}`, { headers: { "X-Oturum": getOturum(), "X-Site-Password": getPw() } })
       .then((r) => r.json())
       .then((res) => {
         if (!res.data) { window.alert(res.error || "Bu yedek bulunamadı."); return; }
@@ -4916,7 +4997,7 @@ function KasaSifresiKarti() {
   const rastgeleAd2 = useRef(`kasa-alan-${Math.random().toString(36).slice(2)}`).current;
 
   const durumuYukle = () => {
-    fetch("/api/kasa", { headers: { "X-Site-Password": getPw() } })
+    fetch("/api/kasa", { headers: { "X-Oturum": getOturum(), "X-Site-Password": getPw() } })
       .then((r) => r.json())
       .then((res) => setAyarlandiMi(!!res.ayarlandiMi))
       .catch(() => setAyarlandiMi(null));
@@ -4930,7 +5011,7 @@ function KasaSifresiKarti() {
     setKaydediliyor(true);
     fetch("/api/kasa", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Site-Password": getPw() },
+      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": getPw() },
       body: JSON.stringify({ action: "degistir", yeniSifre }),
     })
       .then((r) => r.json())
@@ -5109,7 +5190,7 @@ function VeriBoyutuKarti() {
  * Daha önce bunlar iki ayrı yere dağılmıştı (içerikler müşteri detayında, hesaplar
  * Ayarlar'da) ve müşteri detayı zaten kalabalık olduğu için içerik bölümü kayboluyordu.
  */
-function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onDelete }) {
+function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete }) {
   const [secili, setSecili] = useState(null);
 
   const aktifler = (clients || []).filter((c) => c.durum !== "ayrildi");
@@ -5172,6 +5253,7 @@ function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onDelete }) {
             clientId={seciliMarka.id}
             icerikler={icerikler}
             onAdd={onAdd}
+            onUpdate={onUpdate}
             onDelete={onDelete}
             kompakt={false}
           />
@@ -5509,6 +5591,21 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
         </p>
       </Card>
 
+      <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+        <SectionTitle>Güvenlik</SectionTitle>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 12 }}>
+          Şifren artık tarayıcıda hiç saklanmıyor — girişten sonra sadece süreli bir oturum anahtarı tutuluyor
+          (normal giriş 12 saat, "bu cihazı hatırla" seçilirse 30 gün). Tarayıcının şifreyi kaydedip otomatik
+          doldurması da kapatıldı.
+        </p>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 12 }}>
+          <strong>İki adımlı doğrulama:</strong> Vercel'de <code style={{ background: T.surfaceRaised, padding: "2px 6px", borderRadius: 5 }}>OWNER_EMAIL</code> ortam
+          değişkenine e-posta adresini yazarsan, her girişte o adrese 6 haneli kod gönderilir. Şifreni bilen biri
+          bile e-postana erişemeden giremez.
+        </p>
+        <TumCihazlardanCikisButonu />
+      </Card>
+
       {/* Müşteri Paneli hesapları artık "Müşteri Paneli" sekmesinde — panel içerikleriyle
         * aynı yerde durması, iki farklı sekmeye bakmak zorunda kalmandan daha anlaşılır. */}
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
@@ -5572,6 +5669,32 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
 
 /** Müşteri Paneli giriş hesapları — PersonelHesaplariKart ile aynı sunucu uç noktasını
  * (hesapTuru: "musteri" ile) kullanır, izin sistemi yok, sadece hangi markaya bağlı olduğu var. */
+/** Tüm cihazlardaki oturumları geçersiz kılar — "şifremi biri biliyor olabilir" ya da
+ * "telefonumu kaybettim" durumunda tek tıkla her yerden çıkış. */
+function TumCihazlardanCikisButonu() {
+  const [durum, setDurum] = useState("");
+  const cikis = () => {
+    if (!window.confirm("Tüm cihazlardaki oturumlar kapatılsın mı? Sen dahil herkes yeniden giriş yapmak zorunda kalır.")) return;
+    setDurum("gonderiliyor");
+    fetch("/api/data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ authAction: "tumCihazlardanCikis" }),
+    })
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.ok) { clearOturum(); clearStaffCreds(); clearMusteriCreds(); window.alert("Tüm oturumlar kapatıldı. Yeniden giriş yapman gerekiyor."); window.location.reload(); }
+        else { setDurum(""); window.alert(res.error || "İşlem başarısız."); }
+      })
+      .catch(() => { setDurum(""); window.alert("Bağlantı hatası."); });
+  };
+  return (
+    <button style={{ ...cancelBtnStyle, color: T.danger }} disabled={durum === "gonderiliyor"} onClick={cikis}>
+      {durum === "gonderiliyor" ? "Kapatılıyor…" : "Tüm Cihazlardan Çıkış Yap"}
+    </button>
+  );
+}
+
 function MusteriHesaplariKart({ clients }) {
   const [hesaplar, setHesaplar] = useState(null);
   const [ekleAcik, setEkleAcik] = useState(false);
@@ -5586,7 +5709,7 @@ function MusteriHesaplariKart({ clients }) {
   const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
 
   const yukle = () => {
-    fetch("/api/manage-staff?hesapTuru=musteri", { headers: { "X-Site-Password": getPw() } })
+    fetch("/api/manage-staff?hesapTuru=musteri", { headers: { "X-Oturum": getOturum(), "X-Site-Password": getPw() } })
       .then((r) => r.json())
       .then((res) => setHesaplar(res.hesaplar || []))
       .catch(() => setHesaplar([]));
@@ -5598,7 +5721,7 @@ function MusteriHesaplariKart({ clients }) {
     if (!yeniAd.trim() || !yeniKullanici.trim() || !yeniSifre.trim() || !yeniClientId) { setHata("Marka, ad, kullanıcı adı ve şifre gerekli."); return; }
     fetch("/api/manage-staff", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Site-Password": getPw() },
+      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": getPw() },
       body: JSON.stringify({ hesapTuru: "musteri", action: "ekle", ad: yeniAd.trim(), kullaniciAdi: yeniKullanici.trim(), sifre: yeniSifre, clientId: yeniClientId }),
     })
       .then((r) => r.json())
@@ -5614,7 +5737,7 @@ function MusteriHesaplariKart({ clients }) {
     if (!yeniSifreDeger.trim() || yeniSifreDeger.length < 4) { setHata("Yeni şifre en az 4 karakter olmalı."); return; }
     fetch("/api/manage-staff", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Site-Password": getPw() },
+      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": getPw() },
       body: JSON.stringify({ hesapTuru: "musteri", action: "sifreSifirla", id, sifre: yeniSifreDeger }),
     })
       .then((r) => r.json())
@@ -5626,7 +5749,7 @@ function MusteriHesaplariKart({ clients }) {
     if (!window.confirm(`"${ad}" müşteri hesabı silinsin mi? Bu kişi artık panele giriş yapamaz.`)) return;
     fetch("/api/manage-staff", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Site-Password": getPw() },
+      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": getPw() },
       body: JSON.stringify({ hesapTuru: "musteri", action: "sil", id }),
     })
       .then((r) => r.json())
@@ -5733,7 +5856,7 @@ function PersonelHesaplariKart({ onRosterChange }) {
   ];
 
   const yukle = () => {
-    fetch("/api/manage-staff", { headers: { "X-Site-Password": getPw() } })
+    fetch("/api/manage-staff", { headers: { "X-Oturum": getOturum(), "X-Site-Password": getPw() } })
       .then((r) => r.json())
       .then((res) => setHesaplar(res.hesaplar || []))
       .catch(() => setHesaplar([]));
@@ -5745,7 +5868,7 @@ function PersonelHesaplariKart({ onRosterChange }) {
     if (!yeniAd.trim() || !yeniKullanici.trim() || !yeniSifre.trim()) { setHata("Ad, kullanıcı adı ve şifre gerekli."); return; }
     fetch("/api/manage-staff", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Site-Password": getPw() },
+      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": getPw() },
       body: JSON.stringify({ action: "ekle", ad: yeniAd.trim(), kullaniciAdi: yeniKullanici.trim(), sifre: yeniSifre }),
     })
       .then((r) => r.json())
@@ -5761,7 +5884,7 @@ function PersonelHesaplariKart({ onRosterChange }) {
     if (!yeniSifreDeger.trim()) return;
     fetch("/api/manage-staff", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Site-Password": getPw() },
+      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": getPw() },
       body: JSON.stringify({ action: "sifreSifirla", id, sifre: yeniSifreDeger }),
     })
       .then((r) => r.json())
@@ -5772,7 +5895,7 @@ function PersonelHesaplariKart({ onRosterChange }) {
     if (!window.confirm("Bu personel hesabı silinsin mi?")) return;
     fetch("/api/manage-staff", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Site-Password": getPw() },
+      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": getPw() },
       body: JSON.stringify({ action: "sil", id }),
     })
       .then((r) => r.json())
@@ -5789,7 +5912,7 @@ function PersonelHesaplariKart({ onRosterChange }) {
   const kaydetGuncelle = (id) => {
     fetch("/api/manage-staff", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Site-Password": getPw() },
+      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": getPw() },
       body: JSON.stringify({ action: "guncelle", id, email: taslakEmail.trim(), izinler: taslakIzin }),
     })
       .then((r) => r.json())
@@ -5933,7 +6056,7 @@ function AiPanel({ open, onClose, initialQuestion, data }) {
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Site-Password": getPw() },
+        headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": getPw() },
         body: JSON.stringify({ question: q, context: data }),
       });
       const resData = await res.json();
@@ -5984,9 +6107,11 @@ function AiPanel({ open, onClose, initialQuestion, data }) {
 /* ------------------------------------------------------------------ */
 /* ŞİFRE EKRANI                                                          */
 /* ------------------------------------------------------------------ */
-function LockScreen({ onSubmit, onStaffSubmit, onMusteriSubmit, error, checking }) {
+function LockScreen({ onSubmit, onKodSubmit, onKodIptal, kodAdimi, onStaffSubmit, onMusteriSubmit, error, checking }) {
   const [mode, setMode] = useState("sifre"); // "sifre" | "personel" | "musteri"
   const [value, setValue] = useState("");
+  const [kodDeger, setKodDeger] = useState("");
+  const [hatirla, setHatirla] = useState(false);
   const [kullaniciAdi, setKullaniciAdi] = useState("");
   const [personelSifre, setPersonelSifre] = useState("");
   const [musteriKullaniciAdi, setMusteriKullaniciAdi] = useState("");
@@ -6007,22 +6132,58 @@ function LockScreen({ onSubmit, onStaffSubmit, onMusteriSubmit, error, checking 
         </div>
 
         {mode === "sifre" ? (
-          <>
-            <input
-              type="password"
-              name="site-password"
-              autoComplete="current-password"
-              autoFocus
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && onSubmit(value)}
-              placeholder="Şifre"
-              style={{ ...inputStyle, textAlign: "center", marginBottom: 12, padding: "11px 12px" }}
-            />
-            <button onClick={() => onSubmit(value)} disabled={checking} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", padding: "11px 12px", opacity: checking ? 0.6 : 1 }}>
-              {checking ? "Kontrol ediliyor…" : "Giriş Yap"}
-            </button>
-          </>
+          kodAdimi ? (
+            <>
+              {/* İKİ ADIMLI DOĞRULAMA — şifre doğru, şimdi e-postaya gelen kod isteniyor. */}
+              <div style={{ fontSize: 12.5, color: T.textDim, fontFamily: "Inter", marginBottom: 12, lineHeight: 1.6 }}>
+                E-postana 6 haneli bir kod gönderdik. Kod 10 dakika geçerli.
+              </div>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                autoFocus
+                maxLength={6}
+                value={kodDeger}
+                onChange={(e) => setKodDeger(e.target.value.replace(/\D/g, ""))}
+                onKeyDown={(e) => e.key === "Enter" && onKodSubmit(value, kodDeger, hatirla)}
+                placeholder="______"
+                style={{ ...inputStyle, textAlign: "center", marginBottom: 12, padding: "11px 12px", fontSize: 22, letterSpacing: 8, fontFamily: "'IBM Plex Mono', monospace" }}
+              />
+              <button onClick={() => onKodSubmit(value, kodDeger, hatirla)} disabled={checking || kodDeger.length !== 6} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", padding: "11px 12px", opacity: checking || kodDeger.length !== 6 ? 0.6 : 1 }}>
+                {checking ? "Kontrol ediliyor…" : "Doğrula ve Gir"}
+              </button>
+              <button onClick={onKodIptal} style={{ background: "none", border: "none", color: T.textFaint, fontSize: 12, cursor: "pointer", marginTop: 12, fontFamily: "Inter" }}>← Geri dön</button>
+            </>
+          ) : (
+            <>
+              {/* Tarayıcının şifreyi kaydedip otomatik doldurmasını engelliyoruz: alan adı
+                * tahmin edilebilir değil ve autoComplete kapalı. Eskiden bu alan
+                * autoComplete="current-password" idi, bu yüzden cihaza oturan herkese
+                * şifre otomatik doluyordu — güvenlik açığının asıl kaynağı buydu. */}
+              <input
+                type="password"
+                name="mos-erisim-anahtari"
+                id="mos-erisim-anahtari"
+                autoComplete="off"
+                data-lpignore="true"
+                data-1p-ignore="true"
+                autoFocus
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && onSubmit(value, hatirla)}
+                placeholder="Şifre"
+                style={{ ...inputStyle, textAlign: "center", marginBottom: 12, padding: "11px 12px" }}
+              />
+              <label style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginBottom: 12, cursor: "pointer", fontSize: 12, color: T.textDim, fontFamily: "Inter" }}>
+                <input type="checkbox" checked={hatirla} onChange={(e) => setHatirla(e.target.checked)} style={{ cursor: "pointer" }} />
+                Bu cihazı 30 gün hatırla
+              </label>
+              <button onClick={() => onSubmit(value, hatirla)} disabled={checking} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", padding: "11px 12px", opacity: checking ? 0.6 : 1 }}>
+                {checking ? "Kontrol ediliyor…" : "Giriş Yap"}
+              </button>
+            </>
+          )
         ) : mode === "personel" ? (
           <>
             <input
@@ -6038,7 +6199,8 @@ function LockScreen({ onSubmit, onStaffSubmit, onMusteriSubmit, error, checking 
             <input
               type="password"
               name="staff-password"
-              autoComplete="current-password"
+              autoComplete="off"
+              data-lpignore="true"
               value={personelSifre}
               onChange={(e) => setPersonelSifre(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && onStaffSubmit(kullaniciAdi, personelSifre)}
@@ -6064,7 +6226,8 @@ function LockScreen({ onSubmit, onStaffSubmit, onMusteriSubmit, error, checking 
             <input
               type="password"
               name="musteri-password"
-              autoComplete="current-password"
+              autoComplete="off"
+              data-lpignore="true"
               value={musteriSifre}
               onChange={(e) => setMusteriSifre(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && onMusteriSubmit(musteriKullaniciAdi, musteriSifre)}
@@ -6180,7 +6343,7 @@ function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
                 <Card key={icerik.id} style={{ padding: 16, border: `1px solid ${T.warning}` }}>
                   <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter", marginBottom: 4 }}>
                     {icerik.tur === "cekim" && <span style={{ color: T.accentText }}>🎬 </span>}
-                    {icerik.aciklama || (icerik.tur === "cekim" ? "Çekim Planı" : icerik.tur)}
+                    {basligiTemizle(icerik.aciklama) || (icerik.tur === "cekim" ? "Çekim Planı" : icerik.tur)}
                   </div>
                   <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginBottom: 12 }}>
                     {icerik.tarih}
@@ -6289,7 +6452,7 @@ function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
                   <Card key={icerik.id} style={{ padding: "12px 16px" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: icerik.revizeNotu ? 6 : 0 }}>
                       <div>
-                        <div style={{ fontSize: 12.5, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{icerik.aciklama || icerik.tur}</div>
+                        <div style={{ fontSize: 12.5, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{basligiTemizle(icerik.aciklama) || icerik.tur}</div>
                         <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter" }}>{icerik.tarih}</div>
                       </div>
                       <span style={{ fontSize: 11, fontWeight: 600, color: stil.color, background: stil.bg, padding: "3px 10px", borderRadius: 999, fontFamily: "Inter" }}>{stil.label}</span>
@@ -6461,6 +6624,7 @@ export default function MarcusOS() {
   const [saveStatus, setSaveStatus] = useState("idle");
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [needsAuth, setNeedsAuth] = useState(false);
+  const [kodAdimi, setKodAdimi] = useState(false); // iki adımlı doğrulamada kod ekranı
   const [role, setRole] = useState(null); // "owner" | "staff" | "musteri"
   const [loggedStaffName, setLoggedStaffName] = useState("");
   const [musteriData, setMusteriData] = useState(null);
@@ -6488,7 +6652,11 @@ export default function MarcusOS() {
     fetch("/api/data", { headers: authHeaders() })
       .then(async (r) => {
         if (r.status === 401) {
+          // Oturum süresi dolmuş ya da iptal edilmiş olabilir — geçersiz anahtarı temizle ki
+          // giriş ekranında eski anahtarla tekrar tekrar denenmesin.
+          clearOturum();
           setNeedsAuth(true);
+          setKodAdimi(false);
           if (isRetry) setAuthError("Yanlış şifre, tekrar dener misin?");
           return;
         }
@@ -6608,18 +6776,58 @@ export default function MarcusOS() {
     // eslint-disable-next-line
   }, [])
 
-  const handleAuthSubmit = (pw) => {
-    setPw(pw);
-    clearStaffCreds();
-    loadData(true);
+  /** Adım 1: şifre sunucuya gönderilir. Sunucu ya kod ister (iki adımlı doğrulama açıksa)
+   * ya da doğrudan oturum anahtarı verir. Şifre HİÇBİR ZAMAN tarayıcıda saklanmaz. */
+  const handleAuthSubmit = (pw, hatirla) => {
+    setAuthChecking(true);
+    setAuthError("");
+    fetch("/api/data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ authAction: "girisBasla", sifre: pw, hatirla: !!hatirla }),
+    })
+      .then((r) => r.json().then((res) => ({ ok: r.ok, res })))
+      .then(({ ok, res }) => {
+        setAuthChecking(false);
+        if (!ok) { setAuthError(res.error || "Giriş yapılamadı."); return; }
+        if (res.kodGerekli) { setKodAdimi(true); return; }
+        setOturum(res.token, res.sure);
+        clearStaffCreds();
+        clearMusteriCreds();
+        setKodAdimi(false);
+        loadData(true);
+      })
+      .catch(() => { setAuthChecking(false); setAuthError("Bağlantı hatası. Tekrar dene."); });
+  };
+
+  /** Adım 2: e-postaya gelen kod doğrulanır ve oturum açılır. */
+  const handleKodSubmit = (pw, kod, hatirla) => {
+    setAuthChecking(true);
+    setAuthError("");
+    fetch("/api/data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ authAction: "kodDogrula", sifre: pw, kod, hatirla: !!hatirla }),
+    })
+      .then((r) => r.json().then((res) => ({ ok: r.ok, res })))
+      .then(({ ok, res }) => {
+        setAuthChecking(false);
+        if (!ok) { setAuthError(res.error || "Kod doğrulanamadı."); return; }
+        setOturum(res.token, res.sure);
+        clearStaffCreds();
+        clearMusteriCreds();
+        setKodAdimi(false);
+        loadData(true);
+      })
+      .catch(() => { setAuthChecking(false); setAuthError("Bağlantı hatası. Tekrar dene."); });
   };
   const handleStaffAuthSubmit = (kullaniciAdi, sifre) => {
-    setPw("");
+    clearOturum();
     setStaffCreds(kullaniciAdi, sifre);
     loadData(true);
   };
   const handleMusteriAuthSubmit = (kullaniciAdi, sifre) => {
-    setPw("");
+    clearOturum();
     clearStaffCreds();
     setMusteriBlockedMsg("");
     setMusteriCreds(kullaniciAdi, sifre);
@@ -6966,6 +7174,14 @@ export default function MarcusOS() {
   const addMusteriIcerik = (clientId, icerik) => setData((d) => ({
     ...d,
     musteriIcerikleri: [...(d.musteriIcerikleri || []), { ...icerik, id: nextId(d.musteriIcerikleri || []), clientId, durum: "bekliyor", revizeNotu: null, kaynakIsId: null, olusturmaTarihi: new Date().toLocaleDateString("tr-TR") }],
+  }));
+  /** İçerik / çekim planı düzenleme. clientId, id ve kaynakIsId bilerek KORUNUR — düzenleme
+   * kaydı başka bir markaya taşımamalı ya da Operasyon bağlantısını koparmamalı. */
+  const updateMusteriIcerik = (icerikId, patch) => setData((d) => ({
+    ...d,
+    musteriIcerikleri: (d.musteriIcerikleri || []).map((i) => (
+      i.id === icerikId ? { ...i, ...patch, id: i.id, clientId: i.clientId, kaynakIsId: i.kaynakIsId } : i
+    )),
   }));
   const deleteMusteriIcerik = (icerikId) => setData((d) => ({ ...d, musteriIcerikleri: (d.musteriIcerikleri || []).filter((i) => i.id !== icerikId) }));
 
@@ -7349,7 +7565,7 @@ export default function MarcusOS() {
   const todayLabel = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
 
   if (needsAuth) {
-    return <LockScreen onSubmit={handleAuthSubmit} onStaffSubmit={handleStaffAuthSubmit} onMusteriSubmit={handleMusteriAuthSubmit} error={authError} checking={authChecking} />;
+    return <LockScreen onSubmit={handleAuthSubmit} onKodSubmit={handleKodSubmit} onKodIptal={() => { setKodAdimi(false); setAuthError(""); }} kodAdimi={kodAdimi} onStaffSubmit={handleStaffAuthSubmit} onMusteriSubmit={handleMusteriAuthSubmit} error={authError} checking={authChecking} />;
   }
 
   if (role === "musteri" && musteriData) {
@@ -7491,7 +7707,20 @@ export default function MarcusOS() {
               <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter" }}>Personel Paneli</div>
             </div>
           </div>
-          <button onClick={() => { setPw(""); clearStaffCreds(); window.location.reload(); }} style={cancelBtnStyle}>Çıkış Yap</button>
+          <button
+            onClick={() => {
+              // Sunucudaki oturumu da kapat — sadece tarayıcıdan silmek yetmez.
+              const token = getOturum();
+              if (token) {
+                fetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json", "X-Oturum": token }, body: JSON.stringify({ authAction: "cikis" }) }).catch(() => {});
+              }
+              clearOturum(); clearStaffCreds(); clearMusteriCreds();
+              window.location.reload();
+            }}
+            style={cancelBtnStyle}
+          >
+            Çıkış Yap
+          </button>
         </div>
         {staffNavAll.length > 1 && (
           <div style={{ display: "flex", gap: 8, padding: "16px 20px 0", flexWrap: "wrap" }}>
@@ -7520,6 +7749,7 @@ export default function MarcusOS() {
               duzenleyenAdi={loggedStaffName || "Personel"}
               musteriIcerikleri={data.musteriIcerikleri || []}
               onAddIcerik={addMusteriIcerik}
+              onUpdateIcerik={updateMusteriIcerik}
               onDeleteIcerik={deleteMusteriIcerik}
               firmaAdi={data.firmaAdi}
             />
@@ -7762,6 +7992,7 @@ export default function MarcusOS() {
               clients={data.clients || []}
               icerikler={data.musteriIcerikleri || []}
               onAdd={addMusteriIcerik}
+              onUpdate={updateMusteriIcerik}
               onDelete={deleteMusteriIcerik}
             />
           )}
@@ -7781,6 +8012,7 @@ export default function MarcusOS() {
               duzenleyenAdi="Yönetici (CEO)"
               musteriIcerikleri={data.musteriIcerikleri || []}
               onAddIcerik={addMusteriIcerik}
+              onUpdateIcerik={updateMusteriIcerik}
               onDeleteIcerik={deleteMusteriIcerik}
               firmaAdi={data.firmaAdi}
             />

@@ -5,15 +5,13 @@ const PREFIX = "marcus-os-snapshot-";
 const SAATLIK_PREFIX = "marcus-os-saatlik-";
 const GERI_ALMA_PREFIX = "marcus-os-geri-alma-";
 
-function checkAuth(req, res) {
+async function checkAuth(req, res) {
   const required = process.env.SITE_PASSWORD;
   if (!required) return true;
-  const provided = req.headers["x-site-password"];
-  if (provided !== required) {
-    res.status(401).json({ error: "Yetkisiz. Şifre gerekli." });
-    return false;
-  }
-  return true;
+  // Oturum anahtarı ya da şifre — ikisi de kabul edilir (bkz. lib/oturum.js).
+  if (await ownerYetkiliMi(req)) return true;
+  res.status(401).json({ error: "Yetkisiz. Şifre gerekli." });
+  return false;
 }
 
 /** Bir yedeğin içeriğine bakmadan, kaç kayıt içerdiğini özetler — geri yüklemeden ÖNCE
@@ -40,7 +38,7 @@ function gecerliYedekAnahtari(anahtar) {
 }
 
 export default async function handler(req, res) {
-  if (!checkAuth(req, res)) return;
+  if (!(await checkAuth(req, res))) return;
   try {
     if (req.method === "GET") {
       const { date, key, ozet } = req.query || {};

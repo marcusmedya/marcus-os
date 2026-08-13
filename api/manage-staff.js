@@ -1,16 +1,17 @@
 import { kv } from "@vercel/kv";
 import crypto from "crypto";
 import { KEY, guvenliGuncelle } from "../lib/kv-yaz.js";
+import { ownerYetkiliMi } from "../lib/oturum.js";
 
 const DEFAULT_PERMS = {
   dashboard: false, musteriler: false, finans: false, takvim: false, odemeTakvimi: false,
   teklif: false, reklamlar: true, paylasimlar: true, cekimListesi: false, cekimEdit: true, markaYoneticisi: false, personel: false, birikim: false, uyelikler: false, sifreKasasi: false,
 };
 
-function checkOwner(req) {
+async function checkOwner(req) {
   const required = process.env.SITE_PASSWORD;
   if (!required) return true; // şifre ayarlanmadıysa (ilk kurulum) izin ver
-  return req.headers["x-site-password"] === required;
+  return await ownerYetkiliMi(req);
 }
 
 // data.js'teki ile AYNI IP bazlı sayaç kullanılır — owner şifresi bu uç noktadan da
@@ -65,7 +66,7 @@ export default async function handler(req, res) {
   if (await rateLimitAsildiMi(req)) {
     return res.status(429).json({ error: "Çok fazla başarısız giriş denemesi. 15 dakika sonra tekrar dene." });
   }
-  if (!checkOwner(req)) {
+  if (!(await checkOwner(req))) {
     await basarisizGirisiKaydet(req);
     return res.status(401).json({ error: "Yetkisiz. Sadece yönetici bu sayfayı kullanabilir." });
   }

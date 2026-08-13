@@ -1,5 +1,6 @@
 import { kv } from "@vercel/kv";
 import { KEY, guvenliYaz, kilitAl, kilitBirak, bugunISO } from "../lib/kv-yaz.js";
+import { ownerYetkiliMi } from "../lib/oturum.js";
 
 const nid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const stokAnahtari = (clientId, tur) => `${clientId}_${tur}`;
@@ -12,7 +13,7 @@ async function yetkiliMi(req) {
   const ownerPw = process.env.SITE_PASSWORD;
   const staffPwLegacy = process.env.STAFF_PASSWORD;
   const provided = req.headers["x-site-password"];
-  if (ownerPw && provided === ownerPw) return true;
+  if (await ownerYetkiliMi(req)) return true;
   if (!ownerPw && !staffPwLegacy && !req.headers["x-staff-username"]) return true;
   if (staffPwLegacy && provided === staffPwLegacy) return true;
 

@@ -1,4 +1,5 @@
 import { kv } from "@vercel/kv";
+import { ownerYetkiliMi } from "../lib/oturum.js";
 
 const KEY = "marcus-os-data";
 
@@ -6,7 +7,7 @@ async function yetkiliMi(req) {
   const ownerPw = process.env.SITE_PASSWORD;
   const staffPwLegacy = process.env.STAFF_PASSWORD;
   const provided = req.headers["x-site-password"];
-  if (ownerPw && provided === ownerPw) return true;
+  if (await ownerYetkiliMi(req)) return true;
   if (!ownerPw && !staffPwLegacy && !req.headers["x-staff-username"]) return true;
   if (staffPwLegacy && provided === staffPwLegacy) return true;
 

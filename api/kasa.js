@@ -1,6 +1,7 @@
 import { kv } from "@vercel/kv";
 import crypto from "crypto";
 import { KEY, guvenliGuncelle } from "../lib/kv-yaz.js";
+import { ownerYetkiliMi } from "../lib/oturum.js";
 
 function hashSifre(sifre, salt) {
   return crypto.scryptSync(sifre, salt, 64).toString("hex");
@@ -12,7 +13,7 @@ async function yetkiliMi(req) {
   const ownerPw = process.env.SITE_PASSWORD;
   const staffPwLegacy = process.env.STAFF_PASSWORD;
   const provided = req.headers["x-site-password"];
-  if (ownerPw && provided === ownerPw) return { owner: true };
+  if (await ownerYetkiliMi(req)) return { owner: true };
   if (!ownerPw && !staffPwLegacy && !req.headers["x-staff-username"]) return { owner: true };
   if (staffPwLegacy && provided === staffPwLegacy) return { owner: false };
 
