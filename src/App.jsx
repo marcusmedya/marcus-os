@@ -2510,7 +2510,156 @@ function reklamDurumu(r) {
   return "aktif";
 }
 
-function Reklamlar({ reklamlar, clients, onAdd, onUpdate, onDelete, duzenleyenAdi }) {
+/* ------------------------------------------------------------------ */
+/* HESAP GELİŞİMİ — takipçi ve görünürlük takibi                         */
+/* ------------------------------------------------------------------ */
+/**
+ * Marka bazında AYLIK hesap ölçümleri: takipçi, erişim, profil ziyareti, web tıklaması.
+ * Instagram'ın kendi istatistiklerinden ayda bir girilir.
+ *
+ * Artış rakamları SAKLANMAZ, girilen değerlerden hesaplanır (bu ay − geçen ay). Böylece
+ * bir ayın rakamını düzeltince artışlar da kendiliğinden düzelir; tutarsızlık olamaz.
+ */
+const OLCUM_ALANLARI = [
+  { key: "takipci", label: "Takipçi" },
+  { key: "erisim", label: "Erişim" },
+  { key: "profilZiyareti", label: "Profil Ziyareti" },
+  { key: "siteTiklama", label: "Web Sitesi Tıklaması" },
+];
+
+/** Bir markanın belirli aydaki ölçümü ve bir önceki aya göre değişimi. */
+function olcumKarsilastir(olcumler, clientId, ay) {
+  const kendi = (olcumler || []).filter((o) => String(o.clientId) === String(clientId));
+  const buAy = kendi.find((o) => o.ay === ay) || null;
+  // Bir önceki AY değil, bu aydan ÖNCEKİ EN YAKIN kayıt — arada boş ay varsa da çalışsın diye.
+  const oncekiler = kendi.filter((o) => o.ay < ay).sort((a, b) => (a.ay > b.ay ? -1 : 1));
+  const onceki = oncekiler[0] || null;
+  const fark = {};
+  OLCUM_ALANLARI.forEach(({ key }) => {
+    const simdi = Number(buAy && buAy[key]) || 0;
+    const eski = Number(onceki && onceki[key]) || 0;
+    fark[key] = {
+      simdi,
+      eski,
+      degisim: onceki ? simdi - eski : null,
+      yuzde: onceki && eski > 0 ? ((simdi - eski) / eski) * 100 : null,
+    };
+  });
+  return { buAy, onceki, fark };
+}
+
+function HesapGelisimi({ clients, olcumler, onKaydet, onSil }) {
+  const [secili, setSecili] = useState(null);
+  const [ay, setAy] = useState(monthKey());
+  const [taslak, setTaslak] = useState({});
+  const [duzenle, setDuzenle] = useState(false);
+
+  const aktifler = (clients || []).filter((c) => c.durum !== "ayrildi");
+  const marka = aktifler.find((c) => String(c.id) === String(secili));
+  const { buAy, onceki, fark } = marka ? olcumKarsilastir(olcumler, marka.id, ay) : { buAy: null, onceki: null, fark: {} };
+
+  const formuAc = () => {
+    const mevcut = buAy || {};
+    setTaslak(OLCUM_ALANLARI.reduce((o, { key }) => ({ ...o, [key]: mevcut[key] != null ? String(mevcut[key]) : "" }), {}));
+    setDuzenle(true);
+  };
+
+  const kaydet = () => {
+    const kayit = { clientId: marka.id, ay };
+    OLCUM_ALANLARI.forEach(({ key }) => { kayit[key] = taslak[key] === "" ? null : Number(taslak[key]) || 0; });
+    onKaydet(kayit);
+    setDuzenle(false);
+  };
+
+  const okKutu = (etiket, f) => {
+    const artiMi = f.degisim != null && f.degisim > 0;
+    const eksiMi = f.degisim != null && f.degisim < 0;
+    return (
+      <div key={etiket} style={{ background: T.surfaceRaised, borderRadius: 11, padding: "12px 14px", flex: "1 1 150px" }}>
+        <div style={{ fontSize: 10, color: T.textFaint, fontFamily: "Inter", fontWeight: 700, letterSpacing: 0.3 }}>{etiket.toLocaleUpperCase("tr")}</div>
+        <div style={{ fontSize: 19, color: T.text, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", marginTop: 3 }}>
+          {f.simdi ? f.simdi.toLocaleString("tr-TR") : "—"}
+        </div>
+        {f.degisim != null && f.degisim !== 0 && (
+          <div style={{ fontSize: 11.5, fontFamily: "Inter", marginTop: 3, color: artiMi ? T.success : eksiMi ? T.danger : T.textFaint, fontWeight: 600 }}>
+            {artiMi ? "▲" : "▼"} {Math.abs(f.degisim).toLocaleString("tr-TR")}
+            {f.yuzde != null && ` (%${Math.abs(f.yuzde).toFixed(1)})`}
+          </div>
+        )}
+        {f.degisim == null && <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 3 }}>karşılaştırma yok</div>}
+      </div>
+    );
+  };
+
+  return (
+    <Card style={{ padding: "16px 18px", marginBottom: 16 }}>
+      <SectionTitle>Hesap Gelişimi (Takipçi & Görünürlük)</SectionTitle>
+      <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginBottom: 12, lineHeight: 1.6 }}>
+        Ayda bir Instagram istatistiklerinden okuyup gir. Artış rakamları bir önceki kayıtla karşılaştırılarak
+        otomatik hesaplanır ve aylık müşteri raporuna girer.
+      </div>
+
+      <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 12 }}>
+        {aktifler.map((c) => (
+          <button
+            key={c.id}
+            onClick={() => { setSecili(String(secili) === String(c.id) ? null : c.id); setDuzenle(false); }}
+            style={{ padding: "7px 13px", borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 12.5, fontWeight: 600,
+              background: String(secili) === String(c.id) ? T.accent : T.surfaceRaised, color: String(secili) === String(c.id) ? "#fff" : T.textDim }}
+          >
+            {c.ad}
+          </button>
+        ))}
+      </div>
+
+      {!marka ? (
+        <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Ölçümlerini görmek için bir marka seç.</div>
+      ) : (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
+            <div style={{ minWidth: 150 }}><AySeciciAlan value={ay} onChange={(v) => { setAy(v); setDuzenle(false); }} /></div>
+            {!duzenle && <button style={saveBtnStyle} onClick={formuAc}>{buAy ? "Ölçümleri Düzenle" : "Bu Ayın Ölçümlerini Gir"}</button>}
+            {buAy && !duzenle && onSil && (
+              <button style={cancelBtnStyle} onClick={() => { if (window.confirm("Bu ayın ölçüm kaydı silinsin mi?")) onSil(marka.id, ay); }}>Sil</button>
+            )}
+          </div>
+
+          {duzenle ? (
+            <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: 12 }}>
+              <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
+                {OLCUM_ALANLARI.map(({ key, label }) => (
+                  <div key={key}>
+                    <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>{label}</label>
+                    <input type="number" value={taslak[key] ?? ""} onChange={(e) => setTaslak((t) => ({ ...t, [key]: e.target.value }))} style={{ ...inputStyle, marginBottom: 0 }} />
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button style={saveBtnStyle} onClick={kaydet}>Kaydet</button>
+                <button style={cancelBtnStyle} onClick={() => setDuzenle(false)}>Vazgeç</button>
+              </div>
+            </div>
+          ) : buAy ? (
+            <>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                {OLCUM_ALANLARI.map(({ key, label }) => okKutu(label, fark[key]))}
+              </div>
+              {onceki && (
+                <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 8 }}>
+                  Karşılaştırma: {onceki.ay} ayına göre
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Bu ay için ölçüm girilmemiş.</div>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
+
+function Reklamlar({ reklamlar, clients, onAdd, onUpdate, onDelete, duzenleyenAdi, olcumler, onKaydetOlcum, onSilOlcum }) {
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [filter, setFilter] = useState("hepsi");
@@ -2531,6 +2680,8 @@ function Reklamlar({ reklamlar, clients, onAdd, onUpdate, onDelete, duzenleyenAd
         <KpiCard label="3 GÜN İÇİNDE BİTECEK" value={yakindaSayisi} mono={false} accent={T.warning} />
         <KpiCard label="TOPLAM KAYIT" value={reklamlar.length} mono={false} />
       </div>
+
+      <HesapGelisimi clients={clients} olcumler={olcumler} onKaydet={onKaydetOlcum} onSil={onSilOlcum} />
 
       <Card style={{ padding: "10px 12px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", gap: 8 }}>
@@ -5320,7 +5471,7 @@ function VeriBoyutuKarti() {
  * girmeye gerek yok. Açılan pencereden yazdırılabilir ya da "PDF olarak kaydet" ile
  * PDF'e çevrilip müşteriye gönderilebilir.
  */
-function AylikRaporKarti({ marka, firmaAdi, logo, plan, reklamlar, isler }) {
+function AylikRaporKarti({ marka, firmaAdi, logo, plan, reklamlar, isler, olcumler }) {
   const [ay, setAy] = useState(monthKey());
 
   const markaEsit = (deger) => String(deger || "").trim().toLocaleLowerCase("tr") === String(marka.ad || "").trim().toLocaleLowerCase("tr");
@@ -5363,6 +5514,7 @@ function AylikRaporKarti({ marka, firmaAdi, logo, plan, reklamlar, isler }) {
   const ac = () => aylikRaporAc({
     marka: marka.ad, firmaAdi: firmaAdi || "Marcus Medya", ay, logo,
     isler: ayinIsleri, paylasilanlar, planlananlar, reklamlar: ayinReklamlari,
+    olcum: olcumKarsilastir(olcumler, marka.id, ay),
   });
 
   return (
@@ -5699,7 +5851,7 @@ function raporGorselAdresi(deger) {
   return adaylar.length ? adaylar[0] : "";
 }
 
-function aylikRaporHtml({ marka, firmaAdi, ay, isler, paylasilanlar, planlananlar, reklamlar, logo }) {
+function aylikRaporHtml({ marka, firmaAdi, ay, isler, paylasilanlar, planlananlar, reklamlar, logo, olcum }) {
   const ayAdiYazi = (() => {
     const [y, a] = ay.split("-").map(Number);
     return new Date(y, a - 1, 1).toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
@@ -5752,6 +5904,29 @@ function aylikRaporHtml({ marka, firmaAdi, ay, isler, paylasilanlar, planlananla
         </div>`;
       }).join("")
     : `<p class="bos">Bu ayla kesişen reklam kampanyası yok.</p>`;
+
+  /* HESAP GELİŞİMİ — takipçi ve görünürlük. Sadece o ay için ölçüm girilmişse basılır;
+   * boş bir tablo müşteriye "ölçmüyorlar" izlenimi verirdi. */
+  const olcumHtml = (() => {
+    if (!olcum || !olcum.buAy) return "";
+    const satir = ({ key, label }) => {
+      const f = olcum.fark[key];
+      if (!f || !f.simdi) return "";
+      const yon = f.degisim == null ? "" : f.degisim > 0 ? "▲" : f.degisim < 0 ? "▼" : "";
+      const renk = f.degisim > 0 ? "#15803d" : f.degisim < 0 ? "#b91c1c" : "#6b7280";
+      const degisimYazi = f.degisim == null || f.degisim === 0
+        ? "—"
+        : `<span style="color:${renk}">${yon} ${Math.abs(f.degisim).toLocaleString("tr-TR")}${f.yuzde != null ? ` (%${Math.abs(f.yuzde).toFixed(1)})` : ""}</span>`;
+      return `<tr><td>${escapeHtml(label)}</td><td>${f.simdi.toLocaleString("tr-TR")}</td><td>${degisimYazi}</td></tr>`;
+    };
+    const satirlar = OLCUM_ALANLARI.map(satir).filter(Boolean).join("");
+    if (!satirlar) return "";
+    return `<h2>Hesap Gelişimi</h2>
+      <table>
+        <thead><tr><th>Ölçüm</th><th>Bu ay</th><th>Önceki döneme göre</th></tr></thead>
+        <tbody>${satirlar}</tbody>
+      </table>`;
+  })();
 
   const toplamErisim = reklamlar.reduce((t, r) => t + (Number(r.erisim) || 0), 0);
   const toplamSonuc = reklamlar.reduce((t, r) => t + (Number(r.sonuc) || 0), 0);
@@ -5822,6 +5997,8 @@ function aylikRaporHtml({ marka, firmaAdi, ay, isler, paylasilanlar, planlananla
   <h2>Önümüzdeki Dönem Ne Paylaşacağız</h2>
   ${planlananHtml}
 
+  ${olcumHtml}
+
   <h2>Reklam Kampanyaları</h2>
   ${reklamHtml}
 
@@ -5848,7 +6025,7 @@ function aylikRaporAc(veri) {
  * Daha önce bunlar iki ayrı yere dağılmıştı (içerikler müşteri detayında, hesaplar
  * Ayarlar'da) ve müşteri detayı zaten kalabalık olduğu için içerik bölümü kayboluyordu.
  */
-function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, onOnayla, plan, reklamlar, isler, onAltMetin, firmaAdi, logo }) {
+function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, onOnayla, plan, reklamlar, isler, onAltMetin, firmaAdi, logo, olcumler }) {
   const [secili, setSecili] = useState(null);
 
   const aktifler = (clients || []).filter((c) => c.durum !== "ayrildi");
@@ -5932,6 +6109,7 @@ function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, 
           marka={seciliMarka}
           firmaAdi={firmaAdi}
           logo={logo}
+          olcumler={olcumler || []}
           plan={plan || []}
           reklamlar={reklamlar || []}
           isler={isler || []}
@@ -5968,7 +6146,7 @@ function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, 
  * Bu liste kalıcı olarak SAKLANMAZ, her seferinde mevcut veriden hesaplanır. Böylece bir
  * kayıt hallolduğunda kutudan kendiliğinden düşer; senkronu bozacak ikinci bir kopya oluşmaz.
  */
-function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, onOperasyonaAktar, onAta, onGit }) {
+function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, reklamlar, onOperasyonaAktar, onAta, onGit, onReklamaGit }) {
   const [acikId, setAcikId] = useState(null);
   const [form, setForm] = useState({ kategori: "Video", kameraman: "", editor: "", teslimTarihi: "", asama: "" });
 
@@ -5986,8 +6164,11 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, onOperas
   const atanmamislar = (isler || []).filter(
     (j) => j.asama !== "Teslim Edildi" && !String(j.kameraman || "").trim() && !String(j.editor || "").trim()
   );
+  /** Bitmiş ama sonuç istatistiği girilmemiş kampanyalar — girilmezse aylık rapor eksik
+   * kalır ve kampanyanın işe yarayıp yaramadığı hiç öğrenilemez. */
+  const eksikReklamlar = (reklamlar || []).filter((r) => reklamDurumu(r) === "bitti" && !istatistikVarMi(r));
 
-  if (revizeler.length === 0 && onaylananlar.length === 0 && atanmamislar.length === 0) return null;
+  if (revizeler.length === 0 && onaylananlar.length === 0 && atanmamislar.length === 0 && eksikReklamlar.length === 0) return null;
 
   // Atama için isim havuzu: kayıtlı personel + freelancer'lar, tekrarsız.
   const kisiler = Array.from(new Set([
@@ -6029,7 +6210,7 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, onOperas
   return (
     <Card style={{ padding: "16px 18px", marginBottom: 18, border: `1px solid ${T.warning}` }}>
       <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 4 }}>
-        Onayını Bekleyenler ({revizeler.length + onaylananlar.length + atanmamislar.length})
+        Onayını Bekleyenler ({revizeler.length + onaylananlar.length + atanmamislar.length + eksikReklamlar.length})
       </div>
       <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 14, lineHeight: 1.6 }}>
         Müşteriden gelen revize istekleri, onaylanmış çekim planları ve kimseye atanmamış işler.
@@ -6090,6 +6271,20 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, onOperas
 
       {atanmamislar.map((j) => (
         <AtanmamisIsSatiri key={`is-${j.id}`} job={j} kisiler={kisiler} onAta={onAta} />
+      ))}
+
+      {eksikReklamlar.map((r) => (
+        <div key={`rek-${r.id}`} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "11px 13px", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
+              <span style={{ color: T.warning }}>Kampanya bitti · </span>{r.marka} — {r.reklamAdi}
+            </div>
+            <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>
+              Sonuç istatistikleri girilmedi — rapora yansımaz
+            </div>
+          </div>
+          <button style={saveBtnStyle} onClick={() => onReklamaGit && onReklamaGit()}>İstatistikleri Gir</button>
+        </div>
       ))}
     </Card>
   );
@@ -6549,7 +6744,7 @@ function Ayarlar({ onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu
           <strong> Müşteri Paneli</strong> sekmesinde, tek bir yerde toplandı.
         </p>
       </Card>
-      <PersonelHesaplariKart onRosterChange={onRosterChange} />
+      <PersonelHesaplariKart onRosterChange={onRosterChange} clients={clients} />
       <KasaSifresiKarti />
 
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
@@ -6751,7 +6946,7 @@ function MusteriHesaplariKart({ clients }) {
   );
 }
 
-function PersonelHesaplariKart({ onRosterChange }) {
+function PersonelHesaplariKart({ onRosterChange, clients }) {
   const [hesaplar, setHesaplar] = useState(null); // null = yüklenmedi
   const [ekleAcik, setEkleAcik] = useState(false);
   const [yeniAd, setYeniAd] = useState("");
@@ -6763,6 +6958,7 @@ function PersonelHesaplariKart({ onRosterChange }) {
   const [acikId, setAcikId] = useState(null); // yetki/e-posta düzenleme paneli açık olan hesap
   const [taslakEmail, setTaslakEmail] = useState("");
   const [taslakIzin, setTaslakIzin] = useState({});
+  const [taslakMarkalar, setTaslakMarkalar] = useState([]); // marka kilidi seçimi
 
   // hesaplar değiştikçe (ekleme/güncelleme/silme sonrası), ana uygulamadaki isim/e-posta
   // listesini de anında güncel tut — sayfa yenilenmeden Operasyon'daki bildirim çalışsın diye.
@@ -6841,13 +7037,14 @@ function PersonelHesaplariKart({ onRosterChange }) {
     setAcikId(h.id);
     setTaslakEmail(h.email || "");
     setTaslakIzin({ ...h.izinler });
+    setTaslakMarkalar(Array.isArray(h.markalar) ? [...h.markalar] : []);
   };
 
   const kaydetGuncelle = (id) => {
     fetch("/api/manage-staff", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": getPw() },
-      body: JSON.stringify({ action: "guncelle", id, email: taslakEmail.trim(), izinler: taslakIzin }),
+      body: JSON.stringify({ action: "guncelle", id, email: taslakEmail.trim(), izinler: taslakIzin, markalar: taslakMarkalar }),
     })
       .then((r) => r.json())
       .then((res) => { if (res.hesaplar) { setHesaplar(res.hesaplar); setAcikId(null); } });
@@ -6878,6 +7075,11 @@ function PersonelHesaplariKart({ onRosterChange }) {
                   <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>@{h.kullaniciAdi}{h.email ? ` · ${h.email}` : ""}</div>
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
+                  {Array.isArray(h.markalar) && h.markalar.length > 0 && (
+                    <span style={{ fontSize: 10.5, fontWeight: 600, color: T.warning, background: T.warningSoft, padding: "2px 9px", borderRadius: 999, fontFamily: "Inter", marginRight: 6 }} title={h.markalar.join(", ")}>
+                      🔒 {h.markalar.length} marka
+                    </span>
+                  )}
                   <button style={cancelBtnStyle} onClick={() => acPaneli(h)}>{acikId === h.id ? "Kapat" : "Yetkiler / E-posta"}</button>
                   <button style={cancelBtnStyle} onClick={() => { setSifirlanan(sifirlanan === h.id ? null : h.id); setYeniSifreDeger(""); }}>Şifre Sıfırla</button>
                   <button style={iconBtnStyle} onClick={() => sil(h.id)}><Trash2 size={14} color={T.danger} /></button>
@@ -6902,6 +7104,38 @@ function PersonelHesaplariKart({ onRosterChange }) {
                       </label>
                     ))}
                   </div>
+                  {/* MARKA KİLİDİ — dışarıdan çalışan (iş ortağı, ajans dışı editör) hesaplar için.
+                    * Seçim yapılırsa o hesap SADECE bu markaların verisini görür; diğer markaların
+                    * verisi sunucudan hiç gönderilmez, tarayıcı araçlarıyla bile ulaşılamaz. */}
+                  <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 6 }}>MARKA KİLİDİ</div>
+                  <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginBottom: 8, lineHeight: 1.6 }}>
+                    Hiçbiri seçili değilse tüm markaları görür. Marka seçersen <strong>sadece onları</strong> görür —
+                    diğer müşterilerin varlığından bile haberi olmaz.
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 6, maxHeight: 160, overflowY: "auto" }}>
+                    {(clients || []).filter((c) => c.durum !== "ayrildi").map((c) => {
+                      const secili = taslakMarkalar.includes(c.ad);
+                      return (
+                        <button
+                          key={c.id}
+                          onClick={() => setTaslakMarkalar((liste) => (secili ? liste.filter((x) => x !== c.ad) : [...liste, c.ad]))}
+                          style={{ padding: "6px 12px", borderRadius: 999, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 12, fontWeight: 600,
+                            background: secili ? T.accent : T.surface, color: secili ? "#fff" : T.textDim }}
+                        >
+                          {c.ad}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ fontSize: 11.5, fontFamily: "Inter", marginBottom: 12, color: taslakMarkalar.length ? T.warning : T.textFaint }}>
+                    {taslakMarkalar.length
+                      ? `Kilitli: ${taslakMarkalar.length} marka · reklam bütçesi ve müşteri finansalları bu hesaba gönderilmez`
+                      : "Kilit yok — tüm markaları görür"}
+                    {taslakMarkalar.length > 0 && (
+                      <button onClick={() => setTaslakMarkalar([])} style={{ background: "none", border: "none", color: T.accentText, cursor: "pointer", fontSize: 11.5, fontFamily: "Inter", textDecoration: "underline", marginLeft: 8 }}>kilidi kaldır</button>
+                    )}
+                  </div>
+
                   <button style={saveBtnStyle} onClick={() => kaydetGuncelle(h.id)}>Kaydet</button>
                 </div>
               )}
@@ -8710,6 +8944,23 @@ export default function MarcusOS() {
   const deleteFon = (id) => setData((d) => ({ ...d, birikimler: (d.birikimler || []).filter((f) => f.id !== id) }));
   /** Planım — kişisel notlar. Sadece yöneticiye ait; sunucudaki personel izin listesinde
    * yer almadığı için personelin tarayıcısına hiç gönderilmez. */
+  /** Marka bazlı aylık hesap ölçümü (takipçi, erişim vb.). Aynı marka+ay için ikinci kayıt
+   * oluşmaz — mevcut kayıt güncellenir, böylece çift veri ve tutarsız artış hesabı olmaz. */
+  const kaydetOlcum = (kayit) => setData((d) => {
+    const liste = d.hesapOlcumleri || [];
+    const varMi = liste.some((o) => String(o.clientId) === String(kayit.clientId) && o.ay === kayit.ay);
+    return {
+      ...d,
+      hesapOlcumleri: varMi
+        ? liste.map((o) => (String(o.clientId) === String(kayit.clientId) && o.ay === kayit.ay ? { ...o, ...kayit } : o))
+        : [...liste, { ...kayit, id: nextId(liste) }],
+    };
+  });
+  const silOlcum = (clientId, ay) => setData((d) => ({
+    ...d,
+    hesapOlcumleri: (d.hesapOlcumleri || []).filter((o) => !(String(o.clientId) === String(clientId) && o.ay === ay)),
+  }));
+
   const addGorev = (g) => setData((d) => ({ ...d, kisiselGorevler: [...(d.kisiselGorevler || []), { ...g, id: nextId(d.kisiselGorevler || []) }] }));
   const updateGorev = (id, patch) => setData((d) => ({ ...d, kisiselGorevler: (d.kisiselGorevler || []).map((g) => (g.id === id ? { ...g, ...patch } : g)) }));
   const deleteGorev = (id) => setData((d) => ({ ...d, kisiselGorevler: (d.kisiselGorevler || []).filter((g) => g.id !== id) }));
@@ -9025,7 +9276,8 @@ export default function MarcusOS() {
     const atanmamis = (data.cekimIsleri || []).filter(
       (j) => j.asama !== "Teslim Edildi" && !String(j.kameraman || "").trim() && !String(j.editor || "").trim()
     ).length;
-    return revize + onaylanan + atanmamis;
+    const eksikReklam = (data.reklamlar || []).filter((r) => reklamDurumu(r) === "bitti" && !istatistikVarMi(r)).length;
+    return revize + onaylanan + atanmamis + eksikReklam;
   }, [data]);
 
   const searchResults = useMemo(() => {
@@ -9313,7 +9565,7 @@ export default function MarcusOS() {
               onDeleteSozlesmeSablonu={deleteSozlesmeSablonu}
             />
           )}
-          {staffTab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} clients={data.clients || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} duzenleyenAdi={loggedStaffName || "Personel"} />}
+          {staffTab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} clients={data.clients || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} duzenleyenAdi={loggedStaffName || "Personel"} olcumler={data.hesapOlcumleri || []} onKaydetOlcum={kaydetOlcum} onSilOlcum={silOlcum} />}
           {staffTab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} />}
           {staffTab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} kontrol={data.gunlukKontrol} onToggle={toggleGunlukKontrol} onYenile={veriyiYenile} role="staff" />}
           {staffTab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} />}
@@ -9506,9 +9758,11 @@ export default function MarcusOS() {
                   clients={data.clients || []}
                   roster={data.personelRosteri || []}
                   freelancerlar={data.freelancerlar || []}
+                  reklamlar={data.reklamlar || []}
                   onOperasyonaAktar={revizeyiOperasyonaAktar}
                   onAta={iseKisiAta}
                   onGit={() => setTab("musteri-paneli")}
+                  onReklamaGit={() => setTab("reklamlar")}
                 />
               }
             />
@@ -9527,6 +9781,7 @@ export default function MarcusOS() {
               onAltMetin={setPlanAltMetin}
               firmaAdi={data.firmaAdi}
               logo={data.markaKimligiGorseli}
+              olcumler={data.hesapOlcumleri || []}
             />
           )}
           {tab === "musteriler" && (
@@ -9608,7 +9863,7 @@ export default function MarcusOS() {
               onDeleteSozlesmeSablonu={deleteSozlesmeSablonu}
             />
           )}
-          {tab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} clients={data.clients || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} duzenleyenAdi="Yönetici (CEO)" />}
+          {tab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} clients={data.clients || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} duzenleyenAdi="Yönetici (CEO)" olcumler={data.hesapOlcumleri || []} onKaydetOlcum={kaydetOlcum} onSilOlcum={silOlcum} />}
           {tab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} />}
           {tab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} kontrol={data.gunlukKontrol} onToggle={toggleGunlukKontrol} onYenile={veriyiYenile} role="owner" />}
           {tab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} />}

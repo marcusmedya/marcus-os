@@ -53,7 +53,8 @@ async function hesaplariYaz(alanAdi, guncel) {
 }
 
 function guvenliListe(hesaplar) {
-  return (hesaplar || []).map((h) => ({ id: h.id, ad: h.ad, kullaniciAdi: h.kullaniciAdi, email: h.email || "", izinler: { ...DEFAULT_PERMS, ...(h.izinler || {}) } }));
+  // markalar: hesabın kilitli olduğu marka listesi (boş = tüm markalar görünür)
+  return (hesaplar || []).map((h) => ({ id: h.id, ad: h.ad, kullaniciAdi: h.kullaniciAdi, email: h.email || "", izinler: { ...DEFAULT_PERMS, ...(h.izinler || {}) }, markalar: Array.isArray(h.markalar) ? h.markalar : [] }));
 }
 
 /** Müşteri hesapları personel hesaplarından ayrı bir alanda (musteriHesaplari) tutulur —
@@ -84,7 +85,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "POST") {
-      const { action, id, ad, kullaniciAdi, sifre, email, izinler, clientId } = req.body || {};
+      const { action, id, ad, kullaniciAdi, sifre, email, izinler, markalar, clientId } = req.body || {};
 
       if (action === "ekle") {
         if (!ad || !kullaniciAdi || !sifre) return res.status(400).json({ error: "Ad, kullanıcı adı ve şifre gerekli." });
@@ -122,6 +123,9 @@ export default async function handler(req, res) {
           } else {
             if (email !== undefined) yeni.email = email;
             if (izinler !== undefined) yeni.izinler = { ...DEFAULT_PERMS, ...izinler };
+            // Marka kilidi: boş dizi = kilit yok (tüm markalar). Kilit sadece yönetici tarafından
+            // değiştirilebilir (bu uç nokta zaten owner yetkisi istiyor).
+            if (markalar !== undefined) yeni.markalar = Array.isArray(markalar) ? markalar.filter(Boolean) : [];
           }
           return yeni;
         });

@@ -57,6 +57,58 @@ async function basarisizGirisiKaydet(req) {
   }
 }
 
+/**
+ * MARKA KİLİDİ
+ * ------------
+ * Bir personel hesabına "markalar" listesi tanımlanmışsa, o hesap SADECE o markaların
+ * verisini görür. Bu bir arayüz gizlemesi DEĞİLDİR — veri sunucudan hiç gönderilmez,
+ * dolayısıyla tarayıcı araçlarıyla da ulaşılamaz. İş ortağı gibi dışarıdan biri, diğer
+ * müşterilerin varlığından bile haberdar olmaz.
+ *
+ * Liste boşsa (ya da tanımsızsa) davranış eskisi gibidir: tüm markalar görünür.
+ */
+const trKucult = (x) => String(x || "").trim().toLocaleLowerCase("tr");
+
+/** Kayıtları marka adına ya da clientId'ye göre süzer. */
+function markayaGoreSuz(data, izinliMarkalar) {
+  if (!Array.isArray(izinliMarkalar) || izinliMarkalar.length === 0) return data;
+  const adSeti = new Set(izinliMarkalar.map(trKucult));
+  const izinliClientlar = (data.clients || []).filter((c) => adSeti.has(trKucult(c.ad)));
+  const idSeti = new Set(izinliClientlar.map((c) => String(c.id)));
+
+  const markaAlani = (kayit) => adSeti.has(trKucult(kayit.marka));
+  const clientAlani = (kayit) => idSeti.has(String(kayit.clientId));
+
+  const suzulmus = { ...data };
+  if (data.clients) suzulmus.clients = izinliClientlar;
+  if (data.reklamlar) suzulmus.reklamlar = data.reklamlar.filter(markaAlani);
+  if (data.cekimIsleri) suzulmus.cekimIsleri = data.cekimIsleri.filter(markaAlani);
+  if (data.markalasmaSurecleri) suzulmus.markalasmaSurecleri = data.markalasmaSurecleri.filter(markaAlani);
+  if (data.haftalikPaylasimlar) suzulmus.haftalikPaylasimlar = data.haftalikPaylasimlar.filter(clientAlani);
+  if (data.musteriIcerikleri) suzulmus.musteriIcerikleri = data.musteriIcerikleri.filter(clientAlani);
+  if (data.stoklar) suzulmus.stoklar = data.stoklar.filter((x) => clientAlani(x) || markaAlani(x));
+  if (data.paylasimGecmisi) suzulmus.paylasimGecmisi = data.paylasimGecmisi.filter((x) => clientAlani(x) || markaAlani(x));
+  if (data.gunlukKontrol) suzulmus.gunlukKontrol = data.gunlukKontrol.filter((x) => clientAlani(x) || markaAlani(x));
+  if (data.subeler) suzulmus.subeler = data.subeler.filter((x) => clientAlani(x) || markaAlani(x));
+  if (data.hesapOlcumleri) suzulmus.hesapOlcumleri = data.hesapOlcumleri.filter(clientAlani);
+  return suzulmus;
+}
+
+/** Marka kilitli hesaplardan gizlenen alanlar — dışarıdan çalışan biri finansal iç bilgiyi
+ * görmemeli. Reklam bütçesi buna dahil (kullanıcının açık tercihi). */
+function icBilgiyiTemizle(data, kilitliMi) {
+  if (!kilitliMi) return data;
+  const temiz = { ...data };
+  if (temiz.reklamlar) temiz.reklamlar = temiz.reklamlar.map(({ butce, ...r }) => r);
+  if (temiz.clients) {
+    temiz.clients = temiz.clients.map((c) => {
+      const { maliyetler, odemeKayitlari, aylikUcret, sozlesmeBedeli, ...kalan } = c;
+      return kalan;
+    });
+  }
+  return temiz;
+}
+
 // Her izin, personel görürse hangi veri alanlarına ihtiyaç duyacağını belirler.
 // CEO Paneli'nden bu izinlerden hangileri açıksa, personelin GET yanıtına o alanlar dahil edilir
 // ve POST ile o alanlara yazması kabul edilir. Ayarlar bilerek bu listede YOK — personel hesap
@@ -68,7 +120,7 @@ const PERMISSION_DATA_FIELDS = {
   takvim: ["clients", "vergiTakvimi"],
   odemeTakvimi: ["clients", "hesaplar", "hesapTransferleri", "hesapDuzeltmeleri"],
   teklif: ["teklifler", "teklifSablonlari", "sozlesmeSablonlari", "markaKimligiGorseli"],
-  reklamlar: ["reklamlar", "clients"],
+  reklamlar: ["reklamlar", "clients", "hesapOlcumleri"],
   paylasimlar: ["stoklar", "paylasimGecmisi", "gunlukKontrol", "clients", "haftalikPaylasimlar", "subeler"],
   cekimListesi: ["stoklar", "paylasimGecmisi", "clients", "subeler"],
   cekimEdit: ["cekimIsleri", "clients", "markalasmaSurecleri", "musteriIcerikleri"],
@@ -87,7 +139,7 @@ const PERMISSION_WRITE_FIELDS = {
   takvim: ["clients", "vergiTakvimi"],
   odemeTakvimi: ["clients", "hesaplar", "hesapTransferleri", "hesapDuzeltmeleri"],
   teklif: ["teklifler", "teklifSablonlari", "sozlesmeSablonlari", "markaKimligiGorseli"],
-  reklamlar: ["reklamlar"],
+  reklamlar: ["reklamlar", "hesapOlcumleri"],
   paylasimlar: ["stoklar", "paylasimGecmisi", "gunlukKontrol", "haftalikPaylasimlar", "subeler"],
   cekimListesi: [],
   cekimEdit: ["cekimIsleri", "markalasmaSurecleri", "musteriIcerikleri"],
@@ -136,7 +188,7 @@ async function resolveRole(req) {
     const hesap = ((data && data.personelHesaplari) || []).find((h) => h.kullaniciAdi === username);
     if (hesap) {
       const hash = hashSifre(password, hesap.sifreSalt);
-      if (hash === hesap.sifreHash) return { role: "staff", staffId: hesap.id, staffName: hesap.ad, staffPerms: hesap.izinler || null, staffEmail: hesap.email || "" };
+      if (hash === hesap.sifreHash) return { role: "staff", staffId: hesap.id, staffName: hesap.ad, staffPerms: hesap.izinler || null, staffEmail: hesap.email || "", staffMarkalar: hesap.markalar || [] };
     }
   }
 
@@ -230,7 +282,7 @@ export default async function handler(req, res) {
     await basarisizGirisiKaydet(req);
     return res.status(401).json({ error: "Yetkisiz. Şifre gerekli." });
   }
-  const { role, staffId, staffName, staffPerms, staffEmail, musteriId, musteriClientId, musteriAd } = auth;
+  const { role, staffId, staffName, staffPerms, staffEmail, staffMarkalar, musteriId, musteriClientId, musteriAd } = auth;
 
   // Müşteri Paneli — tamamen izole bir akış. Owner/personel akışının hiçbir parçasına
   // dokunmaz; müşteri SADECE kendi marka bilgisine ve SADECE kendi içerik onaylarına erişebilir.
@@ -406,17 +458,26 @@ export default async function handler(req, res) {
         // personel sekmesi, arada yapılan değişikliklerin üzerine yazabiliyordu.
         const restricted = { staffPermissions: perms, firmaAdi: (data && data.firmaAdi) || "Marcus Medya", _v: (data && typeof data._v === "number") ? data._v : 0 };
 
+        /* MARKA KİLİDİ: hesaba marka listesi tanımlıysa, veri daha izinlere dağıtılmadan
+         * ÖNCE süzülür. Böylece hangi izin açık olursa olsun, o hesap başka markanın
+         * verisini asla göremez. Kilitli hesaplardan reklam bütçesi ve müşteri finansalları
+         * da temizlenir. */
+        const izinliMarkalar = Array.isArray(staffMarkalar) ? staffMarkalar : [];
+        const markaKilitliMi = izinliMarkalar.length > 0;
+        restricted.markaKilidi = markaKilitliMi ? izinliMarkalar : null;
+        const kaynak = icBilgiyiTemizle(markayaGoreSuz(data || {}, izinliMarkalar), markaKilitliMi);
+
         // Hangi izinler açıksa, o izne bağlı alanları gerçek veriyle dolduruyoruz.
         Object.entries(PERMISSION_DATA_FIELDS).forEach(([permKey, fields]) => {
           if (perms[permKey] !== true) return;
-          fields.forEach((f) => { restricted[f] = (data && data[f] !== undefined) ? data[f] : DEFAULT_FIELD_VALUES[f]; });
+          fields.forEach((f) => { restricted[f] = (kaynak[f] !== undefined) ? kaynak[f] : DEFAULT_FIELD_VALUES[f]; });
         });
 
         // clients alanı: geniş kapsamlı bir izin varsa TAM veri, sadece paylasimlar/cekimEdit gibi
         // dar izinler varsa sadece marka kartları için isim/durum ile sınırlı veri gönderilir.
         const genisIzinVarMi = FULL_CLIENT_PERMS.some((p) => perms[p] === true);
         if (!genisIzinVarMi && restricted.clients) {
-          restricted.clients = ((data && data.clients) || []).map((c) => ({ id: c.id, ad: c.ad, durum: c.durum }));
+          restricted.clients = (kaynak.clients || []).map((c) => ({ id: c.id, ad: c.ad, durum: c.durum }));
         }
 
         // İş atarken/üyelik bilgisi gönderirken kime gönderdiğini seçebilmesi için
@@ -478,6 +539,22 @@ export default async function handler(req, res) {
           }
           const guncelHesap = staffId ? ((existing.personelHesaplari || []).find((h) => h.id === staffId)) : null;
           const perms = guncelHesap ? { ...DEFAULT_PERMS, ...(guncelHesap.izinler || {}) } : { ...DEFAULT_PERMS, ...(existing.staffPermissions || {}) };
+          // İzinli markalar HER ZAMAN sunucudaki güncel hesap kaydından okunur — tarayıcının
+          // gönderdiğine asla güvenilmez, yoksa kilit kolayca aşılırdı.
+          const yaziMarkalari = (guncelHesap && Array.isArray(guncelHesap.markalar)) ? guncelHesap.markalar : [];
+          const yaziKilitli = yaziMarkalari.length > 0;
+          const yaziAdSeti = new Set(yaziMarkalari.map(trKucult));
+          const yaziIdSeti = new Set(
+            (existing.clients || []).filter((c) => yaziAdSeti.has(trKucult(c.ad))).map((c) => String(c.id))
+          );
+          /** Kayıt bu hesabın yetkisindeki bir markaya mı ait? */
+          const kayitBenimMi = (kayit) => {
+            if (!kayit || typeof kayit !== "object") return false;
+            if (kayit.clientId !== undefined && kayit.clientId !== null) return yaziIdSeti.has(String(kayit.clientId));
+            if (kayit.marka !== undefined) return yaziAdSeti.has(trKucult(kayit.marka));
+            return false;
+          };
+
           const merged = { ...existing };
           Object.entries(PERMISSION_WRITE_FIELDS).forEach(([permKey, fields]) => {
             if (perms[permKey] !== true) return;
@@ -489,6 +566,18 @@ export default async function handler(req, res) {
                 const existingCount = Array.isArray(existing.clients) ? existing.clients.length : 0;
                 const newCount = Array.isArray(data.clients) ? data.clients.length : 0;
                 if (existingCount >= 2 && newCount < existingCount * 0.6) return;
+              }
+
+              /* MARKA KİLİDİNDE VERİ KAYBI KORUMASI (kritik)
+               * Kilitli hesap yalnızca kendi markalarının kayıtlarını GÖRDÜĞÜ için, listeyi
+               * olduğu gibi geri yazarsa diğer markaların kayıtlarını SİLERDİ. Bu yüzden dizi
+               * alanlarında birleştirme yapılıyor: başkasının kayıtları sunucudaki hâliyle
+               * korunur, sadece bu hesabın markalarına ait olanlar güncellenir. */
+              if (yaziKilitli && Array.isArray(data[f]) && Array.isArray(existing[f])) {
+                const baskalarininki = existing[f].filter((k) => !kayitBenimMi(k));
+                const benimkiler = data[f].filter((k) => kayitBenimMi(k));
+                merged[f] = [...baskalarininki, ...benimkiler];
+                return;
               }
               merged[f] = data[f];
             });

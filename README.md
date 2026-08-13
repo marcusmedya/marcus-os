@@ -1146,3 +1146,49 @@ karşı koruma duruyor — ama bu korumayı isteyip istemediğine müşteri kara
 
 ### Not
 Bu paket ayrıca 39. güncellemede eklenen şablon-bozulması kontrolünden geçirildi.
+
+## Güncelleme 41: İş Ortağı Sistemi — Markaya Kilitli Hesap + Hesap Gelişimi Takibi
+
+Şişçi İbo ve İbo Burger paylaşımlarını yapan iş ortağı için kuruldu. Dört parçadan oluşuyor.
+
+### 1. Marka kilidi (temel taş)
+Ayarlar → Personel Hesapları → bir hesabın "Yetkiler" panelinde artık **MARKA KİLİDİ** var.
+Marka seçersen o hesap **sadece o markaların** verisini görür.
+
+**Bu bir arayüz gizlemesi değil** — seçilmeyen markaların verisi sunucudan hiç gönderilmez.
+Tarayıcı araçlarıyla bile ulaşılamaz. İş ortağın diğer 19 müşterinin varlığından haberdar olmaz.
+
+Kilitli hesaplardan ayrıca **reklam bütçesi** ve müşteri finansalları (maliyetler, ödeme
+kayıtları, aylık ücret) temizlenir — senin tercihin doğrultusunda.
+
+**Veri kaybına karşı kritik koruma:** Kilitli hesap listenin sadece kendi markalarına ait
+kısmını gördüğü için, kaydederken listeyi olduğu gibi geri yazsa diğer markaların kayıtlarını
+silerdi. Bu yüzden sunucu tarafında birleştirme yapılıyor: başkasının kayıtları sunucudaki
+hâliyle korunur, sadece o hesabın markalarına ait olanlar güncellenir. İzinli marka listesi her
+zaman sunucudaki hesap kaydından okunur — tarayıcının gönderdiğine asla güvenilmez.
+
+### 2. İş ortağının izinleri
+Kilitli hesaba şu izinleri ver: **Paylaşımlar** (takvim, görsel, alt metin), **Reklamlar**
+(kampanya + istatistik), **Operasyon** (isterse üretim takibi). Girdiği alt metin senin
+gördüğün ve müşterinin panelinde çıkan alt metinle **aynı kayıt** — ayrı bir sistem yok.
+
+### 3. Hesap Gelişimi — takipçi & görünürlük (yeni)
+**Reklamlar** sekmesinin üstüne yeni bir bölüm eklendi. Marka seç, ay seç, gir:
+**Takipçi · Erişim · Profil Ziyareti · Web Sitesi Tıklaması**
+
+Ayda bir Instagram istatistiklerinden okunup girilir. **Artış rakamları saklanmaz, hesaplanır**
+(bu ay − önceki kayıt): kaç kişi arttı, yüzde kaç. Bir ayın rakamını düzeltirsen artışlar da
+kendiliğinden düzelir.
+
+Arada boş ay varsa da çalışır — bir önceki *ay* değil, **bu aydan önceki en yakın kayıt**ла
+karşılaştırır.
+
+### 4. Aylık rapora "Hesap Gelişimi" bölümü
+Rapora yeni bir tablo geldi: her ölçüm, bu ayki değeri ve önceki döneme göre değişimi
+(yeşil ▲ / kırmızı ▼, yüzdesiyle). Müşteriye "bu ay 340 takipçi kazandık, erişim %62 arttı"
+diyebilirsin. Ölçüm girilmemişse bölüm rapora hiç basılmaz — boş tablo göndermezsin.
+
+### 5. Kampanya kapanış takibi
+Biten ama **sonuç istatistiği girilmemiş** kampanyalar artık Planım → Onayını Bekleyenler
+kutusunda ve menü sayacında görünüyor. "İstatistikleri Gir" butonu doğrudan Reklamlar'a götürür.
+Böylece istatistiği girilmemiş bir kampanya gözden kaçıp raporu eksik bırakmaz.
