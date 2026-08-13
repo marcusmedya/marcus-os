@@ -1602,3 +1602,17 @@ Sayaç bilerek doldurulup dört senaryo test edildi:
 - ✓ Kimliksiz istek hâlâ engelleniyor
 
 Test paketi 49 kontrole çıktı, hepsi geçiyor.
+
+## Güncelleme 75: Hangi Ortam Değişkeninin Eksik Olduğu Yazıyor
+
+Güvenlik kartı "İki adımlı doğrulama KAPALI" diyordu ama **hangi değişkenin** eksik olduğunu
+söylemiyordu. İki adımlı doğrulama iki şey ister:
+
+- `OWNER_EMAIL` — kodun gönderileceği adres
+- `RESEND_API_KEY` — e-posta servisinin anahtarı
+
+Biri bile eksikse özellik kapalı kalır. Tek bir "kapalı" bilgisi hangisini arayacağımızı
+söylemediği için teşhis ettirmiyordu.
+
+Artık kart doğrudan **eksik olanın adını** yazıyor: sadece OWNER_EMAIL mi, sadece
+RESEND_API_KEY mi, yoksa ikisi de mi.

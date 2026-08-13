@@ -509,7 +509,14 @@ export default async function handler(req, res) {
       return res.status(200).json({
         data: data ? { ...safeData, personelRosteri, musteriRosteri } : null,
         role,
-        guvenlik: { ikiAdimliAktif: ikiAdimliAktifMi(), yedekEpostaSayisi: String(process.env.BACKUP_EMAIL || "").split(",").filter((x) => x.trim()).length },
+        /* Hangi değişkenin eksik olduğu AYRI AYRI raporlanır. Tek bir "kapalı" bilgisi,
+         * OWNER_EMAIL mi RESEND_API_KEY mi eksik ayırt edilemediği için teşhis ettirmiyordu. */
+        guvenlik: {
+          ikiAdimliAktif: ikiAdimliAktifMi(),
+          ownerEmailVar: !!process.env.OWNER_EMAIL,
+          resendVar: !!process.env.RESEND_API_KEY,
+          yedekEpostaSayisi: String(process.env.BACKUP_EMAIL || "").split(",").filter((x) => x.trim()).length,
+        },
       });
     }
 

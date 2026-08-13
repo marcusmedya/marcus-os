@@ -5174,7 +5174,14 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
               <div style={{ fontSize: 12.5, fontFamily: "Inter", lineHeight: 1.6, color: guvenlik.ikiAdimliAktif ? T.success : T.danger }}>
                 {guvenlik.ikiAdimliAktif
                   ? <><strong>İki adımlı doğrulama açık.</strong> Her girişte e-postana kod gönderiliyor.</>
-                  : <><strong>İki adımlı doğrulama KAPALI.</strong> Şu an şifreni bilen herkes girebilir. Açmak için Vercel → Settings → Environment Variables → <code>OWNER_EMAIL</code> = kendi e-postan → Save → Redeploy.</>}
+                  : <>
+                      <strong>İki adımlı doğrulama KAPALI.</strong> Şu an şifreni bilen herkes girebilir.<br />
+                      {!guvenlik.ownerEmailVar && !guvenlik.resendVar
+                        ? <>Eksik olan: <code>OWNER_EMAIL</code> ve <code>RESEND_API_KEY</code>. İkisi de Vercel → Settings → Environment Variables'a eklenmeli.</>
+                        : !guvenlik.ownerEmailVar
+                          ? <>Eksik olan: <code>OWNER_EMAIL</code>. Vercel → Settings → Environment Variables → ekle → Save → <strong>Redeploy</strong>.</>
+                          : <>Eksik olan: <code>RESEND_API_KEY</code>. E-posta servisi anahtarı tanımlı olmadan kod gönderilemez — bu yüzden kod adımı devre dışı.</>}
+                    </>}
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "flex-start", gap: 9, background: guvenlik.yedekEpostaSayisi >= 2 ? T.successSoft : T.warningSoft, borderRadius: 10, padding: "11px 13px" }}>
