@@ -1,6 +1,7 @@
 import { kv } from "@vercel/kv";
 import { KEY, guvenliYaz, kilitAl, kilitBirak, bugunISO } from "../lib/kv-yaz.js";
 import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
+import { markaErisimiVarMi } from "../lib/marka-kilidi.js";
 
 const nid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const stokAnahtari = (clientId, tur) => `${clientId}_${tur}`;
@@ -13,9 +14,10 @@ async function yetkiliMi(req) {
   const ownerPw = process.env.SITE_PASSWORD;
   const staffPwLegacy = process.env.STAFF_PASSWORD;
   const provided = baslikOku(req, "x-site-password");
-  if (await ownerYetkiliMi(req)) return true;
-  if (!ownerPw && !staffPwLegacy && !baslikOku(req, "x-staff-username")) return true;
-  if (staffPwLegacy && provided === staffPwLegacy) return true;
+  // { yetkili, markalar } döner. markalar boş dizi = kilit yok (tüm markalar).
+  if (await ownerYetkiliMi(req)) return { yetkili: true, markalar: [] };
+  if (!ownerPw && !staffPwLegacy && !baslikOku(req, "x-staff-username")) return { yetkili: true, markalar: [] };
+  if (staffPwLegacy && provided === staffPwLegacy) return { yetkili: true, markalar: [] };
 
   const username = baslikOku(req, "x-staff-username");
   const password = baslikOku(req, "x-staff-password");
@@ -27,11 +29,14 @@ async function yetkiliMi(req) {
       const hash = crypto.scryptSync(password, hesap.sifreSalt, 64).toString("hex");
       if (hash === hesap.sifreHash) {
         const perms = hesap.izinler || (data && data.staffPermissions) || {};
-        return perms.paylasimlar === true || perms.uyelikler === true;
+        if (perms.paylasimlar === true || perms.uyelikler === true) {
+          // Marka kilidi SUNUCUDAKİ hesap kaydından okunur.
+          return { yetkili: true, markalar: Array.isArray(hesap.markalar) ? hesap.markalar : [] };
+        }
       }
     }
   }
-  return false;
+  return { yetkili: false, markalar: [] };
 }
 
 function stokDegistirDahili(data, clientId, tur, delta) {
@@ -59,7 +64,8 @@ async function kaydetVeYedekle(data) {
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Sadece POST kabul edilir." });
-  if (!(await yetkiliMi(req))) return res.status(401).json({ error: "Yetkisiz." });
+  const kimlik = await yetkiliMi(req);
+  if (!kimlik.yetkili) return res.status(401).json({ error: "Yetkisiz." });
 
   // Tüm işlem (oku → değiştir → yaz) kilit altında yapılır: iki personel aynı anda
   // stok işaretlediğinde birinin değişikliği diğerini silmesin.
@@ -70,6 +76,54 @@ export default async function handler(req, res) {
     const data = (await kv.get(KEY)) || {};
     const clients = data.clients || [];
     const markaAdi = (clientId) => (clients.find((c) => c.id === clientId) || {}).ad || "";
+
+    /* ---------------------------------------------------------------- *
+     * MARKA KİLİDİ KAPISI
+     * Marka kilitli bir hesap (dışarıdan çalışan iş ortağı gibi) BAŞKA bir markanın
+     * kaydını değiştiremez ya da silemez. Bu kontrol olmadan, kilitli hesap plan
+     * kimliğini bilerek başka markanın alt metnini değiştirebiliyor, hatta planını
+     * silebiliyordu (gerçek testte doğrulandı).
+     *
+     * Her action için hedefin hangi markaya ait olduğu tek yerde çözülür — action
+     * başına ayrı kontrol yazmak, birini unutmaya açık olurdu.
+     * ---------------------------------------------------------------- */
+    if (Array.isArray(kimlik.markalar) && kimlik.markalar.length > 0) {
+      const hedefClientId = (() => {
+        if (body.clientId !== undefined && body.clientId !== null) return body.clientId;
+        if (body.planId !== undefined) {
+          const plan = (data.haftalikPaylasimlar || []).find((x) => x.id === body.planId);
+          return plan ? plan.clientId : undefined;
+        }
+        if (body.subeId !== undefined) {
+          const sube = (data.subeler || []).find((x) => x.id === body.subeId);
+          return sube ? sube.clientId : undefined;
+        }
+        if (body.uyelikId !== undefined) {
+          const uyelik = (data.uyelikler || []).find((x) => x.id === body.uyelikId);
+          return uyelik ? uyelik.clientId : undefined;
+        }
+        return undefined;
+      })();
+
+      const hedefMarka = body.marka !== undefined ? body.marka
+        : (hedefClientId !== undefined ? markaAdi(hedefClientId) : undefined);
+
+      const izinli = markaErisimiVarMi(data, kimlik.markalar,
+        hedefClientId !== undefined ? { clientId: hedefClientId } : { marka: hedefMarka });
+
+      if (!izinli) {
+        return res.status(403).json({ error: "Bu markaya erişim yetkin yok." });
+      }
+    }
+
+    /** Yanıtlarda TÜM markaların listesi dönüyordu — kilitli hesaba yalnızca kendi
+     * markalarının kayıtları gönderilir, aksi halde yanıt üzerinden veri sızardı. */
+    const yanitSuz = (liste, alan = "clientId") => {
+      if (!Array.isArray(liste)) return liste;
+      if (!Array.isArray(kimlik.markalar) || kimlik.markalar.length === 0) return liste;
+      return liste.filter((k) => markaErisimiVarMi(data, kimlik.markalar,
+        k && k[alan] !== undefined ? { clientId: k[alan] } : { marka: k && k.marka }));
+    };
 
     if (action === "stokDegistir") {
       const { clientId, tur, delta } = body;
@@ -96,7 +150,7 @@ export default async function handler(req, res) {
       const yeni = { id: nid(), clientId, gun, haftaKey, tur, yapildi: false, yapildigiTarih: null };
       data.haftalikPaylasimlar = [...liste, yeni];
       await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, haftalikPaylasimlar: data.haftalikPaylasimlar });
+      return res.status(200).json({ ok: true, haftalikPaylasimlar: yanitSuz(data.haftalikPaylasimlar) });
     }
 
     /* Planlanan bir paylaşımın ALT METNİ (caption). Müşteri panelinde gösterilir, böylece
@@ -115,7 +169,7 @@ export default async function handler(req, res) {
         return yeniPlan;
       });
       await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, haftalikPaylasimlar: data.haftalikPaylasimlar });
+      return res.status(200).json({ ok: true, haftalikPaylasimlar: yanitSuz(data.haftalikPaylasimlar) });
     }
 
     if (action === "haftalikSil") {
@@ -200,14 +254,14 @@ export default async function handler(req, res) {
       const yeni = { id: nid(), clientId, ad: ad.trim() };
       data.subeler = [...liste, yeni];
       await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, subeler: data.subeler });
+      return res.status(200).json({ ok: true, subeler: yanitSuz(data.subeler) });
     }
 
     if (action === "subeSil") {
       const { subeId } = body;
       data.subeler = (data.subeler || []).filter((s) => s.id !== subeId);
       await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, subeler: data.subeler });
+      return res.status(200).json({ ok: true, subeler: yanitSuz(data.subeler) });
     }
 
     if (action === "subeStokDegistir") {
@@ -231,21 +285,21 @@ export default async function handler(req, res) {
       const yeni = { ...uyelik, id: nid() };
       data.uyelikler = [...liste, yeni];
       await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, uyelikler: data.uyelikler });
+      return res.status(200).json({ ok: true, uyelikler: yanitSuz(data.uyelikler) });
     }
 
     if (action === "uyelikGuncelle") {
       const { uyelikId, patch } = body;
       data.uyelikler = (data.uyelikler || []).map((u) => (u.id === uyelikId ? { ...u, ...patch } : u));
       await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, uyelikler: data.uyelikler });
+      return res.status(200).json({ ok: true, uyelikler: yanitSuz(data.uyelikler) });
     }
 
     if (action === "uyelikSil") {
       const { uyelikId } = body;
       data.uyelikler = (data.uyelikler || []).filter((u) => u.id !== uyelikId);
       await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, uyelikler: data.uyelikler });
+      return res.status(200).json({ ok: true, uyelikler: yanitSuz(data.uyelikler) });
     }
 
     return res.status(400).json({ error: "Geçersiz işlem." });

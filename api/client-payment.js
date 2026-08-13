@@ -23,6 +23,12 @@ async function yetkiliMi(req) {
     if (hesap) {
       const hash = crypto.scryptSync(password, hesap.sifreSalt, 64).toString("hex");
       if (hash === hesap.sifreHash) {
+        /* MARKA KİLİDİ: kilitli hesaplar (dışarıdan çalışan iş ortağı gibi) bu uç noktayı
+         * HİÇ kullanamaz. Buradaki veri ödeme kayıtları — finansal iç bilgi. Kilitli hesabın
+         * zaten odemeTakvimi/musteriler/finans izinleri de kapatılıyor; bu, izin ayarı yanlış
+         * yapılsa bile ikinci bir emniyet. (Test sırasında kilitli hesabın başka markanın
+         * ödeme kaydını değiştirebildiği doğrulandı.) */
+        if (Array.isArray(hesap.markalar) && hesap.markalar.length > 0) return false;
         const perms = hesap.izinler || (data && data.staffPermissions) || {};
         return perms.odemeTakvimi === true || perms.musteriler === true || perms.finans === true || perms.dashboard === true;
       }

@@ -1,5 +1,6 @@
 import { kv } from "@vercel/kv";
 import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
+import { trKucult } from "../lib/marka-kilidi.js";
 
 const KEY = "marcus-os-data";
 
@@ -21,7 +22,8 @@ async function yetkiliMi(req) {
       const hash = crypto.scryptSync(password, hesap.sifreSalt, 64).toString("hex");
       if (hash === hesap.sifreHash) {
         const perms = hesap.izinler || (data && data.staffPermissions) || {};
-        return perms.sifreKasasi === true;
+        if (perms.sifreKasasi !== true) return false;
+        return { markalar: Array.isArray(hesap.markalar) ? hesap.markalar : [] };
       }
     }
   }
@@ -30,11 +32,19 @@ async function yetkiliMi(req) {
 
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Sadece POST kabul edilir." });
-  if (!(await yetkiliMi(req))) return res.status(401).json({ error: "Yetkisiz." });
+  const yetki = await yetkiliMi(req);
+  if (!yetki) return res.status(401).json({ error: "Yetkisiz." });
 
   try {
     const { email, marka, driveLinki, girisler, firmaAdi, mod, logo } = req.body || {};
     const resendKey = process.env.RESEND_API_KEY;
+    /* Marka kilitli hesap yalnızca kendi markaları için devir teslim gönderebilir. */
+    if (yetki && Array.isArray(yetki.markalar) && yetki.markalar.length > 0) {
+      const izinliAdlar = new Set(yetki.markalar.map(trKucult));
+      if (!marka || !izinliAdlar.has(trKucult(marka))) {
+        return res.status(403).json({ error: "Bu markaya erişim yetkin yok." });
+      }
+    }
     if (!email) return res.status(400).json({ error: "Müşteri e-posta adresi gerekli." });
     if (!resendKey) return res.status(200).json({ skipped: true, reason: "RESEND_API_KEY tanımlı değil." });
 

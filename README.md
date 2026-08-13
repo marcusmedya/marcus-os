@@ -1301,3 +1301,61 @@ zaten birleştirme vardı ama nesneler için yoktu.
 Artık `stoklar` da anahtar bazında birleştiriliyor: başkasının anahtarları sunucudaki hâliyle
 korunuyor, sadece o hesabın markalarına ait olanlar güncelleniyor. Gerçek veriyle test edildi —
 kilitli hesap kendi stoğunu değiştirdiğinde diğer markanın stoğu ve reklamı korunuyor.
+
+## Güncelleme 46: KAPSAMLI GÜVENLİK VE VERİ DENETİMİ
+
+Tüm sistem, tahminle değil **kod gerçekten çalıştırılarak** denetlendi (sahte bir veritabanıyla
+her uç noktaya istek atıldı). Bulunan her sorun düzeltildi ve testler `testler/` klasörüne
+kalıcı olarak eklendi.
+
+### 🔴 KRİTİK 1 — Yedekten geri yükleme tamamen çökük
+`api/backup.js` dosyasında `ownerYetkiliMi` fonksiyonu **kullanılıyor ama import edilmemişti.**
+Yani yedek listeleme ve geri yükleme uç noktası her çağrıldığında çöküyordu — veri kaybı
+yaşasan kurtarma yolun kapalıydı. Bu, sistemdeki en tehlikeli hataydı çünkü **tam da veri
+kaybına karşı kurduğumuz güvenlik ağıydı.**
+
+Düzeltildi. Ayrıca bu tür sessiz kırılmaları yakalamak için 12 uç noktanın hepsini çağıran bir
+duman testi eklendi (`testler/t8.mjs`).
+
+### 🔴 KRİTİK 2 — Marka kilitli hesap başka markanın verisini değiştirebiliyordu
+Marka kilidi yalnızca `api/data.js` içinde uygulanıyordu. Diğer uç noktalarda hiç kontrol yoktu.
+Gerçek testle doğrulanan açıklar:
+
+| Açık | Sonuç |
+|---|---|
+| `paylasim` → başka markanın alt metnini değiştirme | ✗ değiştirebiliyordu |
+| `paylasim` → başka markanın planını **silme** | ✗ **silebiliyordu (veri kaybı)** |
+| `client-payment` → başka markanın ödeme kaydı | ✗ değiştirebiliyordu |
+| Yanıtlarda tüm markaların verisi | ✗ sızıyordu |
+
+**Düzeltme:** Yeni `lib/marka-kilidi.js` ortak katmanı. Kurallar tek yerde tanımlı — bir uç
+noktada unutulan kontrol artık mümkün değil. `paylasim.js`'e merkezî bir "marka kapısı"
+eklendi (her işlemin hedefi tek yerde çözülüp doğrulanıyor), `client-payment.js` kilitli
+hesaplara tamamen kapatıldı (finansal veri), `notify-job` ve `devir-teslim`'e marka kontrolü
+eklendi. Yanıtlar da süzülüyor.
+
+### 🔴 KRİTİK 3 — Ajans geneli veriler kilitli hesaba sızıyordu
+Marka kilidi sadece bazı alanları süzüyordu. Testte sızdığı görülenler: **teklifler,
+bekleyen tahsilatlar, üyelikler, personel maaşları, gelir kalemleri, müşteri giriş bilgileri,
+günlük kontrol kayıtları.**
+
+**Düzeltme:** İki katmanlı. (1) Marka bilgisi taşıyan **tüm** koleksiyonlar artık süzülüyor —
+dizi ve nesne biçimindeki alanlar ayrı ayrı ele alınıyor. (2) Markaya göre süzülemeyen ajans
+geneli alanlar (finans, personel, birikim, işlem geçmişi…) kilitli hesaba **hiç
+gönderilmiyor**; üstelik o bölümlerin izinleri, açık bırakılmış olsa bile otomatik kapatılıyor.
+
+### 🟠 Yazma tarafında da aynı daraltma
+Kilitli hesap, izni yanlışlıkla açık bırakılsa bile Finans/Personel gibi ajans geneli alanlara
+**yazamıyor**. Okuma ve yazma aynı kuralı kullanıyor.
+
+### Doğrulanan korumalar (hepsi test edildi)
+- ✓ Diğer markanın işi/stoğu, kilitli hesap kayıt yaptığında korunuyor (dizi ve nesne alanlar)
+- ✓ Çakışma tespiti (409) çalışıyor; araya giren değişiklik kaybolmuyor
+- ✓ Güvenlik freni: %40+ müşteri kaybı engelleniyor, `force` ile bilinçli geçiş mümkün
+- ✓ Her yazmada `_v` artıyor, günlük ve saatlik yedek alınıyor
+- ✓ Geri yükleme öncesi güvenlik kopyası alınıyor
+- ✓ Yedek uç noktasından rastgele veritabanı anahtarı okunamıyor
+- ✓ Şifre hash'leri hiçbir role gönderilmiyor
+- ✓ 12 uç noktanın hepsi ayakta
+
+**Sonuç: 35 kontrolün tamamı geçti.**

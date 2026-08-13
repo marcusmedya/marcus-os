@@ -2,6 +2,7 @@ import { kv } from "@vercel/kv";
 import crypto from "crypto";
 import { KEY, guvenliGuncelle, kilitAl, kilitBirak, guvenliYaz } from "../lib/kv-yaz.js";
 import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, tumOturumlariIptalEt, ikiAdimliAktifMi, esitMi, baslikOku } from "../lib/oturum.js";
+import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, trKucult } from "../lib/marka-kilidi.js";
 
 /** Bir kayıt (eski veri, yeni veri) arasındaki ÖNEMLİ değişiklikleri (müşteri/personel/üyelik
  * ekleme-silme, müşteri durum değişikliği) otomatik tespit edip okunabilir işlem geçmişi
@@ -61,81 +62,6 @@ async function basarisizGirisiKaydet(req) {
   } catch (e) {
     // sayaç kaydedilemezse sessizce geç, bu kritik değil
   }
-}
-
-/**
- * MARKA KİLİDİ
- * ------------
- * Bir personel hesabına "markalar" listesi tanımlanmışsa, o hesap SADECE o markaların
- * verisini görür. Bu bir arayüz gizlemesi DEĞİLDİR — veri sunucudan hiç gönderilmez,
- * dolayısıyla tarayıcı araçlarıyla da ulaşılamaz. İş ortağı gibi dışarıdan biri, diğer
- * müşterilerin varlığından bile haberdar olmaz.
- *
- * Liste boşsa (ya da tanımsızsa) davranış eskisi gibidir: tüm markalar görünür.
- */
-const trKucult = (x) => String(x || "").trim().toLocaleLowerCase("tr");
-
-/** Kayıtları marka adına ya da clientId'ye göre süzer. */
-function markayaGoreSuz(data, izinliMarkalar) {
-  if (!Array.isArray(izinliMarkalar) || izinliMarkalar.length === 0) return data;
-  const adSeti = new Set(izinliMarkalar.map(trKucult));
-  const izinliClientlar = (data.clients || []).filter((c) => adSeti.has(trKucult(c.ad)));
-  const idSeti = new Set(izinliClientlar.map((c) => String(c.id)));
-
-  const markaAlani = (kayit) => adSeti.has(trKucult(kayit.marka));
-  const clientAlani = (kayit) => idSeti.has(String(kayit.clientId));
-
-  const suzulmus = { ...data };
-
-  /** Dizi alanlarını süzer. Alan dizi DEĞİLSE hiç dokunmaz — bu kontrol olmadan, nesne
-   * biçiminde saklanan bir alanda (.filter yok) sunucu çöküyordu. */
-  const diziSuz = (ad, kural) => {
-    if (Array.isArray(data[ad])) suzulmus[ad] = data[ad].filter(kural);
-  };
-
-  suzulmus.clients = izinliClientlar;
-  diziSuz("reklamlar", markaAlani);
-  diziSuz("cekimIsleri", markaAlani);
-  diziSuz("markalasmaSurecleri", markaAlani);
-  diziSuz("haftalikPaylasimlar", clientAlani);
-  diziSuz("musteriIcerikleri", clientAlani);
-  diziSuz("paylasimGecmisi", (x) => clientAlani(x) || markaAlani(x));
-  diziSuz("subeler", (x) => clientAlani(x) || markaAlani(x));
-  diziSuz("hesapOlcumleri", clientAlani);
-
-  /* stoklar bir DİZİ DEĞİL, anahtarları "clientId_tür" (ve şube için "clientId_subeId_tür")
-   * olan bir NESNE. Bu yüzden anahtarın başındaki müşteri kimliğine bakarak süzülür. */
-  if (data.stoklar && typeof data.stoklar === "object" && !Array.isArray(data.stoklar)) {
-    const yeniStok = {};
-    Object.entries(data.stoklar).forEach(([anahtar, deger]) => {
-      const clientId = String(anahtar).split("_")[0];
-      if (idSeti.has(clientId)) yeniStok[anahtar] = deger;
-    });
-    suzulmus.stoklar = yeniStok;
-  }
-
-  /* gunlukKontrol null ya da nesne olabilir — dizi olduğu durumda süzülür, değilse
-   * olduğu gibi bırakılır (marka bilgisi taşımıyor). */
-  if (Array.isArray(data.gunlukKontrol)) {
-    suzulmus.gunlukKontrol = data.gunlukKontrol.filter((x) => clientAlani(x) || markaAlani(x));
-  }
-
-  return suzulmus;
-}
-
-/** Marka kilitli hesaplardan gizlenen alanlar — dışarıdan çalışan biri finansal iç bilgiyi
- * görmemeli. Reklam bütçesi buna dahil (kullanıcının açık tercihi). */
-function icBilgiyiTemizle(data, kilitliMi) {
-  if (!kilitliMi) return data;
-  const temiz = { ...data };
-  if (Array.isArray(temiz.reklamlar)) temiz.reklamlar = temiz.reklamlar.map(({ butce, ...r }) => r);
-  if (Array.isArray(temiz.clients)) {
-    temiz.clients = temiz.clients.map((c) => {
-      const { maliyetler, odemeKayitlari, aylikUcret, sozlesmeBedeli, ...kalan } = c;
-      return kalan;
-    });
-  }
-  return temiz;
 }
 
 // Her izin, personel görürse hangi veri alanlarına ihtiyaç duyacağını belirler.
@@ -508,7 +434,10 @@ export default async function handler(req, res) {
       if (role === "staff") {
         // Kişiye özel hesapla girildiyse o hesabın kendi izinleri kullanılır; eski ortak
         // personel şifresiyle (STAFF_PASSWORD) girildiyse genel (herkes için ortak) izinler kullanılır.
-        const perms = staffPerms ? { ...DEFAULT_PERMS, ...staffPerms } : { ...DEFAULT_PERMS, ...((data && data.staffPermissions) || {}) };
+        const hamPerms = staffPerms ? { ...DEFAULT_PERMS, ...staffPerms } : { ...DEFAULT_PERMS, ...((data && data.staffPermissions) || {}) };
+        // Marka kilitli hesapta ajans geneli bölümler (Finans, Personel, Dashboard...) izin
+        // verilmiş olsa bile kapatılır — o bölümlerin verisi markaya göre süzülemez.
+        const perms = izinleriDaralt(hamPerms, Array.isArray(staffMarkalar) && staffMarkalar.length > 0);
         // _v (versiyon sayacı) personele de gönderilir — eskiden gönderilmediği için
         // personel kayıtlarında çakışma kontrolü hiç devreye giremiyordu ve bayat bir
         // personel sekmesi, arada yapılan değişikliklerin üzerine yazabiliyordu.
@@ -594,23 +523,14 @@ export default async function handler(req, res) {
             return { iptal: true, kod: 409, hata: "stale", ek: { serverVersion: existing._v } };
           }
           const guncelHesap = staffId ? ((existing.personelHesaplari || []).find((h) => h.id === staffId)) : null;
-          const perms = guncelHesap ? { ...DEFAULT_PERMS, ...(guncelHesap.izinler || {}) } : { ...DEFAULT_PERMS, ...(existing.staffPermissions || {}) };
           // İzinli markalar HER ZAMAN sunucudaki güncel hesap kaydından okunur — tarayıcının
           // gönderdiğine asla güvenilmez, yoksa kilit kolayca aşılırdı.
           const yaziMarkalari = (guncelHesap && Array.isArray(guncelHesap.markalar)) ? guncelHesap.markalar : [];
           const yaziKilitli = yaziMarkalari.length > 0;
-          const yaziAdSeti = new Set(yaziMarkalari.map(trKucult));
-          const yaziIdSeti = new Set(
-            (existing.clients || []).filter((c) => yaziAdSeti.has(trKucult(c.ad))).map((c) => String(c.id))
-          );
-          /** Kayıt bu hesabın yetkisindeki bir markaya mı ait? */
-          const kayitBenimMi = (kayit) => {
-            if (!kayit || typeof kayit !== "object") return false;
-            if (kayit.clientId !== undefined && kayit.clientId !== null) return yaziIdSeti.has(String(kayit.clientId));
-            if (kayit.marka !== undefined) return yaziAdSeti.has(trKucult(kayit.marka));
-            return false;
-          };
-
+          // Okumada olduğu gibi YAZMADA da izinler daraltılır: kilitli hesap, izni açık olsa
+          // bile Finans/Personel gibi ajans geneli alanlara yazamaz.
+          const hamYaziPerms = guncelHesap ? { ...DEFAULT_PERMS, ...(guncelHesap.izinler || {}) } : { ...DEFAULT_PERMS, ...(existing.staffPermissions || {}) };
+          const perms = izinleriDaralt(hamYaziPerms, yaziKilitli);
           const merged = { ...existing };
           Object.entries(PERMISSION_WRITE_FIELDS).forEach(([permKey, fields]) => {
             if (perms[permKey] !== true) return;
@@ -624,34 +544,14 @@ export default async function handler(req, res) {
                 if (existingCount >= 2 && newCount < existingCount * 0.6) return;
               }
 
-              /* MARKA KİLİDİNDE VERİ KAYBI KORUMASI (kritik)
-               * Kilitli hesap yalnızca kendi markalarının kayıtlarını GÖRDÜĞÜ için, listeyi
-               * olduğu gibi geri yazarsa diğer markaların kayıtlarını SİLERDİ. Bu yüzden dizi
-               * alanlarında birleştirme yapılıyor: başkasının kayıtları sunucudaki hâliyle
-               * korunur, sadece bu hesabın markalarına ait olanlar güncellenir. */
-              if (yaziKilitli && Array.isArray(data[f]) && Array.isArray(existing[f])) {
-                const baskalarininki = existing[f].filter((k) => !kayitBenimMi(k));
-                const benimkiler = data[f].filter((k) => kayitBenimMi(k));
-                merged[f] = [...baskalarininki, ...benimkiler];
-                return;
-              }
-
-              /* stoklar dizi değil, anahtarları "clientId_..." olan bir NESNE. Kilitli hesap
-               * sadece kendi markalarının anahtarlarını gördüğü için, nesneyi olduğu gibi geri
-               * yazarsa diğer markaların stokları SİLİNİRDİ. Anahtar bazında birleştiriliyor. */
-              if (yaziKilitli && f === "stoklar"
-                  && data[f] && typeof data[f] === "object" && !Array.isArray(data[f])
-                  && existing[f] && typeof existing[f] === "object" && !Array.isArray(existing[f])) {
-                const birlesik = {};
-                // Önce başkalarının anahtarları sunucudaki hâliyle korunur
-                Object.entries(existing[f]).forEach(([anahtar, deger]) => {
-                  if (!yaziIdSeti.has(String(anahtar).split("_")[0])) birlesik[anahtar] = deger;
-                });
-                // Sonra bu hesabın markalarına ait anahtarlar gönderilen veriyle güncellenir
-                Object.entries(data[f]).forEach(([anahtar, deger]) => {
-                  if (yaziIdSeti.has(String(anahtar).split("_")[0])) birlesik[anahtar] = deger;
-                });
-                merged[f] = birlesik;
+              /* MARKA KİLİDİNDE VERİ KAYBI + YETKİSİZ YAZMA KORUMASI (kritik)
+               * Kilitli hesap yalnızca kendi markalarının kayıtlarını gördüğü için, listeyi
+               * olduğu gibi geri yazarsa diğer markaların kayıtları SİLİNİRDİ. Ortak katman
+               * alan alan birleştirir: başkasının kayıtları sunucudaki hâliyle korunur,
+               * sadece bu hesabın markalarına ait olanlar güncellenir. Dizi ve nesne
+               * (stoklar, gunlukKontrol, musteriGirisleri) alanları ayrı ayrı ele alınır. */
+              if (yaziKilitli) {
+                merged[f] = yazmayiBirlestir(existing, data, f, yaziMarkalari);
                 return;
               }
 

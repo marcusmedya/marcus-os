@@ -1,5 +1,6 @@
 import { kv } from "@vercel/kv";
 import { KEY as MAIN_KEY, guvenliYaz, kilitAl, kilitBirak } from "../lib/kv-yaz.js";
+import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
 
 const PREFIX = "marcus-os-snapshot-";
 const SAATLIK_PREFIX = "marcus-os-saatlik-";

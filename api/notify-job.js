@@ -1,4 +1,5 @@
 import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
+import { trKucult } from "../lib/marka-kilidi.js";
 async function yetkiKontrol(req) {
   const ownerPw = process.env.SITE_PASSWORD;
   const provided = baslikOku(req, "x-site-password");
@@ -16,8 +17,10 @@ async function yetkiKontrol(req) {
       const hash = crypto.scryptSync(password, hesap.sifreSalt, 64).toString("hex");
       if (hash === hesap.sifreHash) {
         const perms = hesap.izinler || (data && data.staffPermissions) || {};
-        if (perms.cekimEdit === true || perms.uyelikler === true) return { yetkili: true, owner: false, markaYoneticisi: perms.markaYoneticisi === true };
-        if (perms.musteriler === true || perms.finans === true || perms.odemeTakvimi === true) return { yetkili: true, owner: false, markaYoneticisi: false, odemeYetkisi: true };
+        // Marka kilidi hesabın sunucudaki kaydından okunur; aşağıda gönderilen markaya karşı doğrulanır.
+        const markalar = Array.isArray(hesap.markalar) ? hesap.markalar : [];
+        if (perms.cekimEdit === true || perms.uyelikler === true) return { yetkili: true, owner: false, markaYoneticisi: perms.markaYoneticisi === true, markalar };
+        if (perms.musteriler === true || perms.finans === true || perms.odemeTakvimi === true) return { yetkili: true, owner: false, markaYoneticisi: false, odemeYetkisi: true, markalar };
       }
     }
   }
@@ -32,6 +35,14 @@ export default async function handler(req, res) {
   try {
     const { email, ad, marka, icerikTuru, teslimTarihi, firmaAdi, mod, asama, kategori, kullaniciAdi, sifre, tutar, odemeGunu, ayAdi } = req.body || {};
     const resendKey = process.env.RESEND_API_KEY;
+    /* Marka kilitli hesap, kendi markası dışında bir marka adıyla bildirim gönderemez —
+     * aksi halde başka bir markanın adına dışarıya e-posta çıkarılabilirdi. */
+    if (Array.isArray(yetki.markalar) && yetki.markalar.length > 0) {
+      const izinliAdlar = new Set(yetki.markalar.map(trKucult));
+      if (!marka || !izinliAdlar.has(trKucult(marka))) {
+        return res.status(403).json({ error: "Bu markaya erişim yetkin yok." });
+      }
+    }
     if (!email) return res.status(200).json({ skipped: true, reason: "Bu kişinin kayıtlı bir e-posta adresi yok." });
     if (!resendKey) return res.status(200).json({ skipped: true, reason: "RESEND_API_KEY tanımlı değil." });
 
