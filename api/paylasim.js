@@ -1,6 +1,6 @@
 import { kv } from "@vercel/kv";
 import { KEY, guvenliYaz, kilitAl, kilitBirak, bugunISO } from "../lib/kv-yaz.js";
-import { ownerYetkiliMi } from "../lib/oturum.js";
+import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
 
 const nid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const stokAnahtari = (clientId, tur) => `${clientId}_${tur}`;
@@ -12,13 +12,13 @@ const bugunTR = () => new Date().toLocaleDateString("tr-TR");
 async function yetkiliMi(req) {
   const ownerPw = process.env.SITE_PASSWORD;
   const staffPwLegacy = process.env.STAFF_PASSWORD;
-  const provided = req.headers["x-site-password"];
+  const provided = baslikOku(req, "x-site-password");
   if (await ownerYetkiliMi(req)) return true;
-  if (!ownerPw && !staffPwLegacy && !req.headers["x-staff-username"]) return true;
+  if (!ownerPw && !staffPwLegacy && !baslikOku(req, "x-staff-username")) return true;
   if (staffPwLegacy && provided === staffPwLegacy) return true;
 
-  const username = req.headers["x-staff-username"];
-  const password = req.headers["x-staff-password"];
+  const username = baslikOku(req, "x-staff-username");
+  const password = baslikOku(req, "x-staff-password");
   if (username && password) {
     const crypto = await import("crypto");
     const data = await kv.get(KEY);

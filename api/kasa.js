@@ -1,7 +1,7 @@
 import { kv } from "@vercel/kv";
 import crypto from "crypto";
 import { KEY, guvenliGuncelle } from "../lib/kv-yaz.js";
-import { ownerYetkiliMi } from "../lib/oturum.js";
+import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
 
 function hashSifre(sifre, salt) {
   return crypto.scryptSync(sifre, salt, 64).toString("hex");
@@ -12,13 +12,13 @@ function hashSifre(sifre, salt) {
 async function yetkiliMi(req) {
   const ownerPw = process.env.SITE_PASSWORD;
   const staffPwLegacy = process.env.STAFF_PASSWORD;
-  const provided = req.headers["x-site-password"];
+  const provided = baslikOku(req, "x-site-password");
   if (await ownerYetkiliMi(req)) return { owner: true };
-  if (!ownerPw && !staffPwLegacy && !req.headers["x-staff-username"]) return { owner: true };
+  if (!ownerPw && !staffPwLegacy && !baslikOku(req, "x-staff-username")) return { owner: true };
   if (staffPwLegacy && provided === staffPwLegacy) return { owner: false };
 
-  const username = req.headers["x-staff-username"];
-  const password = req.headers["x-staff-password"];
+  const username = baslikOku(req, "x-staff-username");
+  const password = baslikOku(req, "x-staff-password");
   if (username && password) {
     const data = await kv.get(KEY);
     const hesap = ((data && data.personelHesaplari) || []).find((h) => h.kullaniciAdi === username);

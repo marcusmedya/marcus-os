@@ -389,11 +389,52 @@ const clearMusteriCreds = () => {
   } catch (e) { /* sessizce geç */ }
 };
 
-/** /api/data isteklerine hem olası tek-şifre hem de kişisel personel kimliğini ekler. */
+/**
+ * Metni HTTP başlığında güvenle taşınabilir hale getirir (UTF-8 → base64).
+ *
+ * NEDEN GEREKLİ: HTTP başlık değerleri yalnızca ASCII karakter taşıyabilir. Türkçe karakter
+ * içeren bir kullanıcı adı ya da şifre ("saygı", "çağrı", "gülşen"...) doğrudan başlığa
+ * konduğunda tarayıcı isteği GÖNDERMEDEN hata veriyordu — ekranda "Sunucuya ulaşılamadı"
+ * yazıyor, oysa sunucuyla hiç konuşulmamış oluyordu. Bu, personel ve müşteri girişlerinin
+ * sessizce çalışmamasının sebebiydi (yönetici girişi etkilenmiyordu, çünkü onun şifresi
+ * başlıkta değil istek gövdesinde gidiyor).
+ */
+const basligaCevir = (metin) => {
+  const s = String(metin || "");
+  if (!s) return "";
+  try {
+    // TextEncoder + btoa: UTF-8 baytlarını ASCII base64'e çevirir.
+    const baytlar = new TextEncoder().encode(s);
+    let ikili = "";
+    baytlar.forEach((b) => { ikili += String.fromCharCode(b); });
+    return btoa(ikili);
+  } catch (e) {
+    return "";
+  }
+};
+
+/** /api/data isteklerine hem olası tek-şifre hem de kişisel personel kimliğini ekler.
+ * Kimlik bilgileri base64 olarak (…-B64 başlıklarıyla) gönderilir; sunucu bunları çözer.
+ * Düz başlıklar da GÖNDERİLMEYE devam eder ama sadece ASCII ise — Türkçe karakter içeren
+ * bir değer başlığa konulamadığı için orada boş bırakılır. */
+const sadeceAscii = (metin) => (/^[\x00-\x7F]*$/.test(String(metin || "")) ? String(metin || "") : "");
+
 const authHeaders = () => {
   const staff = getStaffCreds();
   const musteri = getMusteriCreds();
-  return { "X-Oturum": getOturum(), "X-Site-Password": getPw(), "X-Staff-Username": staff.kullaniciAdi, "X-Staff-Password": staff.sifre, "X-Musteri-Username": musteri.kullaniciAdi, "X-Musteri-Password": musteri.sifre };
+  return {
+    "X-Oturum": getOturum(),
+    "X-Site-Password": sadeceAscii(getPw()),
+    "X-Site-Password-B64": basligaCevir(getPw()),
+    "X-Staff-Username": sadeceAscii(staff.kullaniciAdi),
+    "X-Staff-Password": sadeceAscii(staff.sifre),
+    "X-Staff-Username-B64": basligaCevir(staff.kullaniciAdi),
+    "X-Staff-Password-B64": basligaCevir(staff.sifre),
+    "X-Musteri-Username": sadeceAscii(musteri.kullaniciAdi),
+    "X-Musteri-Password": sadeceAscii(musteri.sifre),
+    "X-Musteri-Username-B64": basligaCevir(musteri.kullaniciAdi),
+    "X-Musteri-Password-B64": basligaCevir(musteri.sifre),
+  };
 };
 
 /** Ekran genişliğine göre mobil/masaüstü ayrımı yapar; pencere yeniden boyutlandırıldığında güncellenir. */
@@ -723,7 +764,7 @@ function AiOzet({ data }) {
     setNotConfigured(false);
     fetch("/api/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": getPw() },
+      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
       body: JSON.stringify({
         question:
           "Bugün için kısa bir CEO özeti hazırla. Bu ayki ciro/net/kâr marjı durumuna, en dikkat çeken 1-2 noktaya (örn. kâr marjı düşük müşteri, tek müşteriye bağımlılık) değin. " +
@@ -4462,7 +4503,7 @@ function EmailYedekTest({ endpoint = "/api/daily-backup" }) {
 
   const test = () => {
     setStatus("loading");
-    fetch(endpoint, { headers: { "X-Oturum": getOturum(), "X-Site-Password": getPw() } })
+    fetch(endpoint, { headers: { "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) } })
       .then((r) => r.json())
       .then((res) => {
         if (res.ok) {
@@ -4499,7 +4540,7 @@ function YedekGecmisi() {
   const [gorunum, setGorunum] = useState("gunluk"); // "gunluk" | "saatlik" | "geriAlma"
 
   const listeyiCek = () => {
-    fetch("/api/backup", { headers: { "X-Oturum": getOturum(), "X-Site-Password": getPw() } })
+    fetch("/api/backup", { headers: { "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) } })
       .then((r) => r.json())
       .then((res) => setListe({ dates: res.dates || [], saatlikler: res.saatlikler || [], geriAlmalar: res.geriAlmalar || [] }))
       .catch(() => setListe({ dates: [], saatlikler: [], geriAlmalar: [] }));
@@ -4509,7 +4550,7 @@ function YedekGecmisi() {
   /** Geri yüklemeden ÖNCE o yedeğin içinde ne olduğunu gösterir. Yanlış tarihe dönmenin
    * en yaygın sebebi, içeriğini görmeden karar vermekti. */
   const restore = (anahtar, etiket) => {
-    fetch(`/api/backup?key=${encodeURIComponent(anahtar)}&ozet=1`, { headers: { "X-Oturum": getOturum(), "X-Site-Password": getPw() } })
+    fetch(`/api/backup?key=${encodeURIComponent(anahtar)}&ozet=1`, { headers: { "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) } })
       .then((r) => r.json())
       .then((res) => {
         const o = res.ozet;
@@ -4518,7 +4559,7 @@ function YedekGecmisi() {
           : "";
         if (!window.confirm(`${etiket} yedeğine dönülecek.\n\n${ozetMetni}Şu anki verinin tam bir kopyası otomatik olarak saklanacak — yanlış olursa "Geri Yükleme Öncesi" sekmesinden geri dönebilirsin.\n\nDevam edilsin mi?`)) return;
         setRestoring(anahtar);
-        return fetch("/api/backup", { method: "POST", headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": getPw() }, body: JSON.stringify({ key: anahtar }) })
+        return fetch("/api/backup", { method: "POST", headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) }, body: JSON.stringify({ key: anahtar }) })
           .then((r) => r.json())
           .then((res2) => {
             if (res2.ok) { window.alert("Geri yüklendi. Sayfa yenileniyor…"); window.location.reload(); }
@@ -4530,7 +4571,7 @@ function YedekGecmisi() {
 
   const indir = (anahtar, etiket) => {
     setIndiriliyor(anahtar);
-    fetch(`/api/backup?key=${encodeURIComponent(anahtar)}`, { headers: { "X-Oturum": getOturum(), "X-Site-Password": getPw() } })
+    fetch(`/api/backup?key=${encodeURIComponent(anahtar)}`, { headers: { "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) } })
       .then((r) => r.json())
       .then((res) => {
         if (!res.data) { window.alert(res.error || "Bu yedek bulunamadı."); return; }
@@ -5283,7 +5324,7 @@ function KasaSifresiKarti() {
   const rastgeleAd2 = useRef(`kasa-alan-${Math.random().toString(36).slice(2)}`).current;
 
   const durumuYukle = () => {
-    fetch("/api/kasa", { headers: { "X-Oturum": getOturum(), "X-Site-Password": getPw() } })
+    fetch("/api/kasa", { headers: { "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) } })
       .then((r) => r.json())
       .then((res) => setAyarlandiMi(!!res.ayarlandiMi))
       .catch(() => setAyarlandiMi(null));
@@ -5297,7 +5338,7 @@ function KasaSifresiKarti() {
     setKaydediliyor(true);
     fetch("/api/kasa", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": getPw() },
+      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
       body: JSON.stringify({ action: "degistir", yeniSifre }),
     })
       .then((r) => r.json())
@@ -6838,7 +6879,7 @@ function MusteriHesaplariKart({ clients }) {
   const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
 
   const yukle = () => {
-    fetch("/api/manage-staff?hesapTuru=musteri", { headers: { "X-Oturum": getOturum(), "X-Site-Password": getPw() } })
+    fetch("/api/manage-staff?hesapTuru=musteri", { headers: { "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) } })
       .then((r) => r.json())
       .then((res) => setHesaplar(res.hesaplar || []))
       .catch(() => setHesaplar([]));
@@ -6850,7 +6891,7 @@ function MusteriHesaplariKart({ clients }) {
     if (!yeniAd.trim() || !yeniKullanici.trim() || !yeniSifre.trim() || !yeniClientId) { setHata("Marka, ad, kullanıcı adı ve şifre gerekli."); return; }
     fetch("/api/manage-staff", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": getPw() },
+      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
       body: JSON.stringify({ hesapTuru: "musteri", action: "ekle", ad: yeniAd.trim(), kullaniciAdi: yeniKullanici.trim(), sifre: yeniSifre, clientId: yeniClientId }),
     })
       .then((r) => r.json())
@@ -6866,7 +6907,7 @@ function MusteriHesaplariKart({ clients }) {
     if (!yeniSifreDeger.trim() || yeniSifreDeger.length < 4) { setHata("Yeni şifre en az 4 karakter olmalı."); return; }
     fetch("/api/manage-staff", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": getPw() },
+      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
       body: JSON.stringify({ hesapTuru: "musteri", action: "sifreSifirla", id, sifre: yeniSifreDeger }),
     })
       .then((r) => r.json())
@@ -6878,7 +6919,7 @@ function MusteriHesaplariKart({ clients }) {
     if (!window.confirm(`"${ad}" müşteri hesabı silinsin mi? Bu kişi artık panele giriş yapamaz.`)) return;
     fetch("/api/manage-staff", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": getPw() },
+      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
       body: JSON.stringify({ hesapTuru: "musteri", action: "sil", id }),
     })
       .then((r) => r.json())
@@ -6986,7 +7027,7 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
   ];
 
   const yukle = () => {
-    fetch("/api/manage-staff", { headers: { "X-Oturum": getOturum(), "X-Site-Password": getPw() } })
+    fetch("/api/manage-staff", { headers: { "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) } })
       .then((r) => r.json())
       .then((res) => setHesaplar(res.hesaplar || []))
       .catch(() => setHesaplar([]));
@@ -6998,7 +7039,7 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
     if (!yeniAd.trim() || !yeniKullanici.trim() || !yeniSifre.trim()) { setHata("Ad, kullanıcı adı ve şifre gerekli."); return; }
     fetch("/api/manage-staff", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": getPw() },
+      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
       body: JSON.stringify({ action: "ekle", ad: yeniAd.trim(), kullaniciAdi: yeniKullanici.trim(), sifre: yeniSifre }),
     })
       .then((r) => r.json())
@@ -7014,7 +7055,7 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
     if (!yeniSifreDeger.trim()) return;
     fetch("/api/manage-staff", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": getPw() },
+      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
       body: JSON.stringify({ action: "sifreSifirla", id, sifre: yeniSifreDeger }),
     })
       .then((r) => r.json())
@@ -7025,7 +7066,7 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
     if (!window.confirm("Bu personel hesabı silinsin mi?")) return;
     fetch("/api/manage-staff", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": getPw() },
+      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
       body: JSON.stringify({ action: "sil", id }),
     })
       .then((r) => r.json())
@@ -7043,7 +7084,7 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
   const kaydetGuncelle = (id) => {
     fetch("/api/manage-staff", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": getPw() },
+      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
       body: JSON.stringify({ action: "guncelle", id, email: taslakEmail.trim(), izinler: taslakIzin, markalar: taslakMarkalar }),
     })
       .then((r) => r.json())
@@ -7224,7 +7265,7 @@ function AiPanel({ open, onClose, initialQuestion, data }) {
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": getPw() },
+        headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
         body: JSON.stringify({ question: q, context: data }),
       });
       const resData = await res.json();
@@ -8315,7 +8356,16 @@ export default function MarcusOS() {
         setNeedsAuth(false);
         setAuthError("");
       })
-      .catch(() => { setLoadError(true); setAuthError("Sunucuya ulaşılamadı — internet bağlantını kontrol edip tekrar dene."); }) // ağ hatası — data state'ine ASLA dokunma
+      .catch((e) => {
+        // Bu blok hem gerçek ağ hatasında hem de yanıt işlenirken oluşan bir hatada çalışır.
+        // İkisini ayırmak önemli: "internet yok" demek, aslında koddan kaynaklanan bir sorunu
+        // saatlerce yanlış yönde aratabilir. Hatanın kendisini de gösteriyoruz.
+        setLoadError(true);
+        const agHatasi = e instanceof TypeError;
+        setAuthError(agHatasi
+          ? `Sunucuya ulaşılamadı. İnternet bağlantını kontrol et. (Teknik: ${e.message})`
+          : `Yanıt işlenemedi: ${e && e.message ? e.message : "bilinmeyen hata"}`);
+      }) // data state'ine ASLA dokunma
       .finally(() => { setLoading(false); setAuthChecking(false); });
   };
 
@@ -9702,6 +9752,28 @@ export default function MarcusOS() {
           <button onClick={() => openAi()} style={{ display: "flex", alignItems: "center", gap: 9, padding: "11px 12px", borderRadius: 10, background: `linear-gradient(135deg, ${T.accent}, #7C6BFA)`, border: "none", cursor: "pointer", width: "100%", color: "#fff" }}>
             <Sparkles size={15} />
             <span style={{ fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif" }}>AI CEO'ya Sor</span>
+          </button>
+
+          {/* CEO panelinde de çıkış butonu — personel ve müşteri panellerinde vardı, burada yoktu.
+            * Kaydedilmemiş bir değişiklik varsa önce onu uyarır: 500ms gecikmeli kayıt henüz
+            * sunucuya gitmemiş olabilir ve çıkışta sayfa yenilendiği için kaybolurdu. */}
+          <button
+            onClick={() => {
+              if (saveTimer.current || saveStatusRef.current === "saving") {
+                if (!window.confirm("Kaydedilmemiş bir değişiklik var. Yine de çıkılsın mı? (Birkaç saniye bekleyip tekrar denemen daha güvenli.)")) return;
+              } else if (!window.confirm("Çıkış yapılsın mı? Tekrar girmek için şifren gerekecek.")) {
+                return;
+              }
+              const token = getOturum();
+              if (token) {
+                fetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json", "X-Oturum": token }, body: JSON.stringify({ authAction: "cikis" }) }).catch(() => {});
+              }
+              clearOturum(); clearStaffCreds(); clearMusteriCreds();
+              window.location.reload();
+            }}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "10px 12px", borderRadius: 10, background: T.surface, border: `1px solid ${T.border}`, cursor: "pointer", width: "100%", color: T.textDim, fontSize: 12.5, fontWeight: 600, fontFamily: "Inter, sans-serif" }}
+          >
+            <LogOut size={14} /> Çıkış Yap
           </button>
         </div>
       </div>

@@ -1227,3 +1227,50 @@ Sistem 15 dakika içinde 20 başarısız giriş denemesinden sonra o IP'yi kilit
 şablon, yorum, **regex literali** ve JSX etiketlerini (`</div>`, `/>`) doğru ayırt eden tam bir
 denetleyici var — Türkçe metindeki kesme işaretlerini (`Drive'ın`, `</strong>'e`) yanlış
 yorumlamıyor. Her paket öncesi tüm kaynak dosyalarda çalıştırılıyor.
+
+## Güncelleme 43: CEO Panelinde Çıkış Butonu
+
+Çıkış butonu personel ve müşteri panellerinde vardı ama **CEO panelinde yoktu** — yönetici
+oturumunu kapatmak için tarayıcı verilerini temizlemek gerekiyordu.
+
+Sol menünün en altına, "AI CEO'ya Sor" butonunun hemen altına eklendi. Mobilde de hamburger
+menüsünün içinde görünür.
+
+**Diğer panellerdekiyle aynı işi yapar:** sunucudaki oturumu da kapatır (sadece tarayıcıdan
+silmek yetmez), personel/müşteri kimliklerini de temizler ve sayfayı yeniler.
+
+### Veri kaybına karşı
+Kayıt işlemi 500 milisaniye gecikmeli çalışıyor. Tam o aralıkta çıkış yapılsaydı, gönderilmemiş
+değişiklik sayfa yenilendiği için kaybolurdu. Bu yüzden buton önce kontrol ediyor:
+- **Bekleyen bir kayıt varsa:** "Kaydedilmemiş bir değişiklik var, yine de çıkılsın mı?" diye
+  uyarır ve birkaç saniye beklemeyi önerir
+- **Yoksa:** normal çıkış onayı sorar
+
+## Güncelleme 44: Türkçe Karakterli Kullanıcı Adı/Şifre Girişi Engelliyordu
+
+**Sorun:** Personel ve müşteri girişinde "Giriş Yap"a basınca *"Sunucuya ulaşılamadı"* çıkıyordu.
+
+**Sebep:** Kullanıcı adı ve şifre HTTP **başlığında** gönderiliyordu. HTTP başlık değerleri
+yalnızca ASCII karakter taşıyabilir — `saygı` içindeki **ı** harfi başlığa konulamıyor ve
+tarayıcı isteği **göndermeden** hata veriyor. Yani sunucuya hiç ulaşılmıyordu; hata mesajı
+teknik olarak doğruydu ama asıl nedeni gizliyordu.
+
+Yönetici girişinin etkilenmemesinin sebebi de bu: onun şifresi başlıkta değil, istek gövdesinde
+gidiyor.
+
+Etkilenen her şey: Türkçe karakter içeren kullanıcı adları (**saygı, çağrı, gülşen, ışıl**) ve
+Türkçe karakter içeren şifreler — personel, müşteri ve hatta yönetici şifresi.
+
+**Düzeltme:** Kimlik bilgileri artık base64'e çevrilerek (`…-B64` başlıklarıyla) gönderiliyor;
+sunucu bunları çözüyor. Base64 çıktısı saf ASCII olduğu için hangi karakter olursa olsun
+sorunsuz taşınıyor.
+
+**Geriye dönük uyumlu:** Sunucu önce base64 başlığa bakıyor, yoksa eski düz başlığa düşüyor.
+Yani güncellenmemiş bir sekme ya da mevcut ASCII kullanıcı adları da çalışmaya devam ediyor.
+Beş senaryo (Türkçe personel, Türkçe müşteri, eski ASCII personel, yönetici base64, yönetici
+düz) gerçek istekle test edildi, hepsi geçti.
+
+### Hata mesajı da dürüstleştirildi
+Önceki mesaj her hata için "internet bağlantını kontrol et" diyordu — oysa aynı blok, yanıt
+işlenirken oluşan kod hatalarında da çalışıyor. Bu, insanı saatlerce yanlış yönde arattırabilir.
+Artık gerçek ağ hatası ile kod hatası ayrılıyor ve hatanın teknik açıklaması da gösteriliyor.

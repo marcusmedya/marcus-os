@@ -1,18 +1,18 @@
 import { kv } from "@vercel/kv";
-import { ownerYetkiliMi } from "../lib/oturum.js";
+import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
 
 const KEY = "marcus-os-data";
 
 async function yetkiliMi(req) {
   const ownerPw = process.env.SITE_PASSWORD;
   const staffPwLegacy = process.env.STAFF_PASSWORD;
-  const provided = req.headers["x-site-password"];
+  const provided = baslikOku(req, "x-site-password");
   if (await ownerYetkiliMi(req)) return true;
-  if (!ownerPw && !staffPwLegacy && !req.headers["x-staff-username"]) return true;
+  if (!ownerPw && !staffPwLegacy && !baslikOku(req, "x-staff-username")) return true;
   if (staffPwLegacy && provided === staffPwLegacy) return true;
 
-  const username = req.headers["x-staff-username"];
-  const password = req.headers["x-staff-password"];
+  const username = baslikOku(req, "x-staff-username");
+  const password = baslikOku(req, "x-staff-password");
   if (username && password) {
     const crypto = await import("crypto");
     const data = await kv.get(KEY);

@@ -1,12 +1,12 @@
-import { ownerYetkiliMi } from "../lib/oturum.js";
+import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
 async function yetkiKontrol(req) {
   const ownerPw = process.env.SITE_PASSWORD;
-  const provided = req.headers["x-site-password"];
+  const provided = baslikOku(req, "x-site-password");
   if (!ownerPw) return { yetkili: true, owner: true, markaYoneticisi: true };
   if (await ownerYetkiliMi(req)) return { yetkili: true, owner: true, markaYoneticisi: true };
 
-  const username = req.headers["x-staff-username"];
-  const password = req.headers["x-staff-password"];
+  const username = baslikOku(req, "x-staff-username");
+  const password = baslikOku(req, "x-staff-password");
   if (username && password) {
     const { kv } = await import("@vercel/kv");
     const crypto = await import("crypto");

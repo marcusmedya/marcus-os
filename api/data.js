@@ -1,7 +1,7 @@
 import { kv } from "@vercel/kv";
 import crypto from "crypto";
 import { KEY, guvenliGuncelle, kilitAl, kilitBirak, guvenliYaz } from "../lib/kv-yaz.js";
-import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, tumOturumlariIptalEt, ikiAdimliAktifMi, esitMi } from "../lib/oturum.js";
+import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, tumOturumlariIptalEt, ikiAdimliAktifMi, esitMi, baslikOku } from "../lib/oturum.js";
 
 /** Bir kayıt (eski veri, yeni veri) arasındaki ÖNEMLİ değişiklikleri (müşteri/personel/üyelik
  * ekleme-silme, müşteri durum değişikliği) otomatik tespit edip okunabilir işlem geçmişi
@@ -175,20 +175,20 @@ function hashSifre(sifre, salt) {
 async function resolveRole(req) {
   const ownerPw = process.env.SITE_PASSWORD;
   const staffPwLegacy = process.env.STAFF_PASSWORD;
-  const provided = req.headers["x-site-password"];
+  const provided = baslikOku(req, "x-site-password");
 
   // Yeni yol: tarayıcı artık şifre yerine süreli bir oturum anahtarı gönderiyor.
   if (req.headers["x-oturum"] && (await oturumGecerliMi(req.headers["x-oturum"]))) return { role: "owner" };
 
   if (!ownerPw && !staffPwLegacy) {
-    const username = req.headers["x-staff-username"];
+    const username = baslikOku(req, "x-staff-username");
     if (!username) return { role: "owner" };
   }
   if (ownerPw && provided === ownerPw) return { role: "owner" };
   if (staffPwLegacy && provided === staffPwLegacy) return { role: "staff", staffId: null, staffName: null };
 
-  const username = req.headers["x-staff-username"];
-  const password = req.headers["x-staff-password"];
+  const username = baslikOku(req, "x-staff-username");
+  const password = baslikOku(req, "x-staff-password");
   if (username && password) {
     const data = await kv.get(KEY);
     const hesap = ((data && data.personelHesaplari) || []).find((h) => h.kullaniciAdi === username);
@@ -200,8 +200,8 @@ async function resolveRole(req) {
 
   // Müşteri Paneli girişi — tamamen ayrı bir kullanıcı adı/şifre çifti kullanır,
   // personel/owner girişleriyle hiç karışmaz. Sadece KENDİ marka bilgisine erişebilir.
-  const musteriUsername = req.headers["x-musteri-username"];
-  const musteriPassword = req.headers["x-musteri-password"];
+  const musteriUsername = baslikOku(req, "x-musteri-username");
+  const musteriPassword = baslikOku(req, "x-musteri-password");
   if (musteriUsername && musteriPassword) {
     const data = await kv.get(KEY);
     const hesap = ((data && data.musteriHesaplari) || []).find((h) => h.kullaniciAdi === musteriUsername);
@@ -298,7 +298,7 @@ export default async function handler(req, res) {
     // Tüm cihazlardan çıkış — sadece yetkili yapabilir.
     if (authAction === "tumCihazlardanCikis") {
       const yetkili = (req.headers["x-oturum"] && (await oturumGecerliMi(req.headers["x-oturum"])))
-        || (ownerPw && esitMi(req.headers["x-site-password"], ownerPw));
+        || (ownerPw && esitMi(baslikOku(req, "x-site-password"), ownerPw));
       if (!yetkili) return res.status(401).json({ error: "Yetkisiz." });
       await tumOturumlariIptalEt();
       return res.status(200).json({ ok: true });
