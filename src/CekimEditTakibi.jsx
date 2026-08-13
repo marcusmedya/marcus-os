@@ -608,13 +608,33 @@ function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate
                   )}
                   {job.editliDosyaLink && kategori !== "Grafik Tasarım" && driveEmbedUrl(job.editliDosyaLink) && (
                     <>
-                      <iframe
-                        src={driveEmbedUrl(job.editliDosyaLink)}
-                        title="Editlenmiş dosya önizleme"
-                        style={{ width: "100%", height: 280, border: "none", borderRadius: 10 }}
-                        allow="autoplay"
-                      />
-                      <div style={{ fontSize: 10.5, color: C.textFaint, marginTop: 4 }}>Tarayıcılar videoyu otomatik başlatmaya izin vermiyor — oynatmak için oynatıcının üzerine bir kez tıklaman gerekiyor.</div>
+                      {/* Oynatıcı çerçevesi videonun yönüne göre şekillenir. Sabit 16:9 çerçevede
+                        * dikey (Reels) videolar ortada küçük kalıp iki yanı siyah bantla doluyordu.
+                        * Yön işte kayıtlı değilse dikey kabul edilir — içeriklerin çoğu 9:16. */}
+                      <div style={{ maxWidth: job.videoYonu === "yatay" ? 640 : job.videoYonu === "kare" ? 440 : 340, margin: "0 auto", width: "100%" }}>
+                        <div style={{ position: "relative", width: "100%", aspectRatio: job.videoYonu === "yatay" ? "16 / 9" : job.videoYonu === "kare" ? "1 / 1" : "9 / 16", borderRadius: 10, overflow: "hidden", background: "#000" }}>
+                          <iframe
+                            src={driveEmbedUrl(job.editliDosyaLink)}
+                            title="Editlenmiş dosya önizleme"
+                            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" }}
+                            allow="autoplay"
+                          />
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", gap: 6, justifyContent: "center", marginTop: 8 }}>
+                        {[{ k: "dikey", l: "Dikey" }, { k: "kare", l: "Kare" }, { k: "yatay", l: "Yatay" }].map((y) => (
+                          <button
+                            key={y.k}
+                            onClick={() => onUpdate(job.id, { videoYonu: y.k })}
+                            style={{ padding: "4px 12px", borderRadius: 7, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 600,
+                              background: (job.videoYonu || "dikey") === y.k ? C.accentSoft : C.panelAlt,
+                              color: (job.videoYonu || "dikey") === y.k ? C.accentText : C.textFaint }}
+                          >
+                            {y.l}
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{ fontSize: 10.5, color: C.textFaint, marginTop: 6, textAlign: "center" }}>Tarayıcılar videoyu otomatik başlatmaya izin vermiyor — oynatmak için oynatıcının üzerine bir kez tıklaman gerekiyor.</div>
                     </>
                   )}
                 </div>

@@ -1110,6 +1110,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
   const [gorselHata, setGorselHata] = useState("");
   const [acikDetayId, setAcikDetayId] = useState(null); // detayı açık olan çekim planı
   // Çekim planı alanları
+  const [videoYonu, setVideoYonu] = useState("dikey"); // oynatıcı çerçevesinin şekli
   const [kategori, setKategori] = useState("Video"); // onaylanınca Operasyon'da hangi akışa düşecek
   const [konusmali, setKonusmali] = useState("konusmali");
   const [konusmaMetni, setKonusmaMetni] = useState("");
@@ -1120,7 +1121,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
 
   const formuTemizle = () => {
     setAciklama(""); setDriveLinki(""); setGorselUrl(null); setGorselHata("");
-    setKonusmaMetni(""); setCekimNotu(""); setPlanlananTarih(""); setKonusmali("konusmali"); setKategori("Video");
+    setKonusmaMetni(""); setCekimNotu(""); setPlanlananTarih(""); setKonusmali("konusmali"); setKategori("Video"); setVideoYonu("dikey");
     setEkleAcik(false); setDuzenlenenId(null);
   };
 
@@ -1133,6 +1134,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
     setGorselUrl(i.gorselUrl || null);
     setKonusmali(i.konusmali || "konusmali");
     setKategori(i.kategori || "Video");
+    setVideoYonu(i.videoYonu || "dikey");
     setKonusmaMetni(i.konusmaMetni || "");
     setCekimNotu(i.cekimNotu || "");
     setPlanlananTarih(i.planlananTarih || "");
@@ -1157,6 +1159,8 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
       referansLink: tur === "cekim" ? driveLinki.trim() : null,
       konusmali: tur === "cekim" ? konusmali : null,
       kategori: tur === "cekim" ? kategori : null,
+      // Oynatıcı çerçevesinin şekli — dikey videolar yanlarda siyah bant kalmadan görünsün diye.
+      videoYonu: (tur === "video" || tur === "cekim") ? videoYonu : null,
       konusmaMetni: tur === "cekim" ? konusmaMetni.trim() : null,
       cekimNotu: tur === "cekim" ? cekimNotu.trim() : null,
       planlananTarih: tur === "cekim" ? (planlananTarih || null) : null,
@@ -1293,6 +1297,23 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                   {tur === "gorsel" && driveLinki.trim() && (
                     <div style={{ marginBottom: 8 }}><DriveGorsel link={driveLinki.trim()} yukseklik={220} /></div>
                   )}
+                  {tur === "video" && (
+                    <>
+                      <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 4 }}>Video yönü (oynatıcı buna göre şekillenir)</div>
+                      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                        {VIDEO_YONLERI.map((y) => (
+                          <button
+                            key={y.key}
+                            onClick={() => setVideoYonu(y.key)}
+                            style={{ flex: 1, padding: "6px 0", borderRadius: 8, border: "none", background: videoYonu === y.key ? T.accentSoft : T.surface, color: videoYonu === y.key ? T.accentText : T.textDim, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "Inter" }}
+                          >
+                            {y.label}
+                          </button>
+                        ))}
+                      </div>
+                      {driveLinki.trim() && <div style={{ marginBottom: 8 }}><DriveVideo link={driveLinki.trim()} yon={videoYonu} /></div>}
+                    </>
+                  )}
                 </>
               )}
               {tur === "cekim" && (
@@ -1304,6 +1325,19 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                     onChange={(e) => setDriveLinki(e.target.value)}
                     style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "7px 10px" }}
                   />
+                  <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 4 }}>Referans video yönü</div>
+                  <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                    {VIDEO_YONLERI.map((y) => (
+                      <button
+                        key={y.key}
+                        onClick={() => setVideoYonu(y.key)}
+                        style={{ flex: 1, padding: "6px 0", borderRadius: 8, border: "none", background: videoYonu === y.key ? T.accentSoft : T.surface, color: videoYonu === y.key ? T.accentText : T.textDim, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "Inter" }}
+                      >
+                        {y.label}
+                      </button>
+                    ))}
+                  </div>
+
                   {/* Onaylanınca Operasyon'da hangi akışa düşeceğini bu belirler. */}
                   <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 4 }}>Onaylanınca Operasyon'da açılacak iş türü</div>
                   <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
@@ -7220,7 +7254,44 @@ function DriveGorsel({ link, yukseklik = 420, kapak = false, radius = 10 }) {
 function driveEmbedUrl(link) {
   const id = driveDosyaId(link);
   if (!id) return null;
-  return `https://drive.google.com/file/d/${id}/preview`;
+  return `https://drive.google.com/file/d/${id}/
+
+/**
+ * Drive video oynatıcısı — DİKEY/KARE/YATAY yön desteğiyle.
+ *
+ * SORUN: Drive'ın gömülü oynatıcısı, kendisine verilen çerçevenin şeklini alır. Çerçeve
+ * 16:9 (yatay) olduğunda dikey bir Reels videosu ortada küçük kalır ve iki yanı siyah bantla
+ * dolar. Çözüm videoyu değiştirmek değil, ÇERÇEVEYİ videonun şekline uydurmaktır.
+ *
+ * Varsayılan "dikey" — sosyal medya içeriklerinin neredeyse tamamı 9:16 olduğu için.
+ * Yön kayıtta belirtilmemişse de dikey kabul edilir.
+ */
+const VIDEO_YONLERI = [
+  { key: "dikey", label: "Dikey (Reels/Story)", oran: "9 / 16", maxGenislik: 340 },
+  { key: "kare", label: "Kare (1:1)", oran: "1 / 1", maxGenislik: 440 },
+  { key: "yatay", label: "Yatay (16:9)", oran: "16 / 9", maxGenislik: 640 },
+];
+const videoYonu = (yon) => VIDEO_YONLERI.find((y) => y.key === yon) || VIDEO_YONLERI[0];
+
+function DriveVideo({ link, yon, baslik }) {
+  const embed = driveEmbedUrl(link);
+  const y = videoYonu(yon);
+  if (!embed) return null;
+  return (
+    <div style={{ maxWidth: y.maxGenislik, margin: "0 auto", width: "100%" }}>
+      <div style={{ position: "relative", width: "100%", aspectRatio: y.oran, borderRadius: 10, overflow: "hidden", background: "#000" }}>
+        <iframe
+          src={embed}
+          title={baslik || "Video önizleme"}
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" }}
+          allow="autoplay"
+        />
+      </div>
+    </div>
+  );
+}
+
+preview`;
 }
 
 /** Müşteri Paneli — owner/personel arayüzünden tamamen izole, sade bir onay ekranı.
@@ -7386,7 +7457,7 @@ function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
                       {cekimEmbed && (
                         <div style={{ marginBottom: 10 }}>
                           <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 5 }}>REFERANS VİDEO</div>
-                          <iframe src={cekimEmbed} title="Referans video" style={{ width: "100%", height: 280, border: "none", borderRadius: 10 }} allow="autoplay" />
+                          <DriveVideo link={icerik.referansLink} yon={icerik.videoYonu} baslik="Referans video" />
                         </div>
                       )}
                       {!cekimEmbed && icerik.referansLink && (
@@ -7423,7 +7494,7 @@ function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
                     <div style={{ marginBottom: 12 }}><DriveGorsel link={icerik.driveLinki} yukseklik={460} /></div>
                   )}
                   {!icerik.gorselUrl && icerik.tur !== "gorsel" && embed && (
-                    <iframe src={embed} title={icerik.aciklama || "içerik"} style={{ width: "100%", height: 280, border: "none", borderRadius: 10, marginBottom: 12 }} allow="autoplay" />
+                    <div style={{ marginBottom: 12 }}><DriveVideo link={icerik.driveLinki} yon={icerik.videoYonu} baslik={icerik.aciklama || "içerik"} /></div>
                   )}
                   {!icerik.gorselUrl && icerik.tur !== "gorsel" && !embed && icerik.driveLinki && (
                     <a href={icerik.driveLinki} target="_blank" rel="noreferrer" style={{ display: "block", marginBottom: 12, color: T.accentText, fontSize: 12.5, fontFamily: "Inter" }}>İçeriği Görüntüle ↗</a>

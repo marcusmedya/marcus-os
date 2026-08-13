@@ -1071,3 +1071,31 @@ gösteremez.
 
 Sayaca dahil olanlar: müşteri revize istekleri + onaylanmış ama henüz aktarılmamış çekim
 planları + kimseye atanmamış işler.
+
+## Güncelleme 38: Dikey Videolar Artık Yanları Siyah Çıkmıyor
+
+**Sorun:** Drive'a yüklenen dikey (Reels/Story) videolar oynatıcıda ortada küçük kalıyor, sağ ve
+sol tarafları siyah bantla doluyordu.
+
+**Sebep:** Drive'ın gömülü oynatıcısı, kendisine verilen çerçevenin şeklini alır. Çerçeve sabit
+16:9 (yatay) olduğu için 9:16 bir video ortaya sıkışıyordu. Sorun videoda değil, çerçevedeydi.
+
+**Çözüm:** Oynatıcı çerçevesi artık videonun yönüne göre şekilleniyor:
+
+| Yön | Çerçeve | Genişlik |
+|---|---|---|
+| **Dikey** (Reels/Story) | 9:16 | 340px |
+| **Kare** | 1:1 | 440px |
+| **Yatay** | 16:9 | 640px |
+
+**Varsayılan dikey** — sosyal medya içeriklerinin neredeyse tamamı 9:16 olduğu için. Yönü
+belirtilmemiş eski kayıtlar da dikey kabul edilir.
+
+### Nereden değiştirirsin
+- **İçerik/çekim planı eklerken:** forma "Video yönü" seçimi eklendi, seçtiğin anda önizleme
+  aynı çerçevede görünür — müşteriye göndermeden nasıl duracağını görürsün
+- **Operasyon'da:** iş detayında oynatıcının altında Dikey / Kare / Yatay düğmeleri var, mevcut
+  işlerin yönünü tek tıkla değiştirebilirsin
+
+Değişiklik hem senin ekranında hem müşteri panelinde geçerli — ikisi de aynı çerçeve mantığını
+kullanıyor.
