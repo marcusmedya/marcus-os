@@ -5441,7 +5441,17 @@ function SilinenlerKutusu({ silinenler, onGeriAl, onKaliciSil }) {
   );
 }
 
+/* Ayarlar sekmeleri. Kartlar bu gruplara dağıtıldı; içerikleri değişmedi. */
+const AYAR_SEKMELERI = [
+  { key: "gorunum", label: "Görünüm & Marka" },
+  { key: "veri", label: "Veri & Yedek" },
+  { key: "guvenlik", label: "Güvenlik" },
+  { key: "bildirim", label: "Bildirimler" },
+  { key: "hesap", label: "Hesaplar" },
+];
+
 function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu, onSaveTeblig, staffPermissions, onUpdatePermissions, markaKimligiGorseli, onSaveMarkaKimligi, onRosterChange, clients, gizlilikModu, onToggleGizlilik, islemGecmisi }) {
+  const [ayarSekme, setAyarSekme] = useState("gorunum");
   const fileInputRef = useRef(null);
   const rows = [
     { label: "İşletme Adı", value: "Marcus Medya" },
@@ -5452,6 +5462,28 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
   ];
   return (
     <div style={{ maxWidth: 560 }}>
+      {/* AYARLAR SEKMELERİ — kartların hiçbirinin içeriği değişmedi, yalnızca
+        * gruplandılar. Tek sayfada 21 bölüm alt alta duruyordu; aradığını bulmak
+        * için uzun uzun kaydırmak gerekiyordu. */}
+      <div style={{ display: "flex", gap: 2, marginBottom: 16, flexWrap: "wrap", borderBottom: `1px solid ${T.borderSoft}` }}>
+        {AYAR_SEKMELERI.map((sk) => (
+          <button
+            key={sk.key}
+            onClick={() => setAyarSekme(sk.key)}
+            style={{
+              padding: "8px 13px 9px", background: "transparent", border: "none", cursor: "pointer",
+              whiteSpace: "nowrap", fontFamily: "Inter, sans-serif", fontSize: 12.5,
+              fontWeight: ayarSekme === sk.key ? 700 : 500,
+              color: ayarSekme === sk.key ? T.text : T.textDim,
+              borderBottom: `2px solid ${ayarSekme === sk.key ? T.accent : "transparent"}`, marginBottom: -1,
+            }}
+          >
+            {sk.label}
+          </button>
+        ))}
+      </div>
+
+      {ayarSekme === "gorunum" && <>
       <Card style={{ padding: "8px 22px", marginBottom: 16 }}>
         {rows.map((r, i) => (
           <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 0", borderBottom: i < rows.length - 1 ? `1px solid ${T.borderSoft}` : "none" }}>
@@ -5460,7 +5492,6 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
           </div>
         ))}
       </Card>
-
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Gizlilik Modu</SectionTitle>
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
@@ -5480,9 +5511,17 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
           {gizlilikModu ? "Gizlilik Modu Açık — Kapat" : "Gizlilik Modunu Aç"}
         </button>
       </Card>
-
       <IslemGecmisiKarti kayitlar={islemGecmisi} />
+      <Card style={{ padding: "18px 22px" }}>
+        <SectionTitle>Marka Kimliği</SectionTitle>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 12 }}>
+          Buraya yüklediğin görsel, oluşturduğun her teklifin ve sözleşmenin <strong>en altında</strong> otomatik olarak görünür — tekrar tekrar yüklemene gerek kalmaz.
+        </p>
+        <MarkaKimligiYukleyici value={markaKimligiGorseli} onChange={onSaveMarkaKimligi} />
+      </Card>
+      </>}
 
+      {ayarSekme === "veri" && <>
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Veri</SectionTitle>
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
@@ -5491,7 +5530,6 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
         </p>
         <button style={addBtnStyle} onClick={onExport}><Plus size={13} style={{ transform: "rotate(45deg)" }} /> Finans verilerini CSV indir</button>
       </Card>
-
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Otomatik Yedekler</SectionTitle>
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
@@ -5502,9 +5540,7 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
         </p>
         <YedekGecmisi />
       </Card>
-
       <VeriBoyutuKarti />
-
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Tam Yedek</SectionTitle>
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
@@ -5518,7 +5554,6 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
           <input ref={fileInputRef} type="file" accept="application/json" style={{ display: "none" }} onChange={(e) => { if (e.target.files[0]) onImportJson(e.target.files[0]); e.target.value = ""; }} />
         </div>
       </Card>
-
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>E-posta ile Otomatik Günlük Yedek</SectionTitle>
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
@@ -5533,32 +5568,10 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
         </ol>
         <EmailYedekTest endpoint="/api/daily-backup" />
       </Card>
+      <SilinenlerKutusu silinenler={silinenler} onGeriAl={onGeriAl} onKaliciSil={onKaliciSil} />
+      </>}
 
-      <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
-        <SectionTitle>Sabah E-postasıyla AI Özeti</SectionTitle>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
-          Kurulunca her sabah 06:00'da, o günkü ciro/kâr durumunu ve — varsa — bekleyen ya da gecikmiş ödemeleri isim isim
-          özetleyen bir AI mesajı e-postana gelir. Yukarıdaki RESEND_API_KEY ve BACKUP_EMAIL zaten yeterli;
-          ek olarak Environment Variables'a <code style={{ background: T.surfaceRaised, padding: "1px 5px", borderRadius: 4 }}>ANTHROPIC_API_KEY</code> eklenmiş olması gerekiyor
-          (AI CEO sohbeti için daha önce aldığın anahtar).
-        </p>
-        <EmailYedekTest endpoint="/api/daily-summary" />
-      </Card>
-
-      <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
-        <SectionTitle>Operasyon & Günlük Kontrol Hatırlatmaları</SectionTitle>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
-          Her gün akşam 18:00'de otomatik çalışır: teslim tarihi geçmiş ve "Teslim Edildi" olmayan Operasyon işleri için,
-          o işe atanan kişiye (kayıtlı e-postası varsa) hatırlatma gider — <strong>Video</strong> ve <strong>Grafik Tasarım</strong> işleri
-          e-postada ayrı ayrı başlıklar altında listelenir. Markalaşma süreçlerinde de, henüz tamamlanmamış görevi olan
-          markanın atanmış yöneticisine ayrı bir hatırlatma gider. Ayrıca o gün stokta içerik olduğu halde
-          henüz Günlük Kontrol'den paylaşılmamış görünen markalar varsa, bunların özeti sana (BACKUP_EMAIL) gider.
-          <strong> Ayrıca kime giderse gitsin, her hatırlatmanın bir kopyası (CC) otomatik olarak sana da gelir</strong> —
-          kimin ne aldığını her zaman görebilirsin. Ek bir kurulum gerekmiyor — yukarıdaki RESEND_API_KEY zaten yeterli.
-        </p>
-        <EmailYedekTest endpoint="/api/daily-reminders" />
-      </Card>
-
+      {ayarSekme === "guvenlik" && <>
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Şifre Koruması</SectionTitle>
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, margin: 0 }}>
@@ -5567,7 +5580,6 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
           devre dışıdır.
         </p>
       </Card>
-
       <Card style={{ padding: "18px 22px" }}>
         <SectionTitle>Personel Erişimi</SectionTitle>
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 10 }}>
@@ -5579,11 +5591,7 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
           farklı bir şifre tanımla, sonra Redeploy et. Bu şifreyi ekibinle paylaş — kendi şifren (SITE_PASSWORD) ile girdiğinde her zaman tam panel açılır.
         </p>
       </Card>
-
       <GuvenlikDefteri />
-
-      <SilinenlerKutusu silinenler={silinenler} onGeriAl={onGeriAl} onKaliciSil={onKaliciSil} />
-
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Güvenlik</SectionTitle>
 
@@ -5631,7 +5639,36 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
         </p>
         <TumCihazlardanCikisButonu />
       </Card>
+      <KasaSifresiKarti />
+      </>}
 
+      {ayarSekme === "bildirim" && <>
+      <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+        <SectionTitle>Sabah E-postasıyla AI Özeti</SectionTitle>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
+          Kurulunca her sabah 06:00'da, o günkü ciro/kâr durumunu ve — varsa — bekleyen ya da gecikmiş ödemeleri isim isim
+          özetleyen bir AI mesajı e-postana gelir. Yukarıdaki RESEND_API_KEY ve BACKUP_EMAIL zaten yeterli;
+          ek olarak Environment Variables'a <code style={{ background: T.surfaceRaised, padding: "1px 5px", borderRadius: 4 }}>ANTHROPIC_API_KEY</code> eklenmiş olması gerekiyor
+          (AI CEO sohbeti için daha önce aldığın anahtar).
+        </p>
+        <EmailYedekTest endpoint="/api/daily-summary" />
+      </Card>
+      <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+        <SectionTitle>Operasyon & Günlük Kontrol Hatırlatmaları</SectionTitle>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
+          Her gün akşam 18:00'de otomatik çalışır: teslim tarihi geçmiş ve "Teslim Edildi" olmayan Operasyon işleri için,
+          o işe atanan kişiye (kayıtlı e-postası varsa) hatırlatma gider — <strong>Video</strong> ve <strong>Grafik Tasarım</strong> işleri
+          e-postada ayrı ayrı başlıklar altında listelenir. Markalaşma süreçlerinde de, henüz tamamlanmamış görevi olan
+          markanın atanmış yöneticisine ayrı bir hatırlatma gider. Ayrıca o gün stokta içerik olduğu halde
+          henüz Günlük Kontrol'den paylaşılmamış görünen markalar varsa, bunların özeti sana (BACKUP_EMAIL) gider.
+          <strong> Ayrıca kime giderse gitsin, her hatırlatmanın bir kopyası (CC) otomatik olarak sana da gelir</strong> —
+          kimin ne aldığını her zaman görebilirsin. Ek bir kurulum gerekmiyor — yukarıdaki RESEND_API_KEY zaten yeterli.
+        </p>
+        <EmailYedekTest endpoint="/api/daily-reminders" />
+      </Card>
+      </>}
+
+      {ayarSekme === "hesap" && <>
       {/* Müşteri Paneli hesapları artık "Müşteri Paneli" sekmesinde — panel içerikleriyle
         * aynı yerde durması, iki farklı sekmeye bakmak zorunda kalmandan daha anlaşılır. */}
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
@@ -5643,8 +5680,6 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
       </Card>
       {/* PersonelHesaplariKart Personel > Hesaplar & Yetkiler'e taşındı — iki ayrı ekrandan
         * aynı hesapları düzenlemek karışıklık yaratırdı. */}
-      <KasaSifresiKarti />
-
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Personel Hesapları ve Yetkileri</SectionTitle>
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, margin: 0 }}>
@@ -5653,14 +5688,8 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
           girdiğin yerle hesabını açtığın yer aynı olsun diye taşındı.
         </p>
       </Card>
+      </>}
 
-      <Card style={{ padding: "18px 22px" }}>
-        <SectionTitle>Marka Kimliği</SectionTitle>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 12 }}>
-          Buraya yüklediğin görsel, oluşturduğun her teklifin ve sözleşmenin <strong>en altında</strong> otomatik olarak görünür — tekrar tekrar yüklemene gerek kalmaz.
-        </p>
-        <MarkaKimligiYukleyici value={markaKimligiGorseli} onChange={onSaveMarkaKimligi} />
-      </Card>
     </div>
   );
 }

@@ -2435,3 +2435,28 @@ katıyor; beş senaryo doğrulandı.
 Liste artık modül seviyesinde bir sabit. Hem kartın içinde çizilirken hem başlıktaki sayımda
 aynı liste kullanılıyor — iki ayrı kopya olsaydı biri güncellenip diğeri unutulduğunda sayı
 yanlış çıkardı.
+
+## Güncelleme 106: Ayarlar Sekmelere Ayrıldı
+
+Ayarlar tek sayfada 18 bölümdü; aradığını bulmak için uzun uzun kaydırmak gerekiyordu.
+Beş sekmeye ayrıldı:
+
+| Sekme | İçindekiler |
+|---|---|
+| **Görünüm & Marka** | Tema/gizlilik modu, işlem geçmişi, marka kimliği |
+| **Veri & Yedek** | Veri durumu, otomatik yedekler, veri boyutu, tam yedek, e-posta yedeği, geri dönüşüm kutusu |
+| **Güvenlik** | Şifre koruması, personel erişimi, güvenlik defteri, güvenlik durumu, kasa şifresi |
+| **Bildirimler** | Sabah AI özeti, Operasyon & günlük kontrol hatırlatmaları |
+| **Hesaplar** | Müşteri paneli hesapları, personel hesapları yönlendirmesi |
+
+### Nasıl yapıldı — riskli olduğu için
+Kartların **hiçbirinin içine dokunulmadı**. Her bölümün sınırları önce programatik olarak
+çıkarıldı (açılış/kapanış etiketleri sayılarak), sonra bloklar **birebir** alınıp gruplandı.
+Tek eklenen şey sekme çubuğu ve `{ayarSekme === "x" && <>...</>}` sarmalayıcıları.
+
+### Doğrulama
+- 18 bölümün hepsi hâlâ mevcut — adları tek tek arandı, kaybolan yok
+- Bir önceki sürümle karşılaştırıldı: 13 başlığın hepsi duruyor, kaybolan/eklenen yok
+- Boşluksuz kod uzunluğu farkı yalnızca eklenen sekme kodu kadar
+- Tüm etiketler dengeli (Card, div, button, span, p, label)
+- 13 kod denetimi + 8 sunucu denetimi (79 kontrol) geçti
