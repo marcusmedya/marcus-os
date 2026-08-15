@@ -119,15 +119,29 @@ function Damga({ durum }) {
   );
 }
 
-export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
+/**
+ * Müşteri Paneli.
+ *
+ * ortakModu=true olduğunda çözüm ortağı, atandığı markanın panelini MÜŞTERİNİN GÖRDÜĞÜ
+ * hâliyle görür. Veri zaten sunucuda aynı fonksiyondan üretiliyor; burada değişen tek şey
+ * YAPILABİLECEK İŞLEMLER:
+ *   • Müşteriye ait onay/revize düğmeleri GİZLENİR — ortak müşteri adına karar veremez.
+ *   • Yerine iş yürütme düğmeleri çıkar (aşama ilerletme), onOrtakIslem ile.
+ * Çıkış düğmesi de gizlenir; ortak kendi panelinde, sekme içinde geziyor.
+ */
+export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu = false, onOrtakIslem }) {
   const [icerikler, setIcerikler] = useState(musteriData.icerikler || []);
+  // Ortak kendi panelinin içindeki bir sekmede geziyor — buradan çıkış yapmamalı.
+  const cikisGoster = !ortakModu && onCikis;
   // Sunucudan yeni veri geldiğinde listeyi tazele. useState başlangıç değeri SADECE ilk
   // render'da okunur — bu senkron olmadan, yönetici bir içerik ekleyip düzenlese ya da
   // onay sonrası veri yenilense bile müşterinin ekranı ilk açılıştaki hâlinde donuyordu.
   useEffect(() => { setIcerikler(musteriData.icerikler || []); }, [musteriData]);
   const [revizeAcikId, setRevizeAcikId] = useState(null);
   const [acikIcerikId, setAcikIcerikId] = useState(null); // açık olan içerik kartı
-  const [sekme, setSekme] = useState("onay");
+  // Ortak "Üretim Durumu" ile açılır: ilk sorusu "işler nerede?" — müşterininki ise
+  // "onayımı bekleyen ne var?".
+  const [sekme, setSekme] = useState(ortakModu ? "uretim" : "onay");
   /* TÜR SÜZGECİ — "sadece Reels'leri göster" gibi. Uzun listelerde müşteri aradığını
    * bulamıyordu. "hepsi" seçiliyken hiçbir şey gizlenmez. */
   const [turSuzgec, setTurSuzgec] = useState("hepsi");
@@ -146,6 +160,9 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
    *  - Seçili değilse (ortak/paylaşılan bilgisayar): 20 dakika hareketsizlikte çıkış.
    */
   useEffect(() => {
+    /* Ortak modunda otomatik çıkış YOK: ortak kendi oturumunda, bir sekmenin içinde
+     * geziniyor. Buradaki zamanlayıcı çalışsaydı ortağı 20 dakikada uygulamadan atardı. */
+    if (ortakModu) return undefined;
     if (musteriHatirlaniyorMu()) return undefined;
     let zamanlayici = null;
     const sifirla = () => {
@@ -240,16 +257,28 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
   const revizeliler = sirala(icerikler.filter((i) => i.durum === "revize"));
   const onaylilar = sirala(icerikler.filter((i) => i.durum !== "bekliyor" && i.durum !== "revize"));
 
-  const sekmeler = [
+  const tumSekmeler = [
     // Rozet SÜZGEÇTEN ETKİLENMEZ: süzgeç bir görünüm tercihi, sekmedeki sayı ise gerçek
     // bekleyen adedi. Süzgeçle birlikte düşseydi "3 içerik vardı, 1 oldu" gibi görünürdü.
     { key: "onay", label: "Onay Bekleyenler", rozet: bekleyenler.length + hazirlarHam.length },
     { key: "revize", label: "Revize İstediklerin", rozet: revizeliler.length + hazirRevize.length },
-    { key: "onayli", label: "Onayladıkların", rozet: onaylilar.length + hazirOnayli.length },
+    { key: "onayli", label: ortakModu ? "Onaylananlar (paylaşıma hazır)" : "Onayladıkların", rozet: onaylilar.length + hazirOnayli.length },
     { key: "takvim", label: "Paylaşım Takvimi", rozet: 0 },
     { key: "reklam", label: "Reklamlar", rozet: 0 },
     { key: "uretim", label: "Üretim Durumu", rozet: 0 },
   ];
+
+  /* ORTAK MODU — yalnızca İLERLEYİŞ ve ONAYLANANLAR.
+   *
+   * Ortağın işi üretimi takip edip onaylanan içeriği paylaşmak; müşterinin karar sürecini
+   * (neyi onaylamadı, neye revize istedi) görmesi gerekmiyor. Reklam ve paylaşım takvimi de
+   * ajans-müşteri ilişkisine ait, ortağın işi değil.
+   *
+   * Not: "Onaylananlar" sekmesinde teslim edilmiş işler de var — paylaşılacak dosya orada. */
+  const ORTAK_SEKMELERI = ["uretim", "onayli"];
+  const sekmeler = ortakModu
+    ? ORTAK_SEKMELERI.map((k) => tumSekmeler.find((x) => x.key === k)).filter(Boolean)
+    : tumSekmeler;
 
   const bugunYazi = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
 
@@ -269,7 +298,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
             marka={musteriData.marka}
             firmaAdi={musteriData.firmaAdi}
           />
-          <button
+          {cikisGoster && <button
             onClick={() => { if (window.confirm("Çıkış yapılsın mı? Tekrar girmek için kullanıcı adı ve şifren gerekecek.")) onCikis(); }}
             style={{
               display: "flex", alignItems: "center", gap: 7, padding: "8px 14px", borderRadius: 8,
@@ -278,7 +307,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
             }}
           >
             <LogOut size={14} /> Çıkış
-          </button>
+          </button>}
         </div>
       </div>
 
@@ -364,6 +393,8 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
               liste={hazirlar}
               gonderiliyor={gonderiliyor}
               onIslem={(isId, islem, not) => isIstegi(isId, islem, not)}
+              ortakModu={ortakModu}
+              onOrtakIslem={onOrtakIslem}
               basliksiz
             />
           </div>
@@ -472,7 +503,11 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
                     <a href={icerik.driveLinki} target="_blank" rel="noreferrer" style={{ display: "block", marginBottom: 12, color: MT.mor, fontSize: 12.5, fontFamily: "Inter" }}>İçeriği Görüntüle ↗</a>
                   )}
 
-                  {revizeAcikId === icerik.id ? (
+                  {ortakModu ? (
+                    <div style={{ fontSize: 12, color: MT.soluk, fontFamily: "Inter" }}>
+                      {icerik.durum === "bekliyor" ? "Müşterinin onayı bekleniyor." : icerik.durum === "revize" ? "Müşteri revize istedi." : "Müşteri onayladı."}
+                    </div>
+                  ) : revizeAcikId === icerik.id ? (
                     <div>
                       <textarea
                         autoFocus
@@ -579,12 +614,12 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
 
         {/* Alt çıkış — uzun listelerde en yukarı dönmek zorunda kalmamak için. */}
         <div style={{ marginTop: 40, paddingTop: 20, borderTop: `1px solid ${MT.cizgi}`, textAlign: "center" }}>
-          <button
+          {cikisGoster && <button
             onClick={() => { if (window.confirm("Çıkış yapılsın mı? Tekrar girmek için kullanıcı adı ve şifren gerekecek.")) onCikis(); }}
             style={{ ...cancelBtnStyle, fontSize: 12.5, padding: "9px 18px", display: "inline-flex", alignItems: "center", gap: 6 }}
           >
             <LogOut size={14} /> Çıkış Yap
-          </button>
+          </button>}
         </div>
       </div>
     </div>
@@ -696,7 +731,7 @@ function DurumListesi({ liste, hazirListe, acikId, setAcikId, baslik, bosMetin }
  * Dosya linki olmayan kartlar da gösterilir (kullanıcının tercihi): ekip bir işi kontrole
  * göndermişse müşteri onu görmeli, dosya henüz eklenmemişse bu da açıkça yazılır.
  */
-function HazirIcerikler({ liste, gonderiliyor, onIslem, basliksiz = false, saltOkunur = false, baslangic = 0 }) {
+function HazirIcerikler({ liste, gonderiliyor, onIslem, basliksiz = false, saltOkunur = false, baslangic = 0, ortakModu = false, onOrtakIslem }) {
   const [acikId, setAcikId] = useState(null);
   const [revizeAcik, setRevizeAcik] = useState(null);
   const [not, setNot] = useState("");
@@ -756,7 +791,26 @@ function HazirIcerikler({ liste, gonderiliyor, onIslem, basliksiz = false, saltO
                     </div>
                   )}
 
-                  {saltOkunur ? null : revizeAcik === h.isId ? (
+                  {/* ORTAK MODU: müşteri adına onay/revize verilemez. Ortağın işi onaylanan
+                    * içeriği PAYLAŞMAK, o yüzden dosyaya doğrudan bağlantı verilir —
+                    * önizleme yeterli değil, indirip yüklemesi gerekiyor. */}
+                  {ortakModu ? (
+                    <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+                      <span style={{ fontSize: 12, color: h.durum === "onaylandi" ? MT.onay : MT.soluk, fontFamily: "Inter", fontWeight: h.durum === "onaylandi" ? 600 : 400 }}>
+                        {h.durum === "onaylandi" ? "✓ Onaylandı — paylaşılabilir" : h.durum === "revize" ? "Müşteri revize istedi." : "Müşterinin onayı bekleniyor."}
+                      </span>
+                      {h.dosyaLinki && (
+                        <a
+                          href={h.dosyaLinki}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{ padding: "8px 15px", borderRadius: 9, background: MT.onay, color: "#fff", fontFamily: "Inter, sans-serif", fontSize: 12.5, fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" }}
+                        >
+                          Dosyayı aç ↗
+                        </a>
+                      )}
+                    </div>
+                  ) : saltOkunur ? null : revizeAcik === h.isId ? (
                     <div>
                       <textarea
                         autoFocus

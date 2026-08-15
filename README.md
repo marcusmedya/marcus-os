@@ -2576,3 +2576,72 @@ gelecek günler hatırlatılmıyor.
 ### Doğrulama
 13 tarih/gruplama kontrolü (ay ve yıl sınırı dahil), 5 senkron kontrolü (`t21.mjs`),
 5 hatırlatma süzme kontrolü. Her gün tek grupta, kaybolan kayıt yok.
+
+## Güncelleme 110: Çözüm Ortağı — Marka Paneli
+
+Çözüm ortağı artık atandığı markanın panelini **müşterinin gördüğü hâliyle** görüyor.
+
+### Görünüm kopyalanmadı, veri tek yerden üretiliyor
+Müşteri paneli verisini üreten kod `lib/musteri-gorunumu.js`'e taşındı. Hem müşterinin kendi
+paneli hem ortağın ekranı **aynı fonksiyonu** çağırıyor ve **aynı bileşenle** çiziliyor.
+
+Kopyalasaydık zamanla ayrışırdı — müşteri bir şey görürken ortak başka bir şey görürdü ve
+"müşteri ne görüyorsa ortak da görsün" kuralı sessizce bozulurdu. Buraya eklenen her yeni alan
+iki tarafa da aynı anda gidiyor.
+
+### Ortak ne yapabilir, ne yapamaz
+| | |
+|---|---|
+| ✓ Müşterinin gördüğü her şeyi görür | Onay bekleyenler, revize istenenler, onaylananlar, paylaşım takvimi, üretim durumu |
+| ✓ İş yürütür | "Revizeyi tamamladım → kontrole gönder" |
+| ✗ Müşteri adına karar veremez | Onay ve revize düğmeleri ortağa hiç çıkmaz |
+
+Sunucu tarafında tek bir geçişe izin var: **Revize İstendi → Kontrol Bekliyor**. Başka bir
+aşamaya atlamak ya da müşterinin kararını taklit etmek reddediliyor.
+
+### Güvenlik
+- İstenen marka, hesabın marka listesinde değilse **403**
+- Marka listesi tarayıcıdan değil, sunucudaki hesap kaydından okunuyor
+- Marka kilidi olmayan hesap bu ekranı kullanamıyor
+- İç brief, kameraman adı, iç yorumlar ortağa da gitmiyor (müşteriyle birebir aynı)
+
+### Küçük ama önemli ayrıntı
+Müşteri panelindeki 20 dakikalık otomatik çıkış zamanlayıcısı ortak modunda kapalı — açık
+kalsaydı ortağı kendi uygulamasından atardı.
+
+### Doğrulama
+`t22.mjs` — 17 kontrol: erişim, sızıntı, marka sınırı, yetkisiz hesap, iş yürütme ve müşteri
+kararını taklit etme denemesi. Müşteri tarafının bozulmadığı ayrıca 51 mevcut kontrolle
+doğrulandı.
+
+## Güncelleme 111: Ortak Sadece İlerleyişi ve Onaylananları Görüyor
+
+Ortağa iki sekme kaldı:
+
+| Sekme | Ne için |
+|---|---|
+| **Üretim Durumu** | İşler nerede — ilerleyişi takip eder |
+| **Onaylananlar (paylaşıma hazır)** | Müşterinin onayladığı içerikler |
+
+Kaldırılanlar: Onay Bekleyenler, Revize İstediklerin, Paylaşım Takvimi, Reklamlar.
+
+**Neden:** Ortağın işi üretimi takip edip onaylanan içeriği paylaşmak. Müşterinin karar süreci
+(neyi onaylamadı, neye revize istedi) onu ilgilendirmiyor; reklam ve paylaşım takvimi de
+ajans-müşteri ilişkisine ait.
+
+Ortağın ekranı **Üretim Durumu** ile açılıyor — ilk sorusu "işler nerede?". Müşterininki
+"onayımı bekleyen ne var?" olduğu için o hâlâ Onay Bekleyenler ile açılıyor.
+
+### Paylaşabilmesi için dosya bağlantısı
+Onaylanan kartlarda artık **"Dosyayı aç ↗"** düğmesi var. Önizleme tek başına yeterli değildi —
+paylaşmak için dosyayı indirip yüklemesi gerekiyor.
+
+Durum yazısı da netleştirildi: onaylanmış kartlarda **"✓ Onaylandı — paylaşılabilir"**.
+
+### İş yürütme kaldırıldı
+"Revizeyi tamamladım" düğmesi kaldırıldı — revize sekmesi ortağa artık hiç açılmıyor, düğme
+ulaşılamaz hale gelmişti. Sunucudaki karşılığı (marka kontrolüyle birlikte) duruyor; ileride
+ortağa iş yürütme yetkisi vermek istersen arayüzde düğmeyi geri koymak yeterli.
+
+### Doğrulama
+10 sekme daraltma kontrolü + müşteri tarafının bozulmadığı 68 mevcut kontrolle doğrulandı.

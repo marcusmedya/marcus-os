@@ -4711,6 +4711,107 @@ function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
  * Daha önce bunlar iki ayrı yere dağılmıştı (içerikler müşteri detayında, hesaplar
  * Ayarlar'da) ve müşteri detayı zaten kalabalık olduğu için içerik bölümü kayboluyordu.
  */
+/**
+ * ÇÖZÜM ORTAĞI — MARKA PANELİ
+ *
+ * Ortak, atandığı markanın panelini MÜŞTERİNİN GÖRDÜĞÜ hâliyle görür. Veri sunucuda
+ * müşteri paneliyle aynı fonksiyondan üretiliyor (lib/musteri-gorunumu.js), görünüm de aynı
+ * bileşenle çiziliyor — ikisinin ayrışması mümkün değil.
+ *
+ * Fark yalnızca işlemlerde: müşteri adına onay/revize verilemez, ama iş yürütülebilir.
+ */
+function OrtakMarkaPaneli({ firmaAdi }) {
+  const [markalar, setMarkalar] = useState([]);
+  const [seciliId, setSeciliId] = useState(null);
+  const [panel, setPanel] = useState(null);
+  const [hata, setHata] = useState("");
+  const [yukleniyor, setYukleniyor] = useState(true);
+
+  const getir = (clientId) => {
+    setYukleniyor(true);
+    setHata("");
+    fetch(`/api/data?markaPaneli=${encodeURIComponent(clientId)}`, { headers: authHeaders() })
+      .then((r) => r.json())
+      .then((res) => {
+        if (res && res.ok) {
+          setPanel(res.markaPaneli);
+          if (Array.isArray(res.markalarim)) setMarkalar(res.markalarim);
+          setSeciliId(clientId);
+        } else {
+          setHata((res && res.error) || "Panel yüklenemedi.");
+        }
+      })
+      .catch(() => setHata("Bağlantı hatası — tekrar dene."))
+      .finally(() => setYukleniyor(false));
+  };
+
+  /* İlk açılış: hangi markaların atandığını bilmiyoruz. Sunucu marka listesini panel
+   * yanıtıyla birlikte döndürdüğü için önce erişilebilir ilk markayı deniyoruz; hata
+   * dönerse kullanıcıya sebebi yazılıyor. */
+  useEffect(() => {
+    fetch("/api/data", { headers: authHeaders() })
+      .then((r) => r.json())
+      .then((res) => {
+        const liste = ((res && res.data && res.data.clients) || []);
+        if (liste.length === 0) { setHata("Sana atanmış bir marka görünmüyor."); setYukleniyor(false); return; }
+        setMarkalar(liste.map((c) => ({ id: c.id, ad: c.ad })));
+        getir(liste[0].id);
+      })
+      .catch(() => { setHata("Bağlantı hatası — tekrar dene."); setYukleniyor(false); });
+  }, []);
+
+  /* NOT: "Revizeyi tamamladım" işlemi kaldırıldı — ortak artık yalnızca ilerleyişi ve
+   * onaylananları görüyor, revize sekmesi ona hiç açılmıyor. Sunucudaki karşılığı
+   * (ortakAction: "asamaIlerlet") duruyor ve marka kontrolü yapıyor; ileride ortağa iş
+   * yürütme yetkisi vermek istersen arayüzde düğmeyi geri koymak yeterli. */
+
+  return (
+    <div>
+      {markalar.length > 1 && (
+        <Card style={{ padding: "12px 14px", marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 700, letterSpacing: 0.3, marginBottom: 9 }}>MARKA SEÇ</div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {markalar.map((m) => (
+              <button
+                key={m.id}
+                onClick={() => getir(m.id)}
+                style={{
+                  padding: "8px 15px", borderRadius: 9, border: "none", cursor: "pointer",
+                  fontFamily: "Inter, sans-serif", fontSize: 12.5, fontWeight: 600,
+                  background: String(seciliId) === String(m.id) ? T.accent : T.surfaceRaised,
+                  color: String(seciliId) === String(m.id) ? "#fff" : T.textDim,
+                }}
+              >
+                {m.ad}
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {hata && (
+        <Card style={{ padding: "16px 18px", border: `1px solid ${T.warning}` }}>
+          <div style={{ fontSize: 13, color: T.warning, fontFamily: "Inter", fontWeight: 600 }}>{hata}</div>
+        </Card>
+      )}
+
+      {yukleniyor && !panel && !hata && (
+        <Card style={{ padding: "22px 18px" }}>
+          <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter" }}>Panel yükleniyor…</div>
+        </Card>
+      )}
+
+      {panel && (
+        <MusteriPaneli
+          musteriData={{ ...panel, firmaAdi: panel.firmaAdi || firmaAdi }}
+          ortakModu
+          onIslemSonrasi={() => getir(seciliId)}
+        />
+      )}
+    </div>
+  );
+}
+
 function MusteriPaneliYonetimi({ saltOkunur = false, hedef, clients, icerikler, onAdd, onUpdate, onDelete, onOnayla, onBildir, onCekildi, onMarkaDuzelt, onIsOlustur, plan, reklamlar, isler, onAltMetin, firmaAdi, logo, olcumler }) {
   const [secili, setSecili] = useState(null);
 
@@ -8371,18 +8472,8 @@ export default function MarcusOS() {
             * SALT OKUNUR: hiçbir değiştirme callback'i geçirilmiyor, dolayısıyla ekleme,
             * düzenleme, silme ve onaylama düğmelerinin hiçbiri çıkmaz. Marka listesi zaten
             * sunucuda marka kilidiyle süzülmüş geliyor. */}
-          {staffTab === "musteri-akisi" && (
-            <MusteriPaneliYonetimi
-              clients={data.clients || []}
-              icerikler={data.musteriIcerikleri || []}
-              isler={data.cekimIsleri || []}
-              plan={[]}
-              reklamlar={[]}
-              olcumler={[]}
-              firmaAdi={data.firmaAdi}
-              saltOkunur
-            />
-          )}
+          {/* Ortağa müşterinin gördüğü panelin birebir aynısı gösterilir. */}
+          {staffTab === "musteri-akisi" && <OrtakMarkaPaneli firmaAdi={data.firmaAdi} />}
 
           {staffTab === "musteri-girisleri" && (
             <MusteriGirisleri clients={data.clients || []} girisler={data.musteriGirisleri || {}} onUpdate={updateMusteriGiris} firmaAdi={data.firmaAdi} logo={data.markaKimligiGorseli} role="staff" />

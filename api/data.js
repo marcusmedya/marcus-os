@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { KEY, guvenliGuncelle, kilitAl, kilitBirak, guvenliYaz, deftereYaz, defteriOku } from "../lib/kv-yaz.js";
 import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, tumOturumlariIptalEt, ikiAdimliAktifMi, esitMi, baslikOku } from "../lib/oturum.js";
 import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, trKucult, markaEslestirici } from "../lib/marka-kilidi.js";
+import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
 
 /** Bir kayıt (eski veri, yeni veri) arasındaki ÖNEMLİ değişiklikleri (müşteri/personel/üyelik
  * ekleme-silme, müşteri durum değişikliği) otomatik tespit edip okunabilir işlem geçmişi
@@ -313,173 +314,13 @@ export default async function handler(req, res) {
         return res.status(403).json({ error: "Bu hesap şu anda kullanım dışı. Sorularınız için ajansınızla iletişime geçin." });
       }
 
-      /* MÜŞTERİ PANELİ = OPERASYON'UN AYNASI
-       *
-       * Eski sistem, bir iş "Kontrol Bekliyor"a geçtiğinde müşteri paneline bir KOPYA kayıt
-       * yaratıyordu. Artık işler canlı yansıtıldığı için (aşağıdaki hazirIcerikler) o kopyalar
-       * AYNI İŞİN İKİNCİ KEZ görünmesine yol açıyordu — üstelik kopya, iş Operasyon'da
-       * ilerlese bile yerinde kalıyordu. Bu yüzden bir Operasyon işine bağlı olan
-       * (kaynakIsId taşıyan) kayıtlar müşteriye artık gönderilmiyor.
-       *
-       * Çekim planları (tur === "cekim") istisna: bunlar henüz Operasyon'da bir iş DEĞİL,
-       * çekim öncesi müşteriye sunulan fikirler. Onlar gönderilmeye devam ediyor.
-       *
-       * Not: kayıtlar silinmiyor, yalnızca müşteriye gönderilmiyor — geçmişleri yönetici
-       * tarafında duruyor. */
-      const isVarMi = (isId) => (data.cekimIsleri || []).some((j) => String(j.id) === String(isId));
-      const kendiIcerikleri = (data.musteriIcerikleri || []).filter((i) => {
-        if (String(i.clientId) !== String(musteriClientId)) return false;
-        if (i.tur === "cekim") return true;              // çekim planı — Operasyon'da karşılığı yok
-        if (!i.kaynakIsId) return true;                  // bağımsız kayıt
-        /* Bağlı olduğu Operasyon işi HÂLÂ VARSA gönderme — kart zaten canlı yansıyor,
-         * ikinci kez görünmesin. Ama iş SİLİNMİŞSE kayıt geri gelir: aksi halde müşterinin
-         * revize istediği içerik hiçbir yerde görünmez, izi tamamen kaybolurdu. */
-        return !isVarMi(i.kaynakIsId);
-      }).map((i) => ({
-        /* ALAN ALAN SEÇİLİR — kaydın tamamı asla gönderilmez.
-         *
-         * Denetimde çıktı: bu kayıtlar eskiden olduğu gibi gidiyordu ve iç alanlar
-         * (kaynakIsId, operasyonaAktarildi, olusturulanIsId, cekildi ve özellikle
-         * ONAYLAYAN — senin müşteri adına onayladığını gösterir) müşteriye ulaşıyordu.
-         * Asıl risk gelecekteydi: bu kayda eklenecek her yeni iç alan (maliyet, personel
-         * notu) kendiliğinden müşteriye giderdi. Reklamlar ve paylaşımlar için bu kural
-         * zaten uygulanıyordu; burada eksik kalmış.
-         *
-         * YENİ ALAN EKLERKEN: müşterinin görmesi gerekiyorsa buraya da eklenmeli. */
-        id: i.id,
-        tur: i.tur,
-        aciklama: i.aciklama || "",
-        durum: i.durum,
-        tarih: i.tarih || null,
-        guncellemeTarihi: i.guncellemeTarihi || null,
-        revizeNotu: i.revizeNotu || null,
-        driveLinki: i.driveLinki || null,
-        gorselUrl: i.gorselUrl || null,
-        videoYonu: i.videoYonu || null,
-        sira: i.sira,                       // müşteri panelindeki sıralama senin sıranla aynı olsun
-        // Çekim planına özel alanlar
-        referansLink: i.referansLink || null,
-        konusmali: i.konusmali || null,
-        konusmaMetni: i.konusmaMetni || null,
-        cekimNotu: i.cekimNotu || null,
-        planlananTarih: i.planlananTarih || null,
-      }));
-
-      /* ---------------------------------------------------------------- *
-       * MÜŞTERİYE GÖNDERİLEN EK VERİ (reklamlar, paylaşım planı, operasyon)
-       *
-       * KRİTİK: burada ne göndermediğimiz, ne gönderdiğimiz kadar önemli. Her kayıt
-       * alan alan SEÇİLEREK kopyalanıyor — kaydın tamamı asla olduğu gibi gönderilmiyor.
-       * Böylece ileride bu kayıtlara eklenecek yeni bir iç alan (maliyet, personel notu vb.)
-       * müşteri paneline kendiliğinden sızamaz.
-       *
-       * Bilerek DIŞARIDA bırakılanlar:
-       *  - Reklam bütçesi (iç bilgi)
-       *  - Operasyon işlerinde kameraman/editör adı, iç yorumlar, işlem geçmişi, brief
-       *  - Her türlü maliyet, ücret ve personel bilgisi
-       * ---------------------------------------------------------------- */
-      const markaAdi = kendiMarka ? kendiMarka.ad : "";
-      /** Reklam ve Operasyon kayıtlarında marka, ID ile değil ADIYLA tutuluyor ve "Diğer
-       * (elle yaz)" seçeneğiyle serbest metin de girilebiliyor. Bu yüzden eşleştirme baştaki/
-       * sondaki boşluğa ve büyük-küçük harfe takılmadan yapılır — yoksa "Kanatçı Diren " gibi
-       * tek bir boşluk farkı, o markanın hiçbir reklamının görünmemesine yol açardı. */
-      /* Marka adı yazım farklarına dayanıklı eşleştirme (büyük I/İ, çift boşluk, Türkçe
-       * karakter kullanılmaması). İki müşteri aynı anahtara düşerse tam eşleşmeye döner —
-       * bkz. lib/marka-kilidi.js → markaEslestirici. */
-      const markaEsit = markaEslestirici(data.clients || [], markaAdi);
-
-      const kendiReklamlari = (data.reklamlar || [])
-        .filter((r) => markaEsit(r.marka))
-        .map((r) => ({
-          id: r.id,
-          reklamAdi: r.reklamAdi,
-          baslangicTarihi: r.baslangicTarihi || null,
-          bitisTarihi: r.bitisTarihi || null,
-          not: r.not || null,
-          // Kampanya sonuçları — müşterinin görmesi gereken performans rakamları.
-          // Bütçe hâlâ gönderilmiyor (iç bilgi).
-          erisim: r.erisim || null,
-          gosterim: r.gosterim || null,
-          tiklama: r.tiklama || null,
-          etkilesim: r.etkilesim || null,
-          sonuc: r.sonuc || null,
-        }));
-
-      const kendiPaylasimPlani = (data.haftalikPaylasimlar || [])
-        .filter((p) => String(p.clientId) === String(musteriClientId))
-        .map((p) => ({
-          id: p.id,
-          gun: p.gun,
-          haftaKey: p.haftaKey,
-          tur: p.tur,
-          yapildi: !!p.yapildi,
-          yapildigiTarih: p.yapildigiTarih || null,
-          altMetin: p.altMetin || null,
-          gorselUrl: p.gorselUrl || null,
-        }));
-
-      /* HAZIR İÇERİKLER — Operasyon'da "Kontrol Bekliyor" aşamasındaki işlerin CANLI AYNASI.
-       *
-       * Kopya değil, ayna: iş o aşamadan çıktığı anda müşteri panelinden de kaybolur.
-       * Kopyalasaydık, Operasyon'da geri alınan bir iş müşteri panelinde onay bekliyor gibi
-       * asılı kalırdı — "orada olmayan bir şey müşteri panelinde gözükmesin" kuralı bozulurdu.
-       *
-       * Alanlar tek tek seçiliyor: brief, kameraman/editör adları, iç yorumlar ve işlem
-       * geçmişi bilerek DIŞARIDA. */
-      /* Ayna yalnızca "Kontrol Bekliyor"u değil, müşterinin İŞLEM YAPTIĞI aşamaları da
-       * kapsar. Aksi halde müşteri bir kartı revize ettiğinde kart panelden tamamen
-       * kayboluyordu — "neye revize istemiştim?" sorusunun cevabı yok oluyordu.
-       *   Kontrol Bekliyor          → onayını bekliyor (işlem yapılabilir)
-       *   Revize İstendi            → revize istediği (işlem yapılamaz, kayıt olarak durur)
-       *   Onaylandı / Teslim Edildi → onayladığı */
-      const ASAMA_DURUM = {
-        "Kontrol Bekliyor": "bekliyor",
-        "Revize İstendi": "revize",
-        "Onaylandı": "onaylandi",
-        "Teslim Edildi": "onaylandi",
-      };
-      const kendiHazirIcerikleri = (data.cekimIsleri || [])
-        .filter((j) => markaEsit(j.marka) && ASAMA_DURUM[j.asama])
-        .map((j) => ({
-          isId: j.id,
-          durum: ASAMA_DURUM[j.asama],
-          revizeNotu: j.musteriRevizeNotu || null,
-          baslik: j.icerikTuru || j.kategori || "Video",
-          kategori: j.kategori || "Video",
-          dosyaLinki: j.editliDosyaLink || j.hamDosyaLink || null,
-          videoYonu: j.videoYonu || null,
-          teslimTarihi: j.teslimTarihi || null,
-          uretilenAdet: j.uretilenAdet || null,
-        }));
-
-      const kendiIsleri = (data.cekimIsleri || [])
-        .filter((j) => markaEsit(j.marka))
-        .map((j) => ({
-          id: j.id,
-          icerikTuru: j.icerikTuru || "",
-          kategori: j.kategori || null,
-          asama: j.asama || "",
-          cekimTarihi: j.cekimTarihi || null,
-          teslimTarihi: j.teslimTarihi || null,
-          teslimEdilmeTarihi: j.teslimEdilmeTarihi || null,
-          uretilenAdet: j.uretilenAdet || null,
-        }));
+      /* Görünüm ORTAK fonksiyondan üretilir (lib/musteri-gorunumu.js).
+       * Çözüm ortağının "Marka Paneli" ekranı da aynı fonksiyonu çağırır; böylece müşteri
+       * ne görüyorsa ortak da birebir aynısını görür ve ikisi hiçbir zaman ayrışamaz. */
+      const gorunum = musteriGorunumuUret(data, kendiMarka, markaEslestirici);
 
       if (req.method === "GET") {
-        return res.status(200).json({
-          role: "musteri",
-          musteriAd,
-          marka: kendiMarka ? kendiMarka.ad : "",
-          // Ortak logo bandı için: ajansın kimlik görseli + markanın kendi logosu.
-          markaLogo: (kendiMarka && kendiMarka.logoUrl) || null,
-          ajansLogo: data.markaKimligiGorseli || null,
-          firmaAdi: data.firmaAdi || "Marcus Medya",
-          icerikler: kendiIcerikleri,
-          hazirIcerikler: kendiHazirIcerikleri,
-          reklamlar: kendiReklamlari,
-          paylasimPlani: kendiPaylasimPlani,
-          operasyonIsleri: kendiIsleri,
-        });
+        return res.status(200).json({ role: "musteri", musteriAd, ...gorunum });
       }
 
       if (req.method === "POST") {
@@ -605,6 +446,41 @@ export default async function handler(req, res) {
   try {
     if (req.method === "GET") {
       const data = await kv.get(KEY);
+
+      /* ÇÖZÜM ORTAĞI — MARKA PANELİ
+       *
+       * Ortak, kendisine atanmış bir markanın panelini müşterinin gördüğü HÂLİYLE görür.
+       * Görünüm kopyalanmaz: müşteri paneliyle AYNI fonksiyondan (musteriGorunumuUret)
+       * üretilir, böylece ikisi hiçbir zaman ayrışamaz.
+       *
+       * Güvenlik: istenen marka, hesabın kendi marka listesinde DEĞİLSE reddedilir. Liste
+       * tarayıcıdan değil, sunucudaki hesap kaydından okunur (staffMarkalar) — yoksa kilit
+       * kolayca aşılırdı. Marka kilidi olmayan bir hesap bu ekranı kullanamaz. */
+      if (role === "staff" && req.query && req.query.markaPaneli) {
+        const perms = izinleriDaralt(
+          staffPerms ? { ...DEFAULT_PERMS, ...staffPerms } : { ...DEFAULT_PERMS, ...((data && data.staffPermissions) || {}) },
+          Array.isArray(staffMarkalar) && staffMarkalar.length > 0,
+        );
+        if (perms.musteriAkisi !== true) {
+          return res.status(403).json({ error: "Bu ekran için yetkin yok." });
+        }
+        const izinli = Array.isArray(staffMarkalar) ? staffMarkalar : [];
+        if (izinli.length === 0) {
+          return res.status(403).json({ error: "Bu ekran yalnızca belirli markalara atanmış hesaplar içindir." });
+        }
+        const hedefMarka = (data.clients || []).find((c) => String(c.id) === String(req.query.markaPaneli));
+        if (!hedefMarka || !izinli.some((m) => trKucult(m) === trKucult(hedefMarka.ad))) {
+          return res.status(403).json({ error: "Bu markaya erişimin yok." });
+        }
+        return res.status(200).json({
+          ok: true,
+          markaPaneli: musteriGorunumuUret(data, hedefMarka, markaEslestirici),
+          markalarim: (data.clients || [])
+            .filter((c) => izinli.some((m) => trKucult(m) === trKucult(c.ad)))
+            .map((c) => ({ id: c.id, ad: c.ad })),
+        });
+      }
+
       if (role === "staff") {
         // Kişiye özel hesapla girildiyse o hesabın kendi izinleri kullanılır; eski ortak
         // personel şifresiyle (STAFF_PASSWORD) girildiyse genel (herkes için ortak) izinler kullanılır.
@@ -675,6 +551,53 @@ export default async function handler(req, res) {
           ortakSifreAktif: !!process.env.STAFF_PASSWORD,
         },
       });
+    }
+
+    /* ÇÖZÜM ORTAĞI — İŞ YÜRÜTME
+     *
+     * Ortak, atandığı markanın işini ilerletebilir ama müşteri adına ONAY/REVİZE veremez.
+     * Bu yüzden yalnızca TEK bir geçişe izin var: "Revize İstendi" → "Kontrol Bekliyor",
+     * yani "düzeltmeyi bitirdim, müşteri tekrar baksın". Başka bir aşamaya atlamak ya da
+     * müşterinin kararını taklit etmek mümkün değil.
+     *
+     * Marka listesi sunucudaki hesap kaydından okunur; tarayıcının gönderdiğine güvenilmez. */
+    if (req.method === "POST" && req.body && req.body.ortakAction) {
+      if (role !== "staff") return res.status(403).json({ error: "Yetkin yok." });
+      const mevcutVeri = (await kv.get(KEY)) || {};
+      const perms = izinleriDaralt(
+        staffPerms ? { ...DEFAULT_PERMS, ...staffPerms } : { ...DEFAULT_PERMS, ...(mevcutVeri.staffPermissions || {}) },
+        Array.isArray(staffMarkalar) && staffMarkalar.length > 0,
+      );
+      const izinli = Array.isArray(staffMarkalar) ? staffMarkalar : [];
+      if (perms.musteriAkisi !== true || izinli.length === 0) {
+        return res.status(403).json({ error: "Bu işlem için yetkin yok." });
+      }
+      if (req.body.ortakAction !== "asamaIlerlet" || req.body.hedefAsama !== "Kontrol Bekliyor") {
+        return res.status(400).json({ error: "Geçersiz işlem." });
+      }
+      const sonucOrtak = await guvenliGuncelle((guncel) => {
+        const isler = guncel.cekimIsleri || [];
+        const hedef = isler.find((j) => String(j.id) === String(req.body.isId));
+        if (!hedef) return { iptal: true, hata: "Kart bulunamadı.", kod: 404 };
+        if (!izinli.some((m) => trKucult(m) === trKucult(hedef.marka))) {
+          return { iptal: true, hata: "Bu markaya erişimin yok.", kod: 403 };
+        }
+        if (hedef.asama !== "Revize İstendi") {
+          return { iptal: true, hata: "Bu kart revize aşamasında değil.", kod: 409 };
+        }
+        const zaman = new Date().toLocaleString("tr-TR");
+        return {
+          veri: {
+            ...guncel,
+            cekimIsleri: isler.map((j) => (String(j.id) === String(req.body.isId)
+              ? { ...j, asama: "Kontrol Bekliyor", musteriRevizeNotu: null,
+                  gecmis: [...(j.gecmis || []), { id: (j.gecmis || []).length + 1, tarih: zaman, yazan: staffName || "Çözüm Ortağı", aciklama: "Revize tamamlandı, kontrole gönderildi." }] }
+              : j)),
+          },
+        };
+      });
+      if (!sonucOrtak.ok) return res.status(sonucOrtak.kod || 409).json({ error: sonucOrtak.hata || "Kaydedilemedi." });
+      return res.status(200).json({ ok: true });
     }
 
     if (req.method === "POST") {
