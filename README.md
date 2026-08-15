@@ -2645,3 +2645,89 @@ ortağa iş yürütme yetkisi vermek istersen arayüzde düğmeyi geri koymak ye
 
 ### Doğrulama
 10 sekme daraltma kontrolü + müşteri tarafının bozulmadığı 68 mevcut kontrolle doğrulandı.
+
+## Güncelleme 112: İkinci Tam Tarama
+
+v108–v111 arasında eklenen yeni yüzeyler (ortak paneli, ortak veri üreticisi, Günlük Kontrol
+yeniden yazımı) baştan tarandı.
+
+### Temiz çıkanlar
+- **Ortak paneli saldırı testi:** 14 tuzak alanının hiçbiri sızmıyor; bozuk `markaPaneli`
+  değerleri (boş, yıldız, dizi, nesne, negatif, SQL benzeri) reddediliyor; kilitsiz hesap,
+  yetkisiz hesap, müşteri hesabı ve silinmiş marka hepsi 401/403
+- **Müşteri ↔ ortak ayna:** 9 alanın tamamı birebir aynı — tek kaynak iddiası doğrulandı
+- **Üretim durumu:** yalnızca 8 güvenli alan taşıyor, brief ve kameraman yok
+- **Günlük Kontrol:** 8 bozuk kayıt tipinin hiçbiri çökmeye yol açmıyor; 41 kaydın hepsi
+  hesaplanıyor, kayıp yok
+- **Yetki matrisi:** yazma/okuma tutarlı; görüntüleme ekranlarının (Dashboard, Çekim listesi,
+  İçerik Akışı) yazma hakkı yok
+- **Marka kilidi:** 28 alanın hepsi kapsanıyor
+
+### Düzeltilen iki bulgu
+**Ölü kod:** `toggleGunlukKontrol` v109'dan beri hiçbir yerde kullanılmıyordu — kaldırıldı.
+Sunucudaki `gunlukToggle` duruyor çünkü stok düşümü ve paylaşım geçmişini o yönetiyor.
+
+**Tarihsiz plan kaydı:** `haftaKey`'i olmayan ya da bozuk bir plan kaydı Günlük Kontrol'de
+hiçbir güne düşemiyor ve sessizce kayboluyordu. Artık üstte sayısıyla uyarılıyor.
+
+### Kendi test hatam
+"Üretimdeki iş sızıyor" diye alarm verdim — yanlış varsayımdı. O kayıt Üretim Durumu
+sekmesinde **görünmesi gereken** bir şey; kontrol edilmesi gereken iç alanların olmaması.
+Test düzeltildi ve doğru kontrolü yapar hale getirildi.
+
+Yeni kalıcı testler: `t23` (ortak paylaşım planlama, 9), `t24` (ortak paneli saldırı, 6),
+`t25` (ayna doğrulaması, 3).
+
+## Güncelleme 113: Açıklama Metinleri Temizlendi
+
+Ayarlar başta olmak üzere her ekrandaki uzun bilgilendirme paragrafları kaldırıldı.
+**29 paragraf silindi**, 5 tanesi tek satıra indirildi, 124 satır azaldı.
+
+### Korunanlar
+Üç şeye dokunulmadı, çünkü bunlar bilgilendirme değil:
+
+- **Sembol açıklamaları** — "✓ tam ödendi · ½ kısmi · ✕ ödenmedi" ve paylaşım takvimindeki
+  renk/harf anahtarı. Bunlar olmadan ekran okunmuyor.
+- **Veri kaybı onay uyarısı** — "Kaydetmeye çalıştığın veri, mevcut kayıtlı veriden çok daha
+  az içeriyor" ve devamındaki seçenekler. Bu bir güvenlik freni.
+- **Kurulum bilgisi** — SITE_PASSWORD / STAFF_PASSWORD / OWNER_EMAIL nasıl tanımlanır. Tek
+  cümleye indirildi ama silinmedi; silinseydi bir daha nasıl yapılacağı hiçbir yerde yazmazdı.
+
+### Doğrulama
+- 30 bölüm başlığının hepsi duruyor
+- 228 düğmenin hepsi duruyor
+- Hiçbir işlevsel öğe kaybolmadı (15 kritik öğe tek tek arandı)
+- 14 kod denetimi + 25 sunucu test dosyası temiz
+
+## Güncelleme 114: Tam Test + On Beşinci Denetleyici
+
+Test edilebilen her şey test edildi.
+
+### Sonuç
+- **15 kod denetimi** temiz
+- **173 sunucu kontrolü** (26 test dosyası) geçti, düşen yok
+- **14 ekranın 50 işlevsel öğesi** yerinde
+- **12 adımlı uçtan uca akış** çalışıyor
+
+### Uçtan uca doğrulanan zincir
+```
+Yönetici iş açar → müşteri görür (iç brief gitmez) → revize ister →
+revize sekmesinde notuyla görünür → ekip tamamlar → müşteri onaylar →
+ORTAK onaylananı görür + dosya linkini alır → paylaşım planlar →
+Günlük Kontrol'e düşer → paylaşıldı işaretler → yönetici verisi bozulmaz
+```
+
+### On beşinci denetleyici
+`testler/ekrandenetle.py` — 14 ekranın olmazsa olmaz öğelerinin kodda var olduğunu doğrular.
+
+v113'te 29 paragraf konum bazlı silinmişti; yanlışlıkla işlevsel bir öğenin gitmesi mümkündü
+ve hiçbir denetleyici bunu göremezdi (kod yine geçerli olurdu). Artık her temizlikte güvenlik
+ağı var.
+
+### Test hatam
+"Veri kaybı freni eksik" alarmı verdi — metnin ortasında değişken olduğu için arama tutmamıştı.
+Uyarı tam ve sağlamdı; testin arama metni düzeltildi.
+
+### Test edemediğim
+Tarayıcıda tıklama. Kod düzeyinde varlık ve sunucu davranışı doğrulanabiliyor, ama bir düğmeye
+basınca ekranın gerçekten çizildiğini ancak sen görebilirsin.

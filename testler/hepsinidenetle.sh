@@ -17,6 +17,7 @@ python3 testler/musteriAlanDenetle.py                               > /dev/null 
 python3 testler/kapsamdenetle.py src/*.jsx                          > /dev/null && echo "✓ 12 kapsam dışı kullanım yok"
 python3 testler/olusetter.py src/*.jsx                              > /dev/null && echo "✓ 13 değiştirilemeyen durum yok"
 python3 testler/kullanimdenetle.py src/*.jsx api/*.js lib/*.js       > /dev/null && echo "✓ 14 yayılımda gelmeyen ad yok"
+python3 testler/ekrandenetle.py                                     > /dev/null && echo "✓ 15 ekran öğeleri yerinde"
 echo ""
 echo "── SUNUCU DENETİMLERİ ──"
 echo "(testler/ klasöründe: node t5.mjs … t11.mjs — sahte veritabanı kullanır, gerçek veriye dokunmaz)"

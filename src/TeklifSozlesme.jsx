@@ -279,9 +279,7 @@ function SonHaliDuzenleModal({ C, baslik, initialText, logoKendi, logoMusteri, k
           <h2 style={{ fontSize: 16.5, fontWeight: 700, color: C.text, margin: 0 }}>{baslik} — Son Hali</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><X size={18} color={C.textFaint} /></button>
         </div>
-        <p style={{ fontSize: 12.5, color: C.textFaint, lineHeight: 1.6, marginBottom: 12 }}>
-          Yazdırmadan önce metni istediğin gibi değiştirebilirsin. Logolar (varsa) çıktının üstünde, marka kimliği görseli (varsa) en altında otomatik yer alır.
-        </p>
+        
 
         {isSozlesme && (
           <div style={{ display: "flex", gap: 8, marginBottom: 12, position: "relative" }}>

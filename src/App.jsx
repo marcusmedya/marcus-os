@@ -259,9 +259,7 @@ function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, freelancerlar, onA
               );
             })}
           </div>
-          <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 10 }}>
-            "Tebliğ Oluştur" yeni bir pencerede resmi bir yazı açar ve yazdırma penceresini getirir — oradan "PDF olarak kaydet" seçeneğiyle dosya indirebilirsin.
-          </div>
+          
         </Card>
       )}
 
@@ -1356,9 +1354,7 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
         <KpiCard label="KDV TUTARI (%20)" value={fmt(live.kdvTutari)} mono accent={T.warning} />
         <KpiCard label="KDV DAHİL TOPLAM" value={fmt(live.kdvDahilToplamCiro)} mono />
       </div>
-      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 22 }}>
-        Faturalı Ciro (KDV Hariç) {fmt(live.faturaliCiro)} + Faturasız Ciro {fmt(live.faturasizCiro)} = Ciro (KDV Hariç) {fmt(live.ciro)}. KDV sadece faturalı kısım üzerinden hesaplanır ve resmi beyanname yerine geçmez, muhasebecinle teyit et.
-      </div>
+      
 
       <Card style={{ padding: "16px 20px", marginBottom: 16 }}>
         <SectionTitle>Faturalı İşler <span style={{ fontWeight: 400, opacity: 0.7 }}>— bu ciroyu oluşturanlar</span></SectionTitle>
@@ -2986,9 +2982,7 @@ function CekimListesi({ clients, stoklar, subeler, gecmis }) {
         </div>
       )}
 
-      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 12 }}>
-        Bir markanın (ya da şubesinin) TÜM türlerinin toplamı {ESIK} ve altına düşünce burada listelenir — en düşük toplamdan yükseğe sıralanır. Çekim yapıp Paylaşımlar sekmesinden stoğa ekleyince buradan otomatik kalkar.
-      </div>
+      
     </div>
   );
 }
@@ -3027,6 +3021,14 @@ function GunlukKontrol({ clients, haftalikPlan, onToggle, onYenile, role }) {
     const gunNo = String(d.getDate()).padStart(2, "0");
     return `${d.getFullYear()}-${ay}-${gunNo}`;
   };
+
+  /* TARİHSİZ KAYITLAR — haftaKey'i olmayan ya da bozuk olan plan kayıtları hiçbir güne
+   * düşemez. Normal akışta haftaKey her zaman yazılıyor, ama eski/elle bozulmuş bir kayıt
+   * varsa sessizce kaybolmasın diye ayrıca sayılıyor. */
+  const tarihsizler = useMemo(
+    () => (haftalikPlan || []).filter((k) => !planTarihi(k)),
+    [haftalikPlan],
+  );
 
   // Tarihe göre grupla
   const gunler = useMemo(() => {
@@ -3122,11 +3124,17 @@ function GunlukKontrol({ clients, haftalikPlan, onToggle, onYenile, role }) {
         </button>
       </div>
 
-      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 14, lineHeight: 1.7 }}>
-        Bu ekran <strong>Paylaşımlar &gt; Haftalık Paylaşım Planı</strong> ile aynı kayıtları gösterir —
-        ayrı bir liste değildir. Buradan işaretlediğin paylaşım plana da işlenir, planda işaretlediğin
-        burada yeşile döner.
-      </div>
+      
+
+      {tarihsizler.length > 0 && (
+        <Card style={{ padding: "12px 15px", marginBottom: 12, border: `1px solid ${T.warning}` }}>
+          <div style={{ fontSize: 12.5, color: T.textDim, fontFamily: "Inter", lineHeight: 1.7 }}>
+            <strong style={{ color: T.warning }}>{tarihsizler.length} plan kaydının tarihi okunamıyor.</strong>{" "}
+            Bu kayıtlar hiçbir günde görünmüyor. Paylaşımlar sekmesindeki Haftalık Plan'dan
+            silip yeniden ekleyerek düzeltebilirsin.
+          </div>
+        </Card>
+      )}
 
       {gunler.length === 0 && (
         <Card style={{ padding: "26px 22px", textAlign: "center" }}>
@@ -3416,9 +3424,7 @@ function Uyelikler({ uyelikler, onAdd, onUpdate, onDelete, personelRosteri, firm
         </div>
       )}
 
-      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 14 }}>
-        Bitiş tarihi geçen bir üyelik otomatik olarak "Pasif" sayılır ve Dashboard'daki Toplam Gider'den düşer. "Aktif Et"e basarsan (yenilediğinde), bitiş tarihi geçmiş olsa bile tekrar gidere dahil edilir — o zaman tarihi de güncellemen iyi olur.
-      </div>
+      
     </div>
   );
 }
@@ -3645,15 +3651,7 @@ function TebligSablonuKart({ firmaAdi, tebligSablonu, onSave }) {
   return (
     <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
       <SectionTitle>Tebliğ Şablonu</SectionTitle>
-      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
-        Müşteriler'deki "Tebliğ Oluştur" her tıklandığında bu şablon kullanılır (istersen o an ayrıca da düzenleyebilirsin).
-        Kullanabileceğin yer tutucular: <code style={{ background: T.surfaceRaised, padding: "1px 5px", borderRadius: 4 }}>{"{musteri}"}</code>{" "}
-        <code style={{ background: T.surfaceRaised, padding: "1px 5px", borderRadius: 4 }}>{"{aylikUcret}"}</code>{" "}
-        <code style={{ background: T.surfaceRaised, padding: "1px 5px", borderRadius: 4 }}>{"{ay}"}</code>{" "}
-        <code style={{ background: T.surfaceRaised, padding: "1px 5px", borderRadius: 4 }}>{"{toplamBakiye}"}</code>{" "}
-        <code style={{ background: T.surfaceRaised, padding: "1px 5px", borderRadius: 4 }}>{"{firma}"}</code>{" "}
-        <code style={{ background: T.surfaceRaised, padding: "1px 5px", borderRadius: 4 }}>{"{tarih}"}</code>
-      </p>
+      
       <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Firma Adı (yazının imzasında ve başlığında görünür)</label>
       <input value={ad} onChange={(e) => setAd(e.target.value)} style={{ ...inputStyle, marginBottom: 14 }} />
       <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Şablon Metni</label>
@@ -4118,9 +4116,7 @@ function KisiselSifrelerim({ sifreler, onAdd, onUpdate, onDelete }) {
 
       {acik && (
         <div style={{ marginTop: 14 }}>
-          <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 12 }}>
-            Bu bölüm marka/müşteri hesaplarından tamamen ayrı — kendi kişisel şifrelerini (e-posta, banka, kişisel hesaplar vb.) saklamak için. Personel bu kısmı hiçbir şekilde göremez.
-          </div>
+          
 
           {liste.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
@@ -4329,10 +4325,7 @@ function KasaSifresiKarti() {
   return (
     <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
       <SectionTitle>Şifre Kasası Şifresi</SectionTitle>
-      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 10 }}>
-        Şifre Kasası'na (müşteri sosyal medya girişleri) girerken artık kendi şifrenle değil, buradan belirlediğin
-        <strong> ayrı bir kasa şifresiyle</strong> doğrulama yapılıyor. Owner (site) şifren burada <strong>hiçbir zaman</strong> geçerli olmaz — aşağıdan bir kasa şifresi belirlemen gerekiyor.
-      </p>
+      
       {ayarlandiMi !== null && (
         <div style={{ fontSize: 12, fontFamily: "Inter", fontWeight: 600, color: ayarlandiMi ? T.success : T.warning, marginBottom: 14 }}>
           {ayarlandiMi ? "✅ Şu an özel bir kasa şifresi ayarlı — owner şifren artık kasa şifresi olarak kabul edilmiyor." : "⚠️ Şu an henüz özel bir kasa şifresi ayarlanmadı — kasa hâlâ owner şifrenle açılıyor."}
@@ -4402,9 +4395,7 @@ function IslemGecmisiKarti({ kayitlar }) {
 
       {acik && (
         <div>
-          <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12.5, color: T.textDim, lineHeight: 1.7, marginBottom: 12 }}>
-            Müşteri/personel/üyelik ekleme, silme ve durum değişiklikleri burada otomatik olarak listelenir — kim, ne zaman, neyi değiştirdi.
-          </p>
+          
           {liste.length > 0 && (
             <input type="text" placeholder="Kişi ya da işlem ara…" value={aramaMetni} onChange={(e) => setAramaMetni(e.target.value)} style={{ ...inputStyle, marginBottom: 12, fontSize: 12.5 }} />
           )}
@@ -4537,10 +4528,7 @@ function AylikRaporKarti({ marka, firmaAdi, logo, plan, reklamlar, isler, olcuml
   return (
     <Card style={{ padding: "16px 18px", marginBottom: 16 }}>
       <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 4 }}>Aylık Müşteri Raporu</div>
-      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 12, lineHeight: 1.6 }}>
-        Rapor sistemdeki verilerden otomatik üretilir. Açılan pencereden yazdırabilir ya da
-        <strong> PDF olarak kaydedip</strong> müşteriye gönderebilirsin.
-      </div>
+      
 
       <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
         <div style={{ minWidth: 150 }}><AySeciciAlan value={ay} onChange={setAy} /></div>
@@ -4608,10 +4596,7 @@ function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
   return (
     <Card style={{ padding: "16px 18px", marginBottom: 16 }}>
       <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter" }}>Müşteri Panelinde Ayrıca Görünenler</div>
-      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 4, lineHeight: 1.6 }}>
-        Bunlar Paylaşımlar, Reklamlar ve Operasyon sekmelerinden otomatik gelir — burada müşterinin gördüğü hâliyle listelenir.
-        Reklam bütçesi, personel adları ve iç notlar müşteriye <strong>gönderilmez</strong>.
-      </div>
+      
 
       <Bolum anahtar="plan" baslik="Paylaşım Takvimi (görsel + açıklama)" adet={yaklasanPlan.length}>
         {yaklasanPlan.length === 0 ? (
@@ -5153,11 +5138,7 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, reklamla
       <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 4 }}>
         Onayını Bekleyenler ({revizeler.length + onaylananlar.length + atanmamislar.length + eksikReklamlar.length})
       </div>
-      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 14, lineHeight: 1.6 }}>
-        Müşteriden gelen revize istekleri, onaylanmış çekim planları ve kimseye atanmamış işler.
-        Bir revize, Operasyon'daki kartı “Revize İstendi” aşamasından çıkınca — yani ekip
-        düzeltmeyi bitirip kontrole gönderince — buradan kendiliğinden düşer.
-      </div>
+      
 
       {revizeler.map((i) => (
         <div key={`rev-${i.id}`} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "11px 13px", marginBottom: 8 }}>
@@ -5560,11 +5541,7 @@ function GuvenlikDefteri() {
   return (
     <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
       <SectionTitle>Güvenlik Defteri</SectionTitle>
-      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 12 }}>
-        Girişler, başarısız giriş denemeleri, yedekten geri yüklemeler ve hesap/yetki değişiklikleri
-        burada kayıtlı. <strong>Veriyle birlikte geri yüklenmez</strong> — bir yedeğe dönsen bile bu
-        kayıtlar yerinde kalır. Son 500 işlem saklanır.
-      </p>
+      
       {!acik ? (
         <button style={cancelBtnStyle} onClick={() => { setAcik(true); yukle(); }}>Defteri Aç</button>
       ) : kayitlar === "yukleniyor" ? (
@@ -5598,11 +5575,7 @@ function SilinenlerKutusu({ silinenler, onGeriAl, onKaliciSil }) {
   return (
     <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
       <SectionTitle>Silinenler Kutusu</SectionTitle>
-      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
-        Sildiğin müşteri, operasyon işi, panel içeriği, personel, freelancer ve reklam kayıtları
-        buraya düşer ve <strong>30 gün</strong> saklanır. Yanlışlıkla sildiysen tek tıkla geri alırsın —
-        tüm veriyi yedekten geri yüklemene gerek kalmaz. Süre dolunca kendiliğinden temizlenir.
-      </p>
+      
 
       {liste.length === 0 ? (
         <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Kutu boş — silinmiş kayıt yok.</div>
@@ -5688,12 +5661,7 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
       </Card>
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Gizlilik Modu</SectionTitle>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
-          Uygulamadaki <strong>tüm ₺ tutarları</strong> "₺ •••" olarak gizlenir: ciro, kâr, maaşlar, bakiyeler, ücretler.
-          <strong> Varsayılan olarak açıktır</strong> — panel çoğu zaman başkalarının da görebileceği ortamlarda açıldığı için,
-          rakamları göstermek bilinçli bir hareket olsun diye. Üst çubuktaki <strong>göz simgesinden</strong> her ekrandan tek
-          tıkla açıp kapatabilirsin. Seçimin bu cihazda hatırlanır.
-        </p>
+        
         <button
           onClick={() => onToggleGizlilik(!gizlilikModu)}
           style={{
@@ -5708,9 +5676,7 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
       <IslemGecmisiKarti kayitlar={islemGecmisi} />
       <Card style={{ padding: "18px 22px" }}>
         <SectionTitle>Marka Kimliği</SectionTitle>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 12 }}>
-          Buraya yüklediğin görsel, oluşturduğun her teklifin ve sözleşmenin <strong>en altında</strong> otomatik olarak görünür — tekrar tekrar yüklemene gerek kalmaz.
-        </p>
+        
         <MarkaKimligiYukleyici value={markaKimligiGorseli} onChange={onSaveMarkaKimligi} />
       </Card>
       </>}
@@ -5718,30 +5684,18 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
       {ayarSekme === "veri" && <>
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Veri</SectionTitle>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
-          Müşteriler ve Finans bölümlerindeki tüm değişiklikler otomatik olarak kaydedilir. Sayfayı kapatıp
-          tekrar açtığında en son haliyle karşına çıkar.
-        </p>
+        
         <button style={addBtnStyle} onClick={onExport}><Plus size={13} style={{ transform: "rotate(45deg)" }} /> Finans verilerini CSV indir</button>
       </Card>
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Otomatik Yedekler</SectionTitle>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
-          Her kayıt işleminde (senin ya da personelin yaptığı — hepsi dahil) veri otomatik olarak yedeklenir:
-          <strong> günlük</strong> (son 30 gün) ve <strong>saatlik</strong> (son 48 saat). Saatlik yedekler sayesinde gün içinde
-          bir şey ters giderse günün başına dönmek zorunda kalmazsın. Bir geri yükleme yaptığında, o andaki verinin tam bir kopyası
-          otomatik olarak <strong>"Geri Yükleme Öncesi"</strong> sekmesine kaydedilir — yanlış yedeğe dönsen bile geri alabilirsin.
-        </p>
+        
         <YedekGecmisi />
       </Card>
       <VeriBoyutuKarti />
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Tam Yedek</SectionTitle>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
-          CSV sadece rapor amaçlıdır ve bazı detayları (müşteri maliyetleri, birikim fonu hareketleri gibi) içermez.
-          Her şeyin tam bir kopyasını almak için JSON yedek indir — istediğin an bu dosyadan geri yükleyebilirsin.
-          Ayda bir yedek almanı öneririz.
-        </p>
+        
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <button style={addBtnStyle} onClick={onExportJson}><Plus size={13} style={{ transform: "rotate(45deg)" }} /> Tam Yedek İndir (JSON)</button>
           <button style={cancelBtnStyle} onClick={() => fileInputRef.current && fileInputRef.current.click()}>Yedekten Geri Yükle</button>
@@ -5750,10 +5704,7 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
       </Card>
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>E-posta ile Otomatik Günlük Yedek</SectionTitle>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
-          Kurulunca her gün gece 03:00'te tam veri yedeğin otomatik olarak e-postana gönderilir — Upstash'ten tamamen
-          bağımsız bir yerde (senin e-posta kutunda) durur. Kurmak için:
-        </p>
+        
         <ol style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.9, paddingLeft: 18, marginBottom: 14 }}>
           <li><a href="https://resend.com" target="_blank" rel="noreferrer" style={{ color: T.accentText }}>resend.com</a>'da ücretsiz hesap aç</li>
           <li>API Keys'ten bir anahtar oluştur</li>
@@ -5768,22 +5719,12 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
       {ayarSekme === "guvenlik" && <>
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Şifre Koruması</SectionTitle>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, margin: 0 }}>
-          Bu paneli sadece senin açabilmen için Vercel projenin ortam değişkenlerine <code style={{ background: T.surfaceRaised, padding: "2px 6px", borderRadius: 5 }}>SITE_PASSWORD</code> ekleyip
-          istediğin şifreyi tanımlayabilirsin. Eklendiğinde site açılışta şifre soracak; eklenmediği sürece koruma
-          devre dışıdır.
-        </p>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, margin: 0 }}>Panel şifresi Vercel'de <strong>SITE_PASSWORD</strong> ile tanımlanır.</p>
       </Card>
       <Card style={{ padding: "18px 22px" }}>
         <SectionTitle>Personel Erişimi</SectionTitle>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 10 }}>
-          Ekibine, sadece <strong>Reklamlar</strong> ve <strong>Paylaşımlar</strong> sekmelerini görebilecekleri ayrı bir giriş verebilirsin —
-          müşteri, finans, personel gibi diğer hiçbir veriye erişemezler (sunucu seviyesinde engellenir).
-        </p>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, margin: 0 }}>
-          Kurmak için Vercel'de ortam değişkenlerine <code style={{ background: T.surfaceRaised, padding: "2px 6px", borderRadius: 5 }}>STAFF_PASSWORD</code> ekleyip
-          farklı bir şifre tanımla, sonra Redeploy et. Bu şifreyi ekibinle paylaş — kendi şifren (SITE_PASSWORD) ile girdiğinde her zaman tam panel açılır.
-        </p>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 10 }}>Ekibe ayrı giriş vermek için Vercel'de <strong>STAFF_PASSWORD</strong> tanımla.</p>
+        
       </Card>
       <GuvenlikDefteri />
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
@@ -5821,16 +5762,8 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
             </div>
           </div>
         )}
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 12 }}>
-          Şifren artık tarayıcıda hiç saklanmıyor — girişten sonra sadece süreli bir oturum anahtarı tutuluyor
-          (normal giriş 12 saat, "bu cihazı hatırla" seçilirse 30 gün). Tarayıcının şifreyi kaydedip otomatik
-          doldurması da kapatıldı.
-        </p>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 12 }}>
-          <strong>İki adımlı doğrulama:</strong> Vercel'de <code style={{ background: T.surfaceRaised, padding: "2px 6px", borderRadius: 5 }}>OWNER_EMAIL</code> ortam
-          değişkenine e-posta adresini yazarsan, her girişte o adrese 6 haneli kod gönderilir. Şifreni bilen biri
-          bile e-postana erişemeden giremez.
-        </p>
+        
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 12 }}>İki adımlı doğrulama için Vercel'de <strong>OWNER_EMAIL</strong> tanımla.</p>
         <TumCihazlardanCikisButonu />
       </Card>
       <KasaSifresiKarti />
@@ -5839,25 +5772,12 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
       {ayarSekme === "bildirim" && <>
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Sabah E-postasıyla AI Özeti</SectionTitle>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
-          Kurulunca her sabah 06:00'da, o günkü ciro/kâr durumunu ve — varsa — bekleyen ya da gecikmiş ödemeleri isim isim
-          özetleyen bir AI mesajı e-postana gelir. Yukarıdaki RESEND_API_KEY ve BACKUP_EMAIL zaten yeterli;
-          ek olarak Environment Variables'a <code style={{ background: T.surfaceRaised, padding: "1px 5px", borderRadius: 4 }}>ANTHROPIC_API_KEY</code> eklenmiş olması gerekiyor
-          (AI CEO sohbeti için daha önce aldığın anahtar).
-        </p>
+        
         <EmailYedekTest endpoint="/api/daily-summary" />
       </Card>
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Operasyon & Günlük Kontrol Hatırlatmaları</SectionTitle>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
-          Her gün akşam 18:00'de otomatik çalışır: teslim tarihi geçmiş ve "Teslim Edildi" olmayan Operasyon işleri için,
-          o işe atanan kişiye (kayıtlı e-postası varsa) hatırlatma gider — <strong>Video</strong> ve <strong>Grafik Tasarım</strong> işleri
-          e-postada ayrı ayrı başlıklar altında listelenir. Markalaşma süreçlerinde de, henüz tamamlanmamış görevi olan
-          markanın atanmış yöneticisine ayrı bir hatırlatma gider. Ayrıca o gün stokta içerik olduğu halde
-          henüz Günlük Kontrol'den paylaşılmamış görünen markalar varsa, bunların özeti sana (BACKUP_EMAIL) gider.
-          <strong> Ayrıca kime giderse gitsin, her hatırlatmanın bir kopyası (CC) otomatik olarak sana da gelir</strong> —
-          kimin ne aldığını her zaman görebilirsin. Ek bir kurulum gerekmiyor — yukarıdaki RESEND_API_KEY zaten yeterli.
-        </p>
+        
         <EmailYedekTest endpoint="/api/daily-reminders" />
       </Card>
       </>}
@@ -5867,20 +5787,13 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
         * aynı yerde durması, iki farklı sekmeye bakmak zorunda kalmandan daha anlaşılır. */}
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Müşteri Paneli Hesapları</SectionTitle>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, margin: 0 }}>
-          Müşteri giriş hesapları ve panele gönderdiğin içerikler artık sol menüdeki
-          <strong> Müşteri Paneli</strong> sekmesinde, tek bir yerde toplandı.
-        </p>
+        
       </Card>
       {/* PersonelHesaplariKart Personel > Hesaplar & Yetkiler'e taşındı — iki ayrı ekrandan
         * aynı hesapları düzenlemek karışıklık yaratırdı. */}
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Personel Hesapları ve Yetkileri</SectionTitle>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, margin: 0 }}>
-          Giriş hesapları, kullanıcı adı/şifre ve yetkiler artık sol menüdeki
-          <strong> Personel → Hesaplar & Yetkiler</strong> sekmesinde. Kişiyi işe alıp ücretini
-          girdiğin yerle hesabını açtığın yer aynı olsun diye taşındı.
-        </p>
+        
       </Card>
       </>}
 
@@ -5983,10 +5896,7 @@ function MusteriHesaplariKart({ clients }) {
   return (
     <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
       <SectionTitle>Müşteri Hesapları</SectionTitle>
-      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
-        Her markaya, sadece o markanın içeriklerini görüp onaylayabileceği/revize isteyebileceği ayrı bir kullanıcı adı/şifre verebilirsin.
-        Bu, personel ya da senin girişinle hiç karışmaz, tamamen izole bir panele açılır.
-      </p>
+      
 
       {hesaplar === null ? (
         <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Yükleniyor…</div>
@@ -6100,15 +6010,7 @@ function StaffPermissionsKarti({ izinler, onDegis, ortakSifreAktif }) {
         </button>
 
         {acik && <>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, margin: "14px 0" }}>
-          Bu ayar yalnızca <strong>ortak personel şifresiyle</strong> girenler için geçerlidir.
-          Yukarıdaki listede kişisel hesabı olan herkesin kendi <strong>Yetkiler</strong> paneli
-          vardır ve o, buradaki ayarın yerine geçer.
-          <br /><br />
-          Kapalı olan hiçbir sekme gözükmez — hem arayüzden gizlenir hem de sunucu seviyesinde
-          engellenir, yani izin vermediğin veriyi tarayıcılarına hiç göndermeyiz.
-          <strong> Ayarlar sekmesi hiçbir zaman personele açılmaz.</strong>
-        </p>
+        
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {STAFF_IZIN_LISTESI.map((m) => (
             <label key={m.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: T.surfaceRaised, borderRadius: 10, cursor: "pointer" }}>
@@ -6235,11 +6137,7 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
   return (
     <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
       <SectionTitle>Personel Hesapları</SectionTitle>
-      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
-        Her ekip üyesine kendi kullanıcı adı, şifresi, e-postası ve <strong>kendine özel yetkileri</strong> olan ayrı bir hesap verebilirsin.
-        Bir isme "Yetkiler" panelinden verdiğin izinler, CEO Paneli'ndeki genel ayarların yerine geçer — yani her kişiyi istediğin gibi farklılaştırabilirsin.
-        E-posta girersen, Operasyon'da o kişiye bir iş atandığında otomatik bildirim e-postası gider.
-      </p>
+      
 
       {hesaplar === null && <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Yükleniyor…</div>}
 
@@ -6631,9 +6529,7 @@ function BackupReminder({ onBackupNow, onDismiss }) {
           <PiggyBank size={20} color={T.warning} />
         </div>
         <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16.5, fontWeight: 600, color: T.text, margin: "0 0 8px" }}>Yedek alma zamanı</h2>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.6, margin: "0 0 20px" }}>
-          Verilerini düzenli yedeklemen için hatırlatıyoruz. Tek tıkla tam bir yedek indirebilirsin — bu, bilgisayarına iner ve verinin ekstra bir güvenli kopyası olur.
-        </p>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.6, margin: "0 0 20px" }}>Tek tıkla tam yedek indirebilirsin.</p>
         <button onClick={onBackupNow} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", padding: "11px 12px", marginBottom: 10 }}>
           <Plus size={13} style={{ transform: "rotate(45deg)" }} /> Şimdi Yedek Al
         </button>
@@ -6654,9 +6550,7 @@ function TebligDuzenleModal({ initialText, client, firmaAdi, onClose }) {
           <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16.5, fontWeight: 600, color: T.text, margin: 0 }}>Tebliğ Metnini Düzenle</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><X size={18} color={T.textFaint} /></button>
         </div>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12.5, color: T.textFaint, lineHeight: 1.6, marginBottom: 12 }}>
-          {client.ad} için oluşturulan metni burada serbestçe değiştirebilirsin. Genel şablonu (bundan sonraki tüm tebliğlerin başlangıcını) değiştirmek istersen Ayarlar &gt; Tebliğ Şablonu'na bak.
-        </p>
+        
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -7690,7 +7584,9 @@ export default function MarcusOS() {
 
   const degistirStok = (clientId, marka, tur, delta) => paylasimIstek({ action: "stokDegistir", clientId, tur, delta }, "Bağlantı hatası — stok güncellenemedi, tekrar dene.");
 
-  const toggleGunlukKontrol = (clientId, tur) => paylasimIstek({ action: "gunlukToggle", clientId, tur }, "Bağlantı hatası — işaretlenemedi, tekrar dene.");
+  /* toggleGunlukKontrol KALDIRILDI (v109): Günlük Kontrol artık haftalık plandan besleniyor
+   * ve işaretleme haftalikToggle üzerinden yapılıyor. Sunucudaki gunlukToggle işlemi duruyor —
+   * paylasimGecmisi ve stok düşümünü o yönetiyor, haftalikToggle da onu çağırıyor. */
 
   const addHaftalikPlan = (clientId, gun, haftaKey, tur) => paylasimIstek({ action: "haftalikEkle", clientId, gun, haftaKey, tur }, "Bağlantı hatası — plan eklenemedi, tekrar dene.");
   /** Planlanan paylaşımın alt metni (caption) — müşteri panelinde gösterilir. */
