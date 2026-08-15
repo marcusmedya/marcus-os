@@ -2196,3 +2196,27 @@ Artık buton:
 3. **O içeriğin düzenleme formunu açar** — link, açıklama, görsel hepsi dolu gelir
 
 Aynı içeriğe ikinci kez tıklandığında da çalışır (her tıklama ayrı bir hedef damgası taşır).
+
+## Güncelleme 96: Aktarılan Kartta Dosya Bağlantısı Boş Geliyordu
+
+Planım'dan bir revizeyi Operasyon'a aktarınca kart açılıyordu ama **dosya bağlantısı boştu**.
+Editör kartı açıyor, neyi düzelteceğini göremiyordu.
+
+**Sebep:** Aktarım yalnızca `referansLink` alanına bakıyordu — o alan ise **sadece çekim
+planlarında** dolu. Görsel ve Reels içeriklerinde dosya `driveLinki` alanında duruyor ve hiç
+kopyalanmıyordu.
+
+**Düzeltme:** Artık hangi alanda varsa oradan alınıyor. Video yönü de taşınıyor, böylece
+oynatıcı çerçevesi doğru şekilleniyor (dikey Reels yanlarda siyah bant almıyor).
+
+### Mevcut işin dosyası korunuyor
+Zaten bağlı bir iş varsa ve o işin dosyası doluysa **dokunulmuyor**. Ekibin yüklediği güncel
+dosyanın üzerine içerikteki eski bağlantıyı yazmak veri kaybı olurdu. Yalnızca boşsa
+dolduruluyor.
+
+### "Çekildi" düğmesi de düzeltildi
+Çekim planından oluşturulan kartta referans video artık **Ham Dosya** alanına yazılıyor —
+çekim yeni yapıldığı için editli dosya henüz yok, ama editör neye bakarak çalışacağını görüyor.
+
+Altı senaryo doğrulandı: görsel revizesi, video revizesi, çekim planı referansı, dosyasız
+içerik, mevcut dosyanın korunması ve boş işin doldurulması.

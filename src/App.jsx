@@ -7127,6 +7127,9 @@ export default function MarcusOS() {
         icerik.konusmaMetni ? `\nKONUŞMA METNİ:\n${icerik.konusmaMetni}` : "",
         icerik.cekimNotu ? `\nÇEKİM NOTU:\n${icerik.cekimNotu}` : "",
       ].filter(Boolean).join("\n"),
+      /* Plandaki referans video ham dosya alanına konur — çekim henüz yapıldı, editli dosya
+       * yok. Editör kartı açtığında neye bakarak çalışacağını görür. */
+      hamDosyaLink: icerik.referansLink || icerik.driveLinki || "",
       editliDosyaLink: "",
       gecmis: [{ id: 1, tarih: zaman, yazan: "Yönetici (CEO)", aciklama: "Çekim yapıldı — plandan otomatik oluşturuldu." }],
       yorumlar: [],
@@ -7397,12 +7400,17 @@ export default function MarcusOS() {
         musteriIcerikleri: (d.musteriIcerikleri || []).map((i) => (i.id === icerikId ? { ...i, operasyonaAktarildi: true } : i)),
         cekimIsleri: isler.map((j) => {
           if (j.id !== icerik.kaynakIsId) return j;
+          const icerikDosyasi = icerik.driveLinki || icerik.referansLink || "";
           return {
             ...j,
             asama: asama || "Revize İstendi",
             kameraman: kameraman || j.kameraman,
             editor: editor || j.editor,
             teslimTarihi: teslimTarihi || j.teslimTarihi,
+            // İşin dosyası boşsa içerikteki bağlantıyla doldurulur; doluysa DOKUNULMAZ —
+            // ekibin yüklediği güncel dosyanın üzerine yazmak veri kaybı olurdu.
+            editliDosyaLink: j.editliDosyaLink || icerikDosyasi,
+            videoYonu: j.videoYonu || icerik.videoYonu || "dikey",
             gecmis: [...(j.gecmis || []), { id: (j.gecmis || []).length + 1, tarih: zaman, yazan: "Yönetici (CEO)", aciklama: notMetni }],
           };
         }),
@@ -7433,7 +7441,13 @@ export default function MarcusOS() {
         icerik.konusmaMetni ? `\nKONUŞMA METNİ:\n${icerik.konusmaMetni}` : "",
         icerik.cekimNotu ? `\nÇEKİM NOTU:\n${icerik.cekimNotu}` : "",
       ].filter(Boolean).join("\n"),
-      editliDosyaLink: icerik.referansLink || "",
+      /* DOSYA BAĞLANTISI — eskiden yalnızca referansLink'e bakılıyordu, o da sadece çekim
+       * planlarında dolu. Görsel/Reels revizelerinde dosya driveLinki alanında durduğu için
+       * aktarılan kart BOŞ geliyordu: editör kartı açıyor, neyi düzelteceğini göremiyordu.
+       * Artık hangi alanda varsa oradan alınır. */
+      editliDosyaLink: icerik.driveLinki || icerik.referansLink || "",
+      // Oynatıcı çerçevesi doğru şekillensin diye video yönü de taşınır.
+      videoYonu: icerik.videoYonu || "dikey",
       gecmis: [{ id: 1, tarih: zaman, yazan: "Yönetici (CEO)", aciklama: notMetni }],
       yorumlar: [],
     };
