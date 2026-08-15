@@ -5824,22 +5824,11 @@ function MusteriHesaplariKart({ clients }) {
  */
 /* Bu kart yalnızca ortak personel şifresi tanımlıyken render edilir (bkz. çağrıldığı yer),
  * o yüzden içeride ayrıca "aktif mi" kontrolü yok. */
-function StaffPermissionsKarti({ izinler, onDegis }) {
-  return (
-      <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
-        <SectionTitle>Genel Yetkiler (ortak personel şifresi)</SectionTitle>
+/* İzin listesi modül seviyesinde: hem kartın içinde çizilirken hem de başlıktaki
+ * "kaç açık" sayımında kullanılıyor. İki yerde ayrı ayrı tanımlansaydı biri güncellenip
+ * diğeri unutulduğunda sayı gerçekle uyuşmazdı. */
+const STAFF_IZIN_LISTESI = [
 
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
-          Bu ayar yalnızca <strong>ortak personel şifresiyle</strong> girenler için geçerlidir.
-          Yukarıdaki listede kişisel hesabı olan herkesin kendi <strong>Yetkiler</strong> paneli
-          vardır ve o, buradaki ayarın yerine geçer.
-          <br /><br />
-          Kapalı olan hiçbir sekme gözükmez — hem arayüzden gizlenir hem de sunucu seviyesinde
-          engellenir, yani izin vermediğin veriyi tarayıcılarına hiç göndermeyiz.
-          <strong> Ayarlar sekmesi hiçbir zaman personele açılmaz.</strong>
-        </p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {[
             { key: "dashboard", label: "Dashboard", varsayilan: false },
             { key: "musteriler", label: "Müşteriler", varsayilan: false },
             { key: "finans", label: "Finans", varsayilan: false },
@@ -5856,7 +5845,49 @@ function StaffPermissionsKarti({ izinler, onDegis }) {
             { key: "uyelikler", label: "Üyelikler (abonelikler)", varsayilan: false },
             { key: "musteriAkisi", label: "İçerik Akışı (müşteri onay durumları — salt okunur)", varsayilan: false },
             { key: "sifreKasasi", label: "Şifre Kasası (yine de her girişte owner şifresi ister)", varsayilan: false },
-          ].map((m) => (
+];
+
+function StaffPermissionsKarti({ izinler, onDegis, ortakSifreAktif }) {
+  const [acik, setAcik] = useState(false);
+
+  /* Başlıkta kaç iznin açık olduğu yazar — kartı açmadan durumu görmek için. Sayım, listedeki
+   * anahtarların varsayılanlarıyla birlikte yapılır; yoksa hiç dokunulmamış bir izin "kapalı"
+   * sayılır ve rakam yanlış çıkardı. */
+  const sayim = STAFF_IZIN_LISTESI.reduce((n, m) => {
+    const deger = izinler[m.key] !== undefined ? izinler[m.key] === true : m.varsayilan;
+    return deger ? n + 1 : n;
+  }, 0);
+
+  return (
+      <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+        <button
+          onClick={() => setAcik((v) => !v)}
+          style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
+        >
+          <span style={{ minWidth: 0 }}>
+            <span style={{ display: "block", fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: T.text }}>
+              Genel Yetkiler (ortak personel şifresi)
+            </span>
+            <span style={{ display: "block", fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 3 }}>
+              {sayim} açık · {STAFF_IZIN_LISTESI.length - sayim} kapalı
+              {ortakSifreAktif === false ? " · ortak şifre tanımlı değil, şu an kullanılmıyor" : ""}
+            </span>
+          </span>
+          <span style={{ color: T.textDim, fontSize: 12, flexShrink: 0 }}>{acik ? "Kapat ▲" : "Aç ▼"}</span>
+        </button>
+
+        {acik && <>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, margin: "14px 0" }}>
+          Bu ayar yalnızca <strong>ortak personel şifresiyle</strong> girenler için geçerlidir.
+          Yukarıdaki listede kişisel hesabı olan herkesin kendi <strong>Yetkiler</strong> paneli
+          vardır ve o, buradaki ayarın yerine geçer.
+          <br /><br />
+          Kapalı olan hiçbir sekme gözükmez — hem arayüzden gizlenir hem de sunucu seviyesinde
+          engellenir, yani izin vermediğin veriyi tarayıcılarına hiç göndermeyiz.
+          <strong> Ayarlar sekmesi hiçbir zaman personele açılmaz.</strong>
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {STAFF_IZIN_LISTESI.map((m) => (
             <label key={m.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: T.surfaceRaised, borderRadius: 10, cursor: "pointer" }}>
               <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{m.label}</span>
               <input
@@ -5868,6 +5899,7 @@ function StaffPermissionsKarti({ izinler, onDegis }) {
             </label>
           ))}
         </div>
+        </>}
       </Card>
   );
 }
@@ -8533,20 +8565,18 @@ export default function MarcusOS() {
               hesaplarKarti={
                 <>
                   <PersonelHesaplariKart onRosterChange={loadData} clients={data.clients || []} />
-                  {/* GENEL YETKİLER yalnızca ortak personel şifresi (STAFF_PASSWORD) tanımlıysa
-                    * görünür. Tanımlı değilken kimse o yolla giremediği için kart hiçbir işe
-                    * yaramıyor ve sadece kafa karıştırıyordu. Silmedik: ileride ortak şifre
-                    * tanımlanırsa kart kendiliğinden geri gelir ve ayarlanabilir olur —
-                    * aksi halde ayarsız, varsayılan izinlerle çalışan bir giriş yolu kalırdı. */}
-                  {guvenlikDurumu && guvenlikDurumu.ortakSifreAktif === true && (
+                  {/* GENEL YETKİLER katlanabilir ve KAPALI başlar: yalnızca ortak personel
+                    * şifresiyle girenleri ilgilendiriyor, o yüzden her açılışta 17 satırlık
+                    * bir liste olarak yer kaplamasının anlamı yok. Başlıkta kaç iznin açık
+                    * olduğu yazıyor, açmadan da durumu görüyorsun. */}
                   <StaffPermissionsKarti
+                    ortakSifreAktif={guvenlikDurumu ? guvenlikDurumu.ortakSifreAktif : undefined}
                     izinler={data.staffPermissions || {}}
                     /* Mevcut updateStaffPermissions kullanılıyor — kaydetme yolu tek olsun.
                      * Ayrı bir setData yazmak, ileride o fonksiyona eklenecek bir davranışın
                      * (doğrulama, günlüğe yazma) burada eksik kalmasına yol açardı. */
                     onDegis={(k, v) => updateStaffPermissions({ ...(data.staffPermissions || {}), [k]: v })}
                   />
-                  )}
                 </>
               }
               personel={data.personel || []}

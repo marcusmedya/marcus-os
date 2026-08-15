@@ -2412,3 +2412,26 @@ ayarlayabilirsin.
 - Ortak şifre yokken kişisel hesap girişi çalışıyor
 - Yönetici girişi etkilenmedi
 - Ortak şifre tanımlanırsa yol ve kart yeniden devreye giriyor
+
+## Güncelleme 105: Genel Yetkiler Katlanabilir Oldu
+
+Kart gizlenmek yerine **katlanabilir** yapıldı ve **kapalı başlıyor**. Başlıkta durumu
+açmadan görüyorsun:
+
+```
+Genel Yetkiler (ortak personel şifresi)
+4 açık · 13 kapalı · ortak şifre tanımlı değil, şu an kullanılmıyor
+Aç ▼
+```
+
+17 satırlık liste artık her açılışta yer kaplamıyor; gerektiğinde tek tıkla açılıyor.
+
+### Sayım varsayılanları hesaba katıyor
+Hiç dokunulmamış bir izin "kapalı" sayılsaydı rakam gerçekle uyuşmazdı — bazı izinler (Reklamlar,
+Paylaşımlar, Operasyon, Marka Yöneticisi) varsayılan olarak **açık**. Sayım bunu hesaba
+katıyor; beş senaryo doğrulandı.
+
+### İzin listesi tek yerde
+Liste artık modül seviyesinde bir sabit. Hem kartın içinde çizilirken hem başlıktaki sayımda
+aynı liste kullanılıyor — iki ayrı kopya olsaydı biri güncellenip diğeri unutulduğunda sayı
+yanlış çıkardı.
