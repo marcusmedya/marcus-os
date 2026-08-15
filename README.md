@@ -1945,3 +1945,25 @@ pencereye hiç aktarılmıyordu. Şimdi aktarılıyor.
 Müşteri Paneli sekmesindeki "bağlanamayan kartlar" uyarısında, yazımı farklı ama aynı markayı
 kasteden kartların yanında artık bir düğme var: **"Kanatçı Diren olarak düzelt"**. Tek tıkla
 kartın markası müşteri kaydındaki yazımla eşitleniyor.
+
+## Güncelleme 87: Hazır İçerikler Müşteriye Ulaşmıyordu
+
+Sunucu, Kontrol Bekliyor'daki kartları müşteri paneline **gönderiyordu** — ama arayüz onları
+almıyordu. Sekme görünüyor, içi boş kalıyordu.
+
+**Sebep:** Müşteri giriş yanıtı arayüzde **alan alan kopyalanıyordu**. Sunucuya yeni bir alan
+eklendiğinde bu listeye de eklenmezse, alan sessizce düşüyor. Hata çıkmıyor, uyarı çıkmıyor —
+özellik sadece "çalışmıyor" görünüyor.
+
+**Bu aynı hatanın ikinci tekrarıydı.** İlkinde reklamlar ve paylaşım planı aynı şekilde
+düşmüştü.
+
+### Kalıcı çözüm
+Arayüz artık yanıtın **tamamını** alıyor, tek tek kopyalamıyor. Sunucuya eklenen her yeni alan
+kendiliğinden geçiyor. Bu güvenli, çünkü sunucu zaten müşteriye yalnızca göstermesi gereken
+alanları gönderiyor — alanlar orada tek tek seçiliyor.
+
+### On birinci denetleyici
+`testler/musteriAlanDenetle.py` — sunucunun müşteriye gönderdiği alanların arayüzde gerçekten
+okunabildiğini doğrular. Alan alan kopyalamaya geri dönülürse, düşen alanı adıyla bildirir.
+Bozuk hâliyle test edildi, yakalıyor.

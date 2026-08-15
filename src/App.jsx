@@ -6243,13 +6243,18 @@ export default function MarcusOS() {
           // Sunucudan gelen TÜM müşteri alanları alınır. Eskiden burada sadece dört alan
           // tek tek kopyalanıyordu, bu yüzden sunucu reklamları/planı/operasyon işlerini
           // gönderse bile tarayıcı onları sessizce atıyordu.
+          /* SUNUCU YANITININ TAMAMI ALINIR — alan alan kopyalanmaz.
+           *
+           * Bu satır iki kez hataya yol açtı: sunucuya yeni bir alan eklendiğinde (önce
+           * reklamlar/paylasimPlani, sonra hazirIcerikler) burada kopyalanmadığı için alan
+           * SESSİZCE düşüyor ve "özellik çalışmıyor" gibi görünüyordu. Artık yanıtın tamamı
+           * alınıyor; sunucu zaten müşteriye yalnızca göstermesi gereken alanları gönderiyor
+           * (bkz. api/data.js müşteri GET — alanlar tek tek seçiliyor). */
+          const { ok, role: _rol, ...musteriYanit } = res;
           setMusteriData({
-            musteriAd: res.musteriAd,
-            marka: res.marka,
-            firmaAdi: res.firmaAdi,
+            ...musteriYanit,
             icerikler: res.icerikler || [],
-            markaLogo: res.markaLogo || null,
-            ajansLogo: res.ajansLogo || null,
+            hazirIcerikler: res.hazirIcerikler || [],
             reklamlar: res.reklamlar || [],
             paylasimPlani: res.paylasimPlani || [],
             operasyonIsleri: res.operasyonIsleri || [],
