@@ -4429,7 +4429,7 @@ function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
  * Daha önce bunlar iki ayrı yere dağılmıştı (içerikler müşteri detayında, hesaplar
  * Ayarlar'da) ve müşteri detayı zaten kalabalık olduğu için içerik bölümü kayboluyordu.
  */
-function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, onOnayla, onBildir, onCekildi, plan, reklamlar, isler, onAltMetin, firmaAdi, logo, olcumler }) {
+function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, onOnayla, onBildir, onCekildi, onMarkaDuzelt, plan, reklamlar, isler, onAltMetin, firmaAdi, logo, olcumler }) {
   const [secili, setSecili] = useState(null);
 
   const aktifler = (clients || []).filter((c) => c.durum !== "ayrildi");
@@ -4475,11 +4475,23 @@ function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, 
             Operasyon'da kartın markasını düzelt ya da o markayı Müşteriler'e ekle.
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            {bagsizKartlar.map((j) => (
-              <div key={j.id} style={{ fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", color: T.text, background: T.surfaceRaised, borderRadius: 7, padding: "6px 10px" }}>
-                {j.marka || "— marka boş —"} · {j.icerikTuru || "adsız"}
-              </div>
-            ))}
+            {bagsizKartlar.map((j) => {
+              // Yazımı farklı ama aynı markayı kastediyorsa tek tıkla düzeltilebilsin.
+              const benzer = (clients || []).find((c) => markaAnahtari(c.ad) === markaAnahtari(j.marka));
+              return (
+                <div key={j.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", color: T.text, background: T.surfaceRaised, borderRadius: 7, padding: "6px 10px" }}>
+                  <span>{j.marka || "— marka boş —"} · {j.icerikTuru || "adsız"}</span>
+                  {benzer && onMarkaDuzelt && (
+                    <button
+                      onClick={() => { if (window.confirm(`Bu kartın markası "${benzer.ad}" olarak düzeltilecek. Devam edilsin mi?`)) onMarkaDuzelt(j.id, benzer.ad); }}
+                      style={{ background: T.accentSoft, color: T.accentText, border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif", whiteSpace: "nowrap" }}
+                    >
+                      {benzer.ad} olarak düzelt
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </Card>
       )}
@@ -7996,6 +8008,7 @@ export default function MarcusOS() {
               onOnayla={yoneticiOnayla}
               onBildir={musteriyeIcerikBildir}
               onCekildi={cekimYapildiIsaretle}
+              onMarkaDuzelt={(isId, yeniMarka) => updateCekimIsi(isId, { marka: yeniMarka })}
               plan={data.haftalikPaylasimlar || []}
               reklamlar={data.reklamlar || []}
               isler={data.cekimIsleri || []}

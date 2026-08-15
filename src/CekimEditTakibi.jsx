@@ -332,6 +332,54 @@ function PersonelSecici({ value, onChange, personelRosteri }) {
   );
 }
 
+/**
+ * MARKA SEÇİCİ
+ *
+ * Marka eskiden serbest metindi. İşler markayı METİN olarak tuttuğu ve müşteri paneline
+ * düşme kararı bu metnin müşteri kaydıyla eşleşmesine bağlı olduğu için, tek bir yazım farkı
+ * ("KANATÇI DIREN", çift boşluk, Türkçe karakter yazılmaması) kartın müşteriye hiç
+ * gitmemesine yol açıyordu — sessizce.
+ *
+ * Artık listeden seçiliyor: yazım farkı doğması mümkün değil. Müşteri olmayan işler için
+ * "Diğer" seçeneği duruyor, o zaman serbest metin alanı açılıyor.
+ */
+function MarkaSeciciAlan({ clients, deger, onDegis }) {
+  const adlar = (clients || []).map((c) => c.ad);
+  const listedeVar = adlar.some((a) => a === deger);
+  const [serbest, setSerbest] = useState(!!deger && !listedeVar);
+
+  return (
+    <div>
+      <label style={labelStyle}>Marka</label>
+      <select
+        style={inputStyle}
+        value={serbest ? "__diger__" : (deger || "")}
+        onChange={(e) => {
+          if (e.target.value === "__diger__") { setSerbest(true); onDegis(""); }
+          else { setSerbest(false); onDegis(e.target.value); }
+        }}
+      >
+        <option value="">— Marka seç —</option>
+        {adlar.map((a) => <option key={a} value={a}>{a}</option>)}
+        <option value="__diger__">Diğer (elle yaz)</option>
+      </select>
+      {serbest && (
+        <input
+          style={{ ...inputStyle, marginTop: 6 }}
+          value={deger || ""}
+          placeholder="Marka adını yaz"
+          onChange={(e) => onDegis(e.target.value)}
+        />
+      )}
+      {serbest && (
+        <div style={{ fontSize: 11, color: C.warning, marginTop: 4, fontFamily: "Inter, sans-serif", lineHeight: 1.5 }}>
+          Bu marka müşteri listende yok — bu kart müşteri paneline düşmez.
+        </div>
+      )}
+    </div>
+  );
+}
+
 function YeniIsFormu({ clients, personelRosteri, varsayilanKategori, onSubmit, onCancel }) {
   const [v, setV] = useState({
     kategori: varsayilanKategori || "Video",
@@ -355,7 +403,7 @@ function YeniIsFormu({ clients, personelRosteri, varsayilanKategori, onSubmit, o
         ))}
       </div>
       <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-        <div><label style={labelStyle}>Marka</label><input list="marka-listesi" style={inputStyle} value={v.marka} onChange={(e) => set("marka", e.target.value)} /></div>
+        <MarkaSeciciAlan clients={clients} deger={v.marka} onDegis={(x) => set("marka", x)} />
         <div><label style={labelStyle}>İçerik / Talep Türü</label><input style={inputStyle} placeholder={video ? "örn. Reels, Ürün Fotoğrafı" : "örn. Post Tasarımı, Banner"} value={v.icerikTuru} onChange={(e) => set("icerikTuru", e.target.value)} /></div>
         {video && <div><label style={labelStyle}>Çekim Tarihi</label><input type="date" style={inputStyle} value={v.cekimTarihi} onChange={(e) => set("cekimTarihi", e.target.value)} /></div>}
         <div><label style={labelStyle}>Teslim Tarihi</label><input type="date" style={inputStyle} value={v.teslimTarihi} onChange={(e) => set("teslimTarihi", e.target.value)} /></div>
@@ -384,7 +432,7 @@ function YeniIsFormu({ clients, personelRosteri, varsayilanKategori, onSubmit, o
 /* ------------------------------------------------------------------ */
 /* İş Detay Modalı                                                       */
 /* ------------------------------------------------------------------ */
-function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate, onDelete, kilitleyen, markaYoneticisiMi, firmaAdi, ucretDetayi, onSaveUcretDetayi }) {
+function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose, onUpdate, onDelete, kilitleyen, markaYoneticisiMi, firmaAdi, ucretDetayi, onSaveUcretDetayi }) {
   const [yorum, setYorum] = useState("");
   const [revizeMetni, setRevizeMetni] = useState("");
   const [revizeAciliyor, setRevizeAciliyor] = useState(false);
@@ -529,7 +577,7 @@ function IsDetayModal({ job, role, staffName, personelRosteri, onClose, onUpdate
               ))}
             </div>
             <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-              <div><label style={labelStyle}>Marka</label><input style={inputStyle} value={taslak.marka} onChange={(e) => setTaslak((s) => ({ ...s, marka: e.target.value }))} /></div>
+              <MarkaSeciciAlan clients={clients} deger={taslak.marka} onDegis={(x) => setTaslak((s) => ({ ...s, marka: x }))} />
               <div><label style={labelStyle}>İçerik Türü</label><input style={inputStyle} value={taslak.icerikTuru} onChange={(e) => setTaslak((s) => ({ ...s, icerikTuru: e.target.value }))} /></div>
               {taslak.kategori !== "Grafik Tasarım" && <div><label style={labelStyle}>Çekim Tarihi</label><input type="date" style={inputStyle} value={taslak.cekimTarihi} onChange={(e) => setTaslak((s) => ({ ...s, cekimTarihi: e.target.value }))} /></div>}
               <div><label style={labelStyle}>Teslim Tarihi</label><input type="date" style={inputStyle} value={taslak.teslimTarihi} onChange={(e) => setTaslak((s) => ({ ...s, teslimTarihi: e.target.value }))} /></div>
@@ -1458,6 +1506,7 @@ export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, 
       {acikIs && (
         <IsDetayModal
           job={isler.find((j) => j.id === acikIs.id) || acikIs}
+          clients={clients}
           role={role}
           staffName={staffName}
           personelRosteri={personelRosteri}

@@ -1924,3 +1924,24 @@ tanımlamayı atladım — sayfa açılır açılmaz çökerdi. Dokuz denetleyic
 
 `testler/degiskendenetle.py` eklendi: JSX içinde kullanılan ama hiçbir yerde bildirilmemiş
 adları bulur. Dokuz temiz dosyada yanlış alarm vermiyor, bozuk hâli yakalıyor.
+
+## Güncelleme 86: Marka Artık Listeden Seçiliyor
+
+Operasyon'da marka alanı **serbest metindi**. Bir önceki güncellemedeki "kart müşteri paneline
+düşmüyor" sorununun kaynağı buydu: tek bir yazım farkı (büyük I, çift boşluk, Türkçe karakter
+yazılmaması) eşleşmeyi kırıyordu.
+
+**Artık listeden seçiliyor.** Hem yeni iş formunda hem düzenleme penceresinde. Yazım farkı
+doğması artık mümkün değil — sorun kaynağında çözüldü.
+
+Müşteri listesinde olmayan işler için **"Diğer (elle yaz)"** seçeneği duruyor. Seçilince
+serbest metin alanı açılıyor ve altında uyarı çıkıyor: *"Bu marka müşteri listende yok — bu
+kart müşteri paneline düşmez."* Yani elle yazmak hâlâ mümkün, ama sonucu artık sürpriz değil.
+
+Düzenleme penceresinde marka alanı zaten **hiçbir öneri sunmuyordu**; müşteri listesi o
+pencereye hiç aktarılmıyordu. Şimdi aktarılıyor.
+
+### Eski kartlar için tek tıkla düzeltme
+Müşteri Paneli sekmesindeki "bağlanamayan kartlar" uyarısında, yazımı farklı ama aynı markayı
+kasteden kartların yanında artık bir düğme var: **"Kanatçı Diren olarak düzelt"**. Tek tıkla
+kartın markası müşteri kaydındaki yazımla eşitleniyor.
