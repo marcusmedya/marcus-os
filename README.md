@@ -1888,3 +1888,39 @@ Zaten bağlı bir iş varsa ikinci kart açılmaz, mevcut iş ilerletilir. İşa
 Yeni test dosyası `testler/t14.mjs` — 11 kontrol: aşama süzmesi, marka süzmesi, dosyasız kart,
 gizli alan sızıntısı, onay/revize sonrası aşama, listeden düşme ve iki yetkisiz erişim denemesi.
 Hepsi geçiyor.
+
+## Güncelleme 85: Marka Adı Eşleşmesi — Kartların Müşteri Paneline Düşmemesi
+
+Kontrol Bekliyor'daki bazı kartlar (Kanatçı Diren) müşteri paneline düşmüyordu.
+
+**Sebep:** İşler markayı **metin olarak** tutuyor ve müşteri kaydıyla birebir eşleşmesi
+gerekiyordu. Test edince üç yazım farkının eşleşmeyi kırdığı görüldü:
+
+| Yazım | Sonuç (eski) |
+|---|---|
+| `KANATÇI DIREN` (büyük İ yerine I) | ✗ eşleşmiyor |
+| `Kanatçı  Diren` (çift boşluk) | ✗ eşleşmiyor |
+| `Kanatci Diren` (Türkçe karakter yok) | ✗ eşleşmiyor |
+
+Büyük I sorunu Türkçeye özgü: `I` küçültülünce `ı` olur, `İ` küçültülünce `i`. Yani tamamı
+büyük yazılmış bir marka adı, düzgün yazılmışla eşleşmiyordu.
+
+### Çözüm — iki katman
+**1. Toleranslı eşleştirme.** Yeni `markaAnahtari()` boşlukları sadeleştirir ve Türkçe harfleri
+ASCII karşılığına indirger. Yukarıdaki üç yazım da artık eşleşiyor.
+
+**Gizlilik koruması:** İki farklı müşteri aynı anahtara düşerse (ör. "Cem" ve "Çem") o markalar
+için **tam eşleşmeye** dönülür. Aksi halde bir markanın içeriği yanlışlıkla başka bir müşteriye
+gösterilebilirdi. Test edildi.
+
+**2. Bağlanamayan kartlar uyarısı.** Müşteri Paneli sekmesinin en üstünde: marka adı hiçbir
+müşteriyle eşleşmeyen Kontrol Bekliyor kartları adlarıyla listeleniyor. Böyle bir kart artık
+sessizce kaybolmuyor.
+
+### Onuncu denetleyici
+Bu çalışma sırasında **kendi hatam** ortaya çıktı: uyarı kartını ekledim ama beslediği değişkeni
+tanımlamayı atladım — sayfa açılır açılmaz çökerdi. Dokuz denetleyicinin hiçbiri göremedi,
+çünkü kullanım bir *çağrı* değildi (`{bagsizKartlar.length}`).
+
+`testler/degiskendenetle.py` eklendi: JSX içinde kullanılan ama hiçbir yerde bildirilmemiş
+adları bulur. Dokuz temiz dosyada yanlış alarm vermiyor, bozuk hâli yakalıyor.

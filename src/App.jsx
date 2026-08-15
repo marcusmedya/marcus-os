@@ -32,7 +32,7 @@ import {
   AY_ADLARI, AySeciciAlan, gizlilikModuOku, gizlilikModuYaz,
   reklamDurumu, reklamMetrikleri, istatistikVarMi, OLCUM_ALANLARI, olcumKarsilastir,
   basligiTemizle, haftaBaslangici, tarihGoster, bugunISOTarih, parseTrTarih, tarihIso,
-  TR_AYLAR_KISA, MUSTERI_DURUM_ETIKET,
+  TR_AYLAR_KISA, MUSTERI_DURUM_ETIKET, markaAnahtari,
   useDuzenlemeKilidi, KilitUyarisi, MarkaSecici, FieldForm, temaOku, temaUygula,
 } from "./tema.jsx";
 import { DriveGorsel, DriveVideo, driveEmbedUrl, VIDEO_YONLERI, DriveKucukGorsel } from "./drive.jsx";
@@ -4442,6 +4442,16 @@ function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, 
 
   const seciliMarka = aktifler.find((c) => String(c.id) === String(secili));
 
+  /* BAĞLANAMAYAN KARTLAR
+   * İşler markayı METİN olarak tutuyor. Bir işteki marka adı hiçbir müşteri kaydıyla
+   * eşleşmezse o kart müşteri paneline HİÇ düşmez — üstelik sessizce, hiçbir uyarı vermeden.
+   * Bu blok, Kontrol Bekliyor'daki böyle kartları adlarıyla listeler ki sorunu görüp
+   * düzeltebilesin. */
+  const bagsizKartlar = useMemo(() => {
+    const anahtarlar = new Set((clients || []).map((c) => markaAnahtari(c.ad)));
+    return (isler || []).filter((j) => j.asama === "Kontrol Bekliyor" && !anahtarlar.has(markaAnahtari(j.marka)));
+  }, [clients, isler]);
+
   return (
     <div>
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 18 }}>
@@ -4453,6 +4463,26 @@ function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, 
       <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 16, lineHeight: 1.6 }}>
         Markaya tıkla, ona çekim planı ya da içerik gönder. Müşteri kendi panelinden görüp onaylar veya revize ister.
       </div>
+
+      {bagsizKartlar.length > 0 && (
+        <Card style={{ padding: "14px 18px", marginBottom: 14, border: `1px solid ${T.warning}` }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.warning, fontFamily: "Inter", marginBottom: 6 }}>
+            ⚠ {bagsizKartlar.length} kart hiçbir müşteriye bağlanamadı
+          </div>
+          <div style={{ fontSize: 12.5, color: T.textDim, fontFamily: "Inter", lineHeight: 1.7, marginBottom: 10 }}>
+            Bu kartlar Operasyon'da "Kontrol Bekliyor" aşamasında ama üzerlerindeki marka adı hiçbir
+            müşteri kaydıyla eşleşmiyor — bu yüzden <strong>müşteri panelinde görünmüyorlar</strong>.
+            Operasyon'da kartın markasını düzelt ya da o markayı Müşteriler'e ekle.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            {bagsizKartlar.map((j) => (
+              <div key={j.id} style={{ fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", color: T.text, background: T.surfaceRaised, borderRadius: 7, padding: "6px 10px" }}>
+                {j.marka || "— marka boş —"} · {j.icerikTuru || "adsız"}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* Marka seçimi — yanlarında bekleyen/revize rozetleri */}
       <Card style={{ padding: "14px 16px", marginBottom: 16 }}>

@@ -2,7 +2,7 @@ import { kv } from "@vercel/kv";
 import crypto from "crypto";
 import { KEY, guvenliGuncelle, kilitAl, kilitBirak, guvenliYaz, deftereYaz, defteriOku } from "../lib/kv-yaz.js";
 import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, tumOturumlariIptalEt, ikiAdimliAktifMi, esitMi, baslikOku } from "../lib/oturum.js";
-import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, trKucult } from "../lib/marka-kilidi.js";
+import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, trKucult, markaEslestirici } from "../lib/marka-kilidi.js";
 
 /** Bir kayıt (eski veri, yeni veri) arasındaki ÖNEMLİ değişiklikleri (müşteri/personel/üyelik
  * ekleme-silme, müşteri durum değişikliği) otomatik tespit edip okunabilir işlem geçmişi
@@ -321,7 +321,10 @@ export default async function handler(req, res) {
        * (elle yaz)" seçeneğiyle serbest metin de girilebiliyor. Bu yüzden eşleştirme baştaki/
        * sondaki boşluğa ve büyük-küçük harfe takılmadan yapılır — yoksa "Kanatçı Diren " gibi
        * tek bir boşluk farkı, o markanın hiçbir reklamının görünmemesine yol açardı. */
-      const markaEsit = (deger) => String(deger || "").trim().toLocaleLowerCase("tr") === String(markaAdi).trim().toLocaleLowerCase("tr");
+      /* Marka adı yazım farklarına dayanıklı eşleştirme (büyük I/İ, çift boşluk, Türkçe
+       * karakter kullanılmaması). İki müşteri aynı anahtara düşerse tam eşleşmeye döner —
+       * bkz. lib/marka-kilidi.js → markaEslestirici. */
+      const markaEsit = markaEslestirici(data.clients || [], markaAdi);
 
       const kendiReklamlari = (data.reklamlar || [])
         .filter((r) => markaEsit(r.marka))

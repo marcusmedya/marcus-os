@@ -10,6 +10,9 @@
  * bir bileşen buraya değil, kendi dosyasına aittir.
  */
 import React, { useState, useEffect, useRef } from "react";
+// Marka adı eşleştirme anahtarı sunucuyla ORTAK olmalı — iki taraf farklı kural kullanırsa
+// arayüzde "bağlandı" görünen bir kart sunucuda bağlanmamış olabilir.
+export { markaAnahtari } from "../lib/marka-kilidi.js";
 // Bu dosyadaki parçalar (KpiCard, FieldForm) bu ikonları kullanıyor. Dosya bölünürken
 // lucide import'u taşınmamıştı; sonuç: FieldForm her açıldığında uygulama çöküyordu.
 import { ArrowUpRight, ArrowDownRight, Check } from "lucide-react";

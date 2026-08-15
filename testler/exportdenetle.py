@@ -24,9 +24,13 @@ dosyalar = sys.argv[1:]
 exportlar = {}
 for f in dosyalar:
     s = open(f, encoding="utf-8").read()
-    exportlar[os.path.abspath(f)] = set(
-        re.findall(r"^export\s+(?:async\s+)?(?:function|const|class|let|var)\s+([A-Za-z_]\w*)", s, re.M)
-    )
+    adlar = set(re.findall(r"^export\s+(?:async\s+)?(?:function|const|class|let|var)\s+([A-Za-z_]\w*)", s, re.M))
+    # Yeniden dışa açma:  export { a, b } from "./x.js";  ve  export { a, b };
+    for m in re.finditer(r"^export\s*\{([^}]*)\}", s, re.M):
+        for x in m.group(1).split(","):
+            ad = x.strip().split(" as ")[-1].strip()
+            if ad: adlar.add(ad)
+    exportlar[os.path.abspath(f)] = adlar
 
 hata = 0
 for f in dosyalar:
