@@ -2220,3 +2220,26 @@ dolduruluyor.
 
 Altı senaryo doğrulandı: görsel revizesi, video revizesi, çekim planı referansı, dosyasız
 içerik, mevcut dosyanın korunması ve boş işin doldurulması.
+
+## Güncelleme 97: Aktarılan Revizeler Kutuda Birikiyordu
+
+Operasyon'a aktarılmış revizeler onay kutusunda **sonsuza kadar kalıyordu** — "✓ Operasyon'a
+aktarıldı" işaretiyle, ama düşmeden. Altı kayıt birikmişti.
+
+**Eski kural:** revize, düzeltilmiş içerik müşteriye tekrar gönderilene kadar kutuda kalır.
+Bu kural, müşteri paneli ayrı bir kayıt tutarken doğruydu.
+
+**Artık geçerli değil:** müşteri paneli Operasyon'un aynası. Ekip düzeltmeyi bitirip kartı
+"Kontrol Bekliyor"a gönderdiğinde müşteri onu zaten yeniden görüyor. Kutuda kalması gereksiz.
+
+**Yeni kural:** Bağlı bir Operasyon işi varsa, o iş **"Revize İstendi" aşamasından çıktığı an**
+kutudan düşer. Yani ekip "Revizeyi Tamamladım" dediğinde iş kendiliğinden kapanır.
+
+Bağlı iş yoksa (elle eklenmiş eski kayıtlar) eski kural geçerli — içerik tekrar gönderilene
+kadar kalır. Silinmiş bir işe bağlıysa da kutuda kalır, sessizce kaybolmaz.
+
+Sol menüdeki sayı rozeti **aynı kuralı** kullanıyor; farklı olsaydı rozet "6" derken kutuda 2
+kayıt görünürdü.
+
+Altı senaryo doğrulandı: iş hâlâ revizede, ekip düzeltti, teslim edildi, bağlı iş yok, silinmiş
+işe bağlı, revize olmayan kayıt.

@@ -4770,7 +4770,21 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, reklamla
    * aktarmak müşterinin talebini çözmüyor; talep ancak düzeltilmiş içerik gönderilince kapanır
    * (o an durum kendiliğinden "bekliyor" olur ve kayıt buradan düşer).
    * Aktarılmış olanlar listede kalır, sadece işaretlenir. */
-  const revizeler = (icerikler || []).filter((i) => i.durum === "revize");
+  /* REVİZELER — kutudan ne zaman düşer?
+   *
+   * Eskiden yalnızca "düzeltilmiş içerik müşteriye tekrar gönderilince" düşüyordu. Ama artık
+   * iş Operasyon'da ilerliyor ve müşteri paneli Operasyon'un aynası; düzeltmeyi ekip
+   * bitirdiğinde kart zaten "Kontrol Bekliyor"a dönüyor ve müşteri onu yeniden görüyor.
+   * Bu durumda kutuda kalması gereksiz — kutu sonsuza kadar birikirdi.
+   *
+   * Yeni kural: bağlı bir Operasyon işi varsa, o iş "Revize İstendi" aşamasından çıktığı anda
+   * kutudan düşer. Bağlı iş yoksa eski kural geçerli (içerik tekrar gönderilene kadar kalır). */
+  const revizeler = (icerikler || []).filter((i) => {
+    if (i.durum !== "revize") return false;
+    const bagliIs = i.kaynakIsId ? (isler || []).find((j) => String(j.id) === String(i.kaynakIsId)) : null;
+    if (bagliIs) return bagliIs.asama === "Revize İstendi";
+    return true;
+  });
   /** Müşterinin ONAYLADIĞI ama henüz Operasyon'a aktarılmamış çekim planları. Artık otomatik
    * iş açılmıyor — kimin yapacağına ve hangi aşamada başlayacağına sen karar veriyorsun. */
   const onaylananlar = (icerikler || []).filter((i) => i.tur === "cekim" && i.durum === "onaylandi" && !i.olusturulanIsId);
@@ -4830,7 +4844,8 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, reklamla
       </div>
       <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 14, lineHeight: 1.6 }}>
         Müşteriden gelen revize istekleri, onaylanmış çekim planları ve kimseye atanmamış işler.
-        Revize istekleri, düzeltilmiş içeriği müşteriye tekrar gönderene kadar burada kalır.
+        Bir revize, Operasyon'daki kartı “Revize İstendi” aşamasından çıkınca — yani ekip
+        düzeltmeyi bitirip kontrole gönderince — buradan kendiliğinden düşer.
       </div>
 
       {revizeler.map((i) => (
@@ -7694,9 +7709,17 @@ export default function MarcusOS() {
   const onayBekleyenSayisi = useMemo(() => {
     if (!data) return 0;
     const icerikler = data.musteriIcerikleri || [];
-    const revize = icerikler.filter((i) => i.durum === "revize").length;
+    // Kutuyla AYNI kural: bağlı Operasyon işi "Revize İstendi"den çıktıysa sayılmaz.
+    // Farklı kural kullanılsaydı rozet "6" derken kutuda 2 kayıt görünürdü.
+    const isler = data.cekimIsleri || [];
+    const revize = icerikler.filter((i) => {
+      if (i.durum !== "revize") return false;
+      const bagliIs = i.kaynakIsId ? isler.find((j) => String(j.id) === String(i.kaynakIsId)) : null;
+      if (bagliIs) return bagliIs.asama === "Revize İstendi";
+      return true;
+    }).length;
     const onaylanan = icerikler.filter((i) => i.tur === "cekim" && i.durum === "onaylandi" && !i.olusturulanIsId).length;
-    const atanmamis = (data.cekimIsleri || []).filter(
+    const atanmamis = isler.filter(
       (j) => j.asama !== "Teslim Edildi" && !String(j.kameraman || "").trim() && !String(j.editor || "").trim()
     ).length;
     const eksikReklam = (data.reklamlar || []).filter((r) => reklamDurumu(r) === "bitti" && !istatistikVarMi(r)).length;
