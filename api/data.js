@@ -301,7 +301,24 @@ export default async function handler(req, res) {
         return res.status(403).json({ error: "Bu hesap şu anda kullanım dışı. Sorularınız için ajansınızla iletişime geçin." });
       }
 
-      const kendiIcerikleri = (data.musteriIcerikleri || []).filter((i) => String(i.clientId) === String(musteriClientId));
+      /* MÜŞTERİ PANELİ = OPERASYON'UN AYNASI
+       *
+       * Eski sistem, bir iş "Kontrol Bekliyor"a geçtiğinde müşteri paneline bir KOPYA kayıt
+       * yaratıyordu. Artık işler canlı yansıtıldığı için (aşağıdaki hazirIcerikler) o kopyalar
+       * AYNI İŞİN İKİNCİ KEZ görünmesine yol açıyordu — üstelik kopya, iş Operasyon'da
+       * ilerlese bile yerinde kalıyordu. Bu yüzden bir Operasyon işine bağlı olan
+       * (kaynakIsId taşıyan) kayıtlar müşteriye artık gönderilmiyor.
+       *
+       * Çekim planları (tur === "cekim") istisna: bunlar henüz Operasyon'da bir iş DEĞİL,
+       * çekim öncesi müşteriye sunulan fikirler. Onlar gönderilmeye devam ediyor.
+       *
+       * Not: kayıtlar silinmiyor, yalnızca müşteriye gönderilmiyor — geçmişleri yönetici
+       * tarafında duruyor. */
+      const kendiIcerikleri = (data.musteriIcerikleri || []).filter((i) => {
+        if (String(i.clientId) !== String(musteriClientId)) return false;
+        if (i.tur === "cekim") return true;              // çekim planı — Operasyon'da karşılığı yok
+        return !i.kaynakIsId;                            // Operasyon işinin kopyası ise gönderme
+      });
 
       /* ---------------------------------------------------------------- *
        * MÜŞTERİYE GÖNDERİLEN EK VERİ (reklamlar, paylaşım planı, operasyon)

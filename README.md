@@ -1984,3 +1984,29 @@ Davranış değişmedi: onaylayınca Operasyon kartı "Onaylandı"ya geçiyor, d
 **Boş durum mantığı:** "Şu an bekleyen bir şey yok" mesajı yalnızca ikisi de boşken çıkıyor.
 Aksi halde hazır içerik dururken altında "bekleyen yok" yazacaktı ve müşteri hangisine
 inanacağını bilemeyecekti. Dört durumun hepsi doğrulandı.
+
+## Güncelleme 89: Birebir Senkron — Aynı İş İki Kez Görünmüyor
+
+Müşteri panelinde **aynı iş iki kez** görünüyordu: bir kez Operasyon'dan canlı yansıyan kart,
+bir kez de eski sistemin bıraktığı kopya kayıt.
+
+Eski sistem, bir iş "Kontrol Bekliyor"a geçtiğinde müşteri paneline bir kopya yaratıyordu.
+Canlı yansıtmaya geçtikten sonra bu kopyalar gereksiz hâle geldi — üstelik kopya, iş
+Operasyon'da ilerlese bile yerinde kalıyordu.
+
+**Artık bir Operasyon işine bağlı kayıtlar müşteriye gönderilmiyor.** Müşteri paneli
+Operasyon'un birebir aynası.
+
+**Çekim planları istisna** — bunlar henüz Operasyon'da bir iş değil, çekim öncesi müşteriye
+sunulan fikirler. Gönderilmeye devam ediyor.
+
+Kayıtlar **silinmedi**, yalnızca müşteriye gönderilmiyor; geçmişleri yönetici tarafında duruyor.
+
+### Onay ve revize akışı doğrulandı
+| Müşteri | Operasyon kartı |
+|---|---|
+| Onayla | → **Onaylandı** sütunu |
+| Değişiklik iste | → **Revize İstendi** sütunu, notu işin geçmişine yazılır |
+
+Bu davranışlar zaten çalışıyordu; `testler/t16.mjs` ile (8 kontrol) doğrulandı. Asıl sorun
+çift görünmeydi.
