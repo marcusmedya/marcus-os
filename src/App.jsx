@@ -32,7 +32,7 @@ import {
   AY_ADLARI, AySeciciAlan, gizlilikModuOku, gizlilikModuYaz,
   reklamDurumu, reklamMetrikleri, istatistikVarMi, OLCUM_ALANLARI, olcumKarsilastir,
   basligiTemizle, haftaBaslangici, tarihGoster, bugunISOTarih, parseTrTarih, tarihIso,
-  TR_AYLAR_KISA, MUSTERI_DURUM_ETIKET, markaAnahtari,
+  TR_AYLAR_KISA, MUSTERI_DURUM_ETIKET, markaAnahtari, DURUM_GRUBU, GRUP_BASLIK,
   useDuzenlemeKilidi, KilitUyarisi, MarkaSecici, FieldForm, temaOku, temaUygula, TurRozet, turEtiketi,
 } from "./tema.jsx";
 import { DriveGorsel, DriveVideo, driveEmbedUrl, VIDEO_YONLERI, DriveKucukGorsel } from "./drive.jsx";
@@ -549,10 +549,18 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
    *
    * Sıra numarası KAYITTA saklanır, ekranda hesaplanmaz — müşteri paneli de aynı sırayı
    * görsün diye. İki taraf farklı sıralarsa "hangisi doğru?" sorusu doğardı. */
+  /* Sıralama önce DURUM GRUBUNA göre yapılır: bekleyenler → revize → onaylananlar.
+   * Grup içinde senin belirlediğin sıra korunur. Gruplama başlıkları ardışık kayıtlara
+   * bakarak çizildiği için, sıralama gruplarla uyumlu olmazsa aynı başlık defalarca
+   * tekrarlanırdı. */
+  const GRUP_SIRA = { bekliyor: 0, revize: 1, onaylandi: 2 };
   const kendiListesiHam = (icerikler || [])
     .filter((i) => String(i.clientId) === String(clientId))
     .slice()
     .sort((a, b) => {
+      const ga = GRUP_SIRA[DURUM_GRUBU(a.durum)] ?? 9;
+      const gb = GRUP_SIRA[DURUM_GRUBU(b.durum)] ?? 9;
+      if (ga !== gb) return ga - gb;
       const as = Number.isFinite(Number(a.sira)) ? Number(a.sira) : null;
       const bs = Number.isFinite(Number(b.sira)) ? Number(b.sira) : null;
       if (as !== null && bs !== null) return as - bs;
@@ -690,10 +698,22 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
             <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginBottom: 12 }}>Bu markaya henüz müşteri panelinde gösterilecek bir içerik eklenmedi.</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+              {/* DURUM GRUPLARI — müşteri panelindekiyle aynı ayrım ve aynı adlar.
+                * Tek karışık liste yerine "onay bekleyen / revize istenen / onaylanan"
+                * ayrımı; hangi işin senden bir şey beklediği bir bakışta görünüyor. */}
               {kendiListesi.map((i, idx) => {
+                const oncekiDurum = idx > 0 ? DURUM_GRUBU(kendiListesi[idx - 1].durum) : null;
+                const buDurum = DURUM_GRUBU(i.durum);
+                const yeniGrup = buDurum !== oncekiDurum;
                 const etiket = MUSTERI_DURUM_ETIKET[i.durum] || MUSTERI_DURUM_ETIKET.bekliyor;
                 return (
-                  <div key={i.id} style={{ background: T.surfaceRaised, borderRadius: 9, padding: "8px 12px" }}>
+                  <React.Fragment key={i.id}>
+                  {yeniGrup && (
+                    <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", marginTop: idx === 0 ? 0 : 10, marginBottom: 2 }}>
+                      {GRUP_BASLIK[buDurum]} · {kendiListesi.filter((x) => DURUM_GRUBU(x.durum) === buDurum).length}
+                    </div>
+                  )}
+                  <div style={{ background: T.surfaceRaised, borderRadius: 9, padding: "8px 12px" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                       {/* Küçük önizleme: 10 satırlık bir listede "Görsel 7 hangisiydi?" sorusunu
                         * başlıktan cevaplamak mümkün değil. Müşteri panelinde de aynısı var. */}
@@ -705,9 +725,9 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                             : <span style={{ fontSize: 13 }}>{i.tur === "cekim" ? "🎬" : i.tur === "video" ? "▶" : "🖼"}</span>}
                       </span>
                       <button
-                        onClick={() => { if (i.tur === "cekim") setAcikDetayId(acikDetayId === i.id ? null : i.id); }}
-                        style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: i.tur === "cekim" ? "pointer" : "default", fontFamily: "inherit", flex: 1, minWidth: 0 }}
-                        title={i.tur === "cekim" ? "Çekim planının detayını göster" : undefined}
+                        onClick={() => setAcikDetayId(acikDetayId === i.id ? null : i.id)}
+                        style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer", fontFamily: "inherit", flex: 1, minWidth: 0 }}
+                        title="İçeriği aç"
                       >
                         <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", fontSize: 12, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
                           <TurRozet anahtar={i.tur} />
@@ -775,6 +795,29 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                       </div>
                     </div>
 
+                    {/* GÖRSEL / VİDEO ÖNİZLEME — satıra tıklayınca açılır. Eskiden yalnızca çekim
+                      * planları açılıyordu; görsel ve videolarda ne gönderdiğini görmek için
+                      * müşteri paneline girmek gerekiyordu. */}
+                    {i.tur !== "cekim" && acikDetayId === i.id && (
+                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
+                        {i.gorselUrl && String(i.gorselUrl).startsWith("data:") && (
+                          <img src={i.gorselUrl} alt="" style={{ width: "100%", maxWidth: 420, borderRadius: 9, display: "block", marginBottom: 8 }} />
+                        )}
+                        {i.tur === "gorsel" && i.driveLinki && !i.gorselUrl && (
+                          <div style={{ maxWidth: 420, marginBottom: 8 }}><DriveGorsel link={i.driveLinki} yukseklik={320} /></div>
+                        )}
+                        {i.tur === "video" && i.driveLinki && (
+                          <div style={{ marginBottom: 8 }}><DriveVideo link={i.driveLinki} yon={i.videoYonu} /></div>
+                        )}
+                        {!i.driveLinki && !i.gorselUrl && (
+                          <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>Bu kayda ait dosya yok.</div>
+                        )}
+                        {i.driveLinki && (
+                          <a href={i.driveLinki} target="_blank" rel="noreferrer" style={{ display: "inline-block", fontSize: 11.5, color: T.accentText, fontFamily: "Inter" }}>Drive'da aç ↗</a>
+                        )}
+                      </div>
+                    )}
+
                     {i.tur === "cekim" && acikDetayId === i.id && (
                       <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
@@ -807,6 +850,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                       </div>
                     )}
                   </div>
+                  </React.Fragment>
                 );
               })}
             </div>

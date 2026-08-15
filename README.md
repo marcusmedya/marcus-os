@@ -2243,3 +2243,32 @@ kayıt görünürdü.
 
 Altı senaryo doğrulandı: iş hâlâ revizede, ekip düzeltti, teslim edildi, bağlı iş yok, silinmiş
 işe bağlı, revize olmayan kayıt.
+
+## Güncelleme 98: Yönetici Listesi de Müşteri Paneliyle Aynı Yapıda
+
+Müşteri Paneli sekmesindeki liste tek karışık akıştı — bekleyen, revize istenen ve onaylanan
+içerikler iç içeydi. Müşteri panelinde bunları üç sekmeye ayırmıştık; burada da aynı ayrım
+yapıldı.
+
+### Durum grupları
+Liste artık üç başlık altında:
+```
+ONAY BEKLEYENLER · 2
+REVİZE İSTEDİKLERİ · 6
+ONAYLADIKLARI · 5
+```
+
+Adlar müşteri panelindekiyle **aynı** ve ortak bir yerden geliyor — farklı isimlendirilseydi
+iki taraf aynı içeriği farklı adlandırırdı.
+
+Sıralama gruplarla uyumlu hale getirildi: önce bekleyenler, sonra revize, sonra onaylananlar.
+Grup içinde senin ▲▼ ile belirlediğin sıra korunuyor. Bu gerekliydi — başlıklar ardışık
+kayıtlara bakarak çizildiği için, sıralama gruplarla uyumsuz olsaydı aynı başlık defalarca
+tekrarlanırdı.
+
+### Her satır açılıyor
+Eskiden yalnızca çekim planları açılabiliyordu. Artık **her satıra tıklayınca içerik açılıyor**:
+görselin tamamı, video ise oynatıcı, çekim planıysa referans ve konuşma metni. Altında
+"Drive'da aç" bağlantısı da var.
+
+Ne gönderdiğini görmek için artık müşteri paneline girmen gerekmiyor.

@@ -760,6 +760,15 @@ export function parseTrTarih(str) {
 
 export const TR_AYLAR_KISA = ["oca", "şub", "mar", "nis", "may", "haz", "tem", "ağu", "eyl", "eki", "kas", "ara"];
 
+/* DURUM GRUPLARI — yönetici listesindeki ayrım, müşteri panelindeki üç sekmeyle AYNI mantık
+ * ve aynı adlar. Ortak yerde durur ki iki taraf aynı içeriği farklı adlandıramasın. */
+export const DURUM_GRUBU = (durum) => (durum === "revize" ? "revize" : durum === "bekliyor" ? "bekliyor" : "onaylandi");
+export const GRUP_BASLIK = {
+  bekliyor: "Onay bekleyenler",
+  revize: "Revize istedikleri",
+  onaylandi: "Onayladıkları",
+};
+
 export const MUSTERI_DURUM_ETIKET = {
   bekliyor: { label: "Bekliyor", color: T.warning, bg: T.warningSoft },
   onaylandi: { label: "Onaylandı ✓", color: T.success, bg: T.successSoft },
