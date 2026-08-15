@@ -404,6 +404,11 @@ function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, freelancerlar, onA
           onDeleteIcerik={onDeleteIcerik}
         />
       )}
+
+      {/* MÜŞTERİ PANELİ GİRİŞ HESAPLARI — Müşteri Paneli sekmesinden buraya taşındı.
+        * Kullanıcı adı ve şifre müşterinin kendi kaydına ait bir bilgi; içerik yönetimiyle
+        * aynı ekranda durunca iki ayrı iş karışıyordu. */}
+      <MusteriHesaplariKart clients={clients} />
     </div>
   );
 }
@@ -525,6 +530,11 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
   const [acikDetayId, setAcikDetayId] = useState(null); // detayı açık olan çekim planı
   const [bildirimDurumu, setBildirimDurumu] = useState("");
   const [turSuzgec, setTurSuzgec] = useState("hepsi"); // Reels / Görsel / Tasarım ayrımı
+  /* İÇERİK SEKMELERİ — müşteri panelindekiyle aynı ayrım. Tek uzun liste yerine sekmeler:
+   * hangi işin senden bir şey beklediği doğrudan görünüyor ve liste kısalıyor.
+   * "İçerik Fikirleri" (çekim planları) ayrı tutuluyor: onlar henüz üretilmemiş, müşteriye
+   * sunulan fikirler — üretilmiş içeriklerle aynı kovada durmaları kafa karıştırıyordu. */
+  const [icerikSekme, setIcerikSekme] = useState("bekliyor");
   /* OPERASYON KARTI ALANLARI
    * Elle eklenen içerik artık doğrudan bir Operasyon kartı olur. Eskiden yalnızca müşteri
    * paneline düşüyordu ve Operasyon'da hiç görünmüyordu — iki taraf birbirinden habersiz
@@ -571,10 +581,22 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
 
   /* TÜR AYRIMI — müşteri panelindekiyle aynı etiketler (Reels / Görsel / Tasarım).
    * Süzgeç yalnızca listede birden fazla tür varsa çıkar; tek türlü listede gereksiz. */
-  const mevcutTurler = [...new Set(kendiListesiHam.map((i) => i.tur).filter(Boolean))];
+  /* Çekim planları kendi sekmesinde; diğerleri duruma göre ayrılır. */
+  const sekmeyeAit = (i, sekme) => (sekme === "fikir" ? i.tur === "cekim" : i.tur !== "cekim" && DURUM_GRUBU(i.durum) === sekme);
+  const sekmeSayisi = (sekme) => kendiListesiHam.filter((i) => sekmeyeAit(i, sekme)).length;
+
+  const ICERIK_SEKMELERI = [
+    { key: "bekliyor", label: "Onay Bekleyenler" },
+    { key: "revize", label: "Revize İstedikleri" },
+    { key: "onaylandi", label: "Onayladıkları" },
+    { key: "fikir", label: "İçerik Fikirleri" },
+  ];
+
+  const sekmeListesi = kendiListesiHam.filter((i) => sekmeyeAit(i, icerikSekme));
+  const mevcutTurler = [...new Set(sekmeListesi.map((i) => i.tur).filter(Boolean))];
   const kendiListesi = turSuzgec === "hepsi"
-    ? kendiListesiHam
-    : kendiListesiHam.filter((i) => turEtiketi(i.tur).ad === turEtiketi(turSuzgec).ad);
+    ? sekmeListesi
+    : sekmeListesi.filter((i) => turEtiketi(i.tur).ad === turEtiketi(turSuzgec).ad);
 
   /** Bir kaydı listede yukarı/aşağı taşır.
    * Taşıma sırasında TÜM listeye sıra numarası yazılır — yalnızca iki kaydı değiştirmek,
@@ -695,24 +717,16 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
   const govde = (
     <>
           {kendiListesi.length === 0 ? (
-            <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginBottom: 12 }}>Bu markaya henüz müşteri panelinde gösterilecek bir içerik eklenmedi.</div>
+            <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginBottom: 12 }}>{icerikSekme === "fikir" ? "Bu markaya henüz çekim planı gönderilmedi." : icerikSekme === "bekliyor" ? "Onay bekleyen içerik yok." : icerikSekme === "revize" ? "Revize istenen içerik yok." : "Onaylanmış içerik yok."}</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
               {/* DURUM GRUPLARI — müşteri panelindekiyle aynı ayrım ve aynı adlar.
                 * Tek karışık liste yerine "onay bekleyen / revize istenen / onaylanan"
                 * ayrımı; hangi işin senden bir şey beklediği bir bakışta görünüyor. */}
               {kendiListesi.map((i, idx) => {
-                const oncekiDurum = idx > 0 ? DURUM_GRUBU(kendiListesi[idx - 1].durum) : null;
-                const buDurum = DURUM_GRUBU(i.durum);
-                const yeniGrup = buDurum !== oncekiDurum;
                 const etiket = MUSTERI_DURUM_ETIKET[i.durum] || MUSTERI_DURUM_ETIKET.bekliyor;
                 return (
                   <React.Fragment key={i.id}>
-                  {yeniGrup && (
-                    <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600, letterSpacing: 1, textTransform: "uppercase", marginTop: idx === 0 ? 0 : 10, marginBottom: 2 }}>
-                      {GRUP_BASLIK[buDurum]} · {kendiListesi.filter((x) => DURUM_GRUBU(x.durum) === buDurum).length}
-                    </div>
-                  )}
                   <div style={{ background: T.surfaceRaised, borderRadius: 9, padding: "8px 12px" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                       {/* Küçük önizleme: 10 satırlık bir listede "Görsel 7 hangisiydi?" sorusunu
@@ -4721,8 +4735,9 @@ function MusteriPaneliYonetimi({ hedef, clients, icerikler, onAdd, onUpdate, onD
         />
       )}
 
-      {/* Panel giriş hesapları — artık müşteri paneliyle aynı yerde */}
-      <MusteriHesaplariKart clients={clients} />
+      {/* Panel giriş hesapları MÜŞTERİLER sekmesine taşındı: kullanıcı adı ve şifre, müşterinin
+        * kendi kaydına ait bir bilgi. Burada dururken "içerik yönetimi" ile "hesap yönetimi"
+        * aynı ekranda karışıyordu. */}
     </div>
   );
 }

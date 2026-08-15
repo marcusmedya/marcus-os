@@ -2272,3 +2272,26 @@ görselin tamamı, video ise oynatıcı, çekim planıysa referans ve konuşma m
 "Drive'da aç" bağlantısı da var.
 
 Ne gönderdiğini görmek için artık müşteri paneline girmen gerekmiyor.
+
+## Güncelleme 99: Müşteri Paneli Sekmelere Ayrıldı, Şifreler Müşteriler'e Taşındı
+
+### 1. Dört sekme
+Tek uzun liste yerine sekmeler — müşteri panelindekiyle aynı ayrım:
+
+```
+Onay Bekleyenler 2 · Revize İstedikleri 6 · Onayladıkları 4 · İçerik Fikirleri 3
+```
+
+### 2. İçerik Fikirleri ayrı
+Çekim planları artık kendi sekmesinde, **durumundan bağımsız**. Onlar henüz üretilmemiş,
+müşteriye sunulan fikirler; üretilmiş içeriklerle aynı kovada durmaları kafa karıştırıyordu.
+
+Doğrulandı: her kayıt yalnızca **tek bir sekmede** görünüyor, hiçbiri kaybolmuyor.
+
+### 3. Kullanıcı adı / şifre Müşteriler sekmesine taşındı
+Müşteri Paneli giriş hesapları kartı artık **Müşteriler** sekmesinin altında. Kullanıcı adı ve
+şifre müşterinin kendi kaydına ait bir bilgi; içerik yönetimiyle aynı ekranda durunca iki ayrı
+iş karışıyordu.
+
+Tür süzgeci (Reels / Görsel / Tasarım) sekme içinde çalışmaya devam ediyor ve sekme
+değiştirince sıfırlanıyor — önceki sekmeden kalan bir süzgeç yüzünden boş liste görünmesin diye.
