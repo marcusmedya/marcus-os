@@ -10,6 +10,9 @@
  * bir bileşen buraya değil, kendi dosyasına aittir.
  */
 import React, { useState, useEffect, useRef } from "react";
+// Bu dosyadaki parçalar (KpiCard, FieldForm) bu ikonları kullanıyor. Dosya bölünürken
+// lucide import'u taşınmamıştı; sonuç: FieldForm her açıldığında uygulama çöküyordu.
+import { ArrowUpRight, ArrowDownRight, Check } from "lucide-react";
 
 export const T = {
   bg: "#0C0E13",

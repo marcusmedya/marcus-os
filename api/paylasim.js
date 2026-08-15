@@ -297,7 +297,19 @@ export default async function handler(req, res) {
 
     if (action === "uyelikSil") {
       const { uyelikId } = body;
+      /* Kalıcı silme yerine Silinenler Kutusu'na taşınır — arayüzdeki diğer silmelerle
+       * aynı davranış. Yanlışlıkla silinen bir üyelik 30 gün içinde geri alınabilir. */
+      const silinen = (data.uyelikler || []).find((u) => u.id === uyelikId);
       data.uyelikler = (data.uyelikler || []).filter((u) => u.id !== uyelikId);
+      if (silinen) {
+        const sinir = Date.now() - 30 * 24 * 60 * 60 * 1000;
+        data.silinenler = [
+          ...(data.silinenler || []).filter((x) => !x.silmeZamani || x.silmeZamani > sinir),
+          { silmeId: `uyelikler-${uyelikId}-${Date.now()}`, alan: "uyelikler", tur: "Üyelik",
+            etiket: String(silinen.ad || silinen.marka || ""), kayit: silinen,
+            silmeZamani: Date.now(), silen: "Yönetici (CEO)" },
+        ];
+      }
       await kaydetVeYedekle(data);
       return res.status(200).json({ ok: true, uyelikler: yanitSuz(data.uyelikler) });
     }

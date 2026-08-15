@@ -90,20 +90,21 @@ def importlar(s):
             if x not in ("as", "from", "default"): ad.add(x)
     return ad
 
-dosyalar = sys.argv[1:]
-kod = {f: sadece_kod(open(f, encoding="utf-8").read()) for f in dosyalar}
-evren = set()
-for f in dosyalar: evren |= ust_seviye(kod[f])
+if __name__ == "__main__":
+    dosyalar = sys.argv[1:]
+    kod = {f: sadece_kod(open(f, encoding="utf-8").read()) for f in dosyalar}
+    evren = set()
+    for f in dosyalar: evren |= ust_seviye(kod[f])
 
-hata = False
-for f in dosyalar:
-    k = kod[f]
-    yerel = tum_tanimlar(k) | importlar(open(f, encoding="utf-8").read())
-    eksik = sorted(a for a in evren
-                   if a not in yerel and re.search(r"(?<![\w.$])" + re.escape(a) + r"(?![\w$])", k))
-    if eksik:
-        hata = True
-        print(f"✗ {os.path.basename(f)} — tanımsız/import edilmemiş: {', '.join(eksik[:12])}")
-    else:
-        print(f"✓ {os.path.basename(f)}")
-sys.exit(1 if hata else 0)
+    hata = False
+    for f in dosyalar:
+        k = kod[f]
+        yerel = tum_tanimlar(k) | importlar(open(f, encoding="utf-8").read())
+        eksik = sorted(a for a in evren
+                       if a not in yerel and re.search(r"(?<![\w.$])" + re.escape(a) + r"(?![\w$])", k))
+        if eksik:
+            hata = True
+            print(f"✗ {os.path.basename(f)} — tanımsız/import edilmemiş: {', '.join(eksik[:12])}")
+        else:
+            print(f"✓ {os.path.basename(f)}")
+    sys.exit(1 if hata else 0)

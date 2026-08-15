@@ -6702,7 +6702,11 @@ export default function MarcusOS() {
     markalasmaSurecleri: (d.markalasmaSurecleri || []).map((s) => (s.id === surecId ? { ...s, tamTamamlandi: true, tamamlanmaTarihi: new Date().toLocaleDateString("tr-TR") } : s)),
   }));
 
-  const deleteMarkalasmaSureci = (surecId) => setData((d) => ({ ...d, markalasmaSurecleri: (d.markalasmaSurecleri || []).filter((s) => s.id !== surecId) }));
+  const deleteMarkalasmaSureci = (surecId) => {
+    // Kalıcı silme yerine Silinenler Kutusu'na taşınır (30 gün geri alınabilir).
+    const kayit = (data && (data.markalasmaSurecleri || []).find((x) => String(x.id) === String(surecId))) || {};
+    yumusakSil("markalasmaSurecleri", "Markalaşma süreci", surecId, String(kayit.marka || ""));
+  };
 
   /** Müşteriye "panelinde onayını bekleyen içerik var" e-postası. Sessizce çalışır —
    * e-posta yoksa ya da gönderilemezse içerik yine de eklenmiş olur, akış bozulmaz. */
@@ -6780,7 +6784,11 @@ export default function MarcusOS() {
 
   const addKisiselSifre = (s) => setData((d) => ({ ...d, ownerKisiselSifreler: [...(d.ownerKisiselSifreler || []), { ...s, id: nextId(d.ownerKisiselSifreler || []) }] }));
   const updateKisiselSifre = (id, patch) => setData((d) => ({ ...d, ownerKisiselSifreler: (d.ownerKisiselSifreler || []).map((s) => (s.id === id ? { ...s, ...patch } : s)) }));
-  const deleteKisiselSifre = (id) => setData((d) => ({ ...d, ownerKisiselSifreler: (d.ownerKisiselSifreler || []).filter((s) => s.id !== id) }));
+  const deleteKisiselSifre = (id) => {
+    // Kalıcı silme yerine Silinenler Kutusu'na taşınır (30 gün geri alınabilir).
+    const kayit = (data && (data.sifreler || []).find((x) => String(x.id) === String(id))) || {};
+    yumusakSil("sifreler", "Şifre kaydı", id, String(kayit.platform || ""));
+  };
   const updateUyelik = (id, patch) => paylasimIstek({ action: "uyelikGuncelle", uyelikId: id, patch }, "Bağlantı hatası — üyelik güncellenemedi, tekrar dene.");
 
   const addReklam = (r) => setData((d) => ({ ...d, reklamlar: [...(d.reklamlar || []), { ...r, id: nextId(d.reklamlar || []) }] }));
@@ -6889,19 +6897,39 @@ export default function MarcusOS() {
   }));
 
   const addGelir = (g) => setData((d) => ({ ...d, gelirKalemleri: [...d.gelirKalemleri, { ...g, id: nextId(d.gelirKalemleri) }] }));
-  const deleteGelir = (id) => setData((d) => ({ ...d, gelirKalemleri: d.gelirKalemleri.filter((g) => g.id !== id) }));
+  const deleteGelir = (id) => {
+    // Kalıcı silme yerine Silinenler Kutusu'na taşınır (30 gün geri alınabilir).
+    const kayit = (data && (data.gelirKalemleri || []).find((x) => String(x.id) === String(id))) || {};
+    yumusakSil("gelirKalemleri", "Gelir kalemi", id, String(kayit.kalem || ""));
+  };
 
   const addGider = (g) => setData((d) => ({ ...d, giderKalemleri: [...d.giderKalemleri, { ...g, id: nextId(d.giderKalemleri) }] }));
-  const deleteGider = (id) => setData((d) => ({ ...d, giderKalemleri: d.giderKalemleri.filter((g) => g.id !== id) }));
+  const deleteGider = (id) => {
+    // Kalıcı silme yerine Silinenler Kutusu'na taşınır (30 gün geri alınabilir).
+    const kayit = (data && (data.giderKalemleri || []).find((x) => String(x.id) === String(id))) || {};
+    yumusakSil("giderKalemleri", "Gider kalemi", id, String(kayit.kalem || ""));
+  };
 
   const addOfisGider = (g) => setData((d) => ({ ...d, ofisGiderleri: [...(d.ofisGiderleri || []), { ...g, id: nextId(d.ofisGiderleri || []) }] }));
-  const deleteOfisGider = (id) => setData((d) => ({ ...d, ofisGiderleri: (d.ofisGiderleri || []).filter((g) => g.id !== id) }));
+  const deleteOfisGider = (id) => {
+    // Kalıcı silme yerine Silinenler Kutusu'na taşınır (30 gün geri alınabilir).
+    const kayit = (data && (data.ofisGiderleri || []).find((x) => String(x.id) === String(id))) || {};
+    yumusakSil("ofisGiderleri", "Ofis gideri", id, String(kayit.kalem || ""));
+  };
 
   const addBekleyen = (b) => setData((d) => ({ ...d, bekleyenTahsilatlar: [...d.bekleyenTahsilatlar, { ...b, id: nextId(d.bekleyenTahsilatlar) }] }));
-  const deleteBekleyen = (id) => setData((d) => ({ ...d, bekleyenTahsilatlar: d.bekleyenTahsilatlar.filter((b) => b.id !== id) }));
+  const deleteBekleyen = (id) => {
+    // Kalıcı silme yerine Silinenler Kutusu'na taşınır (30 gün geri alınabilir).
+    const kayit = (data && (data.bekleyenTahsilatlar || []).find((x) => String(x.id) === String(id))) || {};
+    yumusakSil("bekleyenTahsilatlar", "Bekleyen tahsilat", id, String(kayit.musteri || ""));
+  };
 
   const addVergi = (v) => setData((d) => ({ ...d, vergiTakvimi: [...d.vergiTakvimi, { ...v, id: nextId(d.vergiTakvimi) }] }));
-  const deleteVergi = (id) => setData((d) => ({ ...d, vergiTakvimi: d.vergiTakvimi.filter((v) => v.id !== id) }));
+  const deleteVergi = (id) => {
+    // Kalıcı silme yerine Silinenler Kutusu'na taşınır (30 gün geri alınabilir).
+    const kayit = (data && (data.vergiTakvimi || []).find((x) => String(x.id) === String(id))) || {};
+    yumusakSil("vergiTakvimi", "Vergi kaydı", id, String(kayit.ad || ""));
+  };
 
   const addMonth = (m) => setData((d) => ({ ...d, monthly: [...d.monthly, { ...m, net: (Number(m.ciro) || 0) - (Number(m.gider) || 0), id: nextId(d.monthly) }] }));
   const deleteMonth = (id) => setData((d) => ({ ...d, monthly: d.monthly.filter((m) => m.id !== id) }));
@@ -6914,7 +6942,11 @@ export default function MarcusOS() {
   };
 
   const addFon = (f) => setData((d) => ({ ...d, birikimler: [...(d.birikimler || []), { ...f, bakiye: 0, hareketler: [], id: nextId(d.birikimler || []) }] }));
-  const deleteFon = (id) => setData((d) => ({ ...d, birikimler: (d.birikimler || []).filter((f) => f.id !== id) }));
+  const deleteFon = (id) => {
+    // Kalıcı silme yerine Silinenler Kutusu'na taşınır (30 gün geri alınabilir).
+    const kayit = (data && (data.birikimler || []).find((x) => String(x.id) === String(id))) || {};
+    yumusakSil("birikimler", "Birikim fonu", id, String(kayit.ad || ""));
+  };
   /** Planım — kişisel notlar. Sadece yöneticiye ait; sunucudaki personel izin listesinde
    * yer almadığı için personelin tarayıcısına hiç gönderilmez. */
   /** Marka bazlı aylık hesap ölçümü (takipçi, erişim vb.). Aynı marka+ay için ikinci kayıt

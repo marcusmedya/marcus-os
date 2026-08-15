@@ -1616,3 +1616,91 @@ söylemediği için teşhis ettirmiyordu.
 
 Artık kart doğrudan **eksik olanın adını** yazıyor: sadece OWNER_EMAIL mi, sadece
 RESEND_API_KEY mi, yoksa ikisi de mi.
+
+## Güncelleme 76: Düzenle Butonunda Siyah Ekran
+
+**Sorun:** Müşteri düzenleme (kalem) ikonuna tıklayınca sayfa tamamen siyah oluyordu.
+
+**Sebep:** 48. güncellemede `App.jsx` bölünürken `FieldForm` ve `KpiCard` bileşenleri
+`tema.jsx`'e taşındı — ama kullandıkları **lucide-react ikon import'u taşınmadı.**
+`tema.jsx` dosyasında `ArrowUpRight`, `ArrowDownRight` ve `Check` ikonları kullanılıyor ama
+hiç import edilmiyordu.
+
+`FieldForm` her düzenleme formunun altyapısı; kaydet butonundaki `<Check>` ikonu tanımsız
+olduğu için form açıldığı anda uygulama çöküyordu.
+
+**Düzeltme:** İkon import'u `tema.jsx`'e eklendi.
+
+### Bu hata neden beş kontrolden de geçti
+Sözdizimi geçerliydi, parantezler dengeliydi, şablon bozulması yoktu, çift tanım yoktu ve
+`importdenetle.py` de göremedi — çünkü o kontrol yalnızca **bizim dosyalarımızda tanımlı**
+adları arıyor. Eksik olan ad ise dış bir kütüphaneye ait.
+
+**Altıncı denetleyici eklendi:** `testler/ikondenetle.py` — JSX'te kullanılan her bileşenin
+o dosyada tanımlı ya da import edilmiş olduğunu doğrular. Hem yapay bozuk dosyalarla hem de
+bu hatanın gerçek hâliyle test edildi, ikisini de yakalıyor.
+
+## Güncelleme 77: Tüm Sistem Taraması — Çökme Hatalarına Karşı
+
+"Siyah ekran" türü hataların hepsini bulmak için sistem baştan sona tarandı. **Veriye hiç
+dokunulmadı** — tüm kontroller yalnızca kaynak dosyaları okur; sunucu testleri sahte bir
+veritabanı kullanır.
+
+### Bulunan durum
+Bu taramada **yeni bir çökme hatası bulunamadı.** 76. güncellemedeki ikon düzeltmesinden sonra
+kod temiz. Ama tarama sırasında, aynı hatanın başka biçimlerini yakalayacak **üç yeni denetleyici**
+yazıldı — çünkü mevcut altı kontrol o hatayı kaçırmıştı ve benzerlerini de kaçırırdı.
+
+### Yeni denetleyiciler
+| Denetleyici | Yakaladığı hata |
+|---|---|
+| **hookdenetle.py** | Bileşen taşınmış ama `useMemo`/`useRef` import edilmemiş |
+| **cagridenetle.py** | Çağrılan bir fonksiyon o dosyada tanımlı/import edilmiş değil |
+| **butondenetle.py** | `onClick` tanımsız bir şeye bağlı — ancak o butona basınca çöker |
+
+Üçü de yapay bozuk dosyalarla **ve** gerçek hataların simüle edilmiş hâliyle test edildi.
+
+### Yapılan kontroller
+- ✓ 8 kod denetimi — hepsi temiz
+- ✓ **18 menü sekmesi** ve **15 personel sekmesi** — hepsinin ekranı bağlı, eksik yok
+- ✓ Tüm buton/olay bağlantıları tanımlı
+- ✓ 49 sunucu denetimi (t5–t11) — hepsi geçiyor
+- ✓ 12 uç noktanın hepsi ayakta
+
+### Tek komut
+`./testler/hepsinidenetle.sh` — sekiz denetimi sırayla çalıştırır.
+
+## Güncelleme 78: Veri Kaybı Riski Denetimi
+
+"Veri kaybına yol açabilecek bir mantık hatası var mı?" sorusu için sistem baştan sona tarandı.
+**Gerçek veriye hiç dokunulmadı** — tüm testler sahte bir veritabanıyla çalıştı.
+
+### Test edilen ve SAĞLAM çıkanlar
+| Senaryo | Sonuç |
+|---|---|
+| Aynı anda 3 farklı işlem yazarsa | ✓ Üçü de korunuyor (kilit çalışıyor) |
+| İki farklı uç nokta aynı anda yazarsa | ✓ İkisi de korunuyor |
+| Açık kalmış bayat sekme yazmaya çalışırsa | ✓ Reddediliyor (409), araya giren değişiklik korunuyor |
+| `null` veri gönderilirse | ✓ Reddediliyor, müşteriler silinmiyor |
+| Boş nesne gönderilirse | ✓ Reddediliyor |
+| Yanlış yedek geri yüklenirse | ✓ Öncesinde kopya alınıyor, **geri alınabiliyor** |
+| Bileşen içinde bayat veri okuma | ✓ 81 durum güncellemesinin hiçbirinde yok |
+
+### Bulunan gerçek eksik: kalıcı silmeler
+Silinenler Kutusu 71. güncellemede eklenmişti ama **yalnızca 6 kayıt türünü** kapsıyordu.
+Geri kalanlar hâlâ kalıcı olarak siliniyordu.
+
+Kutuya eklenen 9 tür daha:
+**Gelir kalemi · Gider kalemi · Ofis gideri · Bekleyen tahsilat · Üyelik · Şifre kaydı ·
+Birikim fonu · Vergi kaydı · Markalaşma süreci**
+
+Artık 15 kayıt türü 30 gün geri alınabilir durumda. Kalanlar (avans, ödeme kaydı, transfer,
+hesap düzeltmesi) zaten kendi ekranlarında tek tıkla geri alınabiliyor.
+
+### Bir not: test aracının kendi hatası
+İlk çalıştırmada "eşzamanlı yazmada veri kayboluyor" alarmı çıktı. İncelenince sebep koddaki
+bir hata değil, **test aracının** kilit mekanizmasını (`nx` seçeneği) taklit etmemesiydi.
+Taklit düzeltilince sekiz senaryo da geçti. Test aracı düzeltilmeseydi var olmayan bir hatayı
+kovalayacaktık.
+
+Test paketi 64 kontrole çıktı (t5–t13), hepsi geçiyor.

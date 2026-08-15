@@ -62,3 +62,41 @@ python3 testler/jsxyapi.py src/*.jsx
 
 İkisi de gerçek bir deploy hatasından sonra yazıldı: `{saveBlocked && (` satırının ortasına
 bir uyarı şeridi eklenmiş ve aynı state iki kez tanımlanmıştı.
+
+## Altıncı denetleyici: eksik bileşen/ikon
+
+```
+python3 testler/ikondenetle.py src/*.jsx
+```
+
+Dosya bölerken en sinsi hata: bir bileşen taşınır ama kullandığı **dış kütüphane import'u**
+(lucide-react ikonları) taşınmaz. Sözdizimi geçerli, parantezler dengeli, `importdenetle.py`
+de göremez — çünkü eksik ad bizim dosyalarımızda hiç tanımlı değil.
+
+Sonuç: o bileşen ekrana geldiği an sayfa tamamen siyah olur.
+
+Gerçek olay: `tema.jsx`'e taşınan `FieldForm`'un `<Check>` ikonu import edilmemişti; müşteri
+düzenleme formu her açıldığında uygulama çöküyordu.
+
+## Tek komutla hepsi
+
+```
+./testler/hepsinidenetle.sh
+```
+
+Sekiz kod denetimini sırayla çalıştırır. Hiçbiri veriye dokunmaz — sadece kaynak dosyaları okur.
+
+### Sonradan eklenen üç denetleyici
+
+- **hookdenetle.py** — bir bileşen taşınır ama `useMemo`/`useRef` gibi hook'u import listesine
+  eklenmezse yakalar.
+- **cagridenetle.py** — en kapsamlısı. Kodda çağrılan HER adın o dosyada tanımlı/import edilmiş
+  olduğunu doğrular. Bir yardımcı fonksiyon taşınıp import edilmediğinde bunu bulur.
+- **butondenetle.py** — `onClick={birSey}` biçimindeki her olay bağlantısının tanımlı olduğunu
+  kontrol eder. Tanımsız bir onClick ancak o butona basıldığında ortaya çıkar; gözden kaçması
+  çok kolaydır.
+
+### Bilinen yanlış alarmlar (normal)
+`cagridenetle` → `Ciro`, `Tamamlananlar`: bunlar "Ciro (₺)" gibi JSX metinleri, kod değil.
+`importdenetle` → `C`, `labelStyle`, `Personel`, `Dashboard`, `Finans`: aynı şekilde metin.
+Bu adların dışında bir uyarı çıkarsa gerçek hatadır.
