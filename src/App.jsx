@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, Wallet, Settings, Sparkles,
   ArrowUpRight, ArrowDownRight, X, Send, Plus, Pencil, Trash2, Check,
   ChevronRight,
-  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp, Menu, Calendar, ChevronLeft, ListChecks, FileText, Megaphone, Share2, Lock, Camera, Shield, ClipboardCheck, Video, Copy, KeyRound, Eye, EyeOff, RefreshCw, CreditCard, NotebookPen, MonitorSmartphone, LogOut
+  CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp, Menu, Calendar, ChevronLeft, ListChecks, FileText, Megaphone, Share2, Lock, Camera, Shield, ClipboardCheck, Video, Copy, KeyRound, Eye, EyeOff, RefreshCw, CreditCard, NotebookPen, MonitorSmartphone, LogOut, Sun, Moon
 } from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
@@ -33,9 +33,9 @@ import {
   reklamDurumu, reklamMetrikleri, istatistikVarMi, OLCUM_ALANLARI, olcumKarsilastir,
   basligiTemizle, haftaBaslangici, tarihGoster, bugunISOTarih, parseTrTarih, tarihIso,
   TR_AYLAR_KISA, MUSTERI_DURUM_ETIKET,
-  useDuzenlemeKilidi, KilitUyarisi, MarkaSecici, FieldForm,
+  useDuzenlemeKilidi, KilitUyarisi, MarkaSecici, FieldForm, temaOku, temaUygula,
 } from "./tema.jsx";
-import { DriveGorsel, DriveVideo, driveEmbedUrl, VIDEO_YONLERI } from "./drive.jsx";
+import { DriveGorsel, DriveVideo, driveEmbedUrl, VIDEO_YONLERI, DriveKucukGorsel } from "./drive.jsx";
 import { InstagramOnizleme, InstagramIzgara, aylikRaporAc } from "./instagram.jsx";
 import { MusteriPaneli } from "./musteriPaneli.jsx";
 import { Personel, avansToplami, avansKisiyeAitMi, odemeToplami, odemeKisiyeAitMi, AvansVerFormu, AvansListesi } from "./personel.jsx";
@@ -643,6 +643,15 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                 return (
                   <div key={i.id} style={{ background: T.surfaceRaised, borderRadius: 9, padding: "8px 12px" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                      {/* Küçük önizleme: 10 satırlık bir listede "Görsel 7 hangisiydi?" sorusunu
+                        * başlıktan cevaplamak mümkün değil. Müşteri panelinde de aynısı var. */}
+                      <span style={{ width: 34, height: 34, borderRadius: 6, overflow: "hidden", flexShrink: 0, background: T.surface, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {i.tur === "gorsel" && i.driveLinki
+                          ? <DriveKucukGorsel link={i.driveLinki} />
+                          : i.gorselUrl && String(i.gorselUrl).startsWith("data:")
+                            ? <img src={i.gorselUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            : <span style={{ fontSize: 13 }}>{i.tur === "cekim" ? "🎬" : i.tur === "video" ? "▶" : "🖼"}</span>}
+                      </span>
                       <button
                         onClick={() => { if (i.tur === "cekim") setAcikDetayId(acikDetayId === i.id ? null : i.id); }}
                         style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: i.tur === "cekim" ? "pointer" : "default", fontFamily: "inherit", flex: 1, minWidth: 0 }}
@@ -6088,6 +6097,14 @@ export default function MarcusOS() {
    * Yerine geçen gerçek korumalar duruyor: kaydedilmemiş değişiklikte sekme kapatma uyarısı,
    * çıkışta kayıt kontrolü ve Gizlilik Modu. */
 
+  /* TEMA — koyu/açık.
+   * T'nin İÇERİĞİ değişiyor (referansı değil), React bunu kendiliğinden fark edemez.
+   * Ama `tema` state'i de değiştiği için tüm ağaç zaten yeniden çiziliyor ve yeni renkler
+   * o çizimde okunuyor. Bu yüzden ayrı bir tetikleyiciye gerek yok. */
+  const [tema, setTemaState] = useState(temaOku);
+  useEffect(() => { temaUygula(temaOku()); setTemaState(temaOku()); }, []);
+  const setTema = (mod) => { temaUygula(mod); setTemaState(mod); };
+
   const [guvenlikDurumu, setGuvenlikDurumu] = useState(null);
   const [gizlilikModu, setGizlilikModuState] = useState(gizlilikModuOku());
   const setGizlilikModu = (deger) => {
@@ -7813,6 +7830,16 @@ export default function MarcusOS() {
                 </div>
               )}
             </div>
+            {/* TEMA ANAHTARI — koyu/açık. Göz simgesinin yanında, çünkü ikisi de "ekran nasıl
+              * görünsün" ayarı ve ikisine de her ekrandan ulaşılması gerekiyor. */}
+            <div
+              onClick={() => setTema(tema === "koyu" ? "acik" : "koyu")}
+              title={tema === "koyu" ? "Açık temaya geç" : "Koyu temaya geç"}
+              style={{ width: 34, height: 34, borderRadius: 10, background: T.surface, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+            >
+              {tema === "koyu" ? <Sun size={15} color={T.textDim} /> : <Moon size={15} color={T.textDim} />}
+            </div>
+
             {/* GİZLİLİK ANAHTARI — rakamlar varsayılan olarak gizli geldiği için, göstermenin
               * tek tıkla ve her ekrandan ulaşılabilir olması gerekiyor. Ayarlar'a gitmek
               * zorunda kalmak bu özelliği kullanılmaz hâle getirirdi. */}

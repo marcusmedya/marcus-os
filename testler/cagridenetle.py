@@ -74,6 +74,8 @@ if __name__ == "__main__":
         # anahtar kelimeler
         cagrilar -= {"if","for","while","switch","catch","return","function","typeof","await",
                      "new","do","else","try","case","in","of","yield","delete","void","instanceof"}
+        # get/set kısayolları çağrı değil, tanımdır:  get bg() { ... }
+        cagrilar -= set(re.findall(r"(?:get|set)\s+([A-Za-z_]\w*)\s*\(", kod))
         eksik = sorted(a for a in cagrilar if a not in mevcut)
         if eksik:
             hata += 1

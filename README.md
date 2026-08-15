@@ -1791,3 +1791,52 @@ kıran hatanın birebir kopyasıyla test edildi, yakalıyor.
 
 Bu, aynı kök sebebin dördüncü tekrarı: metin araması yaparak kod eklemek, eklemeyi yanlış yere
 düşürüyor. Denetleyiciler bu sınıfın her biçimini artık ayrı ayrı yakalıyor.
+
+## Güncelleme 82: Koyu / Açık Tema Seçeneği
+
+Üst çubukta, göz simgesinin yanında bir **güneş/ay düğmesi** var. Tek tıkla koyu ve açık tema
+arasında geçiş yapıyorsun. Seçimin bu cihazda hatırlanıyor.
+
+Varsayılan **koyu** — uygulamanın alışılmış görünümü. Daha önce bir seçim yapmadıysan hiçbir
+şey değişmez.
+
+### Açık tema neye göre kuruldu
+Koyunun basit bir tersi değil:
+- Zemin saf beyaz değil, hafif soğuk gri (`#F4F5F7`) — aynı ekranda saatlerce rakam okunuyor,
+  saf beyaz göz yorar
+- Vurgu renkleri beyaz üstünde okunacak biçimde koyulaştırıldı
+- Yumuşak zeminler (uyarı, başarı, hata kutucukları) saydam katman yerine düz açık ton —
+  saydamlık beyaz üstünde soluk ve okunaksız kalıyordu
+
+### Operasyon da uyuyor
+Operasyon sekmesinin kendi ayrı renk paleti vardı ve sabit koyu değerler içeriyordu; tema
+değişse bile o sekme koyu kalırdı. Artık ortak temadan türetiliyor.
+
+### İlk açılışta yanıp sönme yok
+Tema tercihi, React yüklenmeden önce sayfaya uygulanıyor. Aksi halde açık tema seçiliyken
+sayfa önce koyu boyanıp sonra beyaza dönüyordu ve bu her açılışta göze çarpıyordu.
+
+### Müşteri paneli
+Bilerek açık kaldı — 80. güncellemede müşteriye teslim edilen bir yüzey olarak tasarlandı ve
+kendi renk sistemi var. İstersen ona da koyu seçeneği ekleyebiliriz.
+
+## Güncelleme 83: Geçmişte Görseller de Görünüyor
+
+Müşteri panelindeki **Geçmiş** bölümünde yalnızca başlık, tarih ve revize notu vardı. Görsel
+görünmediği için "hangi görsele ne demiştim?" sorusunun cevabı kayboluyordu — 11 satırlık bir
+listede "Görsel 8" başlığı tek başına hiçbir şey anlatmıyor.
+
+### İki katmanlı çözüm
+- **Küçük kare önizleme** her satırda: listeye bakar bakmaz hangisinin hangisi olduğu belli
+- **Satıra tıklayınca açılıyor**: görselin tam hâli, video ise oynatıcı, çekim planıysa referans
+  video ve konuşma metni
+
+Onaylanmış ya da revize istenmiş fark etmez — hepsi görünür kalıyor. Revize notu artık kırmızı
+renkte, hangi kayda ait olduğu net.
+
+### Yönetici tarafına da eklendi
+Müşteri Paneli sekmesindeki içerik listesinde de aynı sorun vardı: 10 satırlık listede
+başlıktan hangi görselin hangisi olduğunu anlamak mümkün değildi. Oraya da küçük önizleme
+eklendi.
+
+Görseli olmayan kayıtlarda tür simgesi çıkıyor (🎬 çekim planı, ▶ video, 🖼 görsel).

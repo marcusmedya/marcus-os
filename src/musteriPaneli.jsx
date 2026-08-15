@@ -12,7 +12,7 @@ import {
   tarihGoster, cancelBtnStyle, haftaBaslangici, reklamDurumu, musteriHatirlaniyorMu, FONTS, basligiTemizle, istatistikVarMi, authHeaders,
 } from "./tema.jsx";
 import { LogOut, Trash2 } from "lucide-react";
-import { driveEmbedUrl, DriveGorsel, DriveVideo, driveGorselAdaylari } from "./drive.jsx";
+import { driveEmbedUrl, DriveGorsel, DriveVideo, driveGorselAdaylari, DriveKucukGorsel } from "./drive.jsx";
 import { InstagramOnizleme, InstagramIzgara } from "./instagram.jsx";
 
 /** Müşteri Paneli — owner/personel arayüzünden tamamen izole, sade bir onay ekranı.
@@ -436,16 +436,67 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {gecmis.map((icerik) => {
                 const stil = DURUM_STIL[icerik.durum] || DURUM_STIL.bekliyor;
+                const acik = acikIcerikId === icerik.id;
+                const gecmisEmbed = driveEmbedUrl(icerik.driveLinki);
                 return (
-                  <div key={icerik.id} style={{ background: MT.kart, border: `1px solid ${MT.cizgi}`, borderRadius: 10, padding: "12px 16px" }}>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: icerik.revizeNotu ? 6 : 0 }}>
-                      <div>
-                        <div style={{ fontSize: 12.5, color: MT.murekkep, fontWeight: 600, fontFamily: "Inter" }}>{basligiTemizle(icerik.aciklama) || icerik.tur}</div>
-                        <div style={{ fontSize: 10.5, color: MT.soluk, fontFamily: "Inter" }}>{icerik.tarih}</div>
+                  <div key={icerik.id} style={{ background: MT.kart, border: `1px solid ${acik ? MT.cizgiKoyu : MT.cizgi}`, borderRadius: 10, overflow: "hidden" }}>
+                    {/* Geçmişteki kayıtlar da AÇILABİLİR ve küçük bir önizleme taşır.
+                      * Eskiden yalnızca başlık, tarih ve revize notu görünüyordu; "hangi görsele
+                      * ne demiştim?" sorusunun cevabı kayboluyordu. Küçük kare hızlı tanımayı,
+                      * açılan görünüm tam incelemeyi sağlar. */}
+                    <button
+                      onClick={() => setAcikIcerikId(acik ? null : icerik.id)}
+                      style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", background: "none", border: "none", padding: "12px 16px", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
+                    >
+                      <span style={{ width: 46, height: 46, borderRadius: 7, overflow: "hidden", flexShrink: 0, background: MT.kagit, border: `1px solid ${MT.cizgi}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        {icerik.tur === "gorsel" && icerik.driveLinki
+                          ? <DriveKucukGorsel link={icerik.driveLinki} />
+                          : icerik.gorselUrl && String(icerik.gorselUrl).startsWith("data:")
+                            ? <img src={icerik.gorselUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                            : <span style={{ fontSize: 15 }}>{icerik.tur === "cekim" ? "🎬" : icerik.tur === "video" ? "▶" : "🖼"}</span>}
+                      </span>
+                      <span style={{ minWidth: 0, flex: 1 }}>
+                        <span style={{ display: "block", fontSize: 13, color: MT.murekkep, fontWeight: 600, fontFamily: "Inter" }}>{basligiTemizle(icerik.aciklama) || icerik.tur}</span>
+                        <span style={{ display: "block", fontSize: 11, color: MT.soluk, fontFamily: "Inter", marginTop: 2 }}>{icerik.tarih}</span>
+                      </span>
+                      <span style={{ display: "flex", alignItems: "center", gap: 9, flexShrink: 0 }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: stil.color, background: stil.bg, padding: "3px 10px", borderRadius: 999, fontFamily: "Inter" }}>{stil.label}</span>
+                        <span style={{ color: MT.soluk, fontSize: 11 }}>{acik ? "▲" : "▼"}</span>
+                      </span>
+                    </button>
+
+                    {icerik.revizeNotu && (
+                      <div style={{ padding: "0 16px 12px", fontSize: 12.5, color: MT.revize, fontFamily: "Inter", fontStyle: "italic", lineHeight: 1.6 }}>
+                        "{icerik.revizeNotu}"
                       </div>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: stil.color, background: stil.bg, padding: "3px 10px", borderRadius: 999, fontFamily: "Inter" }}>{stil.label}</span>
-                    </div>
-                    {icerik.revizeNotu && <div style={{ fontSize: 12, color: MT.soluk, fontFamily: "Inter", fontStyle: "italic" }}>"{icerik.revizeNotu}"</div>}
+                    )}
+
+                    {acik && (
+                      <div style={{ padding: "0 16px 16px", borderTop: `1px solid ${MT.cizgi}`, paddingTop: 14 }}>
+                        {icerik.gorselUrl && String(icerik.gorselUrl).startsWith("data:") && (
+                          <img src={icerik.gorselUrl} alt="" style={{ width: "100%", borderRadius: 9, display: "block", marginBottom: 10 }} />
+                        )}
+                        {!icerik.gorselUrl && icerik.tur === "gorsel" && icerik.driveLinki && (
+                          <div style={{ marginBottom: 10 }}><DriveGorsel link={icerik.driveLinki} yukseklik={420} /></div>
+                        )}
+                        {icerik.tur === "video" && icerik.driveLinki && (
+                          <div style={{ marginBottom: 10 }}><DriveVideo link={icerik.driveLinki} yon={icerik.videoYonu} /></div>
+                        )}
+                        {icerik.tur === "cekim" && (
+                          <>
+                            {icerik.referansLink && <div style={{ marginBottom: 10 }}><DriveVideo link={icerik.referansLink} yon={icerik.videoYonu} baslik="Referans video" /></div>}
+                            {icerik.konusmaMetni && (
+                              <div style={{ background: MT.kagit, borderRadius: 9, padding: "12px 14px", fontSize: 13, color: MT.murekkep, fontFamily: "Inter", whiteSpace: "pre-wrap", lineHeight: 1.7 }}>
+                                {icerik.konusmaMetni}
+                              </div>
+                            )}
+                          </>
+                        )}
+                        {!icerik.driveLinki && !icerik.gorselUrl && !icerik.referansLink && !icerik.konusmaMetni && (
+                          <div style={{ fontSize: 12.5, color: MT.soluk, fontFamily: "Inter" }}>Bu kayda ait bir görsel ya da video bulunmuyor.</div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}

@@ -14,7 +14,19 @@ import React, { useState, useEffect, useRef } from "react";
 // lucide import'u taşınmamıştı; sonuç: FieldForm her açıldığında uygulama çöküyordu.
 import { ArrowUpRight, ArrowDownRight, Check } from "lucide-react";
 
-export const T = {
+/* ==================================================================
+ * TEMA — Koyu / Açık
+ *
+ * T bir SABİT DEĞİL, içeriği çalışma anında değiştirilen bir nesnedir. Uygulamanın her yeri
+ * `T.bg`, `T.text` diye okuduğu için, temayı değiştirmek T'nin içindeki değerleri
+ * güncellemek + bir kez yeniden çizdirmek demek. Alternatif (her bileşene tema geçirmek)
+ * yüzlerce dosya değişikliği ve buna karşılık hiçbir kazanç anlamına gelirdi.
+ *
+ * ÖNEMLİ: inputStyle / saveBtnStyle gibi hazır stiller de bir kez hesaplanıyor; tema
+ * değişince onların da içi güncellenmeli. temaUygula() bunu yapıyor — atlanırsa açık temada
+ * form alanları koyu kalır.
+ * ================================================================== */
+export const KOYU = {
   bg: "#0C0E13",
   surface: "#151822",
   surfaceRaised: "#1C202C",
@@ -33,6 +45,65 @@ export const T = {
   danger: "#F2555A",
   dangerSoft: "rgba(242,85,90,0.14)",
 };
+
+/* Açık tema, koyunun basit bir tersi değil: aynı ekranda saatlerce rakam okunuyor, bu yüzden
+ * zemin saf beyaz değil hafif soğuk gri (göz yormaması için) ve vurgu renkleri beyaz üstünde
+ * okunacak biçimde koyulaştırıldı. Yumuşak zeminler koyu temadaki saydam katmanlar yerine
+ * düz açık tonlar — saydamlık beyaz üstünde soluk ve okunaksız kalıyordu. */
+export const ACIK = {
+  bg: "#F4F5F7",
+  surface: "#FFFFFF",
+  surfaceRaised: "#F0F2F5",
+  border: "#DDE1E7",
+  borderSoft: "#E8EBEF",
+  text: "#14171C",
+  textDim: "#5A6272",
+  textFaint: "#8A93A3",
+  accent: "#4A5AE8",
+  accentSoft: "#EAECFD",
+  accentText: "#3A47C4",
+  success: "#12855A",
+  successSoft: "#E6F5EE",
+  warning: "#9A6100",
+  warningSoft: "#FCF3E3",
+  danger: "#C22B30",
+  dangerSoft: "#FBEBEC",
+};
+
+export const T = { ...KOYU };
+
+/** Kayıtlı tercih; yoksa koyu (uygulamanın alışılmış görünümü). */
+export function temaOku() {
+  try {
+    const k = localStorage.getItem("marcus-os-tema");
+    return k === "acik" ? "acik" : "koyu";
+  } catch (e) { return "koyu"; }
+}
+
+/** Temayı uygular: T'nin ve hazır stillerin içini günceller, tercihi kaydeder. */
+export function temaUygula(mod) {
+  const p = mod === "acik" ? ACIK : KOYU;
+  Object.keys(p).forEach((k) => { T[k] = p[k]; });
+  try { localStorage.setItem("marcus-os-tema", mod === "acik" ? "acik" : "koyu"); } catch (e) { /* sessizce geç */ }
+
+  // Bir kez hesaplanmış stiller de tazelenir (aşağıda tanımlılar; ilk çağrıda henüz yoksa atlanır).
+  if (typeof inputStyle === "object") {
+    inputStyle.background = T.surface;
+    inputStyle.border = `1px solid ${T.border}`;
+    inputStyle.color = T.text;
+    saveBtnStyle.background = T.accent;
+    cancelBtnStyle.color = T.textDim;
+    cancelBtnStyle.border = `1px solid ${T.border}`;
+    addBtnStyle.background = T.accentSoft;
+    addBtnStyle.color = T.accentText;
+  }
+  // Sayfa zemini ve tarayıcı arayüz rengi
+  try {
+    document.body.style.background = T.bg;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute("content", T.bg);
+  } catch (e) { /* sunucu tarafında document yok */ }
+}
 
 export const FONTS = `
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');

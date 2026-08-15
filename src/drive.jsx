@@ -119,3 +119,27 @@ export function DriveVideo({ link, yon, baslik }) {
   );
 }
 
+
+/**
+ * Küçük kare önizleme (liste satırlarında). Aday adresleri sırayla dener; hiçbiri açılmazsa
+ * bir simge gösterir — küçük bir karede hata metni okunamayacağı için burada sessiz kalmak
+ * doğru: kullanıcı satırı açtığında büyük görünümde gerçek sebep zaten yazıyor.
+ */
+export function DriveKucukGorsel({ link }) {
+  const adaylar = driveGorselAdaylari(link);
+  const [sira, setSira] = useState(0);
+  useEffect(() => { setSira(0); }, [link]);
+
+  if (adaylar.length === 0 || sira >= adaylar.length) {
+    return <span style={{ fontSize: 15 }}>🖼</span>;
+  }
+  return (
+    <img
+      src={adaylar[sira]}
+      alt=""
+      style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+      referrerPolicy="no-referrer"
+      onError={() => setSira((n) => n + 1)}
+    />
+  );
+}

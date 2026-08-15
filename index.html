@@ -16,6 +16,17 @@
     <meta name="apple-mobile-web-app-title" content="Marcus" />
   </head>
   <body style="margin:0;background:#0C0E13;">
+    <script>
+      // Kayıtlı tema, React yüklenmeden ÖNCE zemine uygulanır. Yoksa açık tema seçiliyken
+      // sayfa önce koyu boyanıp sonra beyaza dönüyor ve her açılışta göze çarpıyordu.
+      try {
+        if (localStorage.getItem("marcus-os-tema") === "acik") {
+          document.body.style.background = "#F4F5F7";
+          var m = document.querySelector('meta[name="theme-color"]');
+          if (m) m.setAttribute("content", "#F4F5F7");
+        }
+      } catch (e) {}
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 // Para gösterimleri Gizlilik Modu'na uymalı — aksi halde ücretler gizliyken de görünür kalırdı.
-import { fmt } from "./tema.jsx";
+import { fmt, T } from "./tema.jsx";
 import {
   Camera, Plus, X, Clock, AlertTriangle, CheckCircle2, User, Link2,
   MessageSquare, History, ChevronRight, ChevronLeft, Pencil, Trash2, LayoutGrid, BarChart3, ListTodo, Rocket,
@@ -10,13 +10,27 @@ import {
 /* ------------------------------------------------------------------ */
 /* Bu modül de kendi (App.jsx'ten bağımsız) sade tasarım dilini kullanır. */
 /* ------------------------------------------------------------------ */
+/* Operasyon'un kendi paleti vardı ve sabit koyu renkler içeriyordu; tema değiştiğinde bu
+ * sekme koyu kalıyordu. Artık ortak temadan (T) türetiliyor — get ile okunuyor ki tema
+ * değiştiğinde güncel değeri versin. Operasyon'un ayırt edici mavi vurgusu korundu. */
 const C = {
-  bg: "#111114", panel: "#1B1B1F", panelAlt: "#17171A", border: "#2A2A30", borderSoft: "#232327",
-  text: "#F5F5F7", textDim: "#9A9AA2", textFaint: "#5F5F66",
-  accent: "#3B9EFF", accentSoft: "rgba(59,158,255,0.14)", accentText: "#8FC7FF",
-  success: "#33D874", successSoft: "rgba(51,216,116,0.12)",
-  danger: "#FF5A52", dangerSoft: "rgba(255,90,82,0.12)",
-  warning: "#F5A623", warningSoft: "rgba(245,166,35,0.12)",
+  get bg() { return T.bg; },
+  get panel() { return T.surface; },
+  get panelAlt() { return T.surfaceRaised; },
+  get border() { return T.border; },
+  get borderSoft() { return T.borderSoft; },
+  get text() { return T.text; },
+  get textDim() { return T.textDim; },
+  get textFaint() { return T.textFaint; },
+  get accent() { return T.accent; },
+  get accentSoft() { return T.accentSoft; },
+  get accentText() { return T.accentText; },
+  get success() { return T.success; },
+  get successSoft() { return T.successSoft; },
+  get danger() { return T.danger; },
+  get dangerSoft() { return T.dangerSoft; },
+  get warning() { return T.warning; },
+  get warningSoft() { return T.warningSoft; },
 };
 
 export const KATEGORILER = ["Video", "Grafik Tasarım"];
