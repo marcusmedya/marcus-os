@@ -1840,3 +1840,51 @@ başlıktan hangi görselin hangisi olduğunu anlamak mümkün değildi. Oraya d
 eklendi.
 
 Görseli olmayan kayıtlarda tür simgesi çıkıyor (🎬 çekim planı, ▶ video, 🖼 görsel).
+
+## Güncelleme 84: Operasyon ↔ Müşteri Paneli Senkronu
+
+### 1. "Hazır İçerikler" — canlı ayna
+Müşteri paneline yeni bir sekme geldi: Operasyon'da **"Kontrol Bekliyor"** aşamasındaki tüm
+kartlar, o markaya ait olanlar burada görünüyor.
+
+**Kopya değil, ayna.** Bu ayrım önemli: eskiden bir iş Kontrol Bekliyor'a geçtiğinde müşteri
+paneline bir kopya kayıt oluşturuluyordu. İki sorunu vardı —
+- Yalnızca işte **dosya linki varsa** çalışıyordu; dosyasız kartlar müşteriye hiç gitmiyordu
+- Kopya olduğu için, iş o aşamadan geri alınsa bile müşteri panelinde onay bekliyor gibi
+  asılı kalıyordu
+
+Artık iş Kontrol Bekliyor'dan çıktığı anda müşteri panelinden de kayboluyor. "Orada olmayan
+bir şey müşteri panelinde gözükmesin" kuralı kendiliğinden sağlanıyor — ayrıca bir temizlik
+gerekmiyor.
+
+Dosyası olmayan kartlar da görünüyor; müşteriye "dosya henüz eklenmedi" diye yazıyor.
+
+### Onay ve revize doğrudan Operasyon kartını hareket ettiriyor
+| Müşteri ne yaparsa | Operasyon kartı |
+|---|---|
+| **Onayla** | → **Onaylandı** (teslim adımı ekipte kalır) |
+| **Değişiklik iste** | → **Revize İstendi**, notu işin geçmişine yazılır |
+
+### Gizlilik
+Kartlar alan alan seçilerek gönderiliyor. **Brief, kameraman/editör adları, iç yorumlar ve
+işlem geçmişi müşteriye gitmiyor.** Test edildi.
+
+Ayrıca müşteri yalnızca **kendi markasının** ve yalnızca **Kontrol Bekliyor'daki** bir kartına
+dokunabiliyor — başka marka ya da başka aşama denemesi sunucuda reddediliyor.
+
+### 2. Çekim planlarına "✓ Çekildi"
+Müşteri Paneli sekmesinde çekim planı satırlarına **"✓ Çekildi"** düğmesi eklendi. Tıklayınca
+Operasyon'da iş doğrudan **"Çekim Yapıldı"** aşamasına düşüyor (Grafik Tasarım'da "Tasarım
+Bekliyor").
+
+Onay Kutusu'ndan geçmiyor — onay kutusu "ne yapılacak, kim yapacak" kararı içindir; burada
+karar zaten verilmiştir, çekim yapılmıştır. Kimse atanmadığı için iş onay kutusunda
+"atanmamış" olarak yine görünür ve oradan kişi atanabilir.
+
+Zaten bağlı bir iş varsa ikinci kart açılmaz, mevcut iş ilerletilir. İşaretlenen plan satırında
+"✓ Çekildi" yazısı kalır.
+
+### Doğrulama
+Yeni test dosyası `testler/t14.mjs` — 11 kontrol: aşama süzmesi, marka süzmesi, dosyasız kart,
+gizli alan sızıntısı, onay/revize sonrası aşama, listeden düşme ve iki yetkisiz erişim denemesi.
+Hepsi geçiyor.

@@ -353,6 +353,26 @@ export default async function handler(req, res) {
           gorselUrl: p.gorselUrl || null,
         }));
 
+      /* HAZIR İÇERİKLER — Operasyon'da "Kontrol Bekliyor" aşamasındaki işlerin CANLI AYNASI.
+       *
+       * Kopya değil, ayna: iş o aşamadan çıktığı anda müşteri panelinden de kaybolur.
+       * Kopyalasaydık, Operasyon'da geri alınan bir iş müşteri panelinde onay bekliyor gibi
+       * asılı kalırdı — "orada olmayan bir şey müşteri panelinde gözükmesin" kuralı bozulurdu.
+       *
+       * Alanlar tek tek seçiliyor: brief, kameraman/editör adları, iç yorumlar ve işlem
+       * geçmişi bilerek DIŞARIDA. */
+      const kendiHazirIcerikleri = (data.cekimIsleri || [])
+        .filter((j) => markaEsit(j.marka) && j.asama === "Kontrol Bekliyor")
+        .map((j) => ({
+          isId: j.id,
+          baslik: j.icerikTuru || (j.kategori === "Grafik Tasarım" ? "Tasarım" : "Video"),
+          kategori: j.kategori || "Video",
+          dosyaLinki: j.editliDosyaLink || j.hamDosyaLink || null,
+          videoYonu: j.videoYonu || null,
+          teslimTarihi: j.teslimTarihi || null,
+          uretilenAdet: j.uretilenAdet || null,
+        }));
+
       const kendiIsleri = (data.cekimIsleri || [])
         .filter((j) => markaEsit(j.marka))
         .map((j) => ({
@@ -376,6 +396,7 @@ export default async function handler(req, res) {
           ajansLogo: data.markaKimligiGorseli || null,
           firmaAdi: data.firmaAdi || "Marcus Medya",
           icerikler: kendiIcerikleri,
+          hazirIcerikler: kendiHazirIcerikleri,
           reklamlar: kendiReklamlari,
           paylasimPlani: kendiPaylasimPlani,
           operasyonIsleri: kendiIsleri,
@@ -383,12 +404,62 @@ export default async function handler(req, res) {
       }
 
       if (req.method === "POST") {
-        const { musteriAction, icerikId, revizeNotu } = req.body || {};
+        const { musteriAction, icerikId, isId, revizeNotu } = req.body || {};
         if (musteriAction !== "onayla" && musteriAction !== "revizeIste") {
           return res.status(400).json({ error: "Geçersiz işlem." });
         }
         if (musteriAction === "revizeIste" && (!revizeNotu || !revizeNotu.trim())) {
           return res.status(400).json({ error: "Revize notu boş olamaz." });
+        }
+
+        /* HAZIR İÇERİK (Operasyon kartı) üzerinde işlem — isId gönderildiğinde.
+         * Bu kartlar müşteri paneline kopyalanmıyor, canlı yansıtılıyor; dolayısıyla onay ve
+         * revize doğrudan Operasyon kartının aşamasını değiştirir:
+         *   onayla     → "Onaylandı"   (teslim adımı ekipte kalır)
+         *   revizeIste → "Revize İstendi" + notu işin geçmişine yazılır
+         * Her iki durumda da iş "Kontrol Bekliyor"dan çıktığı için müşteri panelinden
+         * kendiliğinden kaybolur — ayrıca bir temizlik gerekmez. */
+        if (isId !== undefined && isId !== null) {
+          /* guvenliGuncelle, geri dönüşte { veri } bekler — doğrudan veriyi döndürmek
+           * kaydı bozar. İzin verilmeyen durumlarda { iptal: true } döndürülür. */
+          const sonucIs = await guvenliGuncelle((guncel) => {
+            const isler = guncel.cekimIsleri || [];
+            const hedef = isler.find((j) => String(j.id) === String(isId));
+            if (!hedef) return { iptal: true, hata: "Kart bulunamadı.", kod: 404 };
+
+            // Güvenlik: müşteri yalnızca KENDİ markasının ve yalnızca Kontrol Bekliyor'daki
+            // bir kartına dokunabilir.
+            const markaAdiKendi = ((guncel.clients || []).find((c) => String(c.id) === String(musteriClientId)) || {}).ad || "";
+            if (trKucult(hedef.marka) !== trKucult(markaAdiKendi)) {
+              return { iptal: true, hata: "Bu içeriğe erişim yetkin yok.", kod: 403 };
+            }
+            if (hedef.asama !== "Kontrol Bekliyor") {
+              return { iptal: true, hata: "Bu içerik artık onayını beklemiyor. Sayfayı yenile.", kod: 409 };
+            }
+
+            const zaman = new Date().toLocaleString("tr-TR");
+            const yeniAsama = musteriAction === "onayla" ? "Onaylandı" : "Revize İstendi";
+            const not = musteriAction === "onayla"
+              ? "Müşteri paneli üzerinden ONAYLANDI."
+              : `Müşteri revize istedi: "${revizeNotu.trim()}"`;
+            return {
+              veri: {
+                ...guncel,
+                cekimIsleri: isler.map((j) => (String(j.id) === String(isId)
+                  ? {
+                      ...j,
+                      asama: yeniAsama,
+                      musteriRevizeNotu: musteriAction === "revizeIste" ? revizeNotu.trim() : null,
+                      gecmis: [...(j.gecmis || []), { id: (j.gecmis || []).length + 1, tarih: zaman, yazan: "Müşteri", aciklama: not }],
+                    }
+                  : j)),
+              },
+            };
+          });
+          if (!sonucIs.ok) {
+            return res.status(sonucIs.kod || 409).json({ error: sonucIs.hata || "Kaydedilemedi, sayfayı yenileyip tekrar dene." });
+          }
+          return res.status(200).json({ ok: true });
         }
 
         // Kilit altında, EN GÜNCEL veri üzerinde çalışılır — eskiden yukarıda okunan

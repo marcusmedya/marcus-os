@@ -513,7 +513,7 @@ function gorseliBase64eCevir(file, onDone, onHata) {
  * Müşteri Paneli sekmesinde tam sayfa olarak (kompakt=false) kullanılır.
  * Tek bir yerde tanımlı olduğu için iki görünüm asla birbirinden ayrışmaz.
  */
-function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, onOnayla, onBildir, kompakt = true, baslangicAcik = false }) {
+function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, onOnayla, onBildir, onCekildi, kompakt = true, baslangicAcik = false }) {
   const [acik, setAcik] = useState(baslangicAcik);
   const [ekleAcik, setEkleAcik] = useState(false);
   const [duzenlenenId, setDuzenlenenId] = useState(null); // düzenlenen kaydın id'si (yoksa yeni ekleme)
@@ -668,6 +668,21 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                         <span style={{ fontSize: 10.5, fontWeight: 600, color: etiket.color, background: etiket.bg, padding: "2px 8px", borderRadius: 999, fontFamily: "Inter" }} title={i.onaylayan ? `Onaylayan: ${i.onaylayan}` : undefined}>
                           {etiket.label}{i.onaylayan === "Yönetici" ? " (sen)" : ""}
                         </span>
+                        {/* ÇEKİLDİ — çekim planları için hızlı yol: Operasyon'da iş doğrudan
+                          * "Çekim Yapıldı"ya düşer, onay kutusundan geçmeden. */}
+                        {onCekildi && i.tur === "cekim" && (
+                          i.cekildi ? (
+                            <span style={{ fontSize: 10.5, fontWeight: 600, color: T.success, fontFamily: "Inter", whiteSpace: "nowrap" }}>✓ Çekildi</span>
+                          ) : (
+                            <button
+                              title="Çekim yapıldı olarak işaretle — Operasyon'a düşsün"
+                              onClick={() => { if (window.confirm(`"${basligiTemizle(i.aciklama) || "Bu plan"}" çekildi olarak işaretlenecek ve Operasyon'a düşecek. Devam edilsin mi?`)) onCekildi(i.id); }}
+                              style={{ background: "none", border: `1px solid ${T.accentText}`, color: T.accentText, cursor: "pointer", padding: "2px 9px", borderRadius: 999, fontSize: 10.5, fontWeight: 600, fontFamily: "Inter", whiteSpace: "nowrap" }}
+                            >
+                              ✓ Çekildi
+                            </button>
+                          )
+                        )}
                         {/* Müşteri onaylamayı unutursa iş takılı kalmasın diye sen de onaylayabilirsin. */}
                         {onOnayla && i.durum === "bekliyor" && (
                           <button
@@ -4414,7 +4429,7 @@ function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
  * Daha önce bunlar iki ayrı yere dağılmıştı (içerikler müşteri detayında, hesaplar
  * Ayarlar'da) ve müşteri detayı zaten kalabalık olduğu için içerik bölümü kayboluyordu.
  */
-function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, onOnayla, onBildir, plan, reklamlar, isler, onAltMetin, firmaAdi, logo, olcumler }) {
+function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, onOnayla, onBildir, onCekildi, plan, reklamlar, isler, onAltMetin, firmaAdi, logo, olcumler }) {
   const [secili, setSecili] = useState(null);
 
   const aktifler = (clients || []).filter((c) => c.durum !== "ayrildi");
@@ -4481,6 +4496,7 @@ function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, 
             onDelete={onDelete}
             onOnayla={onOnayla}
             onBildir={onBildir}
+            onCekildi={onCekildi}
             kompakt={false}
           />
         </Card>
@@ -6700,31 +6716,16 @@ export default function MarcusOS() {
     const eskiIs = (d.cekimIsleri || []).find((j) => j.id === id);
     const yeniIsler = (d.cekimIsleri || []).map((j) => (j.id === id ? { ...j, ...patch } : j));
     let musteriIcerikleri = d.musteriIcerikleri || [];
-    // "Kontrol Bekliyor" aşamasına YENİ geçildiyse (önceden başka bir aşamadaysa), otomatik
-    // olarak müşteri panelinde onay bekleyen bir kayıt oluşturulur — CEO ekstra bir şey
-    // yapmadan, iş bu aşamaya gelince müşteri direkt görebilsin diye.
-    if (patch.asama === "Kontrol Bekliyor" && eskiIs && eskiIs.asama !== "Kontrol Bekliyor") {
-      const musteri = (d.clients || []).find((c) => c.ad === eskiIs.marka);
-      const dosyaLinki = eskiIs.editliDosyaLink || patch.editliDosyaLink || eskiIs.hamDosyaLink || patch.hamDosyaLink || "";
-      if (musteri && dosyaLinki) {
-        const zatenVarMi = musteriIcerikleri.some((i) => i.kaynakIsId === id && i.durum === "bekliyor");
-        if (!zatenVarMi) {
-          musteriIcerikleri = [...musteriIcerikleri, {
-            id: nextId(musteriIcerikleri),
-            clientId: musteri.id,
-            tur: (eskiIs.kategori === "Grafik Tasarım" ? "gorsel" : "video"),
-            driveLinki: dosyaLinki,
-            gorselUrl: null,
-            aciklama: eskiIs.icerikTuru || "",
-            tarih: new Date().toLocaleDateString("tr-TR"),
-            durum: "bekliyor",
-            revizeNotu: null,
-            kaynakIsId: id,
-            olusturmaTarihi: new Date().toLocaleDateString("tr-TR"),
-          }];
-        }
-      }
-    }
+    /* ESKİ KOPYALAMA KALDIRILDI.
+     * Bir iş "Kontrol Bekliyor"a geçtiğinde müşteri paneline bir KOPYA kayıt oluşturuluyordu.
+     * İki sorunu vardı: (1) yalnızca işte dosya linki varsa çalışıyordu, (2) kopya olduğu için
+     * iş o aşamadan çıksa bile müşteri panelinde onay bekliyor gibi asılı kalıyordu.
+     *
+     * Yerine "Hazır İçerikler" geldi: sunucu, Kontrol Bekliyor'daki işleri müşteriye CANLI
+     * yansıtıyor (bkz. api/data.js → kendiHazirIcerikleri). İş aşamadan çıkınca panelden de
+     * kendiliğinden kayboluyor. Daha önce bu yolla oluşmuş kayıtlar silinmedi — onlar gerçek
+     * içerik ve müşterinin hâlâ yanıtlaması gerekebilir. */
+
     return { ...d, cekimIsleri: yeniIsler, musteriIcerikleri };
   });
   const deleteCekimIsi = (id) => {
@@ -6858,6 +6859,61 @@ export default function MarcusOS() {
       });
     }
     return yeni;
+  });
+
+  /**
+   * ÇEKİM YAPILDI — bir çekim planı için "Çekildi" işaretlenince Operasyon'da iş doğrudan
+   * "Çekim Yapıldı" aşamasına düşer.
+   *
+   * Onay Kutusu'ndan geçmez: onay kutusu "ne yapılacak, kim yapacak" kararı içindir; burada
+   * karar zaten verilmiştir — çekim yapılmıştır. Kimse atanmadığı için iş, onay kutusunda
+   * "atanmamış" olarak yine görünür ve oradan kişi atanabilir.
+   */
+  const cekimYapildiIsaretle = (icerikId) => setData((d) => {
+    const icerik = (d.musteriIcerikleri || []).find((i) => i.id === icerikId);
+    if (!icerik) return d;
+    const isler = d.cekimIsleri || [];
+    const zaman = new Date().toLocaleString("tr-TR");
+    const kat = icerik.kategori === "Grafik Tasarım" ? "Grafik Tasarım" : "Video";
+    const hedefAsama = kat === "Grafik Tasarım" ? "Tasarım Bekliyor" : "Çekim Yapıldı";
+
+    // Zaten bağlı bir iş varsa onu ilerlet — ikinci bir kart açma.
+    if (icerik.kaynakIsId && isler.some((j) => j.id === icerik.kaynakIsId)) {
+      return {
+        ...d,
+        musteriIcerikleri: (d.musteriIcerikleri || []).map((i) => (i.id === icerikId ? { ...i, cekildi: true } : i)),
+        cekimIsleri: isler.map((j) => (j.id === icerik.kaynakIsId
+          ? { ...j, asama: hedefAsama, gecmis: [...(j.gecmis || []), { id: (j.gecmis || []).length + 1, tarih: zaman, yazan: "Yönetici (CEO)", aciklama: "Çekim yapıldı olarak işaretlendi." }] }
+          : j)),
+      };
+    }
+
+    const marka = ((d.clients || []).find((c) => String(c.id) === String(icerik.clientId)) || {}).ad || "";
+    const yeniId = isler.reduce((m, j) => Math.max(m, Number(j.id) || 0), 0) + 1;
+    const yeniIs = {
+      id: yeniId,
+      kategori: kat,
+      marka,
+      icerikTuru: (icerik.aciklama || "Çekim").slice(0, 120),
+      asama: hedefAsama,
+      cekimTarihi: icerik.planlananTarih || bugunISOTarih(),
+      teslimTarihi: icerik.planlananTarih || bugunISOTarih(),
+      kameraman: "", editor: "", oncelik: "Normal", istenenAdet: "", uretilenAdet: "",
+      videoYonu: icerik.videoYonu || "dikey",
+      brief: [
+        icerik.konusmali ? `Tip: ${icerik.konusmali === "konusmali" ? "Konuşmalı" : icerik.konusmali === "seslendirme" ? "Dış ses" : "Konuşmasız"}` : "",
+        icerik.konusmaMetni ? `\nKONUŞMA METNİ:\n${icerik.konusmaMetni}` : "",
+        icerik.cekimNotu ? `\nÇEKİM NOTU:\n${icerik.cekimNotu}` : "",
+      ].filter(Boolean).join("\n"),
+      editliDosyaLink: "",
+      gecmis: [{ id: 1, tarih: zaman, yazan: "Yönetici (CEO)", aciklama: "Çekim yapıldı — plandan otomatik oluşturuldu." }],
+      yorumlar: [],
+    };
+    return {
+      ...d,
+      cekimIsleri: [...isler, yeniIs],
+      musteriIcerikleri: (d.musteriIcerikleri || []).map((i) => (i.id === icerikId ? { ...i, cekildi: true, kaynakIsId: yeniId, olusturulanIsId: yeniId } : i)),
+    };
   });
 
   const deleteMusteriIcerik = (icerikId) => {
@@ -7909,6 +7965,7 @@ export default function MarcusOS() {
               onDelete={deleteMusteriIcerik}
               onOnayla={yoneticiOnayla}
               onBildir={musteriyeIcerikBildir}
+              onCekildi={cekimYapildiIsaretle}
               plan={data.haftalikPaylasimlar || []}
               reklamlar={data.reklamlar || []}
               isler={data.cekimIsleri || []}

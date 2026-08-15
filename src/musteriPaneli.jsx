@@ -149,6 +149,25 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
     // eslint-disable-next-line
   }, []);
 
+  /** Hazır İçerik (Operasyon kartı) üzerinde onay/revize. İçerik kayıtlarından ayrı bir yol,
+   * çünkü burada değişen şey işin AŞAMASI — panelde tutulan bir kopya değil. İşlem sonrası
+   * veri yenileniyor; kart Kontrol Bekliyor'dan çıktığı için listeden kendiliğinden düşüyor. */
+  const isIstegi = (isId, musteriAction, revizeNotu) => {
+    setGonderiliyor(isId);
+    fetch("/api/data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ musteriAction, isId, revizeNotu }),
+    })
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.ok) { if (onIslemSonrasi) onIslemSonrasi(); }
+        else window.alert(res.error || "Bir sorun oluştu.");
+      })
+      .catch(() => window.alert("Bağlantı hatası — tekrar dene."))
+      .finally(() => setGonderiliyor(null));
+  };
+
   const istekAt = (musteriAction, icerikId, revizeNotu) => {
     setGonderiliyor(icerikId);
     fetch("/api/data", {
@@ -190,8 +209,11 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
   const bekleyenler = sirala(icerikler.filter((i) => i.durum === "bekliyor"));
   const gecmis = sirala(icerikler.filter((i) => i.durum !== "bekliyor"));
 
+  const hazirlar = musteriData.hazirIcerikler || [];
+
   const sekmeler = [
     { key: "onay", label: "Onay Bekleyenler", rozet: bekleyenler.length },
+    { key: "hazir", label: "Hazır İçerikler", rozet: hazirlar.length },
     { key: "takvim", label: "Paylaşım Takvimi", rozet: 0 },
     { key: "reklam", label: "Reklamlar", rozet: 0 },
     { key: "uretim", label: "Üretim Durumu", rozet: 0 },
@@ -506,6 +528,16 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
 
         </>}
 
+        {/* HAZIR İÇERİKLER — Operasyon'da "Kontrol Bekliyor" aşamasındaki işlerin canlı aynası.
+          * Onaylandığında ya da revize istendiğinde iş o aşamadan çıkar ve buradan kaybolur. */}
+        {sekme === "hazir" && (
+          <HazirIcerikler
+            liste={hazirlar}
+            gonderiliyor={gonderiliyor}
+            onIslem={(isId, islem, not) => isIstegi(isId, islem, not)}
+          />
+        )}
+
         {/* PAYLAŞIM TAKVİMİ — Instagram önizlemeleriyle */}
         {sekme === "takvim" && <MusteriPaylasimPlani plan={musteriData.paylasimPlani || []} marka={musteriData.marka} />}
 
@@ -531,6 +563,133 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
 
 /** Müşteri panelinde haftalık paylaşım planı. Gelecek haftalar önce gösterilir; geçmiş
  * haftalar "yapıldı" bilgisiyle altta kalır. */
+/**
+ * HAZIR İÇERİKLER — Operasyon'da "Kontrol Bekliyor" aşamasındaki işlerin canlı listesi.
+ *
+ * Bunlar müşteri paneline kopyalanmaz; doğrudan yansıtılır. Müşteri onayladığında iş
+ * "Onaylandı"ya, revize istediğinde "Revize İstendi"ye geçer ve her iki durumda da Kontrol
+ * Bekliyor'dan çıktığı için bu listeden kendiliğinden düşer.
+ *
+ * Dosya linki olmayan kartlar da gösterilir (kullanıcının tercihi): ekip bir işi kontrole
+ * göndermişse müşteri onu görmeli, dosya henüz eklenmemişse bu da açıkça yazılır.
+ */
+function HazirIcerikler({ liste, gonderiliyor, onIslem }) {
+  const [acikId, setAcikId] = useState(null);
+  const [revizeAcik, setRevizeAcik] = useState(null);
+  const [not, setNot] = useState("");
+
+  if (!liste || liste.length === 0) {
+    return (
+      <div style={{ background: MT.kart, border: `1px solid ${MT.cizgi}`, borderRadius: 12, padding: "34px 24px", textAlign: "center" }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 600, marginBottom: 6 }}>Şu an hazır içerik yok</div>
+        <div style={{ color: MT.soluk, fontSize: 13, fontFamily: "Inter" }}>Bir içerik kontrole hazır olduğunda burada görünecek.</div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div style={{ ...ETIKET, marginBottom: 12 }}>Hazır içerikler · {liste.length} adet</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {liste.map((h, sira) => {
+          const acik = acikId === h.isId;
+          const video = h.kategori !== "Grafik Tasarım";
+          return (
+            <div key={h.isId} style={{ background: MT.kart, border: `1px solid ${acik ? MT.cizgiKoyu : MT.cizgi}`, borderRadius: 12, overflow: "hidden" }}>
+              <button
+                onClick={() => setAcikId(acik ? null : h.isId)}
+                style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", background: "none", border: "none", padding: "14px 16px", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
+              >
+                <span style={{
+                  fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, fontWeight: 600, color: MT.soluk,
+                  background: MT.kagit, border: `1px solid ${MT.cizgi}`, borderRadius: 6, padding: "5px 8px",
+                  flexShrink: 0, minWidth: 30, textAlign: "center",
+                }}>
+                  {String(sira + 1).padStart(2, "0")}
+                </span>
+                <span style={{ minWidth: 0, flex: 1 }}>
+                  <span style={{ display: "block", fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, marginBottom: 3, lineHeight: 1.3 }}>
+                    {h.baslik}
+                  </span>
+                  <span style={{ display: "block", fontSize: 12, color: MT.soluk, fontFamily: "Inter" }}>
+                    {h.kategori}
+                    {h.uretilenAdet ? ` · ${h.uretilenAdet} parça` : ""}
+                    {h.teslimTarihi ? ` · Teslim: ${tarihGoster(h.teslimTarihi)}` : ""}
+                  </span>
+                </span>
+                <span style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                  <Damga durum="bekliyor" />
+                  <span style={{ color: MT.soluk, fontSize: 12 }}>{acik ? "▲" : "▼"}</span>
+                </span>
+              </button>
+
+              {acik && (
+                <div style={{ padding: "0 16px 16px" }}>
+                  {h.dosyaLinki ? (
+                    <div style={{ marginBottom: 14 }}>
+                      {video
+                        ? <DriveVideo link={h.dosyaLinki} yon={h.videoYonu} baslik={h.baslik} />
+                        : <DriveGorsel link={h.dosyaLinki} yukseklik={460} />}
+                    </div>
+                  ) : (
+                    <div style={{ marginBottom: 14, background: MT.kagit, border: `1px dashed ${MT.cizgiKoyu}`, borderRadius: 9, padding: "14px 16px", fontSize: 12.5, color: MT.soluk, fontFamily: "Inter", lineHeight: 1.6 }}>
+                      Bu içeriğin dosyası henüz eklenmedi. Ekip dosyayı yükleyince burada görünecek.
+                    </div>
+                  )}
+
+                  {revizeAcik === h.isId ? (
+                    <div>
+                      <textarea
+                        autoFocus
+                        rows={3}
+                        value={not}
+                        onChange={(e) => setNot(e.target.value)}
+                        placeholder="Neyin değişmesini istiyorsunuz?"
+                        style={{ width: "100%", background: MT.kart, border: `1px solid ${MT.cizgiKoyu}`, borderRadius: 9, padding: "10px 12px", color: MT.murekkep, fontSize: 14, fontFamily: "Inter, sans-serif", outline: "none", resize: "vertical", marginBottom: 10 }}
+                      />
+                      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                        <button
+                          style={{ flex: "1 1 150px", justifyContent: "center", display: "flex", padding: "11px 18px", borderRadius: 9, border: "none", cursor: "pointer", background: MT.revize, color: "#fff", fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 600, opacity: not.trim() ? 1 : 0.5 }}
+                          disabled={!not.trim() || gonderiliyor === h.isId}
+                          onClick={() => { onIslem(h.isId, "revizeIste", not.trim()); setRevizeAcik(null); setNot(""); }}
+                        >
+                          Gönder
+                        </button>
+                        <button
+                          style={{ flex: "1 1 120px", justifyContent: "center", display: "flex", padding: "11px 18px", borderRadius: 9, cursor: "pointer", background: MT.kart, border: `1px solid ${MT.cizgiKoyu}`, color: MT.murekkep, fontFamily: "Inter, sans-serif", fontSize: 14 }}
+                          onClick={() => { setRevizeAcik(null); setNot(""); }}
+                        >
+                          Vazgeç
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                      <button
+                        style={{ flex: "1 1 160px", justifyContent: "center", display: "flex", alignItems: "center", padding: "12px 18px", borderRadius: 9, border: "none", cursor: "pointer", background: MT.onay, color: "#fff", fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 600, opacity: gonderiliyor === h.isId ? 0.6 : 1 }}
+                        disabled={gonderiliyor === h.isId}
+                        onClick={() => onIslem(h.isId, "onayla")}
+                      >
+                        {gonderiliyor === h.isId ? "Gönderiliyor…" : "Onayla"}
+                      </button>
+                      <button
+                        style={{ flex: "1 1 160px", justifyContent: "center", display: "flex", alignItems: "center", padding: "12px 18px", borderRadius: 9, cursor: "pointer", background: MT.kart, border: `1px solid ${MT.cizgiKoyu}`, color: MT.murekkep, fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 500 }}
+                        onClick={() => { setRevizeAcik(h.isId); setNot(""); }}
+                      >
+                        Değişiklik iste
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 export function MusteriPaylasimPlani({ plan, marka }) {
   const [gecmisAcik, setGecmisAcik] = useState(false);
   const [gorunum, setGorunum] = useState("izgara"); // "izgara" (genel görünüm) | "akis"
