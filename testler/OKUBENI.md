@@ -100,3 +100,19 @@ Sekiz kod denetimini sırayla çalıştırır. Hiçbiri veriye dokunmaz — sade
 `cagridenetle` → `Ciro`, `Tamamlananlar`: bunlar "Ciro (₺)" gibi JSX metinleri, kod değil.
 `importdenetle` → `C`, `labelStyle`, `Personel`, `Dashboard`, `Finans`: aynı şekilde metin.
 Bu adların dışında bir uyarı çıkarsa gerçek hatadır.
+
+## Dokuzuncu denetleyici: eksik export
+
+```
+python3 testler/exportdenetle.py src/*.jsx src/*.js api/*.js lib/*.js
+```
+
+Import edilen her adın kaynak dosyada gerçekten export edildiğini doğrular; ayrıca öksüz
+kalmış `export` satırlarını yakalar.
+
+Gerçek olay: müşteri paneli yeniden tasarlanırken `export function MusteriPaneli` metninin
+ortasına kod eklendi, `export` kelimesi yukarıda yalnız kaldı ve fonksiyon export edilmemiş
+oldu. Rollup `"MusteriPaneli" is not exported` diyerek build'i kırdı. Sözdizimi geçerli
+olduğu için diğer sekiz denetleyicinin hiçbiri göremedi.
+
+Not: dosyalar TAM YOL ile anahtarlanır — `src/data.js` ve `api/data.js` aynı adı taşıyor.

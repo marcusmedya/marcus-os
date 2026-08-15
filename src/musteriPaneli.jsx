@@ -17,7 +17,7 @@ import { InstagramOnizleme, InstagramIzgara } from "./instagram.jsx";
 
 /** Müşteri Paneli — owner/personel arayüzünden tamamen izole, sade bir onay ekranı.
  * Sadece kendi markasının içeriklerini görür; her içeriği onaylayabilir ya da revize isteyebilir. */
-export 
+
 /* ==================================================================
  * MÜŞTERİ PANELİ TASARIMI — "baskı provası"
  *
@@ -109,7 +109,7 @@ function Damga({ durum }) {
   );
 }
 
-function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
+export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
   const [icerikler, setIcerikler] = useState(musteriData.icerikler || []);
   // Sunucudan yeni veri geldiğinde listeyi tazele. useState başlangıç değeri SADECE ilk
   // render'da okunur — bu senkron olmadan, yönetici bir içerik ekleyip düzenlese ya da

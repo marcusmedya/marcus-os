@@ -1766,3 +1766,28 @@ yaptığı şey tam olarak "damga vurmak" olduğu için bu süs değil, işin ke
 Butonlar ne yapacaklarını söylüyor: "Onayla", "Değişiklik iste". Boş ekran bir yönlendirme:
 "Şu an bekleyen bir şey yok — yeni bir içerik hazırlandığında burada görünecek ve e-posta
 alacaksınız."
+
+## Güncelleme 81: Build Hatası — Eksik Export
+
+80. sürümün build'i başarısız oldu. Vercel kaydı sebebi net söyledi:
+
+```
+"MusteriPaneli" is not exported by "src/musteriPaneli.jsx"
+```
+
+**Sebep:** Müşteri paneli tasarım katmanı eklenirken kod, `export function MusteriPaneli`
+ifadesinin **ortasına** girdi. `export` kelimesi yukarıda yalnız kaldı, fonksiyon export
+edilmemiş oldu.
+
+Bu, kodun kendi içinde geçerli olduğu için sekiz denetleyicinin hiçbiri göremedi — sözdizimi
+doğru, parantezler dengeli, tüm adlar tanımlı. Hata yalnızca **dosyalar arası** bakıldığında
+görünüyor.
+
+**Düzeltme:** Export geri kondu, öksüz satır temizlendi.
+
+**Dokuzuncu denetleyici eklendi:** `testler/exportdenetle.py` — import edilen her adın
+kaynağında export edildiğini doğrular ve yalnız kalmış `export` satırlarını yakalar. Build'i
+kıran hatanın birebir kopyasıyla test edildi, yakalıyor.
+
+Bu, aynı kök sebebin dördüncü tekrarı: metin araması yaparak kod eklemek, eklemeyi yanlış yere
+düşürüyor. Denetleyiciler bu sınıfın her biçimini artık ayrı ayrı yakalıyor.

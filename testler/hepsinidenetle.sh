@@ -11,6 +11,7 @@ python3 testler/ikondenetle.py src/*.jsx                            > /dev/null 
 python3 testler/hookdenetle.py src/*.jsx src/*.js                   > /dev/null && echo "✓ 6 React hook'ları"
 python3 testler/cagridenetle.py src/*.jsx src/*.js api/*.js lib/*.js | grep "^✗" | grep -v "Ciro\|Tamamlananlar" || echo "✓ 7 tanımsız çağrı yok"
 python3 testler/butondenetle.py src/*.jsx                           > /dev/null && echo "✓ 8 buton bağlantıları"
+python3 testler/exportdenetle.py src/*.jsx src/*.js api/*.js lib/*.js > /dev/null && echo "✓ 9 eksik export yok"
 echo ""
 echo "── SUNUCU DENETİMLERİ ──"
 echo "(testler/ klasöründe: node t5.mjs … t11.mjs — sahte veritabanı kullanır, gerçek veriye dokunmaz)"
