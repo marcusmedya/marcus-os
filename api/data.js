@@ -4,6 +4,7 @@ import { KEY, guvenliGuncelle, kilitAl, kilitBirak, guvenliYaz, deftereYaz, deft
 import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, tumOturumlariIptalEt, ikiAdimliAktifMi, esitMi, baslikOku } from "../lib/oturum.js";
 import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, trKucult, markaEslestirici } from "../lib/marka-kilidi.js";
 import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
+import { epostaGonder, revizeBildirimHtml } from "../lib/eposta.js";
 
 /** Bir kayıt (eski veri, yeni veri) arasındaki ÖNEMLİ değişiklikleri (müşteri/personel/üyelik
  * ekleme-silme, müşteri durum değişikliği) otomatik tespit edip okunabilir işlem geçmişi
@@ -362,6 +363,12 @@ export default async function handler(req, res) {
             const not = musteriAction === "onayla"
               ? "Müşteri paneli üzerinden ONAYLANDI."
               : `Müşteri revize istedi: "${revizeNotu.trim()}"`;
+            /* REVİZE SAYACI — kaçıncı tur olduğu kartın üstünde saklanır.
+             * Eskiden bu bilgi yalnızca işlem geçmişinde satır satır duruyordu; "bu içerik
+             * kaç kez revize edildi?" sorusu ancak geçmiş okunarak cevaplanabiliyordu.
+             * Dördüncü tura giden bir içerik brief'in ya da beklentinin sorunlu olduğunu
+             * gösterir — bu yüzden sayı olarak tutuluyor. */
+            const yeniSayi = musteriAction === "revizeIste" ? (Number(hedef.revizeSayisi) || 0) + 1 : (Number(hedef.revizeSayisi) || 0);
             return {
               veri: {
                 ...guncel,
@@ -370,15 +377,44 @@ export default async function handler(req, res) {
                       ...j,
                       asama: yeniAsama,
                       musteriRevizeNotu: musteriAction === "revizeIste" ? revizeNotu.trim() : null,
+                      revizeSayisi: yeniSayi,
                       gecmis: [...(j.gecmis || []), { id: (j.gecmis || []).length + 1, tarih: zaman, yazan: "Müşteri", aciklama: not }],
                     }
                   : j)),
               },
+              ek: { hedefIs: hedef, yeniSayi },
             };
           });
           if (!sonucIs.ok) {
             return res.status(sonucIs.kod || 409).json({ error: sonucIs.hata || "Kaydedilemedi, sayfayı yenileyip tekrar dene." });
           }
+
+          /* ATANAN KİŞİYE OTOMATİK BİLDİRİM.
+           *
+           * Eskiden revize geldiğinde kimseye haber gitmiyordu; kart Operasyon'da sütun
+           * değiştiriyor ama atanan kişi panele bakmadıkça bunu bilmiyordu. Elle "Durum
+           * Bildirimi Gönder" düğmesi vardı, yani yöneticinin hatırlamasına bağlıydı.
+           *
+           * Gönderim BAŞARISIZ OLSA BİLE revize kaydı geçerlidir — bu yüzden yanıt
+           * beklenmeden, hata yutularak yapılır. E-posta, kaydın önüne geçmemeli. */
+          if (musteriAction === "revizeIste" && sonucIs.ek && sonucIs.ek.hedefIs) {
+            const is = sonucIs.ek.hedefIs;
+            const guncelVeri = sonucIs.veri || {};
+            const hesaplar = guncelVeri.personelHesaplari || [];
+            const adlar = [is.editor, is.kameraman].filter(Boolean).map((x) => String(x).trim().toLocaleLowerCase("tr"));
+            const alicilar = [...new Set(hesaplar
+              .filter((h) => h.email && adlar.includes(String(h.ad || "").trim().toLocaleLowerCase("tr")))
+              .map((h) => h.email))];
+            const html = revizeBildirimHtml({
+              marka: is.marka, icerikTuru: is.icerikTuru, not: revizeNotu.trim(),
+              revizeSayisi: sonucIs.ek.yeniSayi, firmaAdi: guncelVeri.firmaAdi,
+            });
+            const konu = `Revize istendi — ${is.marka || ""} · ${is.icerikTuru || "İçerik"}`;
+            // Kimse atanmamışsa yönetici haberdar olsun ki iş sahipsiz kalmasın.
+            const hedefler = alicilar.length > 0 ? alicilar : [process.env.OWNER_EMAIL].filter(Boolean);
+            await Promise.all(hedefler.map((e) => epostaGonder(e, konu, html))).catch(() => {});
+          }
+
           return res.status(200).json({ ok: true });
         }
 

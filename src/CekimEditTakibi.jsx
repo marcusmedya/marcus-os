@@ -306,7 +306,16 @@ function IsKarti({ job, onClick, draggable, onDragStart }) {
       {!ciktiVideoMu(job.kategori) && job.editliDosyaLink && (
         <DriveGorsel link={job.editliDosyaLink} C={C} yukseklik={110} kapak kucuk />
       )}
-      <div style={{ fontSize: 11.5, color: C.textDim, marginBottom: 8 }}>{job.icerikTuru}{job.kategori ? ` · ${job.kategori}` : ""}</div>
+      <div style={{ fontSize: 11.5, color: C.textDim, marginBottom: 8, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+        <span>{job.icerikTuru}{job.kategori ? ` · ${job.kategori}` : ""}</span>
+        {/* Kaç kez revize edildiği panodan görünsün — kartı açmadan fark edilsin.
+          * İkinci turdan itibaren çıkar; ilk revize normal sayılır. */}
+        {Number(job.revizeSayisi) > 1 && (
+          <span style={{ fontSize: 10, fontWeight: 700, color: C.danger, background: C.dangerSoft, borderRadius: 999, padding: "1px 7px", whiteSpace: "nowrap" }} title={`${job.revizeSayisi} kez revize istendi`}>
+            ↻ {job.revizeSayisi}
+          </span>
+        )}
+      </div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: C.textFaint, marginBottom: 8 }}>
         <span>{job.kameraman || job.editor || "—"}{cekimVarMi(job.kategori) && job.editor ? ` / ${job.editor}` : ""}</span>
         <span style={{ color: stil.color, fontWeight: 600 }}>{job.teslimTarihi}</span>
@@ -640,6 +649,24 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
 
             {role === "owner" && onSaveUcretDetayi && (
               <IsUcretPaneli job={job} detay={ucretDetayi} onKaydet={onSaveUcretDetayi} />
+            )}
+
+            {/* MÜŞTERİ REVİZE NOTU — kartın en üstünde, brief'ten önce.
+              * Not zaten kaydediliyordu ama hiçbir yerde GÖSTERİLMİYORDU; editör ne
+              * isteneceğini ancak işlem geçmişini okuyarak bulabiliyordu. En çok ihtiyaç
+              * duyulan bilgi en görünür yerde olmalı. */}
+            {job.musteriRevizeNotu && (
+              <div style={{ marginBottom: 14, background: C.dangerSoft, border: `1px solid ${C.danger}`, borderRadius: 10, padding: "12px 14px" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, color: C.danger, fontWeight: 700, letterSpacing: 0.3 }}>MÜŞTERİ NE İSTEDİ</span>
+                  {Number(job.revizeSayisi) > 1 && (
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: C.danger, background: C.panel, borderRadius: 999, padding: "2px 9px" }}>
+                      {job.revizeSayisi}. revize turu
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 13, color: C.text, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{job.musteriRevizeNotu}</div>
+              </div>
             )}
 
             {job.brief && (
@@ -1190,10 +1217,12 @@ export function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onS
     });
     satirlar.push([]);
     satirlar.push(["İş bazlı döküm", "", "", "", "", "", "", "", "", ""]);
-    satirlar.push(["Kişi", "Marka", "İçerik", "Kategori", "Parça", "Teslim Tarihi", "Ücretlendirme", "", "", ""]);
+    // Revize turu sütunu: kaç kez geri döndüğü rapora da yansısın — çok revize alan içerik
+    // brief'in ya da beklentinin sorunlu olduğunu gösterir.
+    satirlar.push(["Kişi", "Marka", "İçerik", "Kategori", "Parça", "Teslim Tarihi", "Ücretlendirme", "Revize Turu", "", ""]);
     kisiler.forEach((k) => {
       k.isler.forEach((j) => {
-        satirlar.push([k.ad, j.marka, j.icerikTuru || "", j.kategori || "", j.uretilenAdet || "", isTeslimTarihi(j) || "", ucretEtiketi(j, detayAl(j.id), ucretAl(k.ad)), "", "", ""]);
+        satirlar.push([k.ad, j.marka, j.icerikTuru || "", j.kategori || "", j.uretilenAdet || "", isTeslimTarihi(j) || "", ucretEtiketi(j, detayAl(j.id), ucretAl(k.ad)), Number(j.revizeSayisi) || 0, "", ""]);
       });
     });
     const csv = "\uFEFF" + satirlar.map((r) => r.map((h) => `"${String(h).replace(/"/g, '""')}"`).join(";")).join("\n");

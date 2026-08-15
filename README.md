@@ -2731,3 +2731,40 @@ Uyarı tam ve sağlamdı; testin arama metni düzeltildi.
 ### Test edemediğim
 Tarayıcıda tıklama. Kod düzeyinde varlık ve sunucu davranışı doğrulanabiliyor, ama bir düğmeye
 basınca ekranın gerçekten çizildiğini ancak sen görebilirsin.
+
+## Güncelleme 115: Revize Akışında Üç Geliştirme
+
+### 1. Atanan kişiye otomatik bildirim
+Müşteri revize istediğinde kimseye haber gitmiyordu; kart Operasyon'da sütun değiştiriyor ama
+atanan kişi panele bakmadıkça bilmiyordu. Elle "Durum Bildirimi Gönder" düğmesi vardı, yani
+hatırlamana bağlıydı.
+
+Artık revize gelir gelmez **editöre ve kameramana** otomatik e-posta gidiyor. Kimse atanmamışsa
+yöneticiye gidiyor ki iş sahipsiz kalmasın.
+
+E-posta gönderici `lib/eposta.js`'e taşındı — aynı fonksiyon gece hatırlatmalarında da
+kullanılıyordu, iki kopya olsaydı biri düzeltilip diğeri unutulurdu.
+
+**Kritik tasarım kararı:** Bildirim başarısız olsa bile **revize kaydı geçerli kalır.**
+Test edildi: RESEND_API_KEY yokken, anahtar bozukken ve kimse atanmamışken de revize
+kaydediliyor. E-posta asla kaydın önüne geçmiyor.
+
+### 2. Müşterinin notu iş kartında
+Not kaydediliyordu ama **hiçbir yerde gösterilmiyordu** — editör ne isteneceğini ancak işlem
+geçmişini okuyarak bulabiliyordu.
+
+Artık kartın en üstünde, brief'ten önce, kırmızı çerçeveli bir kutuda: **"MÜŞTERİ NE İSTEDİ"**.
+
+### 3. Revize turu sayacı
+Her revize öncekinin notunu eziyordu ve kaçıncı tur olduğu hiçbir yerde görünmüyordu.
+
+Artık `revizeSayisi` kartta tutuluyor:
+- **Panoda rozet** — ikinci turdan itibaren `↻ 3` (kartı açmadan görünür)
+- **Kartta** — "3. revize turu"
+- **Aylık raporda** — yeni "Revize Turu" sütunu
+
+Eski notlar işlem geçmişinde duruyor; sayaç onayla sıfırlanmıyor, müşteriye de gönderilmiyor.
+
+### Doğrulama
+`t27.mjs` — 11 kontrol: anahtar yokken/bozukken/atanmamışken kayıt geçerli, sayaç birikiyor,
+onay sayacı artırmıyor, eski not geçmişte duruyor, sayaç müşteriye sızmıyor.
