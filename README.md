@@ -2108,3 +2108,45 @@ Kategorisi olmayan eski kayıtlar Video akışını kullanmaya devam ediyor — 
 11 kategori mantığı kontrolü (ilk aşamalar, çıktı türü, eski kayıtlar) + 4 uçtan uca sunucu
 kontrolü: fotoğraf işi müşteri paneline düşüyor, kategori taşınıyor, ara aşama görünmüyor,
 onay Operasyon'da doğru sütuna geçiyor.
+
+## Güncelleme 93: İçerik Türleri Ayrıştırıldı + Elle Ekleme Artık Operasyon Kartı Açıyor
+
+### 1. Müşteri panelinde Reels / Görsel / Tasarım
+Müşteri artık üretim kategorisi ("Video", "Fotoğraf", "Grafik Tasarım") değil, kendi dilindeki
+karşılığını görüyor:
+
+| Kategori | Müşteri panelinde |
+|---|---|
+| Video | **Reels** (mor) |
+| Fotoğraf | **Görsel** (turkuaz) |
+| Grafik Tasarım | **Tasarım** (kehribar) |
+
+Her kartta renkli bir tür rozeti var — bekleyenlerde, revize istediklerinde ve onayladıklarında.
+
+**Tür süzgeci** eklendi: "Hepsi · Reels · Görsel · Tasarım" düğmeleriyle müşteri sadece
+aradığı türe bakabiliyor. Süzgeç yalnızca listede birden fazla tür varsa çıkıyor — tek türlü
+bir listede gereksiz gürültü olurdu.
+
+Sekmedeki sayı **süzgeçten etkilenmiyor**: süzgeç bir görünüm tercihi, sekmedeki sayı ise
+gerçek bekleyen adedi. Birlikte düşseydi "3 içerik vardı, 1 oldu" gibi görünürdü.
+
+### 2. Elle eklenen içerik artık Operasyon kartı oluşturuyor
+Müşteri Paneli → **İçerik Ekle** formu artık kart bilgilerini istiyor:
+
+- **Kategori** (Video / Fotoğraf / Grafik Tasarım)
+- **Aşama** — o kategorinin tüm aşamaları listeden seçiliyor
+- **Kameraman** (çekim içeren kategorilerde) ve **Editör / Düzenleyen / Tasarımcı**
+- **Teslim tarihi**
+
+Buton adı "Müşteri Paneline Ekle" yerine **"Operasyon Kartı Oluştur"** oldu, çünkü yaptığı iş
+bu.
+
+**Neden:** müşteri paneli Operasyon'un aynası. İçeriği yalnızca panele eklersek Operasyon'da
+hiç görünmez, kimse üzerinde çalışmaz ve iki taraf ayrışır — "dışarıdan ekleme" tam olarak
+buydu.
+
+Aşama seçimi sayesinde: içerik hazırsa **Kontrol Bekliyor** seçip müşteriye hemen
+gönderebilirsin; henüz üretilmediyse baştaki bir aşamaya alırsın ve müşteri onu ancak
+kontrole geldiğinde görür. Form bunu altında yazıyla da belirtiyor.
+
+Çekim planları bu değişiklikten etkilenmedi — onlar hâlâ üretim öncesi fikirler.

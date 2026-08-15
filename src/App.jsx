@@ -513,7 +513,7 @@ function gorseliBase64eCevir(file, onDone, onHata) {
  * Müşteri Paneli sekmesinde tam sayfa olarak (kompakt=false) kullanılır.
  * Tek bir yerde tanımlı olduğu için iki görünüm asla birbirinden ayrışmaz.
  */
-function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, onOnayla, onBildir, onCekildi, kompakt = true, baslangicAcik = false }) {
+function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, onOnayla, onBildir, onCekildi, onIsOlustur, kompakt = true, baslangicAcik = false }) {
   const [acik, setAcik] = useState(baslangicAcik);
   const [ekleAcik, setEkleAcik] = useState(false);
   const [duzenlenenId, setDuzenlenenId] = useState(null); // düzenlenen kaydın id'si (yoksa yeni ekleme)
@@ -524,6 +524,16 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
   const [gorselHata, setGorselHata] = useState("");
   const [acikDetayId, setAcikDetayId] = useState(null); // detayı açık olan çekim planı
   const [bildirimDurumu, setBildirimDurumu] = useState("");
+  /* OPERASYON KARTI ALANLARI
+   * Elle eklenen içerik artık doğrudan bir Operasyon kartı olur. Eskiden yalnızca müşteri
+   * paneline düşüyordu ve Operasyon'da hiç görünmüyordu — iki taraf birbirinden habersiz
+   * ilerliyordu. Aşama seçilebiliyor: içerik zaten hazırsa "Kontrol Bekliyor"a koyup
+   * doğrudan müşteriye gönderebilir, henüz üretilmediyse baştaki bir aşamaya alabilirsin. */
+  const [isKategori, setIsKategori] = useState("Video");
+  const [isAsama, setIsAsama] = useState("Kontrol Bekliyor");
+  const [isKameraman, setIsKameraman] = useState("");
+  const [isEditor, setIsEditor] = useState("");
+  const [isTeslim, setIsTeslim] = useState(bugunISOTarih());
   // Çekim planı alanları
   const [videoYonu, setVideoYonu] = useState("dikey"); // oynatıcı çerçevesinin şekli
   const [kategori, setKategori] = useState("Video"); // onaylanınca Operasyon'da hangi akışa düşecek
@@ -617,6 +627,31 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
       // operasyonaAktarildi sıfırlanır: bu düzeltilmiş sürüm müşteriye yeniden gidiyor,
       // bundan sonra gelecek yeni bir revize isteği onay kutusuna tekrar düşebilmeli.
       onUpdate(duzenlenenId, { ...govdeVerisi, durum: "bekliyor", revizeNotu: null, operasyonaAktarildi: false, guncellemeTarihi: new Date().toLocaleDateString("tr-TR") });
+    } else if (tur !== "cekim" && onIsOlustur) {
+      /* Elle eklenen içerik artık müşteri paneline AYRI bir kayıt olarak değil, bir Operasyon
+       * kartı olarak girer. Müşteri paneli Operasyon'un aynası olduğu için kart "Kontrol
+       * Bekliyor" aşamasındaysa müşteri onu zaten görür; başka bir aşamadaysa üretim
+       * bitmeden görünmez. Böylece iki taraf hiçbir zaman ayrışamaz. */
+      onIsOlustur({
+        clientId,
+        kategori: isKategori,
+        asama: isAsama,
+        icerikTuru: aciklama.trim() || (tur === "video" ? "Video" : "Görsel"),
+        kameraman: isKategori === "Grafik Tasarım" ? "" : isKameraman.trim(),
+        editor: isEditor.trim(),
+        teslimTarihi: isTeslim || bugunISOTarih(),
+        dosyaLinki: driveLinki.trim(),
+        videoYonu: tur === "video" ? videoYonu : null,
+      });
+      if (onBildir && isAsama === "Kontrol Bekliyor") {
+        onBildir(clientId, aciklama.trim()).then((sonuc) => {
+          if (sonuc && sonuc.ok) setBildirimDurumu("✓ Müşteriye e-posta gönderildi");
+          else if (sonuc && sonuc.skipped) setBildirimDurumu(sonuc.reason ? `E-posta gitmedi: ${sonuc.reason}` : "Müşterinin kayıtlı e-postası yok — bildirim gönderilmedi");
+          setTimeout(() => setBildirimDurumu(""), 6000);
+        });
+      }
+      formuTemizle();
+      return;
     } else {
       onAdd(clientId, { ...govdeVerisi, tarih: new Date().toLocaleDateString("tr-TR") });
       /* Müşteriye "onayını bekleyen içerik var" e-postası. Eskiden müşterinin haberi
@@ -891,10 +926,52 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                   />
                 </>
               )}
+              {/* OPERASYON KARTI — çekim planı dışındaki içerikler doğrudan Operasyon'a düşer,
+                * böylece müşteri paneli ile Operasyon arasında "dışarıdan eklenmiş", takibi
+                * olmayan bir kayıt kalmaz. Düzenlemede gösterilmez: kart zaten oluşmuştur. */}
+              {tur !== "cekim" && duzenlenenId == null && onIsOlustur && (
+                <div style={{ background: T.surface, borderRadius: 10, padding: "12px 13px", marginBottom: 10, border: `1px solid ${T.borderSoft}` }}>
+                  <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 700, letterSpacing: 0.3, marginBottom: 9 }}>
+                    OPERASYON KARTI
+                  </div>
+
+                  <div style={{ display: "flex", gap: 6, marginBottom: 9, flexWrap: "wrap" }}>
+                    {KATEGORILER.map((k) => (
+                      <button
+                        key={k}
+                        onClick={() => { setIsKategori(k); setIsAsama(asamaListesi(k).includes(isAsama) ? isAsama : "Kontrol Bekliyor"); }}
+                        style={{ padding: "6px 12px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: "Inter", background: isKategori === k ? T.accent : T.surfaceRaised, color: isKategori === k ? "#fff" : T.textDim }}
+                      >
+                        {k}
+                      </button>
+                    ))}
+                  </div>
+
+                  <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Aşama</label>
+                  <select value={isAsama} onChange={(e) => setIsAsama(e.target.value)} style={{ ...inputStyle, marginBottom: 9, fontSize: 12.5, padding: "7px 10px" }}>
+                    {asamaListesi(isKategori).map((a) => <option key={a} value={a}>{a}</option>)}
+                  </select>
+
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {isKategori !== "Grafik Tasarım" && (
+                      <input value={isKameraman} onChange={(e) => setIsKameraman(e.target.value)} placeholder="Kameraman (opsiyonel)" style={{ ...inputStyle, flex: "1 1 140px", fontSize: 12.5, padding: "7px 10px" }} />
+                    )}
+                    <input value={isEditor} onChange={(e) => setIsEditor(e.target.value)} placeholder={isKategori === "Grafik Tasarım" ? "Tasarımcı" : isKategori === "Fotoğraf" ? "Düzenleyen" : "Editör"} style={{ ...inputStyle, flex: "1 1 140px", fontSize: 12.5, padding: "7px 10px" }} />
+                    <input type="date" value={isTeslim} onChange={(e) => setIsTeslim(e.target.value)} title="Teslim tarihi" style={{ ...inputStyle, flex: "1 1 140px", fontSize: 12.5, padding: "7px 10px" }} />
+                  </div>
+
+                  <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 8, lineHeight: 1.6 }}>
+                    {isAsama === "Kontrol Bekliyor"
+                      ? "Kontrol Bekliyor seçili — içerik müşteri paneline hemen düşecek."
+                      : "Müşteri panelinde ancak kart Kontrol Bekliyor aşamasına geldiğinde görünür."}
+                  </div>
+                </div>
+              )}
+
               {gorselHata && <div style={{ color: T.danger, fontSize: 11.5, fontFamily: "Inter", marginBottom: 8 }}>{gorselHata}</div>}
               <div style={{ display: "flex", gap: 8 }}>
                 <button style={cancelBtnStyle} onClick={formuTemizle}>İptal</button>
-                <button style={saveBtnStyle} onClick={ekle}>{duzenlenenId != null ? "Değişiklikleri Kaydet" : (tur === "cekim" ? "Çekim Planını Gönder" : "Müşteri Paneline Ekle")}</button>
+                <button style={saveBtnStyle} onClick={ekle}>{duzenlenenId != null ? "Değişiklikleri Kaydet" : (tur === "cekim" ? "Çekim Planını Gönder" : "Operasyon Kartı Oluştur")}</button>
               </div>
             </div>
           ) : (
@@ -4429,7 +4506,7 @@ function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
  * Daha önce bunlar iki ayrı yere dağılmıştı (içerikler müşteri detayında, hesaplar
  * Ayarlar'da) ve müşteri detayı zaten kalabalık olduğu için içerik bölümü kayboluyordu.
  */
-function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, onOnayla, onBildir, onCekildi, onMarkaDuzelt, plan, reklamlar, isler, onAltMetin, firmaAdi, logo, olcumler }) {
+function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, onOnayla, onBildir, onCekildi, onMarkaDuzelt, onIsOlustur, plan, reklamlar, isler, onAltMetin, firmaAdi, logo, olcumler }) {
   const [secili, setSecili] = useState(null);
 
   const aktifler = (clients || []).filter((c) => c.durum !== "ayrildi");
@@ -4539,6 +4616,7 @@ function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, 
             onOnayla={onOnayla}
             onBildir={onBildir}
             onCekildi={onCekildi}
+            onIsOlustur={onIsOlustur}
             kompakt={false}
           />
         </Card>
@@ -6967,6 +7045,46 @@ export default function MarcusOS() {
     };
   });
 
+  /**
+   * Müşteri Paneli'nden elle eklenen içerik için Operasyon kartı oluşturur.
+   *
+   * Neden ayrı bir kayıt değil: müşteri paneli Operasyon'un aynası. İçeriği yalnızca panele
+   * eklersek Operasyon'da hiç görünmez, kimse üzerinde çalışmaz ve iki taraf ayrışır.
+   * Kart hangi aşamada açıldıysa oradan devam eder — "Kontrol Bekliyor" seçilirse müşteri
+   * onu hemen görür.
+   */
+  const icerikIsiOlustur = ({ clientId, kategori, asama, icerikTuru, kameraman, editor, teslimTarihi, dosyaLinki, videoYonu }) => setData((d) => {
+    const marka = ((d.clients || []).find((c) => String(c.id) === String(clientId)) || {}).ad || "";
+    const isler = d.cekimIsleri || [];
+    const yeniId = isler.reduce((m, j) => Math.max(m, Number(j.id) || 0), 0) + 1;
+    const zaman = new Date().toLocaleString("tr-TR");
+    return {
+      ...d,
+      cekimIsleri: [...isler, {
+        id: yeniId,
+        marka,
+        kategori: kategori || "Video",
+        asama: asama || "Kontrol Bekliyor",
+        icerikTuru: icerikTuru || "İçerik",
+        kameraman: kameraman || "",
+        editor: editor || "",
+        teslimTarihi: teslimTarihi || bugunISOTarih(),
+        cekimTarihi: teslimTarihi || bugunISOTarih(),
+        oncelik: "Normal",
+        istenenAdet: "",
+        uretilenAdet: "",
+        videoYonu: videoYonu || "dikey",
+        brief: "",
+        // Hazır dosya varsa doğrudan editli dosya alanına yazılır — müşteri panelinde
+        // gösterilecek olan bu alandır.
+        editliDosyaLink: dosyaLinki || "",
+        hamDosyaLink: "",
+        gecmis: [{ id: 1, tarih: zaman, yazan: "Yönetici (CEO)", aciklama: `Müşteri Paneli'nden eklendi (${asama}).` }],
+        yorumlar: [],
+      }],
+    };
+  });
+
   const deleteMusteriIcerik = (icerikId) => {
     const ic = (data && (data.musteriIcerikleri || []).find((i) => i.id === icerikId)) || {};
     yumusakSil("musteriIcerikleri", "Panel içeriği", icerikId, ic.aciklama || "");
@@ -8018,6 +8136,7 @@ export default function MarcusOS() {
               onBildir={musteriyeIcerikBildir}
               onCekildi={cekimYapildiIsaretle}
               onMarkaDuzelt={(isId, yeniMarka) => updateCekimIsi(isId, { marka: yeniMarka })}
+              onIsOlustur={icerikIsiOlustur}
               plan={data.haftalikPaylasimlar || []}
               reklamlar={data.reklamlar || []}
               isler={data.cekimIsleri || []}

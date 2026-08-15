@@ -88,6 +88,34 @@ function LogoKilidi({ ajansLogo, markaLogo, marka, firmaAdi }) {
   );
 }
 
+/* İÇERİK TÜRÜ ETİKETLERİ
+ * Müşteri "Video / Fotoğraf / Grafik Tasarım" gibi üretim kategorilerini değil, kendi
+ * dilindeki karşılıklarını görmeli: Reels, Görsel, Tasarım. Etiket hem renkli bir rozet
+ * olarak hem de listeyi bölümlere ayırmak için kullanılıyor. */
+const TUR_ETIKET = {
+  "Video": { ad: "Reels", renk: "#7C3AED", zemin: "#F1ECFD" },
+  "Fotoğraf": { ad: "Görsel", renk: "#0E7490", zemin: "#E5F4F7" },
+  "Grafik Tasarım": { ad: "Tasarım", renk: "#B45309", zemin: "#FDF3E7" },
+  "cekim": { ad: "Çekim Planı", renk: "#5B5BD6", zemin: "#EEEEFB" },
+  "video": { ad: "Reels", renk: "#7C3AED", zemin: "#F1ECFD" },
+  "gorsel": { ad: "Görsel", renk: "#0E7490", zemin: "#E5F4F7" },
+};
+const turEtiketi = (anahtar) => TUR_ETIKET[anahtar] || { ad: String(anahtar || "İçerik"), renk: MT.soluk, zemin: MT.kagit };
+
+/** Küçük tür rozeti. */
+function TurRozet({ anahtar }) {
+  const e = turEtiketi(anahtar);
+  return (
+    <span style={{
+      display: "inline-block", padding: "2px 9px", borderRadius: 999,
+      background: e.zemin, color: e.renk,
+      fontFamily: "Inter, sans-serif", fontSize: 10.5, fontWeight: 700, whiteSpace: "nowrap",
+    }}>
+      {e.ad}
+    </span>
+  );
+}
+
 /* Durum etiketleri MODÜL SEVİYESİNDE tutulur: hem MusteriPaneli hem DurumListesi kullanıyor.
  * Bir bileşenin içinde tanımlıyken diğeri onu göremiyordu ve o sekmeye tıklandığında sayfa
  * çöküyordu — bileşen ekrana gelmeden hata ortaya çıkmadığı için gözden kaçmıştı. */
@@ -127,6 +155,9 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
   const [revizeAcikId, setRevizeAcikId] = useState(null);
   const [acikIcerikId, setAcikIcerikId] = useState(null); // açık olan içerik kartı
   const [sekme, setSekme] = useState("onay");
+  /* TÜR SÜZGECİ — "sadece Reels'leri göster" gibi. Uzun listelerde müşteri aradığını
+   * bulamıyordu. "hepsi" seçiliyken hiçbir şey gizlenmez. */
+  const [turSuzgec, setTurSuzgec] = useState("hepsi");
   const [revizeMetni, setRevizeMetni] = useState("");
   const [gonderiliyor, setGonderiliyor] = useState(null);
 
@@ -217,15 +248,29 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
    * Müşteri için ayrım "nereden geldiği" değil, "ne yaptığım" — bu yüzden ikisi
    * durumlarına göre birleştiriliyor. */
   const tumHazirlar = musteriData.hazirIcerikler || [];
-  const hazirlar = tumHazirlar.filter((h) => h.durum === "bekliyor");
+  const hazirlarHam = tumHazirlar.filter((h) => h.durum === "bekliyor");
+
+  /* Listede fiilen bulunan türler — süzgeç yalnızca bunları gösterir, olmayan bir tür için
+   * boş düğme çıkmaz. Operasyon kartlarında tür "kategori", elle eklenenlerde "tur" alanında
+   * durduğu için ikisi birlikte toplanıyor. */
+  const mevcutTurler = [...new Set([
+    ...hazirlarHam.map((h) => h.kategori || "Video"),
+    ...bekleyenler.map((i) => i.tur),
+  ].filter(Boolean))];
+
+  const turUyar = (anahtar) => turSuzgec === "hepsi" || turEtiketi(anahtar).ad === turEtiketi(turSuzgec).ad;
+  const hazirlar = hazirlarHam.filter((h) => turUyar(h.kategori || "Video"));
   const hazirRevize = tumHazirlar.filter((h) => h.durum === "revize");
   const hazirOnayli = tumHazirlar.filter((h) => h.durum === "onaylandi");
 
+  const bekleyenlerSuzulu = bekleyenler.filter((i) => turUyar(i.tur));
   const revizeliler = sirala(icerikler.filter((i) => i.durum === "revize"));
   const onaylilar = sirala(icerikler.filter((i) => i.durum !== "bekliyor" && i.durum !== "revize"));
 
   const sekmeler = [
-    { key: "onay", label: "Onay Bekleyenler", rozet: bekleyenler.length + hazirlar.length },
+    // Rozet SÜZGEÇTEN ETKİLENMEZ: süzgeç bir görünüm tercihi, sekmedeki sayı ise gerçek
+    // bekleyen adedi. Süzgeçle birlikte düşseydi "3 içerik vardı, 1 oldu" gibi görünürdü.
+    { key: "onay", label: "Onay Bekleyenler", rozet: bekleyenler.length + hazirlarHam.length },
     { key: "revize", label: "Revize İstediklerin", rozet: revizeliler.length + hazirRevize.length },
     { key: "onayli", label: "Onayladıkların", rozet: onaylilar.length + hazirOnayli.length },
     { key: "takvim", label: "Paylaşım Takvimi", rozet: 0 },
@@ -307,8 +352,33 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
         </div>
 
         {sekme === "onay" && <>
+        {/* Tür süzgeci: yalnızca birden fazla tür varsa gösterilir — tek türlü bir listede
+          * süzgeç gereksiz gürültü olurdu. */}
+        {mevcutTurler.length > 1 && (
+          <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+            {["hepsi", ...mevcutTurler].map((tr) => {
+              const aktif = turSuzgec === tr;
+              const e = tr === "hepsi" ? { ad: "Hepsi", renk: MT.murekkep, zemin: MT.kart } : turEtiketi(tr);
+              return (
+                <button
+                  key={tr}
+                  onClick={() => setTurSuzgec(tr)}
+                  style={{
+                    padding: "6px 13px", borderRadius: 999, cursor: "pointer",
+                    border: `1px solid ${aktif ? e.renk : MT.cizgi}`,
+                    background: aktif ? e.zemin : MT.kart, color: aktif ? e.renk : MT.soluk,
+                    fontFamily: "Inter, sans-serif", fontSize: 12.5, fontWeight: aktif ? 700 : 500,
+                  }}
+                >
+                  {e.ad}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         <div style={{ ...ETIKET, marginBottom: 12 }}>
-          Onayınızı bekleyenler{(bekleyenler.length + hazirlar.length) > 0 ? ` · ${bekleyenler.length + hazirlar.length} içerik` : ""}
+          Onayınızı bekleyenler{(bekleyenlerSuzulu.length + hazirlar.length) > 0 ? ` · ${bekleyenlerSuzulu.length + hazirlar.length} içerik` : ""}
         </div>
 
         {/* HAZIR İÇERİKLER — Operasyon'da "Kontrol Bekliyor" aşamasındaki işlerin canlı
@@ -316,7 +386,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
           * kendiliğinden kaybolur. Elle gönderilen içeriklerin ÜSTÜNDE duruyor çünkü bunlar
           * üretimi bitmiş, teslime en yakın işler. */}
         {hazirlar.length > 0 && (
-          <div style={{ marginBottom: bekleyenler.length > 0 ? 22 : 30 }}>
+          <div style={{ marginBottom: bekleyenlerSuzulu.length > 0 ? 22 : 30 }}>
             <HazirIcerikler
               liste={hazirlar}
               gonderiliyor={gonderiliyor}
@@ -329,14 +399,14 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
         {/* "Bekleyen bir şey yok" mesajı yalnızca İKİSİ DE boşken çıkar. Aksi halde hazır
           * içerik dururken altında "bekleyen yok" yazar ve müşteri hangisine inanacağını
           * bilemezdi. */}
-        {bekleyenler.length === 0 && hazirlar.length === 0 ? (
+        {bekleyenlerSuzulu.length === 0 && hazirlar.length === 0 ? (
           <div style={{ background: MT.kart, border: `1px solid ${MT.cizgi}`, borderRadius: 12, padding: "34px 24px", textAlign: "center", marginBottom: 30 }}>
             <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 600, marginBottom: 6 }}>Şu an bekleyen bir şey yok</div>
             <div style={{ color: MT.soluk, fontSize: 13, fontFamily: "Inter" }}>Yeni bir içerik hazırlandığında burada görünecek ve e-posta alacaksınız.</div>
           </div>
-        ) : bekleyenler.length === 0 ? null : (
+        ) : bekleyenlerSuzulu.length === 0 ? null : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 30 }}>
-            {bekleyenler.map((icerik, sira) => {
+            {bekleyenlerSuzulu.map((icerik, sira) => {
               const embed = driveEmbedUrl(icerik.driveLinki);
               const cekimEmbed = icerik.tur === "cekim" ? driveEmbedUrl(icerik.referansLink) : null;
               const kartAcik = acikIcerikId === icerik.id;
@@ -360,9 +430,10 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
                       <span style={{ display: "block", fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, marginBottom: 3, lineHeight: 1.3 }}>
                         {basligiTemizle(icerik.aciklama) || (icerik.tur === "cekim" ? "Çekim Planı" : icerik.tur)}
                       </span>
-                      <span style={{ display: "block", fontSize: 12, color: MT.soluk, fontFamily: "Inter" }}>
-                        {icerik.tur === "cekim" ? "Çekim planı" : icerik.tur === "video" ? "Video" : "Görsel"} · {icerik.tarih}
-                        {icerik.tur === "cekim" && icerik.planlananTarih && ` · Çekim: ${tarihGoster(icerik.planlananTarih)}`}
+                      <span style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", fontSize: 12, color: MT.soluk, fontFamily: "Inter" }}>
+                        <TurRozet anahtar={icerik.tur} />
+                        <span>{icerik.tarih}</span>
+                        {icerik.tur === "cekim" && icerik.planlananTarih ? <span>Çekim: {tarihGoster(icerik.planlananTarih)}</span> : null}
                       </span>
                     </span>
                     <span style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
@@ -591,7 +662,10 @@ function DurumListesi({ liste, hazirListe, acikId, setAcikId, baslik, bosMetin }
                       </span>
                       <span style={{ minWidth: 0, flex: 1 }}>
                         <span style={{ display: "block", fontSize: 13, color: MT.murekkep, fontWeight: 600, fontFamily: "Inter" }}>{basligiTemizle(icerik.aciklama) || icerik.tur}</span>
-                        <span style={{ display: "block", fontSize: 11, color: MT.soluk, fontFamily: "Inter", marginTop: 2 }}>{icerik.tarih}</span>
+                        <span style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 3, fontSize: 11, color: MT.soluk, fontFamily: "Inter" }}>
+                          <TurRozet anahtar={icerik.tur} />
+                          <span>{icerik.tarih}</span>
+                        </span>
                       </span>
                       <span style={{ display: "flex", alignItems: "center", gap: 9, flexShrink: 0 }}>
                         <span style={{ fontSize: 11, fontWeight: 600, color: stil.color, background: stil.bg, padding: "3px 10px", borderRadius: 999, fontFamily: "Inter" }}>{stil.label}</span>
@@ -683,10 +757,10 @@ function HazirIcerikler({ liste, gonderiliyor, onIslem, basliksiz = false, saltO
                   <span style={{ display: "block", fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, marginBottom: 3, lineHeight: 1.3 }}>
                     {h.baslik}
                   </span>
-                  <span style={{ display: "block", fontSize: 12, color: MT.soluk, fontFamily: "Inter" }}>
-                    {h.kategori}
-                    {h.uretilenAdet ? ` · ${h.uretilenAdet} parça` : ""}
-                    {h.teslimTarihi ? ` · Teslim: ${tarihGoster(h.teslimTarihi)}` : ""}
+                  <span style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", fontSize: 12, color: MT.soluk, fontFamily: "Inter" }}>
+                    <TurRozet anahtar={h.kategori} />
+                    {h.uretilenAdet ? <span>{h.uretilenAdet} parça</span> : null}
+                    {h.teslimTarihi ? <span>Teslim: {tarihGoster(h.teslimTarihi)}</span> : null}
                   </span>
                 </span>
                 <span style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
