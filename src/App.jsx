@@ -513,7 +513,7 @@ function gorseliBase64eCevir(file, onDone, onHata) {
  * Müşteri Paneli sekmesinde tam sayfa olarak (kompakt=false) kullanılır.
  * Tek bir yerde tanımlı olduğu için iki görünüm asla birbirinden ayrışmaz.
  */
-function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, onOnayla, onBildir, onCekildi, onIsOlustur, kompakt = true, baslangicAcik = false }) {
+function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, onOnayla, onBildir, onCekildi, onIsOlustur, acilacakIcerikId, acilacakDamga, kompakt = true, baslangicAcik = false }) {
   const [acik, setAcik] = useState(baslangicAcik);
   const [ekleAcik, setEkleAcik] = useState(false);
   const [duzenlenenId, setDuzenlenenId] = useState(null); // düzenlenen kaydın id'si (yoksa yeni ekleme)
@@ -588,6 +588,15 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
   };
 
   /** Bir kaydı düzenlemek için formu onun bilgileriyle doldurur. */
+  /* Planım'dan bir içerikle gelindiyse onun düzenleme formunu doğrudan aç. Eskiden yalnızca
+   * sekme değişiyordu; doğru içeriği listede elle bulmak gerekiyordu ve yanlış satıra
+   * tıklandığında "link görünmüyor" gibi bir izlenim doğuyordu. */
+  useEffect(() => {
+    if (acilacakIcerikId == null) return;
+    const hedefIcerik = (icerikler || []).find((x) => String(x.id) === String(acilacakIcerikId));
+    if (hedefIcerik) duzenlemeyeAl(hedefIcerik);
+  }, [acilacakDamga, acilacakIcerikId]);
+
   const duzenlemeyeAl = (i) => {
     setDuzenlenenId(i.id);
     setTur(i.tur || "gorsel");
@@ -4514,8 +4523,14 @@ function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
  * Daha önce bunlar iki ayrı yere dağılmıştı (içerikler müşteri detayında, hesaplar
  * Ayarlar'da) ve müşteri detayı zaten kalabalık olduğu için içerik bölümü kayboluyordu.
  */
-function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, onOnayla, onBildir, onCekildi, onMarkaDuzelt, onIsOlustur, plan, reklamlar, isler, onAltMetin, firmaAdi, logo, olcumler }) {
+function MusteriPaneliYonetimi({ hedef, clients, icerikler, onAdd, onUpdate, onDelete, onOnayla, onBildir, onCekildi, onMarkaDuzelt, onIsOlustur, plan, reklamlar, isler, onAltMetin, firmaAdi, logo, olcumler }) {
   const [secili, setSecili] = useState(null);
+
+  /* Planım'dan bir içerikle gelindiyse o markayı seç. damga alanı, aynı içeriğe ikinci kez
+   * tıklandığında da tetiklenmesini sağlar. */
+  useEffect(() => {
+    if (hedef && hedef.clientId != null) setSecili(hedef.clientId);
+  }, [hedef && hedef.damga]);
 
   const aktifler = (clients || []).filter((c) => c.durum !== "ayrildi");
   const listesi = (id) => (icerikler || []).filter((i) => String(i.clientId) === String(id));
@@ -4625,6 +4640,8 @@ function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, 
             onBildir={onBildir}
             onCekildi={onCekildi}
             onIsOlustur={onIsOlustur}
+            acilacakIcerikId={hedef && String(hedef.clientId) === String(seciliMarka.id) ? hedef.icerikId : null}
+            acilacakDamga={hedef && hedef.damga}
             kompakt={false}
           />
         </Card>
@@ -4680,6 +4697,68 @@ function MusteriPaneliYonetimi({ clients, icerikler, onAdd, onUpdate, onDelete, 
  * Bu liste kalıcı olarak SAKLANMAZ, her seferinde mevcut veriden hesaplanır. Böylece bir
  * kayıt hallolduğunda kutudan kendiliğinden düşer; senkronu bozacak ikinci bir kopya oluşmaz.
  */
+/**
+ * ONAY KUTUSU ÖNİZLEMESİ
+ *
+ * Bir revize isteğini ya da onaylanmış planı Operasyon'a aktarırken neye baktığını görmen
+ * gerekiyor. Eskiden yalnızca başlık ve müşterinin notu vardı; "hangi görsele ne demiş?"
+ * sorusunu cevaplamak için ayrı bir sekmeye gidip içeriği bulmak gerekiyordu.
+ *
+ * Küçük kare hızlı tanımayı, açılan görünüm tam incelemeyi sağlar.
+ */
+function OnayKutusuOnizleme({ i }) {
+  const [acik, setAcik] = useState(false);
+  const gorselMi = i.tur === "gorsel";
+  const videoMu = i.tur === "video";
+  const cekimMi = i.tur === "cekim";
+  const link = cekimMi ? i.referansLink : i.driveLinki;
+  const varMi = !!(link || i.gorselUrl || i.konusmaMetni);
+
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginTop: 8 }}>
+      <span style={{ width: 42, height: 42, borderRadius: 7, overflow: "hidden", flexShrink: 0, background: T.surface, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {gorselMi && link
+          ? <DriveKucukGorsel link={link} />
+          : i.gorselUrl && String(i.gorselUrl).startsWith("data:")
+            ? <img src={i.gorselUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            : <span style={{ fontSize: 15 }}>{cekimMi ? "🎬" : videoMu ? "▶" : "🖼"}</span>}
+      </span>
+
+      <div style={{ minWidth: 0, flex: 1 }}>
+        {varMi ? (
+          <button
+            onClick={() => setAcik((v) => !v)}
+            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: T.accentText, fontSize: 11.5, fontWeight: 600, fontFamily: "Inter" }}
+          >
+            {acik ? "Önizlemeyi kapat ▲" : "İçeriği gör ▼"}
+          </button>
+        ) : (
+          <span style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>Bu kayda ait dosya yok</span>
+        )}
+
+        {acik && (
+          <div style={{ marginTop: 8 }}>
+            {i.gorselUrl && String(i.gorselUrl).startsWith("data:") && (
+              <img src={i.gorselUrl} alt="" style={{ width: "100%", maxWidth: 420, borderRadius: 9, display: "block", marginBottom: 8 }} />
+            )}
+            {gorselMi && link && !i.gorselUrl && (
+              <div style={{ marginBottom: 8, maxWidth: 420 }}><DriveGorsel link={link} yukseklik={300} /></div>
+            )}
+            {(videoMu || cekimMi) && link && (
+              <div style={{ marginBottom: 8 }}><DriveVideo link={link} yon={i.videoYonu} baslik={cekimMi ? "Referans video" : undefined} /></div>
+            )}
+            {cekimMi && i.konusmaMetni && (
+              <div style={{ background: T.surface, borderRadius: 9, padding: "10px 12px", fontSize: 12.5, color: T.text, fontFamily: "Inter", whiteSpace: "pre-wrap", lineHeight: 1.7, maxWidth: 560 }}>
+                {i.konusmaMetni}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, reklamlar, onOperasyonaAktar, onAta, onGit, onReklamaGit }) {
   const [acikId, setAcikId] = useState(null);
   const [form, setForm] = useState({ kategori: "Video", kameraman: "", editor: "", teslimTarihi: "", asama: "" });
@@ -4767,13 +4846,14 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, reklamla
                   "{i.revizeNotu}"
                 </div>
               )}
+              <OnayKutusuOnizleme i={i} />
             </div>
             {acikId !== i.id && (
               <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center" }}>
                 {i.operasyonaAktarildi && (
                   <span style={{ fontSize: 10.5, color: T.success, fontFamily: "Inter", fontWeight: 600 }}>✓ Operasyon'a aktarıldı</span>
                 )}
-                <button style={cancelBtnStyle} onClick={() => onGit && onGit()}>Planı Düzenle</button>
+                <button style={cancelBtnStyle} onClick={() => onGit && onGit(i.clientId, i.id)}>Planı Düzenle</button>
                 <button style={i.operasyonaAktarildi ? cancelBtnStyle : saveBtnStyle} onClick={() => formuAc(i)}>
                   {i.operasyonaAktarildi ? "Tekrar Aktar" : "Operasyona Aktar"}
                 </button>
@@ -4797,6 +4877,7 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, reklamla
                 {i.kategori || "Video"}
                 {i.planlananTarih ? ` · Planlanan çekim: ${tarihGoster(i.planlananTarih)}` : ""}
               </div>
+              <OnayKutusuOnizleme i={i} />
             </div>
             {acikId !== i.id && (
               <button style={saveBtnStyle} onClick={() => formuAc(i)}>Operasyona Aktar</button>
@@ -6252,6 +6333,10 @@ export default function MarcusOS() {
   useEffect(() => { temaUygula(temaOku()); setTemaState(temaOku()); }, []);
   const setTema = (mod) => { temaUygula(mod); setTemaState(mod); };
 
+  /* Planım → Onay Kutusu'ndan "Planı Düzenle"ye basınca yalnızca sekme değişiyordu; marka
+   * seçili gelmediği için boş bir sayfaya düşülüyor, doğru içeriği elle bulmak gerekiyordu.
+   * Bu hedef, hem markayı seçtirir hem de o içeriğin düzenleme formunu açar. */
+  const [panelHedef, setPanelHedef] = useState(null);
   const [guvenlikDurumu, setGuvenlikDurumu] = useState(null);
   const [gizlilikModu, setGizlilikModuState] = useState(gizlilikModuOku());
   const setGizlilikModu = (deger) => {
@@ -8127,7 +8212,7 @@ export default function MarcusOS() {
                   reklamlar={data.reklamlar || []}
                   onOperasyonaAktar={revizeyiOperasyonaAktar}
                   onAta={iseKisiAta}
-                  onGit={() => setTab("musteri-paneli")}
+                  onGit={(clientId, icerikId) => { setPanelHedef({ clientId, icerikId, damga: Date.now() }); setTab("musteri-paneli"); }}
                   onReklamaGit={() => setTab("reklamlar")}
                 />
               }
@@ -8135,6 +8220,7 @@ export default function MarcusOS() {
           )}
           {tab === "musteri-paneli" && (
             <MusteriPaneliYonetimi
+              hedef={panelHedef}
               clients={data.clients || []}
               icerikler={data.musteriIcerikleri || []}
               onAdd={addMusteriIcerik}

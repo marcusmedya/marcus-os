@@ -2170,3 +2170,29 @@ adla görünürdü — daha önce sıralama ve durum etiketlerinde bu kuralı ko
 etiketlerinde de aynısı geçerli.
 
 Renkler her iki temada da (koyu/açık) okunacak şekilde sabit seçildi.
+
+## Güncelleme 95: Onay Kutusunda Önizleme + "Planı Düzenle" Doğru Yere Gidiyor
+
+### 1. Önizleme eklendi
+Planım → Onayını Bekleyenler'de yalnızca başlık ve müşterinin notu görünüyordu. Bir revizeyi
+Operasyon'a aktarırken **neye baktığını göremiyordun** — "hangi görsele ne demiş?" sorusu için
+başka bir sekmeye gidip içeriği elle bulmak gerekiyordu.
+
+Artık her satırda:
+- **Küçük kare önizleme** — hangisi olduğu bir bakışta belli
+- **"İçeriği gör"** — görselin tamamı, video ise oynatıcı, çekim planıysa referans video ve
+  konuşma metni
+
+Hem revize istekleri hem onaylanmış planlar için.
+
+### 2. "Planı Düzenle" artık doğrudan içeriği açıyor
+Buton yalnızca sekmeyi değiştiriyordu. Marka seçili gelmediği için **boş bir sayfaya**
+düşüyordun; doğru içeriği listede elle bulman gerekiyordu. Yanlış satıra tıklandığında da
+"link görünmüyor" izlenimi doğuyordu — aslında farklı bir kaydın formu açılıyordu.
+
+Artık buton:
+1. Müşteri Paneli sekmesine geçer
+2. **O markayı seçer**
+3. **O içeriğin düzenleme formunu açar** — link, açıklama, görsel hepsi dolu gelir
+
+Aynı içeriğe ikinci kez tıklandığında da çalışır (her tıklama ayrı bir hedef damgası taşır).
