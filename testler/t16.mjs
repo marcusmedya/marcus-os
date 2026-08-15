@@ -50,6 +50,33 @@ kontrol("revize notu işe yazıldı", (is11.gecmis||[]).some(x=>String(x.aciklam
 
 // Ikisi de listeden dustu mu
 r = await cagir(h, { method: "GET", headers: M, query: {}, body: {} });
-kontrol("işlem görenler listeden düştü", (r.govde.hazirIcerikler || []).length === 0);
+// Artık kaybolmuyorlar: durum değiştirip "revize"/"onaylandi" kovasına geçiyorlar.
+const kalanBekleyen = (r.govde.hazirIcerikler || []).filter(x => x.durum === "bekliyor");
+kontrol("işlem görenler ONAY BEKLEYENLER'den düştü", kalanBekleyen.length === 0, `${kalanBekleyen.length} bekleyen kaldı`);
+kontrol("işlem görenler kayıt olarak duruyor", (r.govde.hazirIcerikler || []).length === 2);
 
 console.log(`\nSONUÇ: ${g} geçti, ${k} kaldı`);
+
+// EK: revize/onayli kartlar aynada duruyor mu
+await kv.set("marcus-os-data", {
+  _v: 1,
+  clients: [{ id: 1, ad: "Kanatçı Diren" }],
+  musteriHesaplari: [{ id: "m1", ad: "Diren", kullaniciAdi: "diren", clientId: 1, sifreHash: hash("1234", "s"), sifreSalt: "s" }],
+  cekimIsleri: [
+    { id: 20, marka: "Kanatçı Diren", asama: "Kontrol Bekliyor", icerikTuru: "BEKLEYEN" },
+    { id: 21, marka: "Kanatçı Diren", asama: "Revize İstendi", icerikTuru: "REVIZELI", musteriRevizeNotu: "Müzik" },
+    { id: 22, marka: "Kanatçı Diren", asama: "Onaylandı", icerikTuru: "ONAYLI" },
+    { id: 23, marka: "Kanatçı Diren", asama: "Teslim Edildi", icerikTuru: "TESLIM" },
+    { id: 24, marka: "Kanatçı Diren", asama: "Edit Yapılıyor", icerikTuru: "GORUNMEMELI" },
+  ],
+  musteriIcerikleri: [],
+});
+r = await cagir(h, { method: "GET", headers: M, query: {}, body: {} });
+const hepsi = r.govde.hazirIcerikler || [];
+const durumlar = (d) => hepsi.filter(x => x.durum === d).map(x => x.baslik);
+kontrol("bekleyen doğru durumda", durumlar("bekliyor").join() === "BEKLEYEN");
+kontrol("revize durumu görünüyor", durumlar("revize").join() === "REVIZELI");
+kontrol("onaylı + teslim 'onaylandi' altında", durumlar("onaylandi").sort().join() === "ONAYLI,TESLIM");
+kontrol("üretimdeki iş görünmüyor", !JSON.stringify(hepsi).includes("GORUNMEMELI"));
+kontrol("revize notu taşınıyor", (hepsi.find(x=>x.durum==="revize")||{}).revizeNotu === "Müzik");
+console.log(`\nGENEL: ${g} geçti, ${k} kaldı`);

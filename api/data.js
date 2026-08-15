@@ -381,10 +381,24 @@ export default async function handler(req, res) {
        *
        * Alanlar tek tek seçiliyor: brief, kameraman/editör adları, iç yorumlar ve işlem
        * geçmişi bilerek DIŞARIDA. */
+      /* Ayna yalnızca "Kontrol Bekliyor"u değil, müşterinin İŞLEM YAPTIĞI aşamaları da
+       * kapsar. Aksi halde müşteri bir kartı revize ettiğinde kart panelden tamamen
+       * kayboluyordu — "neye revize istemiştim?" sorusunun cevabı yok oluyordu.
+       *   Kontrol Bekliyor          → onayını bekliyor (işlem yapılabilir)
+       *   Revize İstendi            → revize istediği (işlem yapılamaz, kayıt olarak durur)
+       *   Onaylandı / Teslim Edildi → onayladığı */
+      const ASAMA_DURUM = {
+        "Kontrol Bekliyor": "bekliyor",
+        "Revize İstendi": "revize",
+        "Onaylandı": "onaylandi",
+        "Teslim Edildi": "onaylandi",
+      };
       const kendiHazirIcerikleri = (data.cekimIsleri || [])
-        .filter((j) => markaEsit(j.marka) && j.asama === "Kontrol Bekliyor")
+        .filter((j) => markaEsit(j.marka) && ASAMA_DURUM[j.asama])
         .map((j) => ({
           isId: j.id,
+          durum: ASAMA_DURUM[j.asama],
+          revizeNotu: j.musteriRevizeNotu || null,
           baslik: j.icerikTuru || (j.kategori === "Grafik Tasarım" ? "Tasarım" : "Video"),
           kategori: j.kategori || "Video",
           dosyaLinki: j.editliDosyaLink || j.hamDosyaLink || null,

@@ -207,15 +207,24 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
     return as - bs;
   });
   const bekleyenler = sirala(icerikler.filter((i) => i.durum === "bekliyor"));
-  const gecmis = sirala(icerikler.filter((i) => i.durum !== "bekliyor"));
 
-  const hazirlar = musteriData.hazirIcerikler || [];
+  /* ÜÇ DURUM, ÜÇ SEKME
+   * Operasyon'dan yansıyan kartlar (hazirlar) ve elle gönderilen içerikler (icerikler)
+   * aynı üç kovaya düşer: onayını bekleyen / revize istediğin / onayladığın.
+   * Müşteri için ayrım "nereden geldiği" değil, "ne yaptığım" — bu yüzden ikisi
+   * durumlarına göre birleştiriliyor. */
+  const tumHazirlar = musteriData.hazirIcerikler || [];
+  const hazirlar = tumHazirlar.filter((h) => h.durum === "bekliyor");
+  const hazirRevize = tumHazirlar.filter((h) => h.durum === "revize");
+  const hazirOnayli = tumHazirlar.filter((h) => h.durum === "onaylandi");
 
-  /* Hazır içerikler AYRI BİR SEKMEDE değil, "Onay Bekleyenler" içinde gösterilir.
-   * Müşteri açısından ikisi de aynı şey: onayını bekleyen bir içerik. İki ayrı sekme
-   * "hangisine bakacağım?" sorusunu doğuruyordu. */
+  const revizeliler = sirala(icerikler.filter((i) => i.durum === "revize"));
+  const onaylilar = sirala(icerikler.filter((i) => i.durum !== "bekliyor" && i.durum !== "revize"));
+
   const sekmeler = [
     { key: "onay", label: "Onay Bekleyenler", rozet: bekleyenler.length + hazirlar.length },
+    { key: "revize", label: "Revize İstediklerin", rozet: revizeliler.length + hazirRevize.length },
+    { key: "onayli", label: "Onayladıkların", rozet: onaylilar.length + hazirOnayli.length },
     { key: "takvim", label: "Paylaşım Takvimi", rozet: 0 },
     { key: "reklam", label: "Reklamlar", rozet: 0 },
     { key: "uretim", label: "Üretim Durumu", rozet: 0 },
@@ -342,7 +351,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
                       color: MT.soluk, background: MT.kagit, border: `1px solid ${MT.cizgi}`,
                       borderRadius: 6, padding: "5px 8px", flexShrink: 0, minWidth: 30, textAlign: "center",
                     }}>
-                      {String(sira + 1).padStart(2, "0")}
+                      {String(hazirlar.length + sira + 1).padStart(2, "0")}
                     </span>
                     <span style={{ minWidth: 0, flex: 1 }}>
                       <span style={{ display: "block", fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, marginBottom: 3, lineHeight: 1.3 }}>
@@ -472,13 +481,94 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
           </div>
         )}
 
-        {gecmis.length > 0 && (
+                </>}
+
+        {/* REVİZE İSTEDİKLERİN */}
+        {sekme === "revize" && (
           <>
-            <div style={{ fontSize: 13, color: MT.murekkep, fontWeight: 700, fontFamily: "Inter", marginBottom: 10 }}>Geçmiş</div>
+            {hazirRevize.length > 0 && (
+              <div style={{ marginBottom: revizeliler.length > 0 ? 22 : 0 }}>
+                <HazirIcerikler liste={hazirRevize} gonderiliyor={gonderiliyor} onIslem={isIstegi} saltOkunur />
+              </div>
+            )}
+            <DurumListesi
+              liste={revizeliler}
+              hazirListe={hazirRevize}
+              acikId={acikIcerikId}
+              setAcikId={setAcikIcerikId}
+              baslik="Revize istediklerin"
+              bosMetin="Henüz revize istediğin bir içerik yok"
+            />
+          </>
+        )}
+
+        {/* ONAYLADIKLARIN */}
+        {sekme === "onayli" && (
+          <>
+            {hazirOnayli.length > 0 && (
+              <div style={{ marginBottom: onaylilar.length > 0 ? 22 : 0 }}>
+                <HazirIcerikler liste={hazirOnayli} gonderiliyor={gonderiliyor} onIslem={isIstegi} saltOkunur />
+              </div>
+            )}
+            <DurumListesi
+              liste={onaylilar}
+              hazirListe={hazirOnayli}
+              acikId={acikIcerikId}
+              setAcikId={setAcikIcerikId}
+              baslik="Onayladıkların"
+              bosMetin="Henüz onayladığın bir içerik yok"
+            />
+          </>
+        )}
+
+        {/* PAYLAŞIM TAKVİMİ — Instagram önizlemeleriyle */}
+        {sekme === "takvim" && <MusteriPaylasimPlani plan={musteriData.paylasimPlani || []} marka={musteriData.marka} />}
+
+        {/* REKLAMLAR — markanın aktif/biten kampanyaları. Bütçe bilgisi bilerek gönderilmez. */}
+        {sekme === "reklam" && <MusteriReklamlar reklamlar={musteriData.reklamlar || []} />}
+
+        {/* ÜRETİM — hangi iş hangi aşamada. */}
+        {sekme === "uretim" && <MusteriOperasyon isler={musteriData.operasyonIsleri || []} />}
+
+        {/* Alt çıkış — uzun listelerde en yukarı dönmek zorunda kalmamak için. */}
+        <div style={{ marginTop: 40, paddingTop: 20, borderTop: `1px solid ${MT.cizgi}`, textAlign: "center" }}>
+          <button
+            onClick={() => { if (window.confirm("Çıkış yapılsın mı? Tekrar girmek için kullanıcı adı ve şifren gerekecek.")) onCikis(); }}
+            style={{ ...cancelBtnStyle, fontSize: 12.5, padding: "9px 18px", display: "inline-flex", alignItems: "center", gap: 6 }}
+          >
+            <LogOut size={14} /> Çıkış Yap
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Müşteri panelinde haftalık paylaşım planı. Gelecek haftalar önce gösterilir; geçmiş
+ * haftalar "yapıldı" bilgisiyle altta kalır. */
+/**
+ * DURUM LİSTESİ — "Revize İstediklerin" ve "Onayladıkların" sekmelerinin gövdesi.
+ * Tek bir bileşen; iki sekme aynı kodu kullandığı için görünüşleri hiçbir zaman ayrışamaz.
+ * Her satır küçük bir önizleme taşır ve tıklanınca içeriğin tamamı açılır — "hangi görsele
+ * ne demiştim?" sorusunun cevabı burada.
+ */
+function DurumListesi({ liste, hazirListe, acikId, setAcikId, baslik, bosMetin }) {
+  const toplam = (liste || []).length + (hazirListe || []).length;
+  if (toplam === 0) {
+    return (
+      <div style={{ background: MT.kart, border: `1px solid ${MT.cizgi}`, borderRadius: 12, padding: "34px 24px", textAlign: "center" }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 600, marginBottom: 6 }}>{bosMetin}</div>
+      </div>
+    );
+  }
+  return (
+    <>
+      <div style={{ ...ETIKET, marginBottom: 12 }}>{baslik} · {toplam} içerik</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {gecmis.map((icerik) => {
+              {liste.map((icerik) => {
                 const stil = DURUM_STIL[icerik.durum] || DURUM_STIL.bekliyor;
-                const acik = acikIcerikId === icerik.id;
+                const acik = acikId === icerik.id;
                 const gecmisEmbed = driveEmbedUrl(icerik.driveLinki);
                 return (
                   <div key={icerik.id} style={{ background: MT.kart, border: `1px solid ${acik ? MT.cizgiKoyu : MT.cizgi}`, borderRadius: 10, overflow: "hidden" }}>
@@ -487,7 +577,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
                       * ne demiştim?" sorusunun cevabı kayboluyordu. Küçük kare hızlı tanımayı,
                       * açılan görünüm tam incelemeyi sağlar. */}
                     <button
-                      onClick={() => setAcikIcerikId(acik ? null : icerik.id)}
+                      onClick={() => setAcikId(acik ? null : icerik.id)}
                       style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", background: "none", border: "none", padding: "12px 16px", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
                     >
                       <span style={{ width: 46, height: 46, borderRadius: 7, overflow: "hidden", flexShrink: 0, background: MT.kagit, border: `1px solid ${MT.cizgi}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -543,36 +633,11 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
                 );
               })}
             </div>
-          </>
-        )}
-
-        </>}
-
-        {/* PAYLAŞIM TAKVİMİ — Instagram önizlemeleriyle */}
-        {sekme === "takvim" && <MusteriPaylasimPlani plan={musteriData.paylasimPlani || []} marka={musteriData.marka} />}
-
-        {/* REKLAMLAR — markanın aktif/biten kampanyaları. Bütçe bilgisi bilerek gönderilmez. */}
-        {sekme === "reklam" && <MusteriReklamlar reklamlar={musteriData.reklamlar || []} />}
-
-        {/* ÜRETİM — hangi iş hangi aşamada. */}
-        {sekme === "uretim" && <MusteriOperasyon isler={musteriData.operasyonIsleri || []} />}
-
-        {/* Alt çıkış — uzun listelerde en yukarı dönmek zorunda kalmamak için. */}
-        <div style={{ marginTop: 40, paddingTop: 20, borderTop: `1px solid ${MT.cizgi}`, textAlign: "center" }}>
-          <button
-            onClick={() => { if (window.confirm("Çıkış yapılsın mı? Tekrar girmek için kullanıcı adı ve şifren gerekecek.")) onCikis(); }}
-            style={{ ...cancelBtnStyle, fontSize: 12.5, padding: "9px 18px", display: "inline-flex", alignItems: "center", gap: 6 }}
-          >
-            <LogOut size={14} /> Çıkış Yap
-          </button>
-        </div>
       </div>
-    </div>
+    </>
   );
 }
 
-/** Müşteri panelinde haftalık paylaşım planı. Gelecek haftalar önce gösterilir; geçmiş
- * haftalar "yapıldı" bilgisiyle altta kalır. */
 /**
  * HAZIR İÇERİKLER — Operasyon'da "Kontrol Bekliyor" aşamasındaki işlerin canlı listesi.
  *
@@ -583,7 +648,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
  * Dosya linki olmayan kartlar da gösterilir (kullanıcının tercihi): ekip bir işi kontrole
  * göndermişse müşteri onu görmeli, dosya henüz eklenmemişse bu da açıkça yazılır.
  */
-function HazirIcerikler({ liste, gonderiliyor, onIslem, basliksiz = false }) {
+function HazirIcerikler({ liste, gonderiliyor, onIslem, basliksiz = false, saltOkunur = false, baslangic = 0 }) {
   const [acikId, setAcikId] = useState(null);
   const [revizeAcik, setRevizeAcik] = useState(null);
   const [not, setNot] = useState("");
@@ -610,7 +675,7 @@ function HazirIcerikler({ liste, gonderiliyor, onIslem, basliksiz = false }) {
                   background: MT.kagit, border: `1px solid ${MT.cizgi}`, borderRadius: 6, padding: "5px 8px",
                   flexShrink: 0, minWidth: 30, textAlign: "center",
                 }}>
-                  {String(sira + 1).padStart(2, "0")}
+                  {String(baslangic + sira + 1).padStart(2, "0")}
                 </span>
                 <span style={{ minWidth: 0, flex: 1 }}>
                   <span style={{ display: "block", fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, marginBottom: 3, lineHeight: 1.3 }}>
@@ -642,7 +707,7 @@ function HazirIcerikler({ liste, gonderiliyor, onIslem, basliksiz = false }) {
                     </div>
                   )}
 
-                  {revizeAcik === h.isId ? (
+                  {saltOkunur ? null : revizeAcik === h.isId ? (
                     <div>
                       <textarea
                         autoFocus

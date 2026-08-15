@@ -2010,3 +2010,35 @@ Kayıtlar **silinmedi**, yalnızca müşteriye gönderilmiyor; geçmişleri yön
 
 Bu davranışlar zaten çalışıyordu; `testler/t16.mjs` ile (8 kontrol) doğrulandı. Asıl sorun
 çift görünmeydi.
+
+## Güncelleme 90: Müşteri Paneli Üç Duruma Ayrıldı
+
+Müşteri paneli artık üç sekme: **Onay Bekleyenler · Revize İstediklerin · Onayladıkların**.
+Karışık bir "Geçmiş" listesi yerine, müşterinin ne yaptığına göre ayrılmış üç net kova.
+
+### Bunu yaparken bir eksik ortaya çıktı
+Ayna yalnızca "Kontrol Bekliyor" aşamasını kapsıyordu. Müşteri bir kartı revize ettiğinde iş o
+aşamadan çıkıyor ve kart **panelden tamamen kayboluyordu** — "neye revize istemiştim?"
+sorusunun cevabı yok oluyordu, "Revize İstediklerin" sekmesi de boş kalırdı.
+
+Ayna genişletildi:
+
+| Operasyon aşaması | Müşteri panelinde |
+|---|---|
+| Kontrol Bekliyor | Onay Bekleyenler (işlem yapılabilir) |
+| Revize İstendi | Revize İstediklerin (notuyla birlikte) |
+| Onaylandı / Teslim Edildi | Onayladıkların |
+| Diğer aşamalar | görünmez (üretim devam ediyor) |
+
+Revize ve onaylı kartlar **salt okunur** — kayıt olarak duruyor, tekrar işlem yapılamıyor.
+
+### Numaralandırma düzeltildi
+Liste 01, 02 sonra tekrar 01, 02 diye numaralanıyordu. Artık kesintisiz.
+
+Bu sırada gerçek bir hata bulundu: numara kaydırması için kullanılan değer **başka bir
+bileşenin parametresiydi**, o listede tanımsızdı. Denetleyici dosya genelinde baktığı için
+göremedi — artık **kapsam farkında**: bir ad, başka bir bileşenin parametresi olduğu için
+"tanımlı" sayılmıyor.
+
+Bilinen sınırı `testler/OKUBENI.md`'ye yazıldı: doğrudan `{ad}` kullanımlarını yakalar, bir
+fonksiyon çağrısının içinde geçeni göremez.

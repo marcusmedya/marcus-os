@@ -37,7 +37,9 @@ r = await cagir(h, { method: "POST", headers: MUSTERI, query: {}, body: { muster
 let son = await kv.get("marcus-os-data");
 kontrol("onay → iş 'Onaylandı' oldu", (son.cekimIsleri.find(j=>j.id===10)||{}).asama === "Onaylandı", `HTTP ${r.kod}`);
 r = await cagir(h, { method: "GET", headers: MUSTERI, query: {}, body: {} });
-kontrol("onaylanan kart listeden DÜŞTÜ", !(r.govde.hazirIcerikler||[]).some(x=>x.isId===10));
+// Kart kaybolmaz; "onaylandi" durumuna geçip Onayladıkların sekmesine düşer.
+const kart10 = (r.govde.hazirIcerikler||[]).find(x=>x.isId===10);
+kontrol("onaylanan kart ONAY BEKLEYENLER'den düştü", !kart10 || kart10.durum !== "bekliyor", kart10 ? kart10.durum : "yok");
 
 // Revize -> Revize Istendi + not
 r = await cagir(h, { method: "POST", headers: MUSTERI, query: {}, body: { musteriAction: "revizeIste", isId: 11, revizeNotu: "Müzik değişsin" } });

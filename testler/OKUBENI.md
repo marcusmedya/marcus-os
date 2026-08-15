@@ -116,3 +116,14 @@ oldu. Rollup `"MusteriPaneli" is not exported` diyerek build'i kırdı. Sözdizi
 olduğu için diğer sekiz denetleyicinin hiçbiri göremedi.
 
 Not: dosyalar TAM YOL ile anahtarlanır — `src/data.js` ve `api/data.js` aynı adı taşıyor.
+
+## degiskendenetle.py — bilinen sınırı
+
+`{ad...}` biçiminde, doğrudan süslü parantezden sonra gelen kullanımları yakalar. Bir
+fonksiyon çağrısının İÇİNDE geçen adı (`{String(baslangic + 1)}`) göremez.
+
+Bu bilerek böyle: daha geniş bir tarama, JSX metnindeki sıradan kelimeleri de "tanımsız ad"
+sanıp yanlış alarm yağdırıyordu. Yakalanan durum (doğrudan kullanım) pratikte çok daha yaygın.
+
+Denetleyici artık **kapsam farkındadır**: bir ad başka bir bileşenin parametresi olduğu için
+"tanımlı" sayılmaz.
