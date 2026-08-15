@@ -10,7 +10,7 @@
 import React, { useState, useEffect } from "react";
 import {
   tarihGoster, cancelBtnStyle, haftaBaslangici, reklamDurumu, musteriHatirlaniyorMu, FONTS, basligiTemizle, istatistikVarMi, authHeaders,
-  turEtiketi, TurRozet,
+  turEtiketi, TurRozet, inputStyle, saveBtnStyle,
 } from "./tema.jsx";
 import { LogOut, Trash2 } from "lucide-react";
 import { driveEmbedUrl, DriveGorsel, DriveVideo, driveGorselAdaylari, DriveKucukGorsel } from "./drive.jsx";

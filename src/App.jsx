@@ -4666,6 +4666,15 @@ function MusteriPaneliYonetimi({ saltOkunur = false, hedef, clients, icerikler, 
     return (isler || []).filter((j) => j.asama === "Kontrol Bekliyor" && !anahtarlar.has(markaAnahtari(j.marka)));
   }, [clients, isler]);
 
+  /* SAHİPSİZ İÇERİKLER — müşterisi silinmiş kayıtlar.
+   * Denetimde çıktı: bir müşteri silindiğinde ona ait içerikler veride kalıyor ama hiçbir
+   * ekranda görünmüyordu. Veri kaybı değil, ama zamanla birikip veri boyutunu şişiriyor ve
+   * kimse farkında olmuyordu. Artık burada sayılıyor. */
+  const sahipsizIcerikler = useMemo(() => {
+    const idler = new Set((clients || []).map((c) => String(c.id)));
+    return (icerikler || []).filter((i) => !idler.has(String(i.clientId)));
+  }, [clients, icerikler]);
+
   return (
     <div>
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 18 }}>
@@ -4677,6 +4686,16 @@ function MusteriPaneliYonetimi({ saltOkunur = false, hedef, clients, icerikler, 
       <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 16, lineHeight: 1.6 }}>
         Markaya tıkla, ona çekim planı ya da içerik gönder. Müşteri kendi panelinden görüp onaylar veya revize ister.
       </div>
+
+      {sahipsizIcerikler.length > 0 && !saltOkunur && (
+        <Card style={{ padding: "12px 16px", marginBottom: 12, border: `1px solid ${T.border}` }}>
+          <div style={{ fontSize: 12.5, color: T.textDim, fontFamily: "Inter", lineHeight: 1.7 }}>
+            <strong style={{ color: T.text }}>{sahipsizIcerikler.length} içerik kaydının müşterisi silinmiş.</strong>{" "}
+            Hiçbir panelde görünmüyorlar ama veride duruyorlar. Müşteriyi Ayarlar → geri dönüşüm
+            kutusundan geri alırsan içerikleri de geri gelir.
+          </div>
+        </Card>
+      )}
 
       {bagsizKartlar.length > 0 && !saltOkunur && (
         <Card style={{ padding: "14px 18px", marginBottom: 14, border: `1px solid ${T.warning}` }}>
@@ -6939,7 +6958,41 @@ export default function MarcusOS() {
     };
     return { ...d, clients: [...d.clients, yeniClient], markalasmaSurecleri: [...(d.markalasmaSurecleri || []), yeniSurec] };
   });
-  const updateClient = (id, patch) => setData((d) => ({ ...d, clients: d.clients.map((c) => (c.id === id ? { ...c, ...patch } : c)) }));
+  /**
+   * Müşteri kaydını günceller. AD DEĞİŞİRSE markayı metin olarak tutan tüm kayıtlar da
+   * birlikte güncellenir.
+   *
+   * Denetimde çıktı: ad değiştirildiğinde cekimIsleri.marka eski adda kalıyordu; eşleşme
+   * kopuyor ve o markanın BÜTÜN içeriği müşteri panelinden kayboluyordu. Yönetici tarafında
+   * "bağlanamayan kartlar" uyarısı çıkıyordu ama düzeltme elle yapılmak zorundaydı.
+   *
+   * Marka adını metin olarak taşıyan alanlar: cekimIsleri, reklamlar, markalasmaSurecleri,
+   * teklifler, uyelikler. (subeler/paylasimGecmisi/gunlukKontrol clientId de taşıdığı için
+   * kopmuyor, yine de tutarlılık için güncelleniyor.)
+   */
+  const updateClient = (id, patch) => setData((d) => {
+    const eskiKayit = (d.clients || []).find((c) => c.id === id);
+    const eskiAd = eskiKayit ? eskiKayit.ad : null;
+    const yeniAd = patch.ad;
+    const adDegisti = yeniAd !== undefined && eskiAd && String(yeniAd).trim() !== String(eskiAd).trim();
+
+    const guncel = { ...d, clients: d.clients.map((c) => (c.id === id ? { ...c, ...patch } : c)) };
+    if (!adDegisti) return guncel;
+
+    const yenile = (liste) => (liste || []).map((k) => (
+      String(k.marka || "").trim() === String(eskiAd).trim() ? { ...k, marka: yeniAd } : k
+    ));
+    return {
+      ...guncel,
+      cekimIsleri: yenile(d.cekimIsleri),
+      reklamlar: yenile(d.reklamlar),
+      markalasmaSurecleri: yenile(d.markalasmaSurecleri),
+      teklifler: yenile(d.teklifler),
+      uyelikler: yenile(d.uyelikler),
+      subeler: yenile(d.subeler),
+      paylasimGecmisi: yenile(d.paylasimGecmisi),
+    };
+  });
   /* ------------------------------------------------------------------ *
    * SİLİNENLER KUTUSU (yumuşak silme)
    *

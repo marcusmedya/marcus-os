@@ -2460,3 +2460,79 @@ Tek eklenen şey sekme çubuğu ve `{ayarSekme === "x" && <>...</>}` sarmalayıc
 - Boşluksuz kod uzunluğu farkı yalnızca eklenen sekme kodu kadar
 - Tüm etiketler dengeli (Card, div, button, span, p, label)
 - 13 kod denetimi + 8 sunucu denetimi (79 kontrol) geçti
+
+## Güncelleme 107: Sistem Denetimi ve Altı Düzeltme
+
+Tüm sistem baştan sona denetlendi (senkron, mantık, veri kaybı, güvenlik, yetkilendirme,
+yedek). Sağlam çıkanlar: marka kilidi kapsamı tam, müşteriler arası sınır sağlam, boş/bozuk
+veri yazma reddediliyor, yedek her alanı kapsıyor, giriş güvenliği çalışıyor.
+
+Altı bulgu düzeltildi:
+
+### 1 🚨 Müşteri içerik kayıtları olduğu gibi gönderiliyordu
+Mimari kural "müşteriye giden veri alan alan seçilir" diyor; reklamlar ve paylaşımlar için
+uygulanmış ama `musteriIcerikleri` için atlanmıştı. Sızanlar: `kaynakIsId`,
+`operasyonaAktarildi`, `olusturulanIsId`, `cekildi` ve **`onaylayan`** (müşteriye senin onun
+adına onayladığını gösteriyordu). Asıl risk gelecekteydi: bu kayda eklenecek her iç alan
+kendiliğinden müşteriye giderdi. Artık 16 alan tek tek seçiliyor.
+
+### 2 ⚠ Dashboard izni maaş yazabiliyordu
+Sadece Dashboard açık bir hesap `personel`, `clients`, `hesaplar` dahil 11 alanı
+**değiştirebiliyordu**. Dashboard bir görüntüleme ekranı — yazma izni tamamen kaldırıldı.
+Okuma aynen duruyor.
+
+### 3 ⚠ Takvim izni müşteri kaydını değiştirebiliyordu
+Takvimde müşteri adı sadece gösteriliyor. `clients` yazma hakkı kaldırıldı, vergi takvimi
+yazma hakkı kaldı.
+
+### 4 ⚠ Marka adı değişince tüm içerik panelden düşüyordu
+Ad değiştirilince `cekimIsleri.marka` eski adda kalıyor, eşleşme kopuyor ve o markanın bütün
+içeriği müşteri panelinden kayboluyordu. Artık ad değişikliği işlere, reklamlara, tekliflere,
+üyeliklere ve markalaşma süreçlerine **birlikte** taşınıyor. Sadece o markanın kayıtları
+etkileniyor; boşluk farkı değişiklik sayılmıyor.
+
+### 5 ⚠ Silinen işe bağlı içerik izsiz kayboluyordu
+Operasyon kartı silinince ona bağlı içerik müşteri panelinden de kayboluyordu — müşteri revize
+istemişse izi yok oluyordu. Artık bağlı iş silinmişse kayıt müşteriye geri gösteriliyor.
+
+### 6 ℹ Müşteri silinince içerikleri sahipsiz kalıyordu
+Veri kaybı değil ama hiçbir ekranda görünmüyordu. Müşteri Paneli sekmesinde artık sayılıyor.
+
+### Bu sırada kendi hatamı da yakaladım
+2. ve 3. düzeltmeyi yaparken okuma ve yazma listelerindeki satırlar birebir aynı olduğu için
+değişiklik **ikisine birden** uygulandı ve Dashboard'ın okuma izni de silindi — ekran boş
+kalacaktı. Bir önceki sürümle karşılaştırınca çıktı, geri alındı.
+
+Yeni kalıcı testler: `t19.mjs` (müşteri paneli alan seçimi, 11 kontrol),
+`t20.mjs` (yetki sınırları, 5 kontrol).
+
+## Güncelleme 108: "Revize İste" Siyah Ekranı ve On Dördüncü Denetleyici
+
+Müşteri panelinde **Revize İste**'ye basınca sayfa siyah oluyordu.
+
+**Sebep:** Revize kutusu `inputStyle` ve `saveBtnStyle` kullanıyor ama ikisi de
+**import edilmemişti**. Sayfa açılışta sorunsuz görünüyor — o blok ancak düğmeye basılınca
+çiziliyor ve hata o an ortaya çıkıyor.
+
+**Düzeltme:** İki import eklendi.
+
+### Neden hiçbir denetleyici görmedi
+On üç denetleyicinin ilgili olanı (10 numara) yalnızca `{ad...}` biçimindeki doğrudan
+kullanımları yakalıyor. Buradaki kullanım ise **yayılım** içindeydi:
+```
+style={{ ...inputStyle, width: "100%" }}
+```
+
+### On dördüncü denetleyici
+`testler/kullanimdenetle.py` — yayılım (`...ad`) ile kullanılan ama dosyada tanımlı da olmayan,
+import da edilmemiş adları bulur.
+
+Yayılım seçildi çünkü kesin sonuç veriyor: `...ad` ancak gerçek bir nesne/dizi üzerinde
+yapılabilir, JSX içindeki Türkçe metinlerle karışmaz. (Daha geniş bir tarama denendi, cümle
+içindeki kelimeleri kod sanıp yanlış alarm yağdırdı.)
+
+24 dosyanın hepsinde sessiz, bozuk hâlinde ise hatayı adıyla bildiriyor.
+
+Bu, aynı kök sebebin dördüncü yüzü: bileşen taşırken bağımlılıklar geride kalıyor. Artık
+dördü de yakalanıyor — eksik import (5), tanımsız değişken (10), kapsam dışı kullanım (12),
+yayılımda gelmeyen ad (14).

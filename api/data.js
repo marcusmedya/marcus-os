@@ -92,10 +92,18 @@ const PERMISSION_DATA_FIELDS = {
 // "clients"i sadece marka adı GÖRMEK için (sadeleştirilmiş) alır — asıl (zengin) müşteri
 // verisinin bu sadeleştirilmiş haliyle EZİLMEMESİ için o izinlerden clients YAZILAMAZ.
 const PERMISSION_WRITE_FIELDS = {
-  dashboard: ["clients", "monthly", "gelirKalemleri", "giderKalemleri", "ofisGiderleri", "bekleyenTahsilatlar", "personel", "vergiTakvimi", "hesaplar", "hesapTransferleri", "hesapDuzeltmeleri"],
+  /* DASHBOARD SALT OKUNUR (denetim bulgusu).
+   * Eskiden clients, personel, hesaplar dahil 11 alanı YAZABİLİYORDU. Dashboard bir
+   * görüntüleme ekranı — KPI kartları gösterir, kayıt düzenlemez. Sadece Dashboard izni
+   * verilen bir hesap maaşları ve müşteri kayıtlarını değiştirebiliyordu.
+   * Gerçek düzenleme Finans / Müşteriler / Personel izinlerinden yapılır. */
+  dashboard: [],
   musteriler: ["clients", "bekleyenTahsilatlar", "hesaplar", "musteriIcerikleri"],
   finans: ["gelirKalemleri", "giderKalemleri", "ofisGiderleri", "bekleyenTahsilatlar", "monthly", "vergiTakvimi", "clients", "personel", "hesaplar", "hesapTransferleri", "hesapDuzeltmeleri"],
-  takvim: ["clients", "vergiTakvimi"],
+  /* TAKVİM müşteri kaydını YAZAMAZ (denetim bulgusu): takvimde müşteri adı yalnızca
+   * gösteriliyor, düzenlenmiyor. Yazma hakkı varken sadece Takvim izinli bir hesap tüm
+   * müşteri listesini değiştirebiliyordu. Vergi takvimi kayıtları buradan yazılabilir. */
+  takvim: ["vergiTakvimi"],
   odemeTakvimi: ["clients", "hesaplar", "hesapTransferleri", "hesapDuzeltmeleri"],
   teklif: ["teklifler", "teklifSablonlari", "sozlesmeSablonlari", "markaKimligiGorseli"],
   reklamlar: ["reklamlar", "hesapOlcumleri"],
@@ -318,11 +326,44 @@ export default async function handler(req, res) {
        *
        * Not: kayıtlar silinmiyor, yalnızca müşteriye gönderilmiyor — geçmişleri yönetici
        * tarafında duruyor. */
+      const isVarMi = (isId) => (data.cekimIsleri || []).some((j) => String(j.id) === String(isId));
       const kendiIcerikleri = (data.musteriIcerikleri || []).filter((i) => {
         if (String(i.clientId) !== String(musteriClientId)) return false;
         if (i.tur === "cekim") return true;              // çekim planı — Operasyon'da karşılığı yok
-        return !i.kaynakIsId;                            // Operasyon işinin kopyası ise gönderme
-      });
+        if (!i.kaynakIsId) return true;                  // bağımsız kayıt
+        /* Bağlı olduğu Operasyon işi HÂLÂ VARSA gönderme — kart zaten canlı yansıyor,
+         * ikinci kez görünmesin. Ama iş SİLİNMİŞSE kayıt geri gelir: aksi halde müşterinin
+         * revize istediği içerik hiçbir yerde görünmez, izi tamamen kaybolurdu. */
+        return !isVarMi(i.kaynakIsId);
+      }).map((i) => ({
+        /* ALAN ALAN SEÇİLİR — kaydın tamamı asla gönderilmez.
+         *
+         * Denetimde çıktı: bu kayıtlar eskiden olduğu gibi gidiyordu ve iç alanlar
+         * (kaynakIsId, operasyonaAktarildi, olusturulanIsId, cekildi ve özellikle
+         * ONAYLAYAN — senin müşteri adına onayladığını gösterir) müşteriye ulaşıyordu.
+         * Asıl risk gelecekteydi: bu kayda eklenecek her yeni iç alan (maliyet, personel
+         * notu) kendiliğinden müşteriye giderdi. Reklamlar ve paylaşımlar için bu kural
+         * zaten uygulanıyordu; burada eksik kalmış.
+         *
+         * YENİ ALAN EKLERKEN: müşterinin görmesi gerekiyorsa buraya da eklenmeli. */
+        id: i.id,
+        tur: i.tur,
+        aciklama: i.aciklama || "",
+        durum: i.durum,
+        tarih: i.tarih || null,
+        guncellemeTarihi: i.guncellemeTarihi || null,
+        revizeNotu: i.revizeNotu || null,
+        driveLinki: i.driveLinki || null,
+        gorselUrl: i.gorselUrl || null,
+        videoYonu: i.videoYonu || null,
+        sira: i.sira,                       // müşteri panelindeki sıralama senin sıranla aynı olsun
+        // Çekim planına özel alanlar
+        referansLink: i.referansLink || null,
+        konusmali: i.konusmali || null,
+        konusmaMetni: i.konusmaMetni || null,
+        cekimNotu: i.cekimNotu || null,
+        planlananTarih: i.planlananTarih || null,
+      }));
 
       /* ---------------------------------------------------------------- *
        * MÜŞTERİYE GÖNDERİLEN EK VERİ (reklamlar, paylaşım planı, operasyon)
