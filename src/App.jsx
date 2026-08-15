@@ -2993,108 +2993,182 @@ function CekimListesi({ clients, stoklar, subeler, gecmis }) {
   );
 }
 
-function GunlukKontrol({ clients, stoklar, gecmis, kontrol, onToggle, onYenile, role }) {
+/**
+ * GÜNLÜK KONTROL — Haftalık Paylaşım Planı'nın gün gün görünümü.
+ *
+ * Eskiden bu ekran STOK SAYILARINDAN çalışıyordu: "bu markanın 3 reels stoğu var" der,
+ * hangi gün paylaşılacağını bilmezdi. Plan ise gün bazlı tutuluyordu, yani iki ekran ayrı
+ * kaynaktan besleniyor ve birbirini tutmuyordu.
+ *
+ * Artık tek kaynak var: haftalikPaylasimlar. Plan kaydı haftaKey (o haftanın pazartesisi) ve
+ * gun (0=Pzt … 6=Paz) tuttuğu için gerçek tarih hesaplanabiliyor — ekran da o tarihlere göre
+ * bölünüyor. Paylaşımlar'da yeşile dönmemiş (yapildi=false) her kayıt burada görünür.
+ */
+function GunlukKontrol({ clients, haftalikPlan, onToggle, onYenile, role }) {
   const [yenileniyor, setYenileniyor] = useState(false);
+  const [gecmisiGoster, setGecmisiGoster] = useState(false);
   const tikla = () => {
     setYenileniyor(true);
     Promise.resolve(onYenile ? onYenile() : null).finally(() => setTimeout(() => setYenileniyor(false), 400));
   };
-  const bugun = bugunISO();
-  const yapilanlar = kontrol && kontrol.tarih === bugun ? kontrol.yapilanlar : [];
-  const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
-  const stoklarObj = stoklar || {};
 
-  const sonPaylasimTarihi = (clientId) => {
-    const kayitlar = (gecmis || []).filter((h) => h.clientId === clientId && h.tip === "paylasim");
-    return kayitlar.length ? kayitlar[kayitlar.length - 1].tarih : null;
+  const bugun = bugunISO();
+  const markaAdi = (id) => ((clients || []).find((c) => String(c.id) === String(id)) || {}).ad || "—";
+
+  /* Plan kaydının gerçek tarihi: haftanın pazartesisi + gün indeksi.
+   * Tarih string olarak üretiliyor (yerel saat dilimi kaymalarına karşı gün gün ilerletilerek). */
+  const planTarihi = (kayit) => {
+    if (!kayit.haftaKey) return null;
+    const m = String(kayit.haftaKey).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return null;
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    d.setDate(d.getDate() + (Number(kayit.gun) || 0));
+    const ay = String(d.getMonth() + 1).padStart(2, "0");
+    const gunNo = String(d.getDate()).padStart(2, "0");
+    return `${d.getFullYear()}-${ay}-${gunNo}`;
   };
 
-  // Her marka için: stoğu olan türler + o türün bugün işaretlenip işaretlenmediği.
-  const markaDurumu = aktifMarkalar.map((c) => {
-    const turler = PAYLASIM_TURLERI
-      .map((t) => ({ tur: t, adet: stoklarObj[stokAnahtari(c.id, t)] || 0, yapildi: yapilanlar.includes(`${c.id}_${t}`) }))
-      .filter((x) => x.adet > 0 || x.yapildi);
-    const tamamlanan = turler.filter((t) => t.yapildi).length;
-    const tamamlandiMi = tamamlanan > 0;
-    return { client: c, turler, tamamlanan, tamamlandiMi, sonTarih: sonPaylasimTarihi(c.id) };
-  });
+  // Tarihe göre grupla
+  const gunler = useMemo(() => {
+    const harita = {};
+    (haftalikPlan || []).forEach((kayit) => {
+      const t = planTarihi(kayit);
+      if (!t) return;
+      if (!harita[t]) harita[t] = [];
+      harita[t].push({ ...kayit, tarih: t });
+    });
+    return Object.entries(harita)
+      .map(([tarih, kayitlar]) => ({
+        tarih,
+        kayitlar: kayitlar.slice().sort((a, b) => markaAdi(a.clientId).localeCompare(markaAdi(b.clientId), "tr")),
+        bekleyen: kayitlar.filter((k) => !k.yapildi).length,
+        toplam: kayitlar.length,
+      }))
+      .sort((a, b) => (a.tarih < b.tarih ? -1 : 1));
+  }, [haftalikPlan, clients]);
 
-  // CEO'nun dikkatini önce ihtiyaç olan yerlere çekmek için: hiç yapılmayanlar en üstte,
-  // tamamlananlar en altta sıralanır.
-  const siraliMarkalar = [...markaDurumu].sort((a, b) => {
-    if (a.tamamlandiMi !== b.tamamlandiMi) return a.tamamlandiMi ? 1 : -1;
-    return b.turler.length - a.turler.length;
-  });
+  /* GEÇMİŞ GÜNLER: tarihi geçmiş ama hâlâ yeşile dönmemiş kayıtlar. Bunlar gözden kaçmasın
+   * diye ayrı gösteriliyor — "dün paylaşılacaktı, olmadı" en kolay unutulan şey. */
+  const gecikenler = gunler.filter((g) => g.tarih < bugun && g.bekleyen > 0);
+  const bugunku = gunler.find((g) => g.tarih === bugun);
+  const gelecek = gunler.filter((g) => g.tarih > bugun);
+  const tamamlananGecmis = gunler.filter((g) => g.tarih < bugun && g.bekleyen === 0);
 
-  const tamamlananMarkaSayisi = markaDurumu.filter((m) => m.tamamlandiMi).length;
-  const paylasilacakBirSeyOlanlar = markaDurumu.filter((m) => m.turler.length > 0).length;
+  const gunAdi = (t) => {
+    const m = String(t).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return t;
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    return d.toLocaleDateString("tr-TR", { weekday: "long", day: "numeric", month: "long" });
+  };
+
+  const GunKarti = ({ gun, vurgu }) => (
+    <Card style={{ padding: "14px 16px", marginBottom: 10, border: `1px solid ${vurgu || T.border}` }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: gun.kayitlar.length ? 10 : 0 }}>
+        <span style={{ fontSize: 13.5, color: T.text, fontFamily: "Inter", fontWeight: 700 }}>
+          {gunAdi(gun.tarih)}
+          {gun.tarih === bugun && <span style={{ color: T.accentText, fontWeight: 600 }}> · bugün</span>}
+        </span>
+        <span style={{ fontSize: 11.5, fontFamily: "'IBM Plex Mono', monospace", color: gun.bekleyen === 0 ? T.success : T.warning, fontWeight: 700 }}>
+          {gun.toplam - gun.bekleyen} / {gun.toplam} paylaşıldı
+        </span>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {gun.kayitlar.map((k) => (
+          <div key={k.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", background: T.surfaceRaised, borderRadius: 8, padding: "8px 11px" }}>
+            <span style={{ minWidth: 0 }}>
+              <span style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{markaAdi(k.clientId)}</span>
+              <span style={{ fontSize: 12, color: T.textDim, fontFamily: "Inter" }}> · {k.tur || "Paylaşım"}</span>
+            </span>
+            {k.yapildi ? (
+              <span style={{ fontSize: 11, fontWeight: 700, color: T.success, background: T.successSoft, padding: "3px 10px", borderRadius: 999, fontFamily: "Inter", whiteSpace: "nowrap" }}>
+                ✓ Paylaşıldı{k.yapildigiTarih && k.yapildigiTarih !== k.tarih ? ` · ${tarihGoster(k.yapildigiTarih)}` : ""}
+              </span>
+            ) : (
+              <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: gun.tarih < bugun ? T.danger : T.warning, background: gun.tarih < bugun ? T.dangerSoft : T.warningSoft, padding: "3px 10px", borderRadius: 999, fontFamily: "Inter", whiteSpace: "nowrap" }}>
+                  {gun.tarih < bugun ? "Gecikti" : "Bekliyor"}
+                </span>
+                {onToggle && (
+                  <button
+                    onClick={() => onToggle(k.id)}
+                    style={{ background: "none", border: `1px solid ${T.success}`, color: T.success, cursor: "pointer", padding: "3px 11px", borderRadius: 999, fontSize: 11, fontWeight: 700, fontFamily: "Inter", whiteSpace: "nowrap" }}
+                  >
+                    Paylaşıldı işaretle
+                  </button>
+                )}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+
+  const toplamBekleyen = gunler.reduce((n, g) => n + g.bekleyen, 0);
+  const bugunBekleyen = bugunku ? bugunku.bekleyen : 0;
 
   return (
     <div>
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 12, alignItems: "center", justifyContent: "space-between" }}>
-        <KpiCard label="BUGÜN TAMAMLANAN MARKA" value={`${tamamlananMarkaSayisi} / ${paylasilacakBirSeyOlanlar}`} mono={false} accent={paylasilacakBirSeyOlanlar > 0 && tamamlananMarkaSayisi === paylasilacakBirSeyOlanlar ? T.success : T.warning} />
+        <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+          <KpiCard label="BUGÜN BEKLEYEN" value={String(bugunBekleyen)} mono={false} accent={bugunBekleyen === 0 ? T.success : T.warning} />
+          <KpiCard label="GECİKEN" value={String(gecikenler.reduce((n, g) => n + g.bekleyen, 0))} mono={false} accent={gecikenler.length ? T.danger : T.success} />
+          <KpiCard label="TOPLAM BEKLEYEN" value={String(toplamBekleyen)} mono={false} accent={T.textDim} />
+        </div>
         <button onClick={tikla} disabled={yenileniyor} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: `1px solid ${T.border}`, background: T.surfaceRaised, color: T.text, fontSize: 12.5, fontWeight: 600, fontFamily: "Inter", cursor: yenileniyor ? "default" : "pointer", opacity: yenileniyor ? 0.6 : 1 }}>
           <RefreshCw size={13} style={yenileniyor ? { animation: "marcus-spin 0.8s linear infinite" } : undefined} />
           {yenileniyor ? "Yenileniyor…" : "Yenile"}
         </button>
       </div>
-      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 10 }}>
-        Bu sayfa personel için sadece bir gösterge — işaretlemek için <strong>Paylaşımlar &gt; Haftalık Paylaşım Planı</strong>'nı kullanmalısınız. "Yenile" ile Haftalık Plan'daki en güncel listeye göre anlık senkronlar.
-        {role === "owner" && " Owner olarak, Haftalık Plan'da karşılığı olmayan (eski/hatalı) bir işaretlemeyi düzeltmek için buradaki rozetlere de tıklayabilirsin."}
+
+      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 14, lineHeight: 1.7 }}>
+        Bu ekran <strong>Paylaşımlar &gt; Haftalık Paylaşım Planı</strong> ile aynı kayıtları gösterir —
+        ayrı bir liste değildir. Buradan işaretlediğin paylaşım plana da işlenir, planda işaretlediğin
+        burada yeşile döner.
       </div>
 
-      {paylasilacakBirSeyOlanlar > 0 && tamamlananMarkaSayisi === paylasilacakBirSeyOlanlar && (
-        <Card style={{ padding: "14px 18px", marginBottom: 16, background: T.successSoft, border: `1px solid ${T.success}` }}>
-          <div style={{ fontSize: 13, color: T.success, fontFamily: "Inter", fontWeight: 600 }}>🎉 Bugün stoğu olan tüm markaların paylaşımı tamamlandı — harika gidiyor.</div>
+      {gunler.length === 0 && (
+        <Card style={{ padding: "26px 22px", textAlign: "center" }}>
+          <div style={{ fontSize: 14, color: T.text, fontFamily: "Inter", fontWeight: 600, marginBottom: 5 }}>Planda hiç paylaşım yok</div>
+          <div style={{ fontSize: 12.5, color: T.textDim, fontFamily: "Inter" }}>Paylaşımlar sekmesindeki Haftalık Paylaşım Planı'ndan gün seçip ekleyebilirsin.</div>
         </Card>
       )}
 
-      {aktifMarkalar.length === 0 ? (
-        <Card style={{ padding: "24px", textAlign: "center" }}>
-          <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Aktif ya da yeni müşteri yok.</div>
-        </Card>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {siraliMarkalar.map(({ client: c, turler, tamamlandiMi, sonTarih }) => (
-            <Card key={c.id} style={{ padding: "14px 16px", border: `1px solid ${tamamlandiMi ? T.success : turler.length > 0 ? T.warning : T.border}`, opacity: tamamlandiMi ? 0.7 : 1 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: turler.length > 0 ? 10 : 0 }}>
-                <div>
-                  <div style={{ fontSize: 13.5, color: T.text, fontWeight: 600, fontFamily: "Inter", display: "flex", alignItems: "center", gap: 8 }}>
-                    {c.ad}
-                    {tamamlandiMi && <Pill color={T.success} soft={T.successSoft}>Bugün tamam ✓</Pill>}
-                  </div>
-                  <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{sonTarih ? `Son paylaşım: ${sonTarih}` : "Henüz paylaşım kaydı yok"}</div>
-                </div>
-              </div>
-              {turler.length === 0 ? (
-                <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>Stokta hiçbir tür yok — paylaşacak içerik bekleniyor.</div>
-              ) : (
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  {turler.map((t) => (
-                    <span
-                      key={t.tur}
-                      onClick={role === "owner" ? () => onToggle(c.id, t.tur) : undefined}
-                      title={role === "owner" ? "Owner düzeltmesi: tıklayınca bu işareti geri alır (stoğu da düzeltir)" : "İşaretlemek için Paylaşımlar > Haftalık Paylaşım Planı'nı kullan"}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, border: "none",
-                        background: t.yapildi ? T.successSoft : T.surfaceRaised, color: t.yapildi ? T.success : T.text, fontSize: 12, fontFamily: "Inter", fontWeight: 600,
-                        cursor: role === "owner" ? "pointer" : "default",
-                      }}
-                    >
-                      {t.yapildi ? <Check size={13} strokeWidth={3} /> : null}
-                      {t.tur} ({t.adet})
-                    </span>
-                  ))}
-                </div>
-              )}
-            </Card>
-          ))}
+      {gecikenler.length > 0 && (
+        <>
+          <div style={{ fontSize: 11, color: T.danger, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700, letterSpacing: 1, marginBottom: 6 }}>GECİKENLER</div>
+          {gecikenler.map((g) => <GunKarti key={g.tarih} gun={g} vurgu={T.danger} />)}
+        </>
+      )}
+
+      <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700, letterSpacing: 1, margin: "14px 0 6px" }}>BUGÜN</div>
+      {bugunku
+        ? <GunKarti gun={bugunku} vurgu={bugunku.bekleyen ? T.warning : T.success} />
+        : (
+          <Card style={{ padding: "16px 18px", marginBottom: 10 }}>
+            <div style={{ fontSize: 12.5, color: T.textDim, fontFamily: "Inter" }}>Bugün için planlanmış paylaşım yok.</div>
+          </Card>
+        )}
+
+      {gelecek.length > 0 && (
+        <>
+          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700, letterSpacing: 1, margin: "14px 0 6px" }}>SIRADAKİ GÜNLER</div>
+          {gelecek.map((g) => <GunKarti key={g.tarih} gun={g} />)}
+        </>
+      )}
+
+      {tamamlananGecmis.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <button
+            onClick={() => setGecmisiGoster((v) => !v)}
+            style={{ background: "none", border: "none", color: T.textDim, cursor: "pointer", fontSize: 12, fontFamily: "Inter", fontWeight: 600, padding: 0 }}
+          >
+            {gecmisiGoster ? "Tamamlanan günleri gizle ▲" : `Tamamlanan ${tamamlananGecmis.length} günü göster ▼`}
+          </button>
+          {gecmisiGoster && <div style={{ marginTop: 10 }}>{tamamlananGecmis.map((g) => <GunKarti key={g.tarih} gun={g} vurgu={T.success} />)}</div>}
         </div>
       )}
-
-      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 12 }}>
-        Bir türe tıklamak "bugün paylaşıldı" demektir — o türün stoğundan 1 tane düşer ve Paylaşımlar sekmesindeki geçmişe işlenir. Bu liste her gün gece yarısı otomatik sıfırlanır. Henüz tamamlanmayan markalar en üstte gösterilir.
-      </div>
     </div>
   );
 }
@@ -8275,7 +8349,9 @@ export default function MarcusOS() {
           )}
           {staffTab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} clients={data.clients || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} duzenleyenAdi={loggedStaffName || "Personel"} olcumler={data.hesapOlcumleri || []} onKaydetOlcum={kaydetOlcum} onSilOlcum={silOlcum} />}
           {staffTab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} />}
-          {staffTab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} kontrol={data.gunlukKontrol} onToggle={toggleGunlukKontrol} onYenile={veriyiYenile} role="staff" />}
+          {/* Günlük Kontrol artık haftalık planı okur ve AYNI sunucu işlemine yazar
+            (toggleHaftalikYapildi) — iki panelin ayrışması mümkün değil. */}
+          {staffTab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="staff" />}
           {staffTab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} />}
           {staffTab === "cekim-edit" && <CekimEditTakibi role="staff" clients={data.clients || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} girisYapanAd={loggedStaffName} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={izinler.markaYoneticisi} firmaAdi={data.firmaAdi} />}
           {staffTab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} duzenleyenAdi={loggedStaffName || "Personel"} />}
@@ -8637,7 +8713,7 @@ export default function MarcusOS() {
           )}
           {tab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} clients={data.clients || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} duzenleyenAdi="Yönetici (CEO)" olcumler={data.hesapOlcumleri || []} onKaydetOlcum={kaydetOlcum} onSilOlcum={silOlcum} />}
           {tab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} />}
-          {tab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} kontrol={data.gunlukKontrol} onToggle={toggleGunlukKontrol} onYenile={veriyiYenile} role="owner" />}
+          {tab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="owner" />}
           {tab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} />}
           {tab === "cekim-edit" && <CekimEditTakibi role="owner" clients={data.clients || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} isUcretleri={data.isUcretleri || {}} onSaveIsUcreti={setIsUcreti} isUcretDetaylari={data.isUcretDetaylari || {}} onSaveIsUcretDetayi={setIsUcretDetayi} avanslar={data.avanslar || []} hesaplar={data.hesaplar || []} onAddAvans={addAvans} onDeleteAvans={deleteAvans} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={true} firmaAdi={data.firmaAdi} />}
           {tab === "personel" && (

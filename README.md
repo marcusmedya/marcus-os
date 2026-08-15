@@ -2536,3 +2536,43 @@ içindeki kelimeleri kod sanıp yanlış alarm yağdırdı.)
 Bu, aynı kök sebebin dördüncü yüzü: bileşen taşırken bağımlılıklar geride kalıyor. Artık
 dördü de yakalanıyor — eksik import (5), tanımsız değişken (10), kapsam dışı kullanım (12),
 yayılımda gelmeyen ad (14).
+
+## Güncelleme 109: Günlük Kontrol Artık Haftalık Planla Senkron
+
+Günlük Kontrol **stok sayılarından** çalışıyordu: "bu markanın 3 reels stoğu var" derdi ama
+hangi gün paylaşılacağını bilmezdi. Haftalık Plan ise gün bazlıydı. İki ekran ayrı kaynaktan
+besleniyor ve birbirini tutmuyordu.
+
+Artık **tek kaynak var**: haftalık plan.
+
+### Gün gün, tarih tarih
+Plan kaydı `haftaKey` (haftanın pazartesisi) ve `gun` (0–6) tuttuğu için gerçek tarih
+hesaplanıyor. Ekran o tarihlere göre bölünüyor:
+
+```
+GECİKENLER
+  Perşembe, 13 Ağustos      0 / 1 paylaşıldı
+BUGÜN
+  Cumartesi, 15 Ağustos     1 / 2 paylaşıldı
+SIRADAKİ GÜNLER
+  Pazartesi, 17 Ağustos     0 / 1 paylaşıldı
+```
+
+Tamamlanmış geçmiş günler katlanmış duruyor, istenince açılıyor.
+
+### Yeşile dönmemiş her kayıt burada
+Planda `yapildi=false` olan her şey görünüyor. Tarihi geçmişse **"Gecikti"** (kırmızı),
+bugünse **"Bekliyor"** (turuncu) yazıyor. Yanındaki düğmeyle buradan da işaretlenebiliyor.
+
+### Ayrışma imkânsız
+İşaretleme **aynı sunucu işlemini** (`haftalikToggle`) kullanıyor. Günlük Kontrol'den
+işaretlediğin plana işleniyor, planda işaretlediğin burada yeşile dönüyor.
+
+### Gece hatırlatma e-postası da düzeltildi
+E-posta hâlâ eski stok mantığını kullanıyordu — ekran "bugün eksik yok" derken e-posta
+"5 eksik" diyebilirdi. O da plana bağlandı ve artık **gecikmiş kayıtları da** yazıyor;
+gelecek günler hatırlatılmıyor.
+
+### Doğrulama
+13 tarih/gruplama kontrolü (ay ve yıl sınırı dahil), 5 senkron kontrolü (`t21.mjs`),
+5 hatırlatma süzme kontrolü. Her gün tek grupta, kaybolan kayıt yok.

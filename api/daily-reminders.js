@@ -138,25 +138,36 @@ export default async function handler(req, res) {
 
     // ---- 2) Günlük Kontrol: bugün tamamlanmamış marka/türler ----
     if (backupEmail) {
-      const aktifMarkalar = clients.filter((c) => c.durum === "aktif" || c.durum === "yeni");
-      const gunlukKontrol = data.gunlukKontrol && data.gunlukKontrol.tarih === bugunISO() ? data.gunlukKontrol : { yapilanlar: [] };
-      const stoklar = data.stoklar || {};
+      /* HAFTALIK PLANDAN okunur — Günlük Kontrol ekranıyla AYNI kaynak.
+       * Eskiden stok sayılarına bakıyordu: "stokta 3 reels var ama bugün paylaşılmadı".
+       * Ekran plana geçince ikisi çelişmeye başlıyordu — e-posta "5 eksik" derken ekran
+       * "bugün eksik yok" diyebilirdi. Artık ikisi de plandaki yapildi=false kayıtlara bakar.
+       *
+       * Bugünün kayıtlarına ek olarak GECİKMİŞLER de yazılır: tarihi geçmiş ama hâlâ
+       * paylaşılmamış bir kayıt, hatırlatılmazsa tamamen unutuluyor. */
+      const markaAdiBul = (id) => (clients.find((c) => String(c.id) === String(id)) || {}).ad || "—";
+      const planKayitTarihi = (kayit) => {
+        const m = String(kayit.haftaKey || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!m) return null;
+        const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+        d.setDate(d.getDate() + (Number(kayit.gun) || 0));
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      };
+      const buGun = bugunISO();
       const tamamlanmamis = [];
-      aktifMarkalar.forEach((c) => {
-        PAYLASIM_TURLERI.forEach((tur) => {
-          const adet = stoklar[`${c.id}_${tur}`] || 0;
-          const key = `${c.id}_${tur}`;
-          if (adet > 0 && !gunlukKontrol.yapilanlar.includes(key)) {
-            tamamlanmamis.push(`${c.ad} — ${tur} (stokta ${adet} adet var, bugün paylaşılmadı)`);
-          }
-        });
+      (data.haftalikPaylasimlar || []).forEach((kayit) => {
+        if (kayit.yapildi) return;
+        const t = planKayitTarihi(kayit);
+        if (!t || t > buGun) return;                    // gelecek günler hatırlatılmaz
+        const gecikme = t < buGun ? ` — GECİKTİ (${t})` : "";
+        tamamlanmamis.push(`${markaAdiBul(kayit.clientId)} — ${kayit.tur || "Paylaşım"}${gecikme}`);
       });
       if (tamamlanmamis.length > 0) {
         const satirlar = tamamlanmamis.map((t) => `<li>${t}</li>`).join("");
         const html = `
           <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
             <h2 style="color:#1a1a1a;">Günlük Kontrol — Tamamlanmamışlar (${bugunTR})</h2>
-            <p style="color:#333;line-height:1.6;">Bugün için stokta içerik olduğu halde henüz paylaşılmamış görünen markalar:</p>
+            <p style="color:#333;line-height:1.6;">Haftalık plana göre bugün (ve daha önce) paylaşılması gerekip henüz işaretlenmemiş olanlar:</p>
             <ul style="color:#333;line-height:1.8;">${satirlar}</ul>
             <p style="font-size:12px;color:#999;margin-top:20px;">Marcus Medya App — Günlük Kontrol</p>
           </div>`;
