@@ -641,9 +641,13 @@ export function Personel(props) {
 
   if (!freelancerAktif) return <KadroluBolumu {...props} avansAy={ay} setAvansAy={setAy} />;
 
+  /* HESAPLAR sekmesi — giriş hesapları ve yetkiler Ayarlar'dan buraya taşındı.
+   * Kişiyi işe alıyorsun, ücretini giriyorsun, sonra hesabını açıp yetkisini veriyorsun:
+   * hepsi aynı yerde olmalı. Ayarlar sistem ayarları için kalıyor. */
   const sekmeler = [
     { key: "kadrolu", label: `Kadrolu (${(props.personel || []).length})` },
     { key: "freelancer", label: `Freelancer (${(props.freelancerlar || []).length})` },
+    ...(props.hesaplarKarti ? [{ key: "hesaplar", label: "Hesaplar & Yetkiler" }] : []),
   ];
 
   return (
@@ -666,6 +670,7 @@ export function Personel(props) {
       </div>
 
       {altSekme === "kadrolu" && <KadroluBolumu {...props} avansAy={ay} setAvansAy={setAy} />}
+      {altSekme === "hesaplar" && props.hesaplarKarti}
       {altSekme === "freelancer" && (
         <FreelancerBolumu
           freelancerlar={props.freelancerlar || []}

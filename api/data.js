@@ -83,6 +83,10 @@ const PERMISSION_DATA_FIELDS = {
   birikim: ["birikimler"],
   uyelikler: ["uyelikler"],
   sifreKasasi: ["musteriGirisleri", "clients"],
+  /* İÇERİK AKIŞI — çözüm ortağının kendi markalarının içerik durumunu (onay bekleyen /
+   * revize istenen / onaylanan) görebilmesi için. SALT OKUNUR: PERMISSION_WRITE_FIELDS'ta
+   * karşılığı yok, yani bu izinle hiçbir şey yazılamaz. */
+  musteriAkisi: ["musteriIcerikleri", "clients", "cekimIsleri"],
 };
 // YAZMA izinleri OKUMA izinlerinden bilerek farklı: paylasimlar/cekimEdit gibi dar izinler
 // "clients"i sadece marka adı GÖRMEK için (sadeleştirilmiş) alır — asıl (zengin) müşteri

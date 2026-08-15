@@ -2295,3 +2295,76 @@ iş karışıyordu.
 
 Tür süzgeci (Reels / Görsel / Tasarım) sekme içinde çalışmaya devam ediyor ve sekme
 değiştirince sıfırlanıyor — önceki sekmeden kalan bir süzgeç yüzünden boş liste görünmesin diye.
+
+## Güncelleme 100: Sekme Çubuğu Eksik Kalmıştı — Kayıtlara Erişilemiyordu
+
+99. sürümde sekme **süzgeci** eklendi ama **sekme çubuğu dosyaya yazılmadı**. Sonuç: liste
+"Onay Bekleyenler"e sabitlendi ve diğer 10 kayda ulaşmanın hiçbir yolu kalmadı.
+
+Kod çalışıyordu, hata vermiyordu — sadece verinin bir kısmı **erişilemez** hâle gelmişti.
+Bu, sessiz kalması en tehlikeli hata türlerinden biri.
+
+**Sebep:** Çok adımlı bir düzenleme yarıda kesildi; ilk parça (süzgeç mantığı) yazıldı, ikinci
+parça (çubuk) yazılmadan durdu ve bunu fark etmedim.
+
+**Düzeltme:** Sekme çubuğu eklendi. Dört sekme sayılarıyla birlikte görünüyor, tür süzgeci de
+altında.
+
+### On üçüncü denetleyici
+`testler/olusetter.py` — bir `useState` değişkenini değiştirecek hiçbir yol yoksa uyarır.
+
+Bu tam olarak yukarıdaki hatanın imzası: süzgeç değişkeni var, onu değiştiren düğme yok.
+On iki denetleyicinin hiçbiri göremezdi, çünkü kod her açıdan geçerli.
+
+Setter'ın doğrudan çağrılması ya da bir bileşene prop olarak geçirilmesi (`onChange={setAy}`)
+"değiştirilebiliyor" sayılır — dokuz dosyada yanlış alarm vermiyor, bozuk hâli yakalıyor.
+
+## Güncelleme 101: Çözüm Ortağı İçin "İçerik Akışı"
+
+Çözüm ortağı artık **kendi markalarının** içerik durumunu görebiliyor: onay bekleyen, revize
+istenen, onaylanan.
+
+### Yeni izin: İçerik Akışı
+Ayarlar → Personel Hesapları → Yetkiler'de yeni bir seçenek. Açılınca ortağın menüsünde
+**İçerik Akışı** sekmesi çıkıyor — yönetici tarafındakiyle aynı dört sekme (Onay Bekleyenler ·
+Revize İstedikleri · Onayladıkları · İçerik Fikirleri), aynı tür rozetleri, aynı önizlemeler.
+
+### SALT OKUNUR
+Bu izin hiçbir yazma hakkı vermiyor. Sunucu tarafında yazılabilir alanlar listesinde karşılığı
+yok; test edildi: bu izne sahip bir hesap içeriği değiştiremiyor.
+
+Görünümde de ekleme, düzenleme, silme, onaylama düğmelerinin **hiçbiri çıkmıyor**. Aylık rapor
+ve panel ekleri de gizli — ortağın işi içeriğin nerede olduğunu görmek.
+
+### Marka kilidi geçerli
+Ortak yalnızca kendisine atanmış markaları görüyor. Test edilenler: başka markanın içeriği
+gelmiyor, başka markanın Operasyon işi gelmiyor, finans ve personel verisi izin verilse bile
+gönderilmiyor, müşteri ücretleri gizli.
+
+### Not: varsayılan izinler
+Bir personel hesabında **Operasyon (cekimEdit)** izni açıksa, o iznin yazma hakkı zaten içerik
+kayıtlarını kapsıyor — yani ortak içeriği değiştirebilir. Yalnızca görüntülemesini istiyorsan
+Yetkiler'de Operasyon'u kapalı bırak, İçerik Akışı'nı aç.
+
+## Güncelleme 102: Hesaplar ve Yetkiler Personel Sekmesine Taşındı
+
+Giriş hesapları, kullanıcı adı/şifre ve yetkiler Ayarlar'daydı. Artık **Personel → Hesaplar &
+Yetkiler** alt sekmesinde.
+
+Sebep: kişiyi işe alıyorsun, ücretini giriyorsun, sonra hesabını açıp yetkisini veriyorsun —
+üçü aynı iş. Ayrı ekranlarda olmaları gereksiz gidip gelme demekti.
+
+### Personel sekmesi artık üç alt sekme
+```
+Kadrolu (5) · Freelancer (8) · Hesaplar & Yetkiler
+```
+
+İçinde iki kart:
+- **Personel Hesapları** — kullanıcı adı, şifre, kişiye özel yetkiler, marka kilidi
+- **Genel Yetkiler** — kişisel hesabı olmayanlar (ortak personel şifresi) için ortak ayar
+
+### Ayarlar'da kopya bırakılmadı
+Kart iki ayrı ekranda dururken aynı hesapları iki yerden düzenlemek karışıklık yaratırdı.
+Ayarlar'da yalnızca nereye taşındığını söyleyen bir not var.
+
+Kaydetme yolu değişmedi — mevcut `updateStaffPermissions` kullanılıyor, ayrı bir yol açılmadı.

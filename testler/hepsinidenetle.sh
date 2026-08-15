@@ -15,6 +15,7 @@ python3 testler/exportdenetle.py src/*.jsx src/*.js api/*.js lib/*.js > /dev/nul
 python3 testler/degiskendenetle.py src/*.jsx                        > /dev/null && echo "✓ 10 JSX'te tanımsız değişken yok"
 python3 testler/musteriAlanDenetle.py                               > /dev/null && echo "✓ 11 müşteri paneli alanları düşmüyor"
 python3 testler/kapsamdenetle.py src/*.jsx                          > /dev/null && echo "✓ 12 kapsam dışı kullanım yok"
+python3 testler/olusetter.py src/*.jsx                              > /dev/null && echo "✓ 13 değiştirilemeyen durum yok"
 echo ""
 echo "── SUNUCU DENETİMLERİ ──"
 echo "(testler/ klasöründe: node t5.mjs … t11.mjs — sahte veritabanı kullanır, gerçek veriye dokunmaz)"

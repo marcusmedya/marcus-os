@@ -716,6 +716,58 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
 
   const govde = (
     <>
+          {/* İÇERİK SEKMELERİ — liste bu sekmeye göre süzülüyor. Çubuk olmadan diğer
+            * sekmelerdeki kayıtlara ulaşmak imkânsız olurdu. */}
+          <div style={{ display: "flex", gap: 2, marginBottom: 12, flexWrap: "wrap", borderBottom: `1px solid ${T.borderSoft}` }}>
+            {ICERIK_SEKMELERI.map((sk) => {
+              const aktif = icerikSekme === sk.key;
+              const sayi = sekmeSayisi(sk.key);
+              return (
+                <button
+                  key={sk.key}
+                  onClick={() => { setIcerikSekme(sk.key); setTurSuzgec("hepsi"); }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 6, padding: "8px 13px 9px",
+                    background: "transparent", border: "none", cursor: "pointer", whiteSpace: "nowrap",
+                    fontFamily: "Inter, sans-serif", fontSize: 12.5, fontWeight: aktif ? 700 : 500,
+                    color: aktif ? T.text : T.textDim,
+                    borderBottom: `2px solid ${aktif ? T.accent : "transparent"}`, marginBottom: -1,
+                  }}
+                >
+                  {sk.label}
+                  {sayi > 0 && (
+                    <span style={{ background: aktif ? T.accent : T.surfaceRaised, color: aktif ? "#fff" : T.textDim, borderRadius: 999, padding: "1px 7px", fontSize: 10.5, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace" }}>{sayi}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {mevcutTurler.length > 1 && (
+            <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+              {["hepsi", ...mevcutTurler].map((tr) => {
+                const aktif = turSuzgec === tr;
+                const e = tr === "hepsi" ? { ad: "Hepsi", renk: T.text, zemin: T.surfaceRaised } : turEtiketi(tr);
+                const sayi = tr === "hepsi" ? sekmeListesi.length : sekmeListesi.filter((x) => turEtiketi(x.tur).ad === e.ad).length;
+                return (
+                  <button
+                    key={tr}
+                    onClick={() => setTurSuzgec(tr)}
+                    style={{
+                      padding: "5px 12px", borderRadius: 999, cursor: "pointer",
+                      border: `1px solid ${aktif ? e.renk : T.border}`,
+                      background: aktif ? e.zemin : "transparent",
+                      color: aktif ? e.renk : T.textDim,
+                      fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: aktif ? 700 : 500,
+                    }}
+                  >
+                    {e.ad} <span style={{ opacity: 0.7 }}>{sayi}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {kendiListesi.length === 0 ? (
             <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginBottom: 12 }}>{icerikSekme === "fikir" ? "Bu markaya henüz çekim planı gönderilmedi." : icerikSekme === "bekliyor" ? "Onay bekleyen içerik yok." : icerikSekme === "revize" ? "Revize istenen içerik yok." : "Onaylanmış içerik yok."}</div>
           ) : (
@@ -1051,10 +1103,14 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
             </div>
           ) : (
             <div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button style={saveBtnStyle} onClick={() => { setTur("cekim"); setEkleAcik(true); }}>🎬 Yeni Çekim Planı</button>
-                <button style={addBtnStyle} onClick={() => { setTur("gorsel"); setEkleAcik(true); }}><Plus size={13} /> İçerik Ekle</button>
-              </div>
+              {/* Ekleme düğmeleri yalnızca ekleme yetkisi varken. Salt okunur görünümde
+                * (çözüm ortağı) hiç çıkmaz. */}
+              {onAdd && (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <button style={saveBtnStyle} onClick={() => { setTur("cekim"); setEkleAcik(true); }}>🎬 Yeni Çekim Planı</button>
+                  <button style={addBtnStyle} onClick={() => { setTur("gorsel"); setEkleAcik(true); }}><Plus size={13} /> İçerik Ekle</button>
+                </div>
+              )}
               {bildirimDurumu && (
                 <div style={{ fontSize: 11.5, color: bildirimDurumu.startsWith("✓") ? T.success : T.textFaint, fontFamily: "Inter", marginTop: 8, lineHeight: 1.6 }}>{bildirimDurumu}</div>
               )}
@@ -4581,7 +4637,7 @@ function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
  * Daha önce bunlar iki ayrı yere dağılmıştı (içerikler müşteri detayında, hesaplar
  * Ayarlar'da) ve müşteri detayı zaten kalabalık olduğu için içerik bölümü kayboluyordu.
  */
-function MusteriPaneliYonetimi({ hedef, clients, icerikler, onAdd, onUpdate, onDelete, onOnayla, onBildir, onCekildi, onMarkaDuzelt, onIsOlustur, plan, reklamlar, isler, onAltMetin, firmaAdi, logo, olcumler }) {
+function MusteriPaneliYonetimi({ saltOkunur = false, hedef, clients, icerikler, onAdd, onUpdate, onDelete, onOnayla, onBildir, onCekildi, onMarkaDuzelt, onIsOlustur, plan, reklamlar, isler, onAltMetin, firmaAdi, logo, olcumler }) {
   const [secili, setSecili] = useState(null);
 
   /* Planım'dan bir içerikle gelindiyse o markayı seç. damga alanı, aynı içeriğe ikinci kez
@@ -4622,7 +4678,7 @@ function MusteriPaneliYonetimi({ hedef, clients, icerikler, onAdd, onUpdate, onD
         Markaya tıkla, ona çekim planı ya da içerik gönder. Müşteri kendi panelinden görüp onaylar veya revize ister.
       </div>
 
-      {bagsizKartlar.length > 0 && (
+      {bagsizKartlar.length > 0 && !saltOkunur && (
         <Card style={{ padding: "14px 18px", marginBottom: 14, border: `1px solid ${T.warning}` }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: T.warning, fontFamily: "Inter", marginBottom: 6 }}>
             ⚠ {bagsizKartlar.length} kart hiçbir müşteriye bağlanamadı
@@ -4713,7 +4769,9 @@ function MusteriPaneliYonetimi({ hedef, clients, icerikler, onAdd, onUpdate, onD
 
       {/* Müşterinin panelinde ayrıca gördükleri: paylaşım planı (alt metinleriyle),
         * reklamlar ve üretim durumu. Alt metinler buradan yazılır. */}
-      {seciliMarka && (
+      {/* Aylık rapor ve panel ekleri salt okunur görünümde gizli: çözüm ortağının işi
+        * içeriğin nerede olduğunu görmek, rapor üretmek değil. */}
+      {seciliMarka && !saltOkunur && (
         <AylikRaporKarti
           marka={seciliMarka}
           firmaAdi={firmaAdi}
@@ -4725,7 +4783,7 @@ function MusteriPaneliYonetimi({ hedef, clients, icerikler, onAdd, onUpdate, onD
         />
       )}
 
-      {seciliMarka && (
+      {seciliMarka && !saltOkunur && (
         <MusteriPanelEkleri
           marka={seciliMarka}
           plan={plan || []}
@@ -5583,45 +5641,17 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
           <strong> Müşteri Paneli</strong> sekmesinde, tek bir yerde toplandı.
         </p>
       </Card>
-      <PersonelHesaplariKart onRosterChange={onRosterChange} clients={clients} />
+      {/* PersonelHesaplariKart Personel > Hesaplar & Yetkiler'e taşındı — iki ayrı ekrandan
+        * aynı hesapları düzenlemek karışıklık yaratırdı. */}
       <KasaSifresiKarti />
 
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
-        <SectionTitle>CEO Paneli — Personel Yetkileri</SectionTitle>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
-          Personel şifresiyle (ya da kişisel hesabıyla) girenlerin hangi bölümleri görebileceğini buradan tek tek aç/kapat yapabilirsin.
-          <strong> Kapalı olan hiçbir sekme gözükmez</strong> — hem arayüzden gizlenir hem de sunucu seviyesinde engellenir, yani izin vermediğin veriyi tarayıcılarına hiç göndermeyiz.
-          Bu, ekibindeki herkes için ortak bir ayardır (tek tek kişi bazında değil). <strong>Ayarlar sekmesi hiçbir zaman personele açılmaz</strong> — güvenlik ayarlarını (şifreler, personel hesapları vb.) sadece sen görebilirsin.
+        <SectionTitle>Personel Hesapları ve Yetkileri</SectionTitle>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, margin: 0 }}>
+          Giriş hesapları, kullanıcı adı/şifre ve yetkiler artık sol menüdeki
+          <strong> Personel → Hesaplar & Yetkiler</strong> sekmesinde. Kişiyi işe alıp ücretini
+          girdiğin yerle hesabını açtığın yer aynı olsun diye taşındı.
         </p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {[
-            { key: "dashboard", label: "Dashboard", varsayilan: false },
-            { key: "musteriler", label: "Müşteriler", varsayilan: false },
-            { key: "finans", label: "Finans", varsayilan: false },
-            { key: "takvim", label: "Takvim", varsayilan: false },
-            { key: "odemeTakvimi", label: "Ödeme Takvimi", varsayilan: false },
-            { key: "teklif", label: "Teklif & Sözleşme", varsayilan: false },
-            { key: "reklamlar", label: "Reklamlar", varsayilan: true },
-            { key: "paylasimlar", label: "Paylaşımlar (+ Günlük Kontrol)", varsayilan: true },
-            { key: "cekimListesi", label: "Çekim (düşük stok listesi)", varsayilan: false },
-            { key: "cekimEdit", label: "Operasyon (Video/Grafik Tasarım)", varsayilan: true },
-            { key: "markaYoneticisi", label: "Marka Yöneticisi (Operasyon'da durum bildirimi e-postası gönderebilir)", varsayilan: false },
-            { key: "personel", label: "Personel", varsayilan: false },
-            { key: "birikim", label: "Birikim", varsayilan: false },
-            { key: "uyelikler", label: "Üyelikler (abonelikler)", varsayilan: false },
-            { key: "sifreKasasi", label: "Şifre Kasası (yine de her girişte owner şifresi ister)", varsayilan: false },
-          ].map((m) => (
-            <label key={m.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: T.surfaceRaised, borderRadius: 10, cursor: "pointer" }}>
-              <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{m.label}</span>
-              <input
-                type="checkbox"
-                checked={staffPermissions[m.key] !== undefined ? staffPermissions[m.key] === true : m.varsayilan}
-                onChange={(e) => onUpdatePermissions({ ...staffPermissions, [m.key]: e.target.checked })}
-                style={{ width: 17, height: 17, cursor: "pointer" }}
-              />
-            </label>
-          ))}
-        </div>
       </Card>
 
       <Card style={{ padding: "18px 22px" }}>
@@ -5785,6 +5815,56 @@ function MusteriHesaplariKart({ clients }) {
   );
 }
 
+/**
+ * GENEL PERSONEL YETKİLERİ — Ayarlar'dan Personel > Hesaplar & Yetkiler'e taşındı.
+ *
+ * Bu, kişisel hesabı olmayan (ortak personel şifresiyle giren) kullanıcılar için geçerli
+ * ORTAK ayardır. Kişiye özel yetkiler PersonelHesaplariKart içindeki "Yetkiler" panelinden
+ * verilir ve bu ortak ayarın yerine geçer.
+ */
+function StaffPermissionsKarti({ izinler, onDegis }) {
+  return (
+      <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+        <SectionTitle>CEO Paneli — Personel Yetkileri</SectionTitle>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
+          Personel şifresiyle (ya da kişisel hesabıyla) girenlerin hangi bölümleri görebileceğini buradan tek tek aç/kapat yapabilirsin.
+          <strong> Kapalı olan hiçbir sekme gözükmez</strong> — hem arayüzden gizlenir hem de sunucu seviyesinde engellenir, yani izin vermediğin veriyi tarayıcılarına hiç göndermeyiz.
+          Bu, ekibindeki herkes için ortak bir ayardır (tek tek kişi bazında değil). <strong>Ayarlar sekmesi hiçbir zaman personele açılmaz</strong> — güvenlik ayarlarını (şifreler, personel hesapları vb.) sadece sen görebilirsin.
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {[
+            { key: "dashboard", label: "Dashboard", varsayilan: false },
+            { key: "musteriler", label: "Müşteriler", varsayilan: false },
+            { key: "finans", label: "Finans", varsayilan: false },
+            { key: "takvim", label: "Takvim", varsayilan: false },
+            { key: "odemeTakvimi", label: "Ödeme Takvimi", varsayilan: false },
+            { key: "teklif", label: "Teklif & Sözleşme", varsayilan: false },
+            { key: "reklamlar", label: "Reklamlar", varsayilan: true },
+            { key: "paylasimlar", label: "Paylaşımlar (+ Günlük Kontrol)", varsayilan: true },
+            { key: "cekimListesi", label: "Çekim (düşük stok listesi)", varsayilan: false },
+            { key: "cekimEdit", label: "Operasyon (Video/Grafik Tasarım)", varsayilan: true },
+            { key: "markaYoneticisi", label: "Marka Yöneticisi (Operasyon'da durum bildirimi e-postası gönderebilir)", varsayilan: false },
+            { key: "personel", label: "Personel", varsayilan: false },
+            { key: "birikim", label: "Birikim", varsayilan: false },
+            { key: "uyelikler", label: "Üyelikler (abonelikler)", varsayilan: false },
+            { key: "musteriAkisi", label: "İçerik Akışı (müşteri onay durumları — salt okunur)", varsayilan: false },
+            { key: "sifreKasasi", label: "Şifre Kasası (yine de her girişte owner şifresi ister)", varsayilan: false },
+          ].map((m) => (
+            <label key={m.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: T.surfaceRaised, borderRadius: 10, cursor: "pointer" }}>
+              <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{m.label}</span>
+              <input
+                type="checkbox"
+                checked={izinler[m.key] !== undefined ? izinler[m.key] === true : m.varsayilan}
+                onChange={(e) => onDegis(m.key, e.target.checked)}
+                style={{ width: 17, height: 17, cursor: "pointer" }}
+              />
+            </label>
+          ))}
+        </div>
+      </Card>
+  );
+}
+
 function PersonelHesaplariKart({ onRosterChange, clients }) {
   const [hesaplar, setHesaplar] = useState(null); // null = yüklenmedi
   const [ekleAcik, setEkleAcik] = useState(false);
@@ -5821,6 +5901,7 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
     { key: "personel", label: "Personel" },
     { key: "birikim", label: "Birikim" },
     { key: "uyelikler", label: "Üyelikler (abonelikler)" },
+    { key: "musteriAkisi", label: "İçerik Akışı (salt okunur)" },
     { key: "sifreKasasi", label: "Şifre Kasası (yine de owner şifresi ister)" },
   ];
 
@@ -7931,6 +8012,7 @@ export default function MarcusOS() {
       { key: "personel", label: "Personel", izin: izinler.personel },
       { key: "birikim", label: "Birikim", izin: izinler.birikim },
       { key: "uyelikler", label: "Üyelikler", izin: izinler.uyelikler },
+      { key: "musteri-akisi", label: "İçerik Akışı", izin: izinler.musteriAkisi },
       { key: "musteri-girisleri", label: "Şifre Kasası", izin: izinler.sifreKasasi },
     ].filter((x) => x.izin === true);
     const staffTab = staffNavAll.some((x) => x.key === tab) ? tab : (staffNavAll[0] ? staffNavAll[0].key : null);
@@ -8088,6 +8170,23 @@ export default function MarcusOS() {
           {staffTab === "uyelikler" && (
             <Uyelikler uyelikler={data.uyelikler || []} onAdd={addUyelik} onUpdate={updateUyelik} onDelete={deleteUyelik} personelRosteri={data.personelRosteri || []} firmaAdi={data.firmaAdi} />
           )}
+          {/* İÇERİK AKIŞI — çözüm ortağı, kendi markalarının içerik durumunu görür.
+            * SALT OKUNUR: hiçbir değiştirme callback'i geçirilmiyor, dolayısıyla ekleme,
+            * düzenleme, silme ve onaylama düğmelerinin hiçbiri çıkmaz. Marka listesi zaten
+            * sunucuda marka kilidiyle süzülmüş geliyor. */}
+          {staffTab === "musteri-akisi" && (
+            <MusteriPaneliYonetimi
+              clients={data.clients || []}
+              icerikler={data.musteriIcerikleri || []}
+              isler={data.cekimIsleri || []}
+              plan={[]}
+              reklamlar={[]}
+              olcumler={[]}
+              firmaAdi={data.firmaAdi}
+              saltOkunur
+            />
+          )}
+
           {staffTab === "musteri-girisleri" && (
             <MusteriGirisleri clients={data.clients || []} girisler={data.musteriGirisleri || {}} onUpdate={updateMusteriGiris} firmaAdi={data.firmaAdi} logo={data.markaKimligiGorseli} role="staff" />
           )}
@@ -8422,6 +8521,20 @@ export default function MarcusOS() {
           {tab === "cekim-edit" && <CekimEditTakibi role="owner" clients={data.clients || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} isUcretleri={data.isUcretleri || {}} onSaveIsUcreti={setIsUcreti} isUcretDetaylari={data.isUcretDetaylari || {}} onSaveIsUcretDetayi={setIsUcretDetayi} avanslar={data.avanslar || []} hesaplar={data.hesaplar || []} onAddAvans={addAvans} onDeleteAvans={deleteAvans} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={true} firmaAdi={data.firmaAdi} />}
           {tab === "personel" && (
             <Personel
+              /* Giriş hesapları ve yetkiler artık Personel > Hesaplar & Yetkiler altında.
+                * Kişiyi işe alıp ücretini girdiğin yerle hesabını açtığın yer aynı olmalı. */
+              hesaplarKarti={
+                <>
+                  <PersonelHesaplariKart onRosterChange={loadData} clients={data.clients || []} />
+                  <StaffPermissionsKarti
+                    izinler={data.staffPermissions || {}}
+                    /* Mevcut updateStaffPermissions kullanılıyor — kaydetme yolu tek olsun.
+                     * Ayrı bir setData yazmak, ileride o fonksiyona eklenecek bir davranışın
+                     * (doğrulama, günlüğe yazma) burada eksik kalmasına yol açardı. */
+                    onDegis={(k, v) => updateStaffPermissions({ ...(data.staffPermissions || {}), [k]: v })}
+                  />
+                </>
+              }
               personel={data.personel || []}
               onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel}
               duzenleyenAdi="Yönetici (CEO)"
