@@ -1967,3 +1967,20 @@ alanları gönderiyor — alanlar orada tek tek seçiliyor.
 `testler/musteriAlanDenetle.py` — sunucunun müşteriye gönderdiği alanların arayüzde gerçekten
 okunabildiğini doğrular. Alan alan kopyalamaya geri dönülürse, düşen alanı adıyla bildirir.
 Bozuk hâliyle test edildi, yakalıyor.
+
+## Güncelleme 88: Hazır İçerikler, Onay Bekleyenler'in İçine Taşındı
+
+Ayrı bir "Hazır İçerikler" sekmesi vardı. Müşteri açısından ikisi de aynı şeyi söylüyor:
+*onayını bekleyen bir içerik.* İki ayrı sekme "hangisine bakacağım?" sorusunu doğuruyordu.
+
+Artık hepsi **Onay Bekleyenler** sekmesinde. Sekmedeki sayı ikisinin toplamını gösteriyor.
+
+Operasyon'dan gelen hazır içerikler listenin **üstünde** duruyor — üretimi bitmiş, teslime en
+yakın işler onlar.
+
+Davranış değişmedi: onaylayınca Operasyon kartı "Onaylandı"ya geçiyor, değişiklik isteyince
+"Revize İstendi"ye. Her iki durumda da kart listeden kendiliğinden düşüyor.
+
+**Boş durum mantığı:** "Şu an bekleyen bir şey yok" mesajı yalnızca ikisi de boşken çıkıyor.
+Aksi halde hazır içerik dururken altında "bekleyen yok" yazacaktı ve müşteri hangisine
+inanacağını bilemeyecekti. Dört durumun hepsi doğrulandı.

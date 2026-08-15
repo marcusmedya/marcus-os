@@ -211,9 +211,11 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
 
   const hazirlar = musteriData.hazirIcerikler || [];
 
+  /* Hazır içerikler AYRI BİR SEKMEDE değil, "Onay Bekleyenler" içinde gösterilir.
+   * Müşteri açısından ikisi de aynı şey: onayını bekleyen bir içerik. İki ayrı sekme
+   * "hangisine bakacağım?" sorusunu doğuruyordu. */
   const sekmeler = [
-    { key: "onay", label: "Onay Bekleyenler", rozet: bekleyenler.length },
-    { key: "hazir", label: "Hazır İçerikler", rozet: hazirlar.length },
+    { key: "onay", label: "Onay Bekleyenler", rozet: bekleyenler.length + hazirlar.length },
     { key: "takvim", label: "Paylaşım Takvimi", rozet: 0 },
     { key: "reklam", label: "Reklamlar", rozet: 0 },
     { key: "uretim", label: "Üretim Durumu", rozet: 0 },
@@ -294,15 +296,33 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
 
         {sekme === "onay" && <>
         <div style={{ ...ETIKET, marginBottom: 12 }}>
-          Onayınızı bekleyenler{bekleyenler.length > 0 ? ` · ${bekleyenler.length} içerik` : ""}
+          Onayınızı bekleyenler{(bekleyenler.length + hazirlar.length) > 0 ? ` · ${bekleyenler.length + hazirlar.length} içerik` : ""}
         </div>
 
-        {bekleyenler.length === 0 ? (
+        {/* HAZIR İÇERİKLER — Operasyon'da "Kontrol Bekliyor" aşamasındaki işlerin canlı
+          * aynası. Onaylandığında ya da revize istendiğinde iş o aşamadan çıkar ve buradan
+          * kendiliğinden kaybolur. Elle gönderilen içeriklerin ÜSTÜNDE duruyor çünkü bunlar
+          * üretimi bitmiş, teslime en yakın işler. */}
+        {hazirlar.length > 0 && (
+          <div style={{ marginBottom: bekleyenler.length > 0 ? 22 : 30 }}>
+            <HazirIcerikler
+              liste={hazirlar}
+              gonderiliyor={gonderiliyor}
+              onIslem={(isId, islem, not) => isIstegi(isId, islem, not)}
+              basliksiz
+            />
+          </div>
+        )}
+
+        {/* "Bekleyen bir şey yok" mesajı yalnızca İKİSİ DE boşken çıkar. Aksi halde hazır
+          * içerik dururken altında "bekleyen yok" yazar ve müşteri hangisine inanacağını
+          * bilemezdi. */}
+        {bekleyenler.length === 0 && hazirlar.length === 0 ? (
           <div style={{ background: MT.kart, border: `1px solid ${MT.cizgi}`, borderRadius: 12, padding: "34px 24px", textAlign: "center", marginBottom: 30 }}>
             <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 600, marginBottom: 6 }}>Şu an bekleyen bir şey yok</div>
             <div style={{ color: MT.soluk, fontSize: 13, fontFamily: "Inter" }}>Yeni bir içerik hazırlandığında burada görünecek ve e-posta alacaksınız.</div>
           </div>
-        ) : (
+        ) : bekleyenler.length === 0 ? null : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 30 }}>
             {bekleyenler.map((icerik, sira) => {
               const embed = driveEmbedUrl(icerik.driveLinki);
@@ -528,16 +548,6 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
 
         </>}
 
-        {/* HAZIR İÇERİKLER — Operasyon'da "Kontrol Bekliyor" aşamasındaki işlerin canlı aynası.
-          * Onaylandığında ya da revize istendiğinde iş o aşamadan çıkar ve buradan kaybolur. */}
-        {sekme === "hazir" && (
-          <HazirIcerikler
-            liste={hazirlar}
-            gonderiliyor={gonderiliyor}
-            onIslem={(isId, islem, not) => isIstegi(isId, islem, not)}
-          />
-        )}
-
         {/* PAYLAŞIM TAKVİMİ — Instagram önizlemeleriyle */}
         {sekme === "takvim" && <MusteriPaylasimPlani plan={musteriData.paylasimPlani || []} marka={musteriData.marka} />}
 
@@ -573,23 +583,18 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
  * Dosya linki olmayan kartlar da gösterilir (kullanıcının tercihi): ekip bir işi kontrole
  * göndermişse müşteri onu görmeli, dosya henüz eklenmemişse bu da açıkça yazılır.
  */
-function HazirIcerikler({ liste, gonderiliyor, onIslem }) {
+function HazirIcerikler({ liste, gonderiliyor, onIslem, basliksiz = false }) {
   const [acikId, setAcikId] = useState(null);
   const [revizeAcik, setRevizeAcik] = useState(null);
   const [not, setNot] = useState("");
 
-  if (!liste || liste.length === 0) {
-    return (
-      <div style={{ background: MT.kart, border: `1px solid ${MT.cizgi}`, borderRadius: 12, padding: "34px 24px", textAlign: "center" }}>
-        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 600, marginBottom: 6 }}>Şu an hazır içerik yok</div>
-        <div style={{ color: MT.soluk, fontSize: 13, fontFamily: "Inter" }}>Bir içerik kontrole hazır olduğunda burada görünecek.</div>
-      </div>
-    );
-  }
+  // Onay Bekleyenler içinde gösterildiğinde boş durum ve başlık çizilmez — o sekmenin
+  // kendi boş durumu ve başlığı zaten var.
+  if (!liste || liste.length === 0) return null;
 
   return (
     <>
-      <div style={{ ...ETIKET, marginBottom: 12 }}>Hazır içerikler · {liste.length} adet</div>
+      {!basliksiz && <div style={{ ...ETIKET, marginBottom: 12 }}>Hazır içerikler · {liste.length} adet</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {liste.map((h, sira) => {
           const acik = acikId === h.isId;
