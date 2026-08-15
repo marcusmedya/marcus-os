@@ -628,6 +628,10 @@ export default async function handler(req, res) {
           ownerEmailVar: !!process.env.OWNER_EMAIL,
           resendVar: !!process.env.RESEND_API_KEY,
           yedekEpostaSayisi: String(process.env.BACKUP_EMAIL || "").split(",").filter((x) => x.trim()).length,
+          /* Ortak personel şifresi (STAFF_PASSWORD) tanımlı mı? Tanımlı DEĞİLSE "Genel
+           * Yetkiler" kartının hiçbir etkisi yoktur — herkes kişisel hesabıyla girer ve
+           * kendi yetkileri geçerlidir. Bu bayrak olmadan kart boşuna ayarlanabilirdi. */
+          ortakSifreAktif: !!process.env.STAFF_PASSWORD,
         },
       });
     }

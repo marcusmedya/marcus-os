@@ -5822,14 +5822,21 @@ function MusteriHesaplariKart({ clients }) {
  * ORTAK ayardır. Kişiye özel yetkiler PersonelHesaplariKart içindeki "Yetkiler" panelinden
  * verilir ve bu ortak ayarın yerine geçer.
  */
+/* Bu kart yalnızca ortak personel şifresi tanımlıyken render edilir (bkz. çağrıldığı yer),
+ * o yüzden içeride ayrıca "aktif mi" kontrolü yok. */
 function StaffPermissionsKarti({ izinler, onDegis }) {
   return (
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
-        <SectionTitle>CEO Paneli — Personel Yetkileri</SectionTitle>
+        <SectionTitle>Genel Yetkiler (ortak personel şifresi)</SectionTitle>
+
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 14 }}>
-          Personel şifresiyle (ya da kişisel hesabıyla) girenlerin hangi bölümleri görebileceğini buradan tek tek aç/kapat yapabilirsin.
-          <strong> Kapalı olan hiçbir sekme gözükmez</strong> — hem arayüzden gizlenir hem de sunucu seviyesinde engellenir, yani izin vermediğin veriyi tarayıcılarına hiç göndermeyiz.
-          Bu, ekibindeki herkes için ortak bir ayardır (tek tek kişi bazında değil). <strong>Ayarlar sekmesi hiçbir zaman personele açılmaz</strong> — güvenlik ayarlarını (şifreler, personel hesapları vb.) sadece sen görebilirsin.
+          Bu ayar yalnızca <strong>ortak personel şifresiyle</strong> girenler için geçerlidir.
+          Yukarıdaki listede kişisel hesabı olan herkesin kendi <strong>Yetkiler</strong> paneli
+          vardır ve o, buradaki ayarın yerine geçer.
+          <br /><br />
+          Kapalı olan hiçbir sekme gözükmez — hem arayüzden gizlenir hem de sunucu seviyesinde
+          engellenir, yani izin vermediğin veriyi tarayıcılarına hiç göndermeyiz.
+          <strong> Ayarlar sekmesi hiçbir zaman personele açılmaz.</strong>
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {[
@@ -8526,6 +8533,12 @@ export default function MarcusOS() {
               hesaplarKarti={
                 <>
                   <PersonelHesaplariKart onRosterChange={loadData} clients={data.clients || []} />
+                  {/* GENEL YETKİLER yalnızca ortak personel şifresi (STAFF_PASSWORD) tanımlıysa
+                    * görünür. Tanımlı değilken kimse o yolla giremediği için kart hiçbir işe
+                    * yaramıyor ve sadece kafa karıştırıyordu. Silmedik: ileride ortak şifre
+                    * tanımlanırsa kart kendiliğinden geri gelir ve ayarlanabilir olur —
+                    * aksi halde ayarsız, varsayılan izinlerle çalışan bir giriş yolu kalırdı. */}
+                  {guvenlikDurumu && guvenlikDurumu.ortakSifreAktif === true && (
                   <StaffPermissionsKarti
                     izinler={data.staffPermissions || {}}
                     /* Mevcut updateStaffPermissions kullanılıyor — kaydetme yolu tek olsun.
@@ -8533,6 +8546,7 @@ export default function MarcusOS() {
                      * (doğrulama, günlüğe yazma) burada eksik kalmasına yol açardı. */
                     onDegis={(k, v) => updateStaffPermissions({ ...(data.staffPermissions || {}), [k]: v })}
                   />
+                  )}
                 </>
               }
               personel={data.personel || []}

@@ -2368,3 +2368,47 @@ Kart iki ayrı ekranda dururken aynı hesapları iki yerden düzenlemek karış�
 Ayarlar'da yalnızca nereye taşındığını söyleyen bir not var.
 
 Kaydetme yolu değişmedi — mevcut `updateStaffPermissions` kullanılıyor, ayrı bir yol açılmadı.
+
+## Güncelleme 103: "Genel Yetkiler" Kartı Ne İşe Yarıyor?
+
+Personel → Hesaplar & Yetkiler'deki ikinci kart kafa karıştırıyordu: madem kişi bazında
+yetkilendiriyoruz, bu ne?
+
+**Cevap:** O kart yalnızca **ortak personel şifresiyle** girenler için geçerli. Kişisel hesabı
+olan herkesin kendi "Yetkiler" paneli var ve o, bu ayarın yerine geçer.
+
+Ortak şifre, Vercel'de `STAFF_PASSWORD` ortam değişkeni tanımlıysa çalışır. Tanımlı değilse
+**kimse o yolla giremez** ve kart hiçbir şeyi etkilemez.
+
+### Artık durumu görüyorsun
+Kart, ortak şifrenin tanımlı olup olmadığını sunucudan öğrenip yazıyor. Tanımlı değilse
+üstünde açıkça duruyor:
+
+> **Bu bölüm şu an bir işe yaramıyor** — ortak personel şifresi tanımlı değil, ekipteki herkes
+> kişisel hesabıyla giriyor ve ona verdiğin yetkiler geçerli oluyor.
+
+Kart silinmedi: ortak şifre yolu hâlâ çalışıyor (test edildi) ve ileride tanımlarsan devreye
+girer. Ama artık boşuna ayar yapma ihtimalin yok.
+
+Başlığı da düzeltildi: "CEO Paneli — Personel Yetkileri" yerine **"Genel Yetkiler (ortak
+personel şifresi)"**. Eski açıklama "ekipteki herkes için ortak bir ayardır" diyordu; kişisel
+hesapların bunu ezdiğini söylemiyordu.
+
+## Güncelleme 104: Genel Yetkiler Kartı Kaldırıldı (Koşullu)
+
+Ortak personel şifresi kullanılmıyor, o yüzden "Genel Yetkiler" kartı artık **görünmüyor**.
+Personel → Hesaplar & Yetkiler'de yalnızca kişisel hesaplar listesi var — yetkiler her hesabın
+kendi **Yetkiler / E-posta** panelinden veriliyor.
+
+### Neden tamamen silmedim
+Kart, ortak şifre (`STAFF_PASSWORD`) tanımlıysa **kendiliğinden geri gelir**. Tamamen
+silseydim ve ileride o şifreyi tanımlasaydın, ayarlanamayan — varsayılan izinlerle çalışan —
+bir giriş yolu ortaya çıkardı. Bu, sessiz bir güvenlik boşluğu olurdu.
+
+Şimdi ise: şifre yok → kart yok → o yol zaten kapalı. Şifre tanımlarsan → kart döner ve
+ayarlayabilirsin.
+
+### Doğrulandı
+- Ortak şifre yokken kişisel hesap girişi çalışıyor
+- Yönetici girişi etkilenmedi
+- Ortak şifre tanımlanırsa yol ve kart yeniden devreye giriyor
