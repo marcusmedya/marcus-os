@@ -9,17 +9,107 @@
  */
 import React, { useState, useEffect } from "react";
 import {
-  T, Card, fmt, tarihGoster, inputStyle, saveBtnStyle, cancelBtnStyle, iconBtnStyle,
-  haftaBaslangici, reklamDurumu, authHeaders, clearMusteriCreds, musteriHatirlaniyorMu,
-  FONTS, basligiTemizle, istatistikVarMi,
+  tarihGoster, cancelBtnStyle, haftaBaslangici, reklamDurumu, musteriHatirlaniyorMu, FONTS, basligiTemizle, istatistikVarMi, authHeaders,
 } from "./tema.jsx";
 import { LogOut, Trash2 } from "lucide-react";
-import { driveEmbedUrl, DriveGorsel, DriveVideo } from "./drive.jsx";
+import { driveEmbedUrl, DriveGorsel, DriveVideo, driveGorselAdaylari } from "./drive.jsx";
 import { InstagramOnizleme, InstagramIzgara } from "./instagram.jsx";
 
 /** Müşteri Paneli — owner/personel arayüzünden tamamen izole, sade bir onay ekranı.
  * Sadece kendi markasının içeriklerini görür; her içeriği onaylayabilir ya da revize isteyebilir. */
-export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
+export 
+/* ==================================================================
+ * MÜŞTERİ PANELİ TASARIMI — "baskı provası"
+ *
+ * NEDEN AYRI BİR GÖRÜNÜM: Bu panel bir iç yönetim aracı değil, müşteriye TESLİM EDİLEN bir
+ * yüzey. CEO paneliyle aynı koyu operasyon temasını kullanmak, müşteriye "sizin için
+ * hazırlanmış bir sunum" değil "bizim yazılımımıza bakıyorsunuz" hissi veriyordu.
+ *
+ * Fikir: fotoğrafçının müşteriye gönderdiği baskı provası. Açık, kağıt hissi veren bir zemin;
+ * numaralandırılmış provalar; onay/revize durumları PUL (damga) olarak. Numaralandırma
+ * süslemek için değil — sıralama artık gerçek bilgi taşıyor (yayın sırası).
+ *
+ * Renkler bilerek ne kremayı-serif ne de siyah-neon yönüne gidiyor; ajansın kurumsal moru
+ * sabit çerçeve rengi, markanın kendi logosu ise kimliğini taşıyor.
+ * ================================================================== */
+const MT = {
+  kagit: "#EEF0EF",       // soğuk kağıt grisi — stüdyo duvarı
+  kart: "#FFFFFF",
+  murekkep: "#16181B",    // metin
+  soluk: "#6B7280",       // ikincil metin
+  cizgi: "#DFE3E1",
+  cizgiKoyu: "#C6CDC9",
+  mor: "#5B5BD6",         // Marcus Medya kurumsal
+  morSoluk: "#EEEEFB",
+  bekleyen: "#B45309",
+  bekleyenZemin: "#FDF6EC",
+  onay: "#15803D",
+  onayZemin: "#EFF7F1",
+  revize: "#B91C1C",
+  revizeZemin: "#FDF0F0",
+};
+
+const ETIKET = {
+  fontFamily: "'IBM Plex Mono', monospace",
+  fontSize: 10.5,
+  letterSpacing: 1.2,
+  textTransform: "uppercase",
+  color: MT.soluk,
+};
+
+/** Ortak logo bandı: Marcus Medya × Marka.
+ * Logolar Drive bağlantısı olabildiği için aynı adres zincirinden geçirilir; logo yoksa
+ * markanın baş harfiyle bir monogram karesi gösterilir — boş bir alan bırakmaktansa. */
+function LogoKilidi({ ajansLogo, markaLogo, marka, firmaAdi }) {
+  const kutu = { height: 34, maxWidth: 132, objectFit: "contain", display: "block" };
+  const monogram = (metin, dolu) => (
+    <div style={{
+      width: 34, height: 34, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center",
+      background: dolu ? MT.mor : "transparent", border: dolu ? "none" : `1.5px solid ${MT.cizgiKoyu}`,
+      color: dolu ? "#fff" : MT.murekkep, fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 16,
+    }}>
+      {(metin || "M").charAt(0).toLocaleUpperCase("tr")}
+    </div>
+  );
+  const gorsel = (kaynak, yedekMetin, dolu) => {
+    if (!kaynak) return monogram(yedekMetin, dolu);
+    if (String(kaynak).startsWith("data:")) return <img src={kaynak} alt="" style={kutu} />;
+    const adaylar = driveGorselAdaylari(kaynak);
+    if (!adaylar.length) return monogram(yedekMetin, dolu);
+    return <img src={adaylar[0]} alt="" style={kutu} referrerPolicy="no-referrer" />;
+  };
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
+      {gorsel(ajansLogo, firmaAdi || "Marcus", true)}
+      <span style={{ color: MT.cizgiKoyu, fontSize: 17, fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>×</span>
+      {gorsel(markaLogo, marka, false)}
+    </div>
+  );
+}
+
+/** Durum damgası. Onay ve revize, bir provaya vurulan mühür gibi gösterilir — panelin
+ * tamamı bir baskı provası mantığında kurulduğu için tek "cesur" öğe burası; gerisi sakin. */
+function Damga({ durum }) {
+  const tanim = {
+    bekliyor: { metin: "İNCELEMENİZDE", renk: MT.bekleyen, zemin: MT.bekleyenZemin, egim: 0 },
+    onaylandi: { metin: "ONAYLANDI", renk: MT.onay, zemin: MT.onayZemin, egim: -2.5 },
+    revize: { metin: "REVİZE İSTENDİ", renk: MT.revize, zemin: MT.revizeZemin, egim: -2.5 },
+  }[durum] || { metin: "İNCELEMENİZDE", renk: MT.bekleyen, zemin: MT.bekleyenZemin, egim: 0 };
+
+  return (
+    <span style={{
+      display: "inline-block", padding: "4px 11px", borderRadius: 4,
+      border: `1.5px solid ${tanim.renk}`, background: tanim.zemin, color: tanim.renk,
+      fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, fontWeight: 600, letterSpacing: 0.8,
+      transform: `rotate(${tanim.egim}deg)`, whiteSpace: "nowrap",
+    }}>
+      {tanim.metin}
+    </span>
+  );
+}
+
+function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
   const [icerikler, setIcerikler] = useState(musteriData.icerikler || []);
   // Sunucudan yeni veri geldiğinde listeyi tazele. useState başlangıç değeri SADECE ilk
   // render'da okunur — bu senkron olmadan, yönetici bir içerik ekleyip düzenlese ya da
@@ -84,13 +174,21 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
   };
 
   const DURUM_STIL = {
-    bekliyor: { label: "İncelemeni Bekliyor", color: T.warning, bg: T.warningSoft },
-    onaylandi: { label: "Onayladın ✓", color: T.success, bg: T.successSoft },
-    revize: { label: "Revize İstedin", color: T.danger, bg: T.dangerSoft },
+    bekliyor: { label: "İncelemeni Bekliyor", color: MT.bekleyen, bg: MT.bekleyenZemin },
+    onaylandi: { label: "Onayladın ✓", color: MT.onay, bg: MT.onayZemin },
+    revize: { label: "Revize İstedin", color: MT.revize, bg: MT.revizeZemin },
   };
 
-  const bekleyenler = icerikler.filter((i) => i.durum === "bekliyor");
-  const gecmis = icerikler.filter((i) => i.durum !== "bekliyor");
+  /* Yöneticinin belirlediği sırayı müşteri de AYNEN görür. İki taraf farklı sıralarsa
+   * "hangisi doğru?" sorusu doğar; sıra numarası kayıtta saklandığı için ikisi de aynı
+   * veriyi okur. Sıra numarası olmayan eski kayıtlar sona düşer. */
+  const sirala = (liste) => liste.slice().sort((a, b) => {
+    const as = Number.isFinite(Number(a.sira)) ? Number(a.sira) : Infinity;
+    const bs = Number.isFinite(Number(b.sira)) ? Number(b.sira) : Infinity;
+    return as - bs;
+  });
+  const bekleyenler = sirala(icerikler.filter((i) => i.durum === "bekliyor"));
+  const gecmis = sirala(icerikler.filter((i) => i.durum !== "bekliyor"));
 
   const sekmeler = [
     { key: "onay", label: "Onay Bekleyenler", rozet: bekleyenler.length },
@@ -99,79 +197,123 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
     { key: "uretim", label: "Üretim Durumu", rozet: 0 },
   ];
 
+  const bugunYazi = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+
   return (
-    <div style={{ background: T.bg, minHeight: "100vh" }}>
+    <div style={{ background: MT.kagit, minHeight: "100vh", color: MT.murekkep }}>
       <style>{FONTS}</style>
-      <div style={{ maxWidth: 880, margin: "0 auto", padding: "24px 18px 60px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-          <div>
-            <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter" }}>{musteriData.firmaAdi}</div>
-            <div style={{ fontSize: 19, color: T.text, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif" }}>{musteriData.marka}</div>
-          </div>
+
+      {/* ÜST BANT — ortak logo kilidi. Panelin müşteriye ait bir teslimat olduğunu ilk
+        * bakışta anlatan yer burası; bu yüzden beyaz zemin üzerinde, ince mor bir çizgiyle
+        * ayrılmış kendi bandını hak ediyor. */}
+      <div style={{ background: MT.kart, borderBottom: `1px solid ${MT.cizgi}`, boxShadow: "0 1px 0 rgba(0,0,0,0.02)" }}>
+        <div style={{ height: 3, background: MT.mor }} />
+        <div style={{ maxWidth: 900, margin: "0 auto", padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+          <LogoKilidi
+            ajansLogo={musteriData.ajansLogo}
+            markaLogo={musteriData.markaLogo}
+            marka={musteriData.marka}
+            firmaAdi={musteriData.firmaAdi}
+          />
           <button
             onClick={() => { if (window.confirm("Çıkış yapılsın mı? Tekrar girmek için kullanıcı adı ve şifren gerekecek.")) onCikis(); }}
-            style={{ ...cancelBtnStyle, fontSize: 12.5, padding: "9px 15px", display: "flex", alignItems: "center", gap: 6 }}
+            style={{
+              display: "flex", alignItems: "center", gap: 7, padding: "8px 14px", borderRadius: 8,
+              background: "transparent", border: `1px solid ${MT.cizgi}`, color: MT.soluk,
+              fontFamily: "Inter, sans-serif", fontSize: 12.5, fontWeight: 500, cursor: "pointer",
+            }}
           >
-            <LogOut size={14} /> Çıkış Yap
+            <LogOut size={14} /> Çıkış
           </button>
         </div>
+      </div>
 
-        {/* SEKMELER — her şey tek sayfada alt alta akmak yerine bölümlere ayrıldı. */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 20, overflowX: "auto", paddingBottom: 2 }}>
-          {sekmeler.map((sk) => (
-            <button
-              key={sk.key}
-              onClick={() => setSekme(sk.key)}
-              style={{
-                display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 10, border: "none",
-                cursor: "pointer", whiteSpace: "nowrap", fontFamily: "Inter, sans-serif", fontSize: 12.5, fontWeight: 600,
-                background: sekme === sk.key ? T.accent : T.surfaceRaised,
-                color: sekme === sk.key ? "#fff" : T.textDim,
-              }}
-            >
-              {sk.label}
-              {sk.rozet > 0 && (
-                <span style={{ background: sekme === sk.key ? "rgba(255,255,255,.25)" : T.warningSoft, color: sekme === sk.key ? "#fff" : T.warning, borderRadius: 999, padding: "1px 7px", fontSize: 10.5, fontWeight: 700 }}>{sk.rozet}</span>
-              )}
-            </button>
-          ))}
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "26px 20px 70px" }}>
+        {/* BAŞLIK — mono etiket + marka adı. "Onay Paneli" ifadesi ne yapılacağını söyler. */}
+        <div style={{ marginBottom: 22 }}>
+          <div style={{ ...ETIKET, marginBottom: 6 }}>Onay Paneli · {bugunYazi}</div>
+          <h1 style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: 30, fontWeight: 700, letterSpacing: -0.6, lineHeight: 1.15 }}>
+            {musteriData.marka}
+          </h1>
+          <p style={{ margin: "8px 0 0", fontFamily: "Inter, sans-serif", fontSize: 13.5, color: MT.soluk, lineHeight: 1.6, maxWidth: 560 }}>
+            {musteriData.firmaAdi} tarafından hazırlanan içerikler burada. İnceleyip onaylayabilir
+            ya da değişiklik isteyebilirsiniz.
+          </p>
+        </div>
+
+        {/* SEKMELER — bölümlü bir sayfa, tek uzun akış değil. */}
+        <div style={{ display: "flex", gap: 4, marginBottom: 22, overflowX: "auto", borderBottom: `1px solid ${MT.cizgi}` }}>
+          {sekmeler.map((sk) => {
+            const aktif = sekme === sk.key;
+            return (
+              <button
+                key={sk.key}
+                onClick={() => setSekme(sk.key)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 7, padding: "10px 14px 11px",
+                  background: "transparent", border: "none", cursor: "pointer", whiteSpace: "nowrap",
+                  fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: aktif ? 600 : 500,
+                  color: aktif ? MT.murekkep : MT.soluk,
+                  borderBottom: `2px solid ${aktif ? MT.mor : "transparent"}`, marginBottom: -1,
+                }}
+              >
+                {sk.label}
+                {sk.rozet > 0 && (
+                  <span style={{
+                    background: aktif ? MT.mor : MT.morSoluk, color: aktif ? "#fff" : MT.mor,
+                    borderRadius: 999, padding: "1px 7px", fontSize: 10.5, fontWeight: 700,
+                    fontFamily: "'IBM Plex Mono', monospace",
+                  }}>{sk.rozet}</span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {sekme === "onay" && <>
-        <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 10 }}>
-          İncelemeni Bekleyenler {bekleyenler.length > 0 && `(${bekleyenler.length})`}
+        <div style={{ ...ETIKET, marginBottom: 12 }}>
+          Onayınızı bekleyenler{bekleyenler.length > 0 ? ` · ${bekleyenler.length} içerik` : ""}
         </div>
 
         {bekleyenler.length === 0 ? (
-          <Card style={{ padding: "24px", textAlign: "center", marginBottom: 28 }}>
-            <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Şu an incelemen gereken bir içerik yok.</div>
-          </Card>
+          <div style={{ background: MT.kart, border: `1px solid ${MT.cizgi}`, borderRadius: 12, padding: "34px 24px", textAlign: "center", marginBottom: 30 }}>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 600, marginBottom: 6 }}>Şu an bekleyen bir şey yok</div>
+            <div style={{ color: MT.soluk, fontSize: 13, fontFamily: "Inter" }}>Yeni bir içerik hazırlandığında burada görünecek ve e-posta alacaksınız.</div>
+          </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 28 }}>
-            {bekleyenler.map((icerik) => {
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 30 }}>
+            {bekleyenler.map((icerik, sira) => {
               const embed = driveEmbedUrl(icerik.driveLinki);
               const cekimEmbed = icerik.tur === "cekim" ? driveEmbedUrl(icerik.referansLink) : null;
               const kartAcik = acikIcerikId === icerik.id;
               return (
-                <Card key={icerik.id} style={{ padding: 16, border: `1px solid ${T.warning}` }}>
+                <div key={icerik.id} style={{ background: MT.kart, border: `1px solid ${kartAcik ? MT.cizgiKoyu : MT.cizgi}`, borderRadius: 12, padding: 0, overflow: "hidden" }}>
                   {/* Başlığa tıklayınca açılır/kapanır. Uzun konuşma metinleri listeyi
-                    * metrelerce uzatıyordu; artık hepsi kapalı başlar. */}
+                    * metrelerce uzatıyordu; hepsi kapalı başlar.
+                    * Sol taraftaki numara SÜS DEĞİL: yayın sırasını gösteriyor. */}
                   <button
                     onClick={() => setAcikIcerikId(kartAcik ? null : icerik.id)}
-                    style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10, width: "100%", background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
+                    style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", background: "none", border: "none", padding: "14px 16px", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
                   >
-                    <span style={{ minWidth: 0 }}>
-                      <span style={{ display: "block", fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter", marginBottom: 4 }}>
-                        {icerik.tur === "cekim" && <span style={{ color: T.accentText }}>🎬 </span>}
+                    <span style={{
+                      fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, fontWeight: 600,
+                      color: MT.soluk, background: MT.kagit, border: `1px solid ${MT.cizgi}`,
+                      borderRadius: 6, padding: "5px 8px", flexShrink: 0, minWidth: 30, textAlign: "center",
+                    }}>
+                      {String(sira + 1).padStart(2, "0")}
+                    </span>
+                    <span style={{ minWidth: 0, flex: 1 }}>
+                      <span style={{ display: "block", fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, marginBottom: 3, lineHeight: 1.3 }}>
                         {basligiTemizle(icerik.aciklama) || (icerik.tur === "cekim" ? "Çekim Planı" : icerik.tur)}
                       </span>
-                      <span style={{ display: "block", fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>
-                        {icerik.tarih}
-                        {icerik.tur === "cekim" && icerik.planlananTarih && ` · Planlanan çekim: ${tarihGoster(icerik.planlananTarih)}`}
+                      <span style={{ display: "block", fontSize: 12, color: MT.soluk, fontFamily: "Inter" }}>
+                        {icerik.tur === "cekim" ? "Çekim planı" : icerik.tur === "video" ? "Video" : "Görsel"} · {icerik.tarih}
+                        {icerik.tur === "cekim" && icerik.planlananTarih && ` · Çekim: ${tarihGoster(icerik.planlananTarih)}`}
                       </span>
                     </span>
-                    <span style={{ color: T.accentText, fontSize: 11.5, flexShrink: 0, fontFamily: "Inter", fontWeight: 600 }}>
-                      {kartAcik ? "Kapat ▲" : "Aç ▼"}
+                    <span style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                      <Damga durum={icerik.durum} />
+                      <span style={{ color: MT.soluk, fontSize: 12, fontFamily: "Inter" }}>{kartAcik ? "▲" : "▼"}</span>
                     </span>
                   </button>
 
@@ -181,29 +323,29 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
                   {icerik.tur === "cekim" && (
                     <div style={{ marginBottom: 12 }}>
                       {icerik.konusmali && (
-                        <div style={{ display: "inline-block", fontSize: 10.5, fontWeight: 700, color: T.accentText, background: T.accentSoft, padding: "3px 10px", borderRadius: 999, fontFamily: "Inter", marginBottom: 10 }}>
+                        <div style={{ display: "inline-block", fontSize: 10.5, fontWeight: 700, color: MT.mor, background: MT.morSoluk, padding: "3px 10px", borderRadius: 999, fontFamily: "Inter", marginBottom: 10 }}>
                           {icerik.konusmali === "konusmali" ? "KONUŞMALI" : icerik.konusmali === "seslendirme" ? "DIŞ SES" : "KONUŞMASIZ"}
                         </div>
                       )}
 
                       {cekimEmbed && (
                         <div style={{ marginBottom: 10 }}>
-                          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 5 }}>REFERANS VİDEO</div>
+                          <div style={{ fontSize: 11, color: MT.soluk, fontFamily: "Inter", fontWeight: 600, marginBottom: 5 }}>REFERANS VİDEO</div>
                           <DriveVideo link={icerik.referansLink} yon={icerik.videoYonu} baslik="Referans video" />
                         </div>
                       )}
                       {!cekimEmbed && icerik.referansLink && (
-                        <a href={icerik.referansLink} target="_blank" rel="noreferrer" style={{ display: "block", marginBottom: 10, color: T.accentText, fontSize: 12.5, fontFamily: "Inter" }}>
+                        <a href={icerik.referansLink} target="_blank" rel="noreferrer" style={{ display: "block", marginBottom: 10, color: MT.mor, fontSize: 12.5, fontFamily: "Inter" }}>
                           ▶ Referans videoyu izle ↗
                         </a>
                       )}
 
                       {icerik.konusmaMetni && (
                         <div style={{ marginBottom: 10 }}>
-                          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 5 }}>
+                          <div style={{ fontSize: 11, color: MT.soluk, fontFamily: "Inter", fontWeight: 600, marginBottom: 5 }}>
                             {icerik.konusmali === "seslendirme" ? "DIŞ SES METNİ" : "KONUŞMA METNİ"}
                           </div>
-                          <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 14px", fontSize: 13.5, color: T.text, fontFamily: "Inter", lineHeight: 1.75, whiteSpace: "pre-wrap" }}>
+                          <div style={{ background: MT.kagit, borderRadius: 10, padding: "12px 14px", fontSize: 13.5, color: MT.murekkep, fontFamily: "Inter", lineHeight: 1.75, whiteSpace: "pre-wrap" }}>
                             {icerik.konusmaMetni}
                           </div>
                         </div>
@@ -211,8 +353,8 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
 
                       {icerik.cekimNotu && (
                         <div>
-                          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 5 }}>ÇEKİM NOTU</div>
-                          <div style={{ fontSize: 12.5, color: T.textDim, fontFamily: "Inter", lineHeight: 1.65, whiteSpace: "pre-wrap" }}>{icerik.cekimNotu}</div>
+                          <div style={{ fontSize: 11, color: MT.soluk, fontFamily: "Inter", fontWeight: 600, marginBottom: 5 }}>ÇEKİM NOTU</div>
+                          <div style={{ fontSize: 12.5, color: MT.soluk, fontFamily: "Inter", lineHeight: 1.65, whiteSpace: "pre-wrap" }}>{icerik.cekimNotu}</div>
                         </div>
                       )}
                     </div>
@@ -229,7 +371,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
                     <div style={{ marginBottom: 12 }}><DriveVideo link={icerik.driveLinki} yon={icerik.videoYonu} baslik={icerik.aciklama || "içerik"} /></div>
                   )}
                   {!icerik.gorselUrl && icerik.tur !== "gorsel" && !embed && icerik.driveLinki && (
-                    <a href={icerik.driveLinki} target="_blank" rel="noreferrer" style={{ display: "block", marginBottom: 12, color: T.accentText, fontSize: 12.5, fontFamily: "Inter" }}>İçeriği Görüntüle ↗</a>
+                    <a href={icerik.driveLinki} target="_blank" rel="noreferrer" style={{ display: "block", marginBottom: 12, color: MT.mor, fontSize: 12.5, fontFamily: "Inter" }}>İçeriği Görüntüle ↗</a>
                   )}
 
                   {revizeAcikId === icerik.id ? (
@@ -245,7 +387,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
                       <div style={{ display: "flex", gap: 8 }}>
                         <button style={cancelBtnStyle} onClick={() => { setRevizeAcikId(null); setRevizeMetni(""); }}>İptal</button>
                         <button
-                          style={{ ...saveBtnStyle, background: T.danger }}
+                          style={{ ...saveBtnStyle, background: MT.revize }}
                           disabled={gonderiliyor === icerik.id || !revizeMetni.trim()}
                           onClick={() => istekAt("revizeIste", icerik.id, revizeMetni)}
                         >
@@ -254,21 +396,35 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
                       </div>
                     </div>
                   ) : (
-                    <div style={{ display: "flex", gap: 8 }}>
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                       <button
-                        style={{ ...saveBtnStyle, flex: 1, justifyContent: "center" }}
+                        style={{
+                          flex: "1 1 160px", justifyContent: "center", display: "flex", alignItems: "center",
+                          padding: "12px 18px", borderRadius: 9, border: "none", cursor: "pointer",
+                          background: MT.onay, color: "#fff",
+                          fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 600,
+                          opacity: gonderiliyor === icerik.id ? 0.6 : 1,
+                        }}
                         disabled={gonderiliyor === icerik.id}
                         onClick={() => istekAt("onayla", icerik.id)}
                       >
-                        {gonderiliyor === icerik.id ? "…" : (icerik.tur === "cekim" ? "✓ Planı Onayla" : "✓ Onayla")}
+                        {gonderiliyor === icerik.id ? "Gönderiliyor…" : (icerik.tur === "cekim" ? "Planı onayla" : "Onayla")}
                       </button>
-                      <button style={{ ...cancelBtnStyle, flex: 1, justifyContent: "center" }} onClick={() => { setRevizeAcikId(icerik.id); setRevizeMetni(""); }}>
-                        Revize İste
+                      <button
+                        style={{
+                          flex: "1 1 160px", justifyContent: "center", display: "flex", alignItems: "center",
+                          padding: "12px 18px", borderRadius: 9, cursor: "pointer",
+                          background: MT.kart, border: `1px solid ${MT.cizgiKoyu}`, color: MT.murekkep,
+                          fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 500,
+                        }}
+                        onClick={() => { setRevizeAcikId(icerik.id); setRevizeMetni(""); }}
+                      >
+                        Değişiklik iste
                       </button>
                     </div>
                   )}
                   </div>}
-                </Card>
+                </div>
               );
             })}
           </div>
@@ -276,21 +432,21 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
 
         {gecmis.length > 0 && (
           <>
-            <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 10 }}>Geçmiş</div>
+            <div style={{ fontSize: 13, color: MT.murekkep, fontWeight: 700, fontFamily: "Inter", marginBottom: 10 }}>Geçmiş</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {gecmis.map((icerik) => {
                 const stil = DURUM_STIL[icerik.durum] || DURUM_STIL.bekliyor;
                 return (
-                  <Card key={icerik.id} style={{ padding: "12px 16px" }}>
+                  <div key={icerik.id} style={{ background: MT.kart, border: `1px solid ${MT.cizgi}`, borderRadius: 10, padding: "12px 16px" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: icerik.revizeNotu ? 6 : 0 }}>
                       <div>
-                        <div style={{ fontSize: 12.5, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{basligiTemizle(icerik.aciklama) || icerik.tur}</div>
-                        <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter" }}>{icerik.tarih}</div>
+                        <div style={{ fontSize: 12.5, color: MT.murekkep, fontWeight: 600, fontFamily: "Inter" }}>{basligiTemizle(icerik.aciklama) || icerik.tur}</div>
+                        <div style={{ fontSize: 10.5, color: MT.soluk, fontFamily: "Inter" }}>{icerik.tarih}</div>
                       </div>
                       <span style={{ fontSize: 11, fontWeight: 600, color: stil.color, background: stil.bg, padding: "3px 10px", borderRadius: 999, fontFamily: "Inter" }}>{stil.label}</span>
                     </div>
-                    {icerik.revizeNotu && <div style={{ fontSize: 12, color: T.textDim, fontFamily: "Inter", fontStyle: "italic" }}>"{icerik.revizeNotu}"</div>}
-                  </Card>
+                    {icerik.revizeNotu && <div style={{ fontSize: 12, color: MT.soluk, fontFamily: "Inter", fontStyle: "italic" }}>"{icerik.revizeNotu}"</div>}
+                  </div>
                 );
               })}
             </div>
@@ -309,7 +465,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
         {sekme === "uretim" && <MusteriOperasyon isler={musteriData.operasyonIsleri || []} />}
 
         {/* Alt çıkış — uzun listelerde en yukarı dönmek zorunda kalmamak için. */}
-        <div style={{ marginTop: 40, paddingTop: 20, borderTop: `1px solid ${T.borderSoft}`, textAlign: "center" }}>
+        <div style={{ marginTop: 40, paddingTop: 20, borderTop: `1px solid ${MT.cizgi}`, textAlign: "center" }}>
           <button
             onClick={() => { if (window.confirm("Çıkış yapılsın mı? Tekrar girmek için kullanıcı adı ve şifren gerekecek.")) onCikis(); }}
             style={{ ...cancelBtnStyle, fontSize: 12.5, padding: "9px 18px", display: "inline-flex", alignItems: "center", gap: 6 }}
@@ -330,9 +486,9 @@ export function MusteriPaylasimPlani({ plan, marka }) {
   const [secili, setSecili] = useState(null);
   if (!plan || plan.length === 0) {
     return (
-      <Card style={{ padding: 24, textAlign: "center" }}>
-        <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Henüz paylaşım planı oluşturulmadı.</div>
-      </Card>
+      <div style={{ background: MT.kart, border: `1px solid ${MT.cizgi}`, borderRadius: 12, padding: 24, textAlign: "center" }}>
+        <div style={{ color: MT.soluk, fontSize: 13, fontFamily: "Inter" }}>Henüz paylaşım planı oluşturulmadı.</div>
+      </div>
     );
   }
 
@@ -378,7 +534,7 @@ export function MusteriPaylasimPlani({ plan, marka }) {
             key={g.key}
             onClick={() => { setGorunum(g.key); setSecili(null); }}
             style={{ padding: "7px 16px", borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 12.5, fontWeight: 600,
-              background: gorunum === g.key ? T.accentSoft : T.surfaceRaised, color: gorunum === g.key ? T.accentText : T.textDim }}
+              background: gorunum === g.key ? MT.morSoluk : MT.kagit, color: gorunum === g.key ? MT.mor : MT.soluk }}
           >
             {g.label}
           </button>
@@ -401,13 +557,13 @@ export function MusteriPaylasimPlani({ plan, marka }) {
 
       {gorunum === "akis" && <>
       {siraliHaftalar.length === 0 && gecmis.length === 0 && (
-        <Card style={{ padding: 20, textAlign: "center" }}>
-          <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Henüz plan oluşturulmadı.</div>
-        </Card>
+        <div style={{ background: MT.kart, border: `1px solid ${MT.cizgi}`, borderRadius: 12, padding: 20, textAlign: "center" }}>
+          <div style={{ color: MT.soluk, fontSize: 13, fontFamily: "Inter" }}>Henüz plan oluşturulmadı.</div>
+        </div>
       )}
       {siraliHaftalar.map((hk) => (
         <div key={hk} style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", fontWeight: 700, marginBottom: 12, letterSpacing: 0.3 }}>
+          <div style={{ fontSize: 12, color: MT.soluk, fontFamily: "Inter", fontWeight: 700, marginBottom: 12, letterSpacing: 0.3 }}>
             {haftaBasligi(hk).toLocaleUpperCase("tr")}
           </div>
           <Izgara liste={gruplar[hk]} />
@@ -415,7 +571,7 @@ export function MusteriPaylasimPlani({ plan, marka }) {
       ))}
       {gecmis.length > 0 && (
         <div style={{ marginTop: 8 }}>
-          <button onClick={() => setGecmisAcik((v) => !v)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 12.5, color: T.textDim, fontFamily: "Inter", fontWeight: 600 }}>
+          <button onClick={() => setGecmisAcik((v) => !v)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 12.5, color: MT.soluk, fontFamily: "Inter", fontWeight: 600 }}>
             {gecmisAcik ? "▾" : "▸"} Geçmiş paylaşımlar ({gecmis.length})
           </button>
           {gecmisAcik && <div style={{ marginTop: 14 }}><Izgara liste={gecmis} /></div>}
@@ -430,27 +586,27 @@ export function MusteriPaylasimPlani({ plan, marka }) {
 export function MusteriReklamlar({ reklamlar }) {
   if (!reklamlar || reklamlar.length === 0) {
     return (
-      <Card style={{ padding: 24, textAlign: "center" }}>
-        <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Şu an kayıtlı bir reklam kampanyası yok.</div>
-      </Card>
+      <div style={{ background: MT.kart, border: `1px solid ${MT.cizgi}`, borderRadius: 12, padding: 24, textAlign: "center" }}>
+        <div style={{ color: MT.soluk, fontSize: 13, fontFamily: "Inter" }}>Şu an kayıtlı bir reklam kampanyası yok.</div>
+      </div>
     );
   }
-  const durumStil = { aktif: { label: "Yayında", color: T.success, bg: T.successSoft }, yakinda: { label: "Yakında bitiyor", color: T.warning, bg: T.warningSoft }, bitti: { label: "Sona erdi", color: T.textFaint, bg: T.surfaceRaised } };
+  const durumStil = { aktif: { label: "Yayında", color: MT.onay, bg: MT.onayZemin }, yakinda: { label: "Yakında bitiyor", color: MT.bekleyen, bg: MT.bekleyenZemin }, bitti: { label: "Sona erdi", color: MT.soluk, bg: MT.kagit } };
   return (
     <div>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {reklamlar.map((r) => {
           const st = durumStil[reklamDurumu(r)] || durumStil.aktif;
           return (
-            <div key={r.id} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "10px 13px" }}>
+            <div key={r.id} style={{ background: MT.kagit, borderRadius: 10, padding: "10px 13px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{r.reklamAdi}</span>
+                <span style={{ fontSize: 12.5, color: MT.murekkep, fontFamily: "Inter", fontWeight: 600 }}>{r.reklamAdi}</span>
                 <span style={{ fontSize: 10.5, fontWeight: 600, color: st.color, background: st.bg, padding: "2px 9px", borderRadius: 999, fontFamily: "Inter" }}>{st.label}</span>
               </div>
-              <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 3 }}>
+              <div style={{ fontSize: 11.5, color: MT.soluk, fontFamily: "Inter", marginTop: 3 }}>
                 {tarihGoster(r.baslangicTarihi)} — {tarihGoster(r.bitisTarihi)}
               </div>
-              {r.not && <div style={{ fontSize: 12, color: T.textDim, fontFamily: "Inter", marginTop: 5, lineHeight: 1.6 }}>{r.not}</div>}
+              {r.not && <div style={{ fontSize: 12, color: MT.soluk, fontFamily: "Inter", marginTop: 5, lineHeight: 1.6 }}>{r.not}</div>}
               {istatistikVarMi(r) && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
                   {[
@@ -460,9 +616,9 @@ export function MusteriReklamlar({ reklamlar }) {
                     { l: "Etkileşim", v: r.etkilesim },
                     { l: "Sonuç", v: r.sonuc },
                   ].filter((x) => Number(x.v) > 0).map((x) => (
-                    <div key={x.l} style={{ background: T.surface, borderRadius: 9, padding: "7px 12px", minWidth: 78 }}>
-                      <div style={{ fontSize: 9.5, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, letterSpacing: 0.3 }}>{x.l.toLocaleUpperCase("tr")}</div>
-                      <div style={{ fontSize: 14, color: T.text, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", marginTop: 2 }}>{Number(x.v).toLocaleString("tr-TR")}</div>
+                    <div key={x.l} style={{ background: MT.kart, borderRadius: 9, padding: "7px 12px", minWidth: 78 }}>
+                      <div style={{ fontSize: 9.5, color: MT.soluk, fontFamily: "Inter", fontWeight: 600, letterSpacing: 0.3 }}>{x.l.toLocaleUpperCase("tr")}</div>
+                      <div style={{ fontSize: 14, color: MT.murekkep, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", marginTop: 2 }}>{Number(x.v).toLocaleString("tr-TR")}</div>
                     </div>
                   ))}
                 </div>
@@ -480,9 +636,9 @@ export function MusteriOperasyon({ isler }) {
   const [hepsiAcik, setHepsiAcik] = useState(false);
   if (!isler || isler.length === 0) {
     return (
-      <Card style={{ padding: 24, textAlign: "center" }}>
-        <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Şu an devam eden bir üretim kaydı yok.</div>
-      </Card>
+      <div style={{ background: MT.kart, border: `1px solid ${MT.cizgi}`, borderRadius: 12, padding: 24, textAlign: "center" }}>
+        <div style={{ color: MT.soluk, fontSize: 13, fontFamily: "Inter" }}>Şu an devam eden bir üretim kaydı yok.</div>
+      </div>
     );
   }
 
@@ -491,20 +647,20 @@ export function MusteriOperasyon({ isler }) {
   const gosterilen = hepsiAcik ? bitenler : bitenler.slice(-5);
 
   const Satir = ({ j }) => (
-    <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "10px 13px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+    <div style={{ background: MT.kagit, borderRadius: 10, padding: "10px 13px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
       <div>
-        <div style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
+        <div style={{ fontSize: 12.5, color: MT.murekkep, fontFamily: "Inter", fontWeight: 600 }}>
           {j.icerikTuru}{j.kategori ? ` · ${j.kategori}` : ""}{j.uretilenAdet ? ` · ${j.uretilenAdet} parça` : ""}
         </div>
-        <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>
+        <div style={{ fontSize: 11, color: MT.soluk, fontFamily: "Inter", marginTop: 2 }}>
           {j.asama === "Teslim Edildi" && j.teslimEdilmeTarihi
             ? `Teslim: ${tarihGoster(j.teslimEdilmeTarihi)}`
             : j.teslimTarihi ? `Planlanan teslim: ${tarihGoster(j.teslimTarihi)}` : ""}
         </div>
       </div>
       <span style={{ fontSize: 10.5, fontWeight: 600, fontFamily: "Inter", padding: "3px 10px", borderRadius: 999,
-        color: j.asama === "Teslim Edildi" ? T.success : T.warning,
-        background: j.asama === "Teslim Edildi" ? T.successSoft : T.warningSoft }}>
+        color: j.asama === "Teslim Edildi" ? MT.onay : MT.bekleyen,
+        background: j.asama === "Teslim Edildi" ? MT.onayZemin : MT.bekleyenZemin }}>
         {j.asama}
       </span>
     </div>
@@ -519,12 +675,12 @@ export function MusteriOperasyon({ isler }) {
       )}
       {bitenler.length > 0 && (
         <>
-          <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 6 }}>Tamamlananlar</div>
+          <div style={{ fontSize: 11.5, color: MT.soluk, fontFamily: "Inter", fontWeight: 600, marginBottom: 6 }}>Tamamlananlar</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {gosterilen.map((j) => <Satir key={j.id} j={j} />)}
           </div>
           {bitenler.length > 5 && (
-            <button onClick={() => setHepsiAcik((v) => !v)} style={{ background: "none", border: "none", padding: "8px 0 0", cursor: "pointer", fontSize: 12, color: T.textDim, fontFamily: "Inter", fontWeight: 600 }}>
+            <button onClick={() => setHepsiAcik((v) => !v)} style={{ background: "none", border: "none", padding: "8px 0 0", cursor: "pointer", fontSize: 12, color: MT.soluk, fontFamily: "Inter", fontWeight: 600 }}>
               {hepsiAcik ? "Daha az göster" : `+ ${bitenler.length - 5} tane daha göster`}
             </button>
           )}

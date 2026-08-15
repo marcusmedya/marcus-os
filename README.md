@@ -1704,3 +1704,65 @@ Taklit düzeltilince sekiz senaryo da geçti. Test aracı düzeltilmeseydi var o
 kovalayacaktık.
 
 Test paketi 64 kontrole çıktı (t5–t13), hepsi geçiyor.
+
+## Güncelleme 79: İçerik Sıralama
+
+Müşteri Paneli'ndeki içerikleri artık **elle sıralayabilirsin**. Her satırın sağında
+**▲ ▼** okları var; bir kaydı yukarı ya da aşağı taşıyorsun.
+
+### Neden ok, neden sürükle-bırak değil
+Sürükle-bırak dokunmatik ekranda ve uzun listelerde güvenilir çalışmıyor; yanlışlıkla bırakıp
+sırayı bozmak kolay. Oklar her cihazda aynı şekilde çalışır ve yaptığın şey belirsiz kalmaz.
+
+### Müşteri de aynı sırayı görüyor
+Sıra numarası **kayıtta saklanıyor**, ekranda hesaplanmıyor. Yönetici ekranı ve müşteri paneli
+aynı veriyi okuduğu için ikisi asla farklı sıralayamaz — "bende böyle görünüyor ama müşteride
+başka" durumu oluşamaz.
+
+### Eski kayıtlar bozulmadı
+Sıra numarası olmayan kayıtlar eskisi gibi davranır (bekleyenler önce). Bir listeyi ilk kez
+sıraladığında o listedeki **tüm** kayıtlara numara yazılır — yarısı numaralı yarısı numarasız
+karışık bir sıra oluşmaz.
+
+### Yeni içerik en üste gelir
+Yeni eklenen içerik listenin başına yerleşir. Aksi halde elle sıraladığın bir listede yeni
+kayıt en alta düşer ve müşteri onu en son görürdü.
+
+Sıralama mantığı dokuz senaryoyla test edildi: sıra yokken eski davranış, karışık liste,
+yönetici–müşteri tutarlılığı, taşıma, liste sınırları ve yeni kayıt yerleşimi.
+
+## Güncelleme 80: Müşteri Paneli Yeniden Tasarlandı
+
+Müşteri paneli CEO paneliyle aynı koyu operasyon temasını kullanıyordu. Ama bu panel bir iç
+araç değil, **müşteriye teslim edilen bir yüzey** — koyu tema ona "sizin için hazırlanmış bir
+sunum" değil, "bizim yazılımımıza bakıyorsunuz" hissi veriyordu.
+
+### Yön: baskı provası
+Fotoğrafçının müşteriye gönderdiği prova mantığı kuruldu. Açık, kağıt hissi veren soğuk gri
+zemin; beyaz kartlar; numaralandırılmış içerikler; onay ve revize durumları **damga** olarak.
+
+Numaralandırma süs değil: 79. güncellemede eklenen sıralama sayesinde sıra artık gerçek bilgi
+taşıyor — hangi içeriğin önce yayınlanacağı.
+
+### Ortak logo bandı
+Üstte beyaz bir bant: **Marcus Medya × Marka** logoları, aralarında gerçek bir çarpı işareti,
+altında ince mor bir çizgi (ajansın kurumsal rengi). Logo yoksa markanın baş harfiyle bir
+monogram karesi çıkıyor — boş alan bırakmaktansa.
+
+Marka logosu için müşteri kartına **"Marka Logosu"** alanı eklendi (Drive bağlantısı, diğer
+görsellerle aynı yöntem). Ajans logosu Ayarlar'daki marka kimliği görselinden geliyor.
+
+### Tipografi ve renk
+- Başlıklar **Space Grotesk** (zaten yüklüydü), gövde **Inter**
+- Küçük etiketler **IBM Plex Mono**, büyük harf ve harf aralıklı — "üretim föyü" hissi
+- Zemin `#EEF0EF` soğuk kağıt grisi, mürekkep `#16181B`, kurumsal mor `#5B5BD6` sabit çerçeve
+- Durum renkleri damgalarda: bekleyen kehribar, onay yeşil, revize kırmızı
+
+Cesaret tek bir yerde harcandı — **damgalar**. Onaylananlar ve revize istenenler hafifçe eğik,
+çerçeveli birer mühür gibi görünüyor. Panelin tamamı prova mantığında kurulduğu ve müşterinin
+yaptığı şey tam olarak "damga vurmak" olduğu için bu süs değil, işin kendisi.
+
+### Metin dili de elden geçti
+Butonlar ne yapacaklarını söylüyor: "Onayla", "Değişiklik iste". Boş ekran bir yönlendirme:
+"Şu an bekleyen bir şey yok — yeni bir içerik hazırlandığında burada görünecek ve e-posta
+alacaksınız."

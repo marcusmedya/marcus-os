@@ -198,6 +198,8 @@ const CLIENT_FIELDS = [
   { key: "durum", label: "Durum", type: "select", options: [{ value: "aktif", label: "Aktif" }, { value: "yeni", label: "Yeni" }, { value: "donduruldu", label: "Donduruldu" }, { value: "ayrildi", label: "Ayrıldı" }] },
   { key: "email", label: "Yetkili E-postası (opsiyonel — ödeme hatırlatması için)", type: "text", placeholder: "yetkili@marka.com" },
   { key: "telefon", label: "Yetkili Telefonu (opsiyonel — WhatsApp için, ülke koduyla)", type: "text", placeholder: "905XXXXXXXXX" },
+  // Müşteri panelinin üst kısmındaki ortak logo bandında kullanılır (Marcus Medya × Marka).
+  { key: "logoUrl", label: "Marka Logosu (opsiyonel — Drive bağlantısı, müşteri panelinde görünür)", type: "text", placeholder: "https://drive.google.com/file/d/..." },
   { key: "aylikUcret", label: "Aylık Ücret (₺)", type: "number" },
   { key: "karMarji", label: "Kâr Marjı (%) — müşteri detayında maliyet eklersen otomatik hesaplanır", type: "number" },
   { key: "odemeGunu", label: "Ödeme Günü (ayın kaçı — opsiyonel, örn. 5)", type: "number" },
@@ -530,7 +532,36 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
   const [cekimNotu, setCekimNotu] = useState("");
   const [planlananTarih, setPlanlananTarih] = useState("");
 
-  const kendiListesi = (icerikler || []).filter((i) => String(i.clientId) === String(clientId)).sort((a, b) => (a.durum === "bekliyor" ? -1 : 1));
+  /* SIRALAMA
+   * Kayıtlarda "sira" alanı varsa ona göre dizilir; yoksa eskisi gibi bekleyenler öne gelir.
+   * Böylece eski kayıtlar (sira alanı olmayanlar) bozulmadan çalışmaya devam eder.
+   *
+   * Sıra numarası KAYITTA saklanır, ekranda hesaplanmaz — müşteri paneli de aynı sırayı
+   * görsün diye. İki taraf farklı sıralarsa "hangisi doğru?" sorusu doğardı. */
+  const kendiListesi = (icerikler || [])
+    .filter((i) => String(i.clientId) === String(clientId))
+    .slice()
+    .sort((a, b) => {
+      const as = Number.isFinite(Number(a.sira)) ? Number(a.sira) : null;
+      const bs = Number.isFinite(Number(b.sira)) ? Number(b.sira) : null;
+      if (as !== null && bs !== null) return as - bs;
+      if (as !== null) return -1;   // sırası verilmiş olanlar önce
+      if (bs !== null) return 1;
+      return a.durum === "bekliyor" ? -1 : 1; // eski davranış
+    });
+
+  /** Bir kaydı listede yukarı/aşağı taşır.
+   * Taşıma sırasında TÜM listeye sıra numarası yazılır — yalnızca iki kaydı değiştirmek,
+   * numarası olmayan diğer kayıtlarla karışık bir sıra bırakırdı. */
+  const tasi = (icerikId, yon) => {
+    const idx = kendiListesi.findIndex((i) => String(i.id) === String(icerikId));
+    const hedef = idx + yon;
+    if (idx < 0 || hedef < 0 || hedef >= kendiListesi.length) return;
+    const yeniDizi = kendiListesi.slice();
+    const [tasinan] = yeniDizi.splice(idx, 1);
+    yeniDizi.splice(hedef, 0, tasinan);
+    yeniDizi.forEach((kayit, i) => onUpdate(kayit.id, { sira: i }));
+  };
 
   const formuTemizle = () => {
     setAciklama(""); setDriveLinki(""); setGorselUrl(null); setGorselHata("");
@@ -607,7 +638,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
             <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginBottom: 12 }}>Bu markaya henüz müşteri panelinde gösterilecek bir içerik eklenmedi.</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
-              {kendiListesi.map((i) => {
+              {kendiListesi.map((i, idx) => {
                 const etiket = MUSTERI_DURUM_ETIKET[i.durum] || MUSTERI_DURUM_ETIKET.bekliyor;
                 return (
                   <div key={i.id} style={{ background: T.surfaceRaised, borderRadius: 9, padding: "8px 12px" }}>
@@ -637,6 +668,29 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                           >
                             ✓ Onayla
                           </button>
+                        )}
+                        {/* SIRALAMA OKLARI — sürükle-bırak yerine bilinçli tercih:
+                          * dokunmatik ekranda ve uzun listede güvenilir çalışır, yanlışlıkla
+                          * bırakıp sırayı bozma riski yok. */}
+                        {onUpdate && kendiListesi.length > 1 && (
+                          <>
+                            <button
+                              title="Yukarı taşı"
+                              disabled={idx === 0}
+                              onClick={() => tasi(i.id, -1)}
+                              style={{ background: "none", border: "none", cursor: idx === 0 ? "default" : "pointer", padding: "2px 3px", opacity: idx === 0 ? 0.25 : 1, color: T.textFaint, fontSize: 13, lineHeight: 1 }}
+                            >
+                              ▲
+                            </button>
+                            <button
+                              title="Aşağı taşı"
+                              disabled={idx === kendiListesi.length - 1}
+                              onClick={() => tasi(i.id, 1)}
+                              style={{ background: "none", border: "none", cursor: idx === kendiListesi.length - 1 ? "default" : "pointer", padding: "2px 3px", opacity: idx === kendiListesi.length - 1 ? 0.25 : 1, color: T.textFaint, fontSize: 13, lineHeight: 1 }}
+                            >
+                              ▼
+                            </button>
+                          </>
                         )}
                         {onUpdate && (
                           <button title="Düzenle" onClick={() => duzenlemeyeAl(i)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><Pencil size={12} color={T.textFaint} /></button>
@@ -6119,6 +6173,8 @@ export default function MarcusOS() {
             marka: res.marka,
             firmaAdi: res.firmaAdi,
             icerikler: res.icerikler || [],
+            markaLogo: res.markaLogo || null,
+            ajansLogo: res.ajansLogo || null,
             reklamlar: res.reklamlar || [],
             paylasimPlani: res.paylasimPlani || [],
             operasyonIsleri: res.operasyonIsleri || [],
@@ -6730,10 +6786,23 @@ export default function MarcusOS() {
     }).then((r) => r.json()).catch(() => ({ skipped: true }));
   };
 
-  const addMusteriIcerik = (clientId, icerik) => setData((d) => ({
-    ...d,
-    musteriIcerikleri: [...(d.musteriIcerikleri || []), { ...icerik, id: nextId(d.musteriIcerikleri || []), clientId, durum: "bekliyor", revizeNotu: null, kaynakIsId: null, olusturmaTarihi: new Date().toLocaleDateString("tr-TR") }],
-  }));
+  const addMusteriIcerik = (clientId, icerik) => setData((d) => {
+    /* Yeni içerik listenin EN ÜSTÜNE gelir: o markanın mevcut en küçük sıra numarasının
+     * bir eksiği verilir. Sıra numarası verilmeseydi, elle sıralanmış bir listede yeni
+     * kayıt en alta düşer ve müşteri onu en son görürdü. */
+    const ayniMarka = (d.musteriIcerikleri || []).filter((i) => String(i.clientId) === String(clientId));
+    const enKucuk = ayniMarka.reduce((m, i) => {
+      const sv = Number(i.sira);
+      return Number.isFinite(sv) ? Math.min(m, sv) : m;
+    }, 0);
+    return {
+      ...d,
+      musteriIcerikleri: [
+        ...(d.musteriIcerikleri || []),
+        { ...icerik, id: nextId(d.musteriIcerikleri || []), clientId, sira: enKucuk - 1, durum: "bekliyor", revizeNotu: null, kaynakIsId: null, olusturmaTarihi: new Date().toLocaleDateString("tr-TR") },
+      ],
+    };
+  });
   /** İçerik / çekim planı düzenleme. clientId, id ve kaynakIsId bilerek KORUNUR — düzenleme
    * kaydı başka bir markaya taşımamalı ya da Operasyon bağlantısını koparmamalı. */
   const updateMusteriIcerik = (icerikId, patch) => setData((d) => ({

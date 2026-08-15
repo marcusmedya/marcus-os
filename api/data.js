@@ -371,6 +371,9 @@ export default async function handler(req, res) {
           role: "musteri",
           musteriAd,
           marka: kendiMarka ? kendiMarka.ad : "",
+          // Ortak logo bandı için: ajansın kimlik görseli + markanın kendi logosu.
+          markaLogo: (kendiMarka && kendiMarka.logoUrl) || null,
+          ajansLogo: data.markaKimligiGorseli || null,
           firmaAdi: data.firmaAdi || "Marcus Medya",
           icerikler: kendiIcerikleri,
           reklamlar: kendiReklamlari,
