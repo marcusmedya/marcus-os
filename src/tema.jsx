@@ -893,3 +893,38 @@ export function FieldForm({ fields, initial, onSubmit, onCancel, submitLabel = "
   );
 }
 
+
+
+/* İÇERİK TÜRÜ ETİKETLERİ — ORTAK
+ * Yönetici paneli ve müşteri paneli AYNI etiketleri kullanır. Ayrı tanımlansaydı biri
+ * "Reels" derken diğeri "Video" diyebilir, aynı içerik iki farklı adla görünürdü.
+ * Renkler sabit seçildi: hem koyu hem açık temada okunur.
+ *
+ * (özgün açıklama)
+ * Müşteri "Video / Fotoğraf / Grafik Tasarım" gibi üretim kategorilerini değil, kendi
+ * dilindeki karşılıklarını görmeli: Reels, Görsel, Tasarım. Etiket hem renkli bir rozet
+ * olarak hem de listeyi bölümlere ayırmak için kullanılıyor. */
+export const TUR_ETIKET = {
+  "Video": { ad: "Reels", renk: "#7C3AED", zemin: "#F1ECFD" },
+  "Fotoğraf": { ad: "Görsel", renk: "#0E7490", zemin: "#E5F4F7" },
+  "Grafik Tasarım": { ad: "Tasarım", renk: "#B45309", zemin: "#FDF3E7" },
+  "cekim": { ad: "Çekim Planı", renk: "#5B5BD6", zemin: "#EEEEFB" },
+  "video": { ad: "Reels", renk: "#7C3AED", zemin: "#F1ECFD" },
+  "gorsel": { ad: "Görsel", renk: "#0E7490", zemin: "#E5F4F7" },
+};
+export const turEtiketi = (anahtar) => TUR_ETIKET[anahtar] || { ad: String(anahtar || "İçerik"), renk: "#6B7280", zemin: "rgba(107,114,128,0.14)" };
+
+/** Küçük tür rozeti. */
+export function TurRozet({ anahtar }) {
+  const e = turEtiketi(anahtar);
+  return (
+    <span style={{
+      display: "inline-block", padding: "2px 9px", borderRadius: 999,
+      background: e.zemin, color: e.renk,
+      fontFamily: "Inter, sans-serif", fontSize: 10.5, fontWeight: 700, whiteSpace: "nowrap",
+    }}>
+      {e.ad}
+    </span>
+  );
+}
+

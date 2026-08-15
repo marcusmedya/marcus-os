@@ -2150,3 +2150,23 @@ gönderebilirsin; henüz üretilmediyse baştaki bir aşamaya alırsın ve müş
 kontrole geldiğinde görür. Form bunu altında yazıyla da belirtiyor.
 
 Çekim planları bu değişiklikten etkilenmedi — onlar hâlâ üretim öncesi fikirler.
+
+## Güncelleme 94: Yönetici Panelinde de Tür Ayrımı
+
+Müşteri Paneli sekmesindeki içerik listesi karışıktı — Görsel 7, Görsel 5, Reels 1, Görsel 1…
+13 satırlık bir listede ne aradığını bulmak zordu.
+
+Aynı ayrım artık burada da var:
+- Her satırda **renkli tür rozeti** (Reels · Görsel · Tasarım · Çekim Planı)
+- Üstte **süzgeç düğmeleri**, her birinde o türden kaç kayıt olduğu yazılı:
+  `Hepsi 13 · Görsel 9 · Reels 3 · Çekim Planı 1`
+
+Süzgeç yalnızca listede birden fazla tür varsa çıkıyor.
+
+### Etiketler artık ortak
+Tür etiketleri `tema.jsx`'e taşındı; yönetici paneli ve müşteri paneli **aynı tanımı**
+kullanıyor. Ayrı dursaydı biri "Reels" derken diğeri "Video" diyebilir, aynı içerik iki farklı
+adla görünürdü — daha önce sıralama ve durum etiketlerinde bu kuralı koymuştuk, tür
+etiketlerinde de aynısı geçerli.
+
+Renkler her iki temada da (koyu/açık) okunacak şekilde sabit seçildi.

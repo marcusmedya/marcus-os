@@ -10,6 +10,7 @@
 import React, { useState, useEffect } from "react";
 import {
   tarihGoster, cancelBtnStyle, haftaBaslangici, reklamDurumu, musteriHatirlaniyorMu, FONTS, basligiTemizle, istatistikVarMi, authHeaders,
+  turEtiketi, TurRozet,
 } from "./tema.jsx";
 import { LogOut, Trash2 } from "lucide-react";
 import { driveEmbedUrl, DriveGorsel, DriveVideo, driveGorselAdaylari, DriveKucukGorsel } from "./drive.jsx";
@@ -85,34 +86,6 @@ function LogoKilidi({ ajansLogo, markaLogo, marka, firmaAdi }) {
       <span style={{ color: MT.cizgiKoyu, fontSize: 17, fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>×</span>
       {gorsel(markaLogo, marka, false)}
     </div>
-  );
-}
-
-/* İÇERİK TÜRÜ ETİKETLERİ
- * Müşteri "Video / Fotoğraf / Grafik Tasarım" gibi üretim kategorilerini değil, kendi
- * dilindeki karşılıklarını görmeli: Reels, Görsel, Tasarım. Etiket hem renkli bir rozet
- * olarak hem de listeyi bölümlere ayırmak için kullanılıyor. */
-const TUR_ETIKET = {
-  "Video": { ad: "Reels", renk: "#7C3AED", zemin: "#F1ECFD" },
-  "Fotoğraf": { ad: "Görsel", renk: "#0E7490", zemin: "#E5F4F7" },
-  "Grafik Tasarım": { ad: "Tasarım", renk: "#B45309", zemin: "#FDF3E7" },
-  "cekim": { ad: "Çekim Planı", renk: "#5B5BD6", zemin: "#EEEEFB" },
-  "video": { ad: "Reels", renk: "#7C3AED", zemin: "#F1ECFD" },
-  "gorsel": { ad: "Görsel", renk: "#0E7490", zemin: "#E5F4F7" },
-};
-const turEtiketi = (anahtar) => TUR_ETIKET[anahtar] || { ad: String(anahtar || "İçerik"), renk: MT.soluk, zemin: MT.kagit };
-
-/** Küçük tür rozeti. */
-function TurRozet({ anahtar }) {
-  const e = turEtiketi(anahtar);
-  return (
-    <span style={{
-      display: "inline-block", padding: "2px 9px", borderRadius: 999,
-      background: e.zemin, color: e.renk,
-      fontFamily: "Inter, sans-serif", fontSize: 10.5, fontWeight: 700, whiteSpace: "nowrap",
-    }}>
-      {e.ad}
-    </span>
   );
 }
 

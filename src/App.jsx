@@ -33,7 +33,7 @@ import {
   reklamDurumu, reklamMetrikleri, istatistikVarMi, OLCUM_ALANLARI, olcumKarsilastir,
   basligiTemizle, haftaBaslangici, tarihGoster, bugunISOTarih, parseTrTarih, tarihIso,
   TR_AYLAR_KISA, MUSTERI_DURUM_ETIKET, markaAnahtari,
-  useDuzenlemeKilidi, KilitUyarisi, MarkaSecici, FieldForm, temaOku, temaUygula,
+  useDuzenlemeKilidi, KilitUyarisi, MarkaSecici, FieldForm, temaOku, temaUygula, TurRozet, turEtiketi,
 } from "./tema.jsx";
 import { DriveGorsel, DriveVideo, driveEmbedUrl, VIDEO_YONLERI, DriveKucukGorsel } from "./drive.jsx";
 import { InstagramOnizleme, InstagramIzgara, aylikRaporAc } from "./instagram.jsx";
@@ -524,6 +524,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
   const [gorselHata, setGorselHata] = useState("");
   const [acikDetayId, setAcikDetayId] = useState(null); // detayı açık olan çekim planı
   const [bildirimDurumu, setBildirimDurumu] = useState("");
+  const [turSuzgec, setTurSuzgec] = useState("hepsi"); // Reels / Görsel / Tasarım ayrımı
   /* OPERASYON KARTI ALANLARI
    * Elle eklenen içerik artık doğrudan bir Operasyon kartı olur. Eskiden yalnızca müşteri
    * paneline düşüyordu ve Operasyon'da hiç görünmüyordu — iki taraf birbirinden habersiz
@@ -548,7 +549,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
    *
    * Sıra numarası KAYITTA saklanır, ekranda hesaplanmaz — müşteri paneli de aynı sırayı
    * görsün diye. İki taraf farklı sıralarsa "hangisi doğru?" sorusu doğardı. */
-  const kendiListesi = (icerikler || [])
+  const kendiListesiHam = (icerikler || [])
     .filter((i) => String(i.clientId) === String(clientId))
     .slice()
     .sort((a, b) => {
@@ -559,6 +560,13 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
       if (bs !== null) return 1;
       return a.durum === "bekliyor" ? -1 : 1; // eski davranış
     });
+
+  /* TÜR AYRIMI — müşteri panelindekiyle aynı etiketler (Reels / Görsel / Tasarım).
+   * Süzgeç yalnızca listede birden fazla tür varsa çıkar; tek türlü listede gereksiz. */
+  const mevcutTurler = [...new Set(kendiListesiHam.map((i) => i.tur).filter(Boolean))];
+  const kendiListesi = turSuzgec === "hepsi"
+    ? kendiListesiHam
+    : kendiListesiHam.filter((i) => turEtiketi(i.tur).ad === turEtiketi(turSuzgec).ad);
 
   /** Bir kaydı listede yukarı/aşağı taşır.
    * Taşıma sırasında TÜM listeye sıra numarası yazılır — yalnızca iki kaydı değiştirmek,
@@ -692,10 +700,10 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                         style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: i.tur === "cekim" ? "pointer" : "default", fontFamily: "inherit", flex: 1, minWidth: 0 }}
                         title={i.tur === "cekim" ? "Çekim planının detayını göster" : undefined}
                       >
-                        <div style={{ fontSize: 12, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
-                          {i.tur === "cekim" && <span style={{ color: T.accentText, fontWeight: 700 }}>🎬 </span>}
-                          {basligiTemizle(i.aciklama) || (i.tur === "gorsel" ? "Görsel" : i.tur === "cekim" ? "Çekim Planı" : "Video")} <span style={{ color: T.textFaint, fontWeight: 400 }}>· {i.tarih}</span>
-                          {i.guncellemeTarihi && <span style={{ color: T.textFaint, fontWeight: 400 }}> · düzenlendi {i.guncellemeTarihi}</span>}
+                        <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", fontSize: 12, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
+                          <TurRozet anahtar={i.tur} />
+                          <span>{basligiTemizle(i.aciklama) || turEtiketi(i.tur).ad} <span style={{ color: T.textFaint, fontWeight: 400 }}>· {i.tarih}</span>
+                          {i.guncellemeTarihi && <span style={{ color: T.textFaint, fontWeight: 400 }}> · düzenlendi {i.guncellemeTarihi}</span>}</span>
                         </div>
                         {i.revizeNotu && <div style={{ fontSize: 11, color: T.danger, fontFamily: "Inter", fontStyle: "italic" }}>"{i.revizeNotu}"</div>}
                       </button>
