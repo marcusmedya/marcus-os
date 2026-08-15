@@ -2042,3 +2042,31 @@ göremedi — artık **kapsam farkında**: bir ad, başka bir bileşenin paramet
 
 Bilinen sınırı `testler/OKUBENI.md`'ye yazıldı: doğrudan `{ad}` kullanımlarını yakalar, bir
 fonksiyon çağrısının içinde geçeni göremez.
+
+## Güncelleme 91: "Revize İstediklerin" Sekmesinde Siyah Ekran
+
+Yeni sekmelere tıklandığında sayfa siyah oluyordu.
+
+**Sebep:** Durum etiketleri (`DURUM_STIL`) **MusteriPaneli bileşeninin içinde** tanımlıydı.
+Yeni `DurumListesi` bileşeni onu kullanıyordu ama başka bir bileşenin içindeki bir tanıma
+erişemez. Kod sözdizimi olarak geçerli; hata ancak o bileşen **ekrana geldiğinde** ortaya
+çıkıyor — yani o sekmeye tıklandığında.
+
+**Düzeltme:** `DURUM_STIL` modül seviyesine taşındı, iki bileşen de erişiyor. Bileşenden
+kalan fazladan bir kapanış etiketi de temizlendi.
+
+### On ikinci denetleyici
+Bu hata **on bir denetleyicinin hepsinden geçti.** Hiçbiri "bu ad hangi kapsamda tanımlı"
+sorusunu sormuyordu.
+
+`testler/kapsamdenetle.py` eklendi: dosyayı bileşenlere böler, bir bileşenin içinde tanımlanan
+sabitin başka bir bileşende kullanılıp kullanılmadığına bakar. Bozuk hâliyle test edildi,
+hatayı adıyla bildiriyor:
+
+```
+✗ DURUM_STIL: MusteriPaneli içinde tanımlı, DurumListesi kullanıyor
+```
+
+Bu, aynı kök sebebin bir başka yüzü: bileşen çıkarırken taşınan kodun bağımlılıkları geride
+kalıyor. Artık bu sınıfın üç biçimi de yakalanıyor — eksik import (5), tanımsız değişken (10),
+kapsam dışı kullanım (12).

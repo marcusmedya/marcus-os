@@ -88,6 +88,15 @@ function LogoKilidi({ ajansLogo, markaLogo, marka, firmaAdi }) {
   );
 }
 
+/* Durum etiketleri MODÜL SEVİYESİNDE tutulur: hem MusteriPaneli hem DurumListesi kullanıyor.
+ * Bir bileşenin içinde tanımlıyken diğeri onu göremiyordu ve o sekmeye tıklandığında sayfa
+ * çöküyordu — bileşen ekrana gelmeden hata ortaya çıkmadığı için gözden kaçmıştı. */
+const DURUM_STIL = {
+  bekliyor: { label: "İncelemeni Bekliyor", color: MT.bekleyen, bg: MT.bekleyenZemin },
+  onaylandi: { label: "Onayladın ✓", color: MT.onay, bg: MT.onayZemin },
+  revize: { label: "Revize İstedin", color: MT.revize, bg: MT.revizeZemin },
+};
+
 /** Durum damgası. Onay ve revize, bir provaya vurulan mühür gibi gösterilir — panelin
  * tamamı bir baskı provası mantığında kurulduğu için tek "cesur" öğe burası; gerisi sakin. */
 function Damga({ durum }) {
@@ -190,12 +199,6 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi }) {
       })
       .catch(() => window.alert("Bağlantı hatası — tekrar dene."))
       .finally(() => setGonderiliyor(null));
-  };
-
-  const DURUM_STIL = {
-    bekliyor: { label: "İncelemeni Bekliyor", color: MT.bekleyen, bg: MT.bekleyenZemin },
-    onaylandi: { label: "Onayladın ✓", color: MT.onay, bg: MT.onayZemin },
-    revize: { label: "Revize İstedin", color: MT.revize, bg: MT.revizeZemin },
   };
 
   /* Yöneticinin belirlediği sırayı müşteri de AYNEN görür. İki taraf farklı sıralarsa
@@ -565,7 +568,6 @@ function DurumListesi({ liste, hazirListe, acikId, setAcikId, baslik, bosMetin }
     <>
       <div style={{ ...ETIKET, marginBottom: 12 }}>{baslik} · {toplam} içerik</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {liste.map((icerik) => {
                 const stil = DURUM_STIL[icerik.durum] || DURUM_STIL.bekliyor;
                 const acik = acikId === icerik.id;
@@ -632,7 +634,6 @@ function DurumListesi({ liste, hazirListe, acikId, setAcikId, baslik, bosMetin }
                   </div>
                 );
               })}
-            </div>
       </div>
     </>
   );
