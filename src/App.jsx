@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import TeklifSozlesme from "./TeklifSozlesme.jsx";
-import CekimEditTakibi, { operasyonAylikHakEdis, operasyonKisiIsimleri, ASAMALAR_VIDEO, ASAMALAR_TASARIM, AylikIsRaporu } from "./CekimEditTakibi.jsx";
+import CekimEditTakibi, { operasyonAylikHakEdis, operasyonKisiIsimleri, ASAMALAR_VIDEO, ASAMALAR_TASARIM, AylikIsRaporu, KATEGORILER, asamaListesi, ILK_ASAMA, ciktiVideoMu } from "./CekimEditTakibi.jsx";
 import {
   LayoutDashboard, Users, Wallet, Settings, Sparkles,
   ArrowUpRight, ArrowDownRight, X, Send, Plus, Pencil, Trash2, Check,
@@ -841,7 +841,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                   {/* Onaylanınca Operasyon'da hangi akışa düşeceğini bu belirler. */}
                   <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 4 }}>Onaylanınca Operasyon'da açılacak iş türü</div>
                   <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-                    {["Video", "Grafik Tasarım"].map((k) => (
+                    {KATEGORILER.map((k) => (
                       <button
                         key={k}
                         onClick={() => setKategori(k)}
@@ -4631,11 +4631,14 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, reklamla
    * Her durumda aşamayı formdan değiştirebilirsin. */
   const varsayilanAsama = (kategori, onaylandiMi) => {
     if (!onaylandiMi) return "Revize İstendi";
-    return kategori === "Grafik Tasarım" ? "Tasarım Bekliyor" : "Çekim Yapıldı";
+    // Fotoğrafta ilk aşama zaten "Çekim Yapıldı" — plan onaylandığında çekim yapılmış olur.
+    if (kategori === "Grafik Tasarım") return "Tasarım Bekliyor";
+    if (kategori === "Fotoğraf") return "Çekim Yapıldı";
+    return "Çekim Yapıldı";
   };
 
   const formuAc = (i) => {
-    const kat = i.kategori === "Grafik Tasarım" ? "Grafik Tasarım" : "Video";
+    const kat = KATEGORILER.includes(i.kategori) ? i.kategori : "Video";
     const onaylandiMi = i.durum === "onaylandi";
     setAcikId(i.id);
     setForm({
@@ -4758,7 +4761,7 @@ function AktarimFormu({ i, form, setForm, kisiler, varsayilanAsama, onAktar, onV
     <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
       <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 5 }}>Hangi alana düşsün?</label>
       <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
-        {["Video", "Grafik Tasarım"].map((k) => (
+        {KATEGORILER.map((k) => (
           <button
             key={k}
             onClick={() => setForm((f) => ({ ...f, kategori: k, asama: varsayilanAsama(k, onaylandiMi) }))}
@@ -4779,7 +4782,7 @@ function AktarimFormu({ i, form, setForm, kisiler, varsayilanAsama, onAktar, onV
         <div style={{ flex: "1 1 160px" }}>
           <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Hangi aşamada başlasın?</label>
           <select value={form.asama} onChange={(e) => setForm((f) => ({ ...f, asama: e.target.value }))} style={{ ...inputStyle, marginBottom: 0 }}>
-            {(form.kategori === "Grafik Tasarım" ? ASAMALAR_TASARIM : ASAMALAR_VIDEO)
+            {asamaListesi(form.kategori)
               .filter((a) => a !== "Teslim Edildi")
               .map((a) => <option key={a} value={a}>{a}</option>)}
           </select>
@@ -4798,7 +4801,7 @@ function AtanmamisIsSatiri({ job, kisiler, onAta }) {
   const [acik, setAcik] = useState(false);
   const [kameraman, setKameraman] = useState("");
   const [editor, setEditor] = useState("");
-  const video = job.kategori !== "Grafik Tasarım";
+  const video = ciktiVideoMu(job.kategori); // fotoğraf ve tasarımın çıktısı görseldir
 
   const kaydet = () => {
     if (!kameraman && !editor) { window.alert("En az bir kişi seç."); return; }
@@ -6735,7 +6738,7 @@ export default function MarcusOS() {
   });
 
   const addCekimIsi = (job) => {
-    setData((d) => ({ ...d, cekimIsleri: [...(d.cekimIsleri || []), { ...job, id: nextId(d.cekimIsleri || []), asama: job.kategori === "Grafik Tasarım" ? "Talep Alındı" : "Çekim Planlandı", yorumlar: [], gecmis: [{ id: nextId([]), tarih: new Date().toLocaleString("tr-TR"), yazan: "Yönetici", aciklama: "İş oluşturuldu" }] }] }));
+    setData((d) => ({ ...d, cekimIsleri: [...(d.cekimIsleri || []), { ...job, id: nextId(d.cekimIsleri || []), asama: ILK_ASAMA(job.kategori), yorumlar: [], gecmis: [{ id: nextId([]), tarih: new Date().toLocaleString("tr-TR"), yazan: "Yönetici", aciklama: "İş oluşturuldu" }] }] }));
 
     // Atanan kişi kayıtlı bir personelse ve e-postası varsa, iş atandığını bildiren bir e-posta gönder.
     // Türkçe İ/I/ı/i karakterleri normal .toLowerCase() ile yanlış eşleşebildiği için "tr" yerel ayarı kullanılıyor.
@@ -6921,7 +6924,8 @@ export default function MarcusOS() {
     if (!icerik) return d;
     const isler = d.cekimIsleri || [];
     const zaman = new Date().toLocaleString("tr-TR");
-    const kat = icerik.kategori === "Grafik Tasarım" ? "Grafik Tasarım" : "Video";
+    const kat = KATEGORILER.includes(icerik.kategori) ? icerik.kategori : "Video";
+    // Video ve Fotoğraf çekimle başlar; tasarımda çekim yoktur.
     const hedefAsama = kat === "Grafik Tasarım" ? "Tasarım Bekliyor" : "Çekim Yapıldı";
 
     // Zaten bağlı bir iş varsa onu ilerlet — ikinci bir kart açma.
@@ -7196,7 +7200,7 @@ export default function MarcusOS() {
 
     // Yoksa yeni iş aç
     const yeniId = isler.reduce((m, j) => Math.max(m, Number(j.id) || 0), 0) + 1;
-    const kat = kategori === "Grafik Tasarım" ? "Grafik Tasarım" : "Video";
+    const kat = KATEGORILER.includes(kategori) ? kategori : "Video";
     const yeniIs = {
       id: yeniId,
       kategori: kat,

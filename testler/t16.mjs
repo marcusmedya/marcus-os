@@ -80,3 +80,24 @@ kontrol("onaylı + teslim 'onaylandi' altında", durumlar("onaylandi").sort().jo
 kontrol("üretimdeki iş görünmüyor", !JSON.stringify(hepsi).includes("GORUNMEMELI"));
 kontrol("revize notu taşınıyor", (hepsi.find(x=>x.durum==="revize")||{}).revizeNotu === "Müzik");
 console.log(`\nGENEL: ${g} geçti, ${k} kaldı`);
+
+// EK: Fotograf kategorisi musteri paneline dusuyor mu
+await kv.set("marcus-os-data", {
+  _v: 1,
+  clients: [{ id: 1, ad: "Kanatçı Diren" }],
+  musteriHesaplari: [{ id: "m1", ad: "Diren", kullaniciAdi: "diren", clientId: 1, sifreHash: hash("1234", "s"), sifreSalt: "s" }],
+  cekimIsleri: [
+    { id: 30, marka: "Kanatçı Diren", kategori: "Fotoğraf", asama: "Kontrol Bekliyor", icerikTuru: "Menü Fotoğrafları", editliDosyaLink: "https://drive.google.com/file/d/X/view" },
+    { id: 31, marka: "Kanatçı Diren", kategori: "Fotoğraf", asama: "Düzenleniyor", icerikTuru: "GORUNMEMELI" },
+  ],
+  musteriIcerikleri: [],
+});
+r = await cagir(h, { method: "GET", headers: M, query: {}, body: {} });
+const foto = (r.govde.hazirIcerikler || []);
+kontrol("Fotoğraf işi müşteriye düşüyor", foto.some(x => x.baslik === "Menü Fotoğrafları"), `${foto.length} kart`);
+kontrol("Fotoğraf kategorisi taşınıyor", (foto[0] || {}).kategori === "Fotoğraf");
+kontrol("Düzenleniyor aşaması görünmüyor", !JSON.stringify(foto).includes("GORUNMEMELI"));
+r = await cagir(h, { method: "POST", headers: M, query: {}, body: { musteriAction: "onayla", isId: 30 } });
+let sonF = await kv.get("marcus-os-data");
+kontrol("Fotoğraf onayı → Onaylandı", (sonF.cekimIsleri.find(j=>j.id===30)||{}).asama === "Onaylandı", `HTTP ${r.kod}`);
+console.log(`\nTOPLAM: ${g} geçti, ${k} kaldı`);

@@ -399,7 +399,7 @@ export default async function handler(req, res) {
           isId: j.id,
           durum: ASAMA_DURUM[j.asama],
           revizeNotu: j.musteriRevizeNotu || null,
-          baslik: j.icerikTuru || (j.kategori === "Grafik Tasarım" ? "Tasarım" : "Video"),
+          baslik: j.icerikTuru || j.kategori || "Video",
           kategori: j.kategori || "Video",
           dosyaLinki: j.editliDosyaLink || j.hamDosyaLink || null,
           videoYonu: j.videoYonu || null,

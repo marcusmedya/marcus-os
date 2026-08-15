@@ -664,7 +664,8 @@ function HazirIcerikler({ liste, gonderiliyor, onIslem, basliksiz = false, saltO
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         {liste.map((h, sira) => {
           const acik = acikId === h.isId;
-          const video = h.kategori !== "Grafik Tasarım";
+          // Yalnızca Video kategorisinin çıktısı videodur; Fotoğraf ve Tasarım görseldir.
+          const video = (h.kategori || "Video") === "Video";
           return (
             <div key={h.isId} style={{ background: MT.kart, border: `1px solid ${acik ? MT.cizgiKoyu : MT.cizgi}`, borderRadius: 12, overflow: "hidden" }}>
               <button

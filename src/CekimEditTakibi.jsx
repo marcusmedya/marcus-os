@@ -33,7 +33,7 @@ const C = {
   get warningSoft() { return T.warningSoft; },
 };
 
-export const KATEGORILER = ["Video", "Grafik Tasarım"];
+export const KATEGORILER = ["Video", "Fotoğraf", "Grafik Tasarım"];
 
 /** Google Drive paylaşım linkini, sayfa içinde doğrudan oynatılabilir (gömülü) önizleme
  * formatına çevirir. Dönüştürülemezse null döner, o zaman normal link olarak gösterilir. */
@@ -151,10 +151,33 @@ export const ASAMALAR_TASARIM = [
 ];
 /** Geriye dönük uyumluluk: kategorisiz eski kayıtlar Video akışını kullanır. */
 export const ASAMALAR = ASAMALAR_VIDEO;
-export const asamaListesi = (kategori) => (kategori === "Grafik Tasarım" ? ASAMALAR_TASARIM : ASAMALAR_VIDEO);
+/* FOTOĞRAF akışı bilerek kısa tutuldu (kullanıcının tercihi): çekim yapılır, düzenlenir,
+ * kontrole çıkar. Video'daki "Dosyalar Aktarıldı / Edit Bekliyor" ayrımı fotoğrafta bir işe
+ * yaramıyor — fotoğrafçı çekimi bitirir bitirmez düzenlemeye geçiyor. */
+export const ASAMALAR_FOTOGRAF = [
+  "Çekim Yapıldı", "Düzenleniyor", "Kontrol Bekliyor", "Revize İstendi", "Onaylandı", "Teslim Edildi",
+];
+
+const ASAMA_TABLOSU = {
+  "Video": ASAMALAR_VIDEO,
+  "Fotoğraf": ASAMALAR_FOTOGRAF,
+  "Grafik Tasarım": ASAMALAR_TASARIM,
+};
+/** Kategorisiz eski kayıtlar Video akışını kullanır (geriye dönük uyumluluk). */
+export const asamaListesi = (kategori) => ASAMA_TABLOSU[kategori] || ASAMALAR_VIDEO;
+
+/** Bir kategorinin ilk aşaması — yeni iş oluşturulurken kullanılır. */
+export const ILK_ASAMA = (kategori) => asamaListesi(kategori)[0];
+
+/** Çıktısı video mu? Fotoğraf ve tasarımın çıktısı GÖRSELDİR; oynatıcı yerine görsel
+ * önizleme gösterilmeli. Eskiden "Grafik Tasarım değilse video" varsayılıyordu. */
+export const ciktiVideoMu = (kategori) => (kategori || "Video") === "Video";
+
+/** Çekim içeren kategoriler — kameraman alanı yalnızca bunlarda anlamlı. */
+export const cekimVarMi = (kategori) => (kategori || "Video") !== "Grafik Tasarım";
 /** O kategoride "işin bizzat yapıldığı" aşama — "Tamamladım" butonunun tetiklendiği yer. */
-const YAPILIYOR_ASAMASI = { "Video": "Edit Yapılıyor", "Grafik Tasarım": "Tasarım Yapılıyor" };
-const TAMAMLADIM_ETIKETI = { "Video": "Editi Tamamladım", "Grafik Tasarım": "Tasarımı Tamamladım" };
+const YAPILIYOR_ASAMASI = { "Video": "Edit Yapılıyor", "Fotoğraf": "Düzenleniyor", "Grafik Tasarım": "Tasarım Yapılıyor" };
+const TAMAMLADIM_ETIKETI = { "Video": "Editi Tamamladım", "Fotoğraf": "Düzenlemeyi Tamamladım", "Grafik Tasarım": "Tasarımı Tamamladım" };
 
 const ONCELIKLER = ["Düşük", "Normal", "Yüksek"];
 const ONCELIK_RENK = { "Düşük": C.textFaint, "Normal": C.accentText, "Yüksek": C.danger };
@@ -280,12 +303,12 @@ function IsKarti({ job, onClick, draggable, onDragStart }) {
         <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{job.marka}</div>
         <span style={{ width: 7, height: 7, borderRadius: 999, background: ONCELIK_RENK[job.oncelik], flexShrink: 0, marginTop: 4 }} title={`Öncelik: ${job.oncelik}`} />
       </div>
-      {job.kategori === "Grafik Tasarım" && job.editliDosyaLink && (
+      {!ciktiVideoMu(job.kategori) && job.editliDosyaLink && (
         <DriveGorsel link={job.editliDosyaLink} C={C} yukseklik={110} kapak kucuk />
       )}
       <div style={{ fontSize: 11.5, color: C.textDim, marginBottom: 8 }}>{job.icerikTuru}{job.kategori ? ` · ${job.kategori}` : ""}</div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: C.textFaint, marginBottom: 8 }}>
-        <span>{job.kameraman || job.editor || "—"}{job.kategori !== "Grafik Tasarım" && job.editor ? ` / ${job.editor}` : ""}</span>
+        <span>{job.kameraman || job.editor || "—"}{cekimVarMi(job.kategori) && job.editor ? ` / ${job.editor}` : ""}</span>
         <span style={{ color: stil.color, fontWeight: 600 }}>{job.teslimTarihi}</span>
       </div>
       <div style={{ height: 4, borderRadius: 999, background: C.borderSoft, overflow: "hidden" }}>
@@ -387,7 +410,7 @@ function YeniIsFormu({ clients, personelRosteri, varsayilanKategori, onSubmit, o
     kameraman: "", editor: "", oncelik: "Normal", istenenAdet: "", uretilenAdet: "", brief: "",
   });
   const set = (k, val) => setV((s) => ({ ...s, [k]: val }));
-  const video = v.kategori !== "Grafik Tasarım";
+  const video = cekimVarMi(v.kategori); // çekim alanları (kameraman, çekim tarihi) gösterilsin mi
   return (
     <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, marginBottom: 16 }}>
       <label style={labelStyle}>Kategori</label>
@@ -473,7 +496,7 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
     asamaGecir(hedefAsama, "geri alındı");
   };
 
-  const kategori = job.kategori === "Grafik Tasarım" ? "Grafik Tasarım" : "Video";
+  const kategori = KATEGORILER.includes(job.kategori) ? job.kategori : "Video";
   const asamalar = asamaListesi(kategori);
   const editiTamamla = () => asamaGecir("Kontrol Bekliyor", TAMAMLADIM_ETIKETI[kategori]);
   const revizeyiTamamla = () => asamaGecir("Kontrol Bekliyor", "Revize Tamamlandı");
@@ -579,10 +602,10 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
             <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
               <MarkaSeciciAlan clients={clients} deger={taslak.marka} onDegis={(x) => setTaslak((s) => ({ ...s, marka: x }))} />
               <div><label style={labelStyle}>İçerik Türü</label><input style={inputStyle} value={taslak.icerikTuru} onChange={(e) => setTaslak((s) => ({ ...s, icerikTuru: e.target.value }))} /></div>
-              {taslak.kategori !== "Grafik Tasarım" && <div><label style={labelStyle}>Çekim Tarihi</label><input type="date" style={inputStyle} value={taslak.cekimTarihi} onChange={(e) => setTaslak((s) => ({ ...s, cekimTarihi: e.target.value }))} /></div>}
+              {cekimVarMi(taslak.kategori) && <div><label style={labelStyle}>Çekim Tarihi</label><input type="date" style={inputStyle} value={taslak.cekimTarihi} onChange={(e) => setTaslak((s) => ({ ...s, cekimTarihi: e.target.value }))} /></div>}
               <div><label style={labelStyle}>Teslim Tarihi</label><input type="date" style={inputStyle} value={taslak.teslimTarihi} onChange={(e) => setTaslak((s) => ({ ...s, teslimTarihi: e.target.value }))} /></div>
-              {taslak.kategori !== "Grafik Tasarım" && <div><label style={labelStyle}>Kameraman</label><PersonelSecici value={taslak.kameraman} onChange={(val) => setTaslak((s) => ({ ...s, kameraman: val }))} personelRosteri={personelRosteri} /></div>}
-              <div><label style={labelStyle}>{taslak.kategori !== "Grafik Tasarım" ? "Editör" : "Tasarımcı"}</label><PersonelSecici value={taslak.editor} onChange={(val) => setTaslak((s) => ({ ...s, editor: val }))} personelRosteri={personelRosteri} /></div>
+              {cekimVarMi(taslak.kategori) && <div><label style={labelStyle}>Kameraman</label><PersonelSecici value={taslak.kameraman} onChange={(val) => setTaslak((s) => ({ ...s, kameraman: val }))} personelRosteri={personelRosteri} /></div>}
+              <div><label style={labelStyle}>{taslak.kategori === "Grafik Tasarım" ? "Tasarımcı" : taslak.kategori === "Fotoğraf" ? "Düzenleyen" : "Editör"}</label><PersonelSecici value={taslak.editor} onChange={(val) => setTaslak((s) => ({ ...s, editor: val }))} personelRosteri={personelRosteri} /></div>
               <div>
                 <label style={labelStyle}>Öncelik</label>
                 <select style={inputStyle} value={taslak.oncelik} onChange={(e) => setTaslak((s) => ({ ...s, oncelik: e.target.value }))}>
@@ -660,17 +683,17 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
                    * anında gösterilir. Video'da ise Drive'ın /preview'ı kullanılır — tarayıcıların
                    * otomatik oynatma kısıtlaması yüzünden oynatmak için bir tık gerekiyor, bu
                    * platform kısıtı, tamamen kaldırılamıyor. */}
-                  {job.editliDosyaLink && kategori === "Grafik Tasarım" && (
+                  {job.editliDosyaLink && !ciktiVideoMu(kategori) && (
                     <DriveGorsel link={job.editliDosyaLink} C={C} yukseklik={420} />
                   )}
-                  {job.editliDosyaLink && kategori !== "Grafik Tasarım" && !driveEmbedUrl(job.editliDosyaLink) && (
+                  {job.editliDosyaLink && ciktiVideoMu(kategori) && !driveEmbedUrl(job.editliDosyaLink) && (
                     <div style={{ width: "100%", borderRadius: 10, background: C.panelAlt, border: `1px dashed ${C.border}`, padding: "14px 16px", fontSize: 12, color: C.textFaint, lineHeight: 1.6 }}>
                       {driveKlasorMu(job.editliDosyaLink)
                         ? "Bu bir Drive klasör bağlantısı — klasörler oynatıcı olarak gösterilemez. Tek bir video dosyasının bağlantısını yapıştır."
                         : "Bu bağlantıdan bir Drive dosyası tanınamadı — oynatıcı gösterilemiyor. Bağlantının drive.google.com/file/d/... biçiminde olduğundan emin ol."}
                     </div>
                   )}
-                  {job.editliDosyaLink && kategori !== "Grafik Tasarım" && driveEmbedUrl(job.editliDosyaLink) && (
+                  {job.editliDosyaLink && ciktiVideoMu(kategori) && driveEmbedUrl(job.editliDosyaLink) && (
                     <>
                       {/* Oynatıcı çerçevesi videonun yönüne göre şekillenir. Sabit 16:9 çerçevede
                         * dikey (Reels) videolar ortada küçük kalıp iki yanı siyah bantla doluyordu.
@@ -1420,7 +1443,7 @@ export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, 
     );
   }
 
-  const panoIsleri = isler.filter((j) => (j.kategori === "Grafik Tasarım" ? "Grafik Tasarım" : "Video") === panoKategori);
+  const panoIsleri = isler.filter((j) => (KATEGORILER.includes(j.kategori) ? j.kategori : "Video") === panoKategori);
   const panoAsamalari = asamaListesi(panoKategori);
 
   return (

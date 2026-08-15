@@ -2070,3 +2070,41 @@ hatayı adıyla bildiriyor:
 Bu, aynı kök sebebin bir başka yüzü: bileşen çıkarırken taşınan kodun bağımlılıkları geride
 kalıyor. Artık bu sınıfın üç biçimi de yakalanıyor — eksik import (5), tanımsız değişken (10),
 kapsam dışı kullanım (12).
+
+## Güncelleme 92: Fotoğraf Kategorisi
+
+Operasyon'da Video ve Grafik Tasarım vardı; **fotoğraf çekimi** için bir yer yoktu. Eklendi.
+
+### Aşamalar (bilerek kısa)
+```
+Çekim Yapıldı → Düzenleniyor → Kontrol Bekliyor → Revize İstendi → Onaylandı → Teslim Edildi
+```
+Video'daki "Dosyalar Aktarıldı / Edit Bekliyor" ayrımı fotoğrafta bir işe yaramıyor —
+fotoğrafçı çekimi bitirir bitirmez düzenlemeye geçiyor.
+
+### Yapısal değişiklik
+Kategori, kodun **15 ayrı yerinde** "Grafik Tasarım mı, değilse Video" biçiminde ikili kontrol
+olarak duruyordu. Üçüncü kategori bu yapıya sığmıyordu; hepsi tabloya çevrildi:
+
+| Yardımcı | Ne yapar |
+|---|---|
+| `asamaListesi(kategori)` | O kategorinin aşama listesi |
+| `ILK_ASAMA(kategori)` | Yeni iş hangi aşamada başlar |
+| `ciktiVideoMu(kategori)` | Çıktı video mu, görsel mi |
+| `cekimVarMi(kategori)` | Kameraman/çekim tarihi alanları gösterilsin mi |
+
+Bu, gizli bir hatayı da düzeltti: çıktı türü "Grafik Tasarım değilse video" varsayılıyordu.
+Fotoğraf işlerinde bu yanlış olurdu — video oynatıcı açılıp görsel gösterilmezdi. Artık
+**yalnızca Video kategorisinin çıktısı video**; fotoğraf ve tasarım görsel olarak önizleniyor.
+
+### Alan adları kategoriye göre
+Editör alanı artık Video'da "Editör", Fotoğraf'ta "Düzenleyen", Tasarım'da "Tasarımcı".
+Fotoğrafta kameraman ve çekim tarihi alanları duruyor (tasarımda gizli).
+
+### Geriye dönük uyumluluk
+Kategorisi olmayan eski kayıtlar Video akışını kullanmaya devam ediyor — test edildi.
+
+### Doğrulama
+11 kategori mantığı kontrolü (ilk aşamalar, çıktı türü, eski kayıtlar) + 4 uçtan uca sunucu
+kontrolü: fotoğraf işi müşteri paneline düşüyor, kategori taşınıyor, ara aşama görünmüyor,
+onay Operasyon'da doğru sütuna geçiyor.
