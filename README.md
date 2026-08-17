@@ -3093,3 +3093,21 @@ Menü artık **6 satır** (önce 7, başlangıçta 18).
 
 ### Doğrulama
 16 menü maddesinin hepsi kapsanıyor, kapsanmayan yok. 16 kod denetimi + 30 test dosyası temiz.
+
+## Güncelleme 126: Menü Sırası
+
+Kullanıcının istediği sıra:
+
+```
+Dashboard
+👥 MÜŞTERİ      Müşteriler · Müşteri Paneli · Teklif & Sözleşme · Reklamlar
+💰 PARA         Finans · Ödeme Takvimi · Personel · Birikim · Üyelikler
+📹 ÜRETİM       Operasyon · Çekim · Günlük Kontrol · Paylaşımlar
+⚙️ SİSTEM       Ayarlar
+🔑 Şifre Kasası
+```
+
+Şifre Kasası grupların üstündeydi, artık en altta ve gruplu değil — tek başına bir madde
+olarak duruyor.
+
+16 menü maddesinin hepsi hâlâ kapsanıyor, kapsanmayan yok. Tanıtım dosyası da güncellendi.

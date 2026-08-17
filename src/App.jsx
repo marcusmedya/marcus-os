@@ -6495,11 +6495,14 @@ function SaveBlockedModal({ info, onCancel, onForce }) {
 /* Planım artık Dashboard'ın içinde, Takvim kaldırıldı (vergi kayıtları Finans'tan
  * düzenlenebiliyor, ayrı bir takvim görünümüne gerek kalmadı).
  * Şifre Kasası gruptan çıkarılıp üst seviyeye alındı — sık ve tek başına açılıyor. */
-const NAV_UST = ["dashboard", "musteri-girisleri"];
+const NAV_UST = ["dashboard"];
+/* Şifre Kasası grupların ALTINDA duruyor — kullanıcının istediği sıra bu. Gruplu değil,
+ * tek başına bir madde. */
+const NAV_ALT = ["musteri-girisleri"];
 const NAV_GRUPLARI = [
-  { key: "uretim",  label: "Üretim",         icon: Camera,     maddeler: ["cekim-edit", "cekim-listesi", "gunluk-kontrol", "paylasimlar"] },
   { key: "musteri", label: "Müşteri",        icon: Users,      maddeler: ["musteriler", "musteri-paneli", "teklif", "reklamlar"] },
   { key: "para",    label: "Para",           icon: Wallet,     maddeler: ["finans", "odeme-takvimi", "personel", "birikim", "uyelikler"] },
+  { key: "uretim",  label: "Üretim",         icon: Camera,     maddeler: ["cekim-edit", "cekim-listesi", "gunluk-kontrol", "paylasimlar"] },
   { key: "sistem",  label: "Sistem",         icon: Settings,   maddeler: ["ayarlar"] },
 ];
 
@@ -8388,6 +8391,8 @@ export default function MarcusOS() {
                     </div>
                   );
                 })}
+
+                {NAV_ALT.map((k) => madde(k))}
               </>
             );
           })()}
