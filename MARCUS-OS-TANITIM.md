@@ -100,8 +100,12 @@ Tüm veri **tek bir JSON nesnesi** olarak Redis'te durur. 28 ana alan:
    sebebi budur.
 
 3. **Kârlılık tutar üzerinden ölçülür, yüzde üzerinden değil.** Maliyetler *doğrudan*
-   maliyetlerdir (elle girilen kalemler + o markanın freelancer iş ücretleri + reklam
-   bütçesi). Maaşlı ekip zamanı hiçbir müşteriye dağıtılmaz.
+   maliyetlerdir: elle girilen kalemler + o markanın o ayki freelancer iş ücretleri.
+   Maaşlı ekip zamanı hiçbir müşteriye dağıtılmaz — bu yüzden doğrudan maliyeti olmayan bir
+   markanın marjı gerçekten %100'dür ve öyle hesaplanır.
+
+   **Reklam bütçesi maliyete DAHİL DEĞİLDİR.** O para müşterinin harcamasıdır, ajansın gideri
+   değil. Ajans reklam parasını kendi ödüyorsa Müşteri > Maliyetler kalemine girilmelidir.
 
 ---
 
@@ -110,13 +114,15 @@ Tüm veri **tek bir JSON nesnesi** olarak Redis'te durur. 28 ana alan:
 Sol menü altı satır, gruplu:
 
 ```
-Dashboard          → finansal KPI'lar ve "Bugünün Kararı"
+Dashboard          → finansal KPI'lar ve "Bugünün Kararı" (başka hiçbir şey yok)
 Planım             → kişisel görevler ve Onayını Bekleyenler kutusu
-MÜŞTERİ            Müşteriler · Teklif & Sözleşme · Reklamlar
+MÜŞTERİ            Müşteriler · Müşteri Hesapları · Teklif & Sözleşme · Reklamlar
 PARA               Finans · Ödeme Takvimi · Personel · Birikim · Üyelikler
 ÜRETİM             Operasyon · Çekim · Günlük Kontrol · Paylaşımlar · Müşteri Paneli
 Şifre Kasası       → müşteri hesaplarının sosyal medya şifreleri
 Ayarlar
+
+Sol menü kenarından sürüklenerek genişletilebilir (180–420 px), genişlik cihazda hatırlanır.
 ```
 
 ### Operasyon (iş takibi)
@@ -133,6 +139,14 @@ Reklamlar · Üretim Durumu.
 
 İçerik türleri müşteriye kendi dilinde gösterilir: **Reels · Görsel · Tasarım**
 (sistemdeki karşılıkları Video · Fotoğraf · Grafik Tasarım).
+
+### Finans
+İki ana rakam üstte: **Nakit Akışı** (bu ayki net) ve **Kasada Bulunan** (tüm hesapların
+türetilmiş bakiyesi). Altında ciro, KDV, tahsilat oranı, bekleyen ödeme.
+
+**Gider Dağılımı** kartı toplam gideri kalem kalem açar:
+Personel (maaş / SGK / yemek / kıdem tazminatı birikimi) · Ofis gideri · Müşteri maliyetleri ·
+Üyelikler · Diğer gider kalemleri. Sıfır olan kalemler gösterilmez.
 
 ### Bugünün Kararı (Dashboard)
 Yapay zeka **kullanmaz** — tamamen kural tabanlıdır, maliyeti sıfırdır. Verilerden doğrudan
@@ -207,7 +221,7 @@ Bu altyapı baştan planlanmadı — **her gerçek hatadan sonra bir denetim ekl
 
 ## 9. Bilinen sınırlar ve açık işler
 
-- Vercel Hobby: 11/12 fonksiyon dolu
+- Vercel Hobby: 11/12 fonksiyon dolu (1 boş slot)
 - `RESEND_API_KEY` doğrulanmadı — eksikse gece yedek e-postaları ve revize bildirimleri gitmez
 - Google Drive gerçek entegrasyonu yok (şu an yalnızca bağlantı saklanıyor)
 - Meta/Instagram reklam entegrasyonu araştırıldı ama yapılmadı
@@ -223,4 +237,4 @@ GitHub'a yüklüyor, Vercel otomatik yayına alıyor.
 **Dikkat:** GitHub'ın "Upload files" özelliği dosya **silmez.** Bir dosya kaldırıldığında
 kullanıcının elle silmesi gerekir, yoksa eski dosya repoda kalır.
 
-Şu anki sürüm: **v125**.
+Şu anki sürüm: **v136**.

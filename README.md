@@ -3375,3 +3375,48 @@ Sıfır olan kalemler hiç gösterilmiyor — boş satır kalabalığı olmuyor.
 Maaş, sigorta, yemek ve kıdem tazminatı **zaten** toplam gidere dahildi; sadece görünmüyordu.
 Toplamın birebir aynı kaldığı ayrıca doğrulandı: dağılım toplamı = toplam gider, personel alt
 kalemleri = personel gideri.
+
+## Güncelleme 137: Finans Beş Sekmeye Ayrıldı
+
+Bir muhasebe programı gibi görünüyordu. Artık bir işletme sahibinin kontrol paneli.
+
+### Yeni dosya: src/finans.jsx (777 satır)
+App.jsx 8.953 → 8.237 satır. Taşınanlar: `Finans`, `MiniList`, `Karsilastirma`,
+`HesapBakiyeleri`, `hesapBakiyesi` ve beş alan tanımı — hepsi **birebir**, içlerine
+dokunulmadan.
+
+### Sekmeler
+| Sekme | İçerik |
+|---|---|
+| **Özet** | 4 ana KPI · Bu Ay kartı · tahsilat çubuğu · Para Nereye Gidiyor? · Paralarım toplamı |
+| **Gelir-Gider** | Gelirler · Giderler · Ofis Giderleri · Faturalı İşler |
+| **Hesaplar** | Banka hareketleri, transfer, bakiye düzeltme |
+| **Vergi & Arşiv** | Vergi Takibi · Geçmiş Aylar · CSV · Ay kapatma |
+
+### Dört ana rakam
+KASADA · BU AY KAZANÇ · TAHSİL EDİLECEK · BU AY GİDER
+
+Ciro, KDV, faturalı ciro ve tahsilat oranı silinmedi — Bu Ay kartına indi.
+
+### Arayüz dili
+Nakit Akışı → **Bu Ay Kazanç** · Kasada Bulunan → **Kasada** · Bekleyen Ödeme →
+**Tahsil Edilecek** · Gider Dağılımı → **Para Nereye Gidiyor?** · Hesap Bakiyeleri →
+**Paralarım**
+
+### Bekleyen Tahsilatlar → Ödeme Takvimi
+Kullanıcının isteğiyle Finans'tan çıktı. Silinmedi, **taşındı** — ekleme ve silme işlevleri
+korundu, mevcut kayıtlara erişim sürüyor.
+
+### İki işlev artık gerçekten çalışıyor
+`onExport` (CSV) ve `onCloseMonth` (ay kapatma) v136'da Finans'a prop olarak geçiyor ama
+**hiçbir düğmeye bağlı değildi** — yani erişilemiyorlardı. Vergi & Arşiv sekmesine
+"Arşiv İşlemleri" kartı eklendi.
+
+### HESAPLAMA MOTORUNA DOKUNULMADI
+`tema.jsx` değiştirilmedi. Aynı veriyle v136 ve v137 karşılaştırıldı:
+
+**computeLive'ın döndürdüğü 24 değerin hepsi birebir aynı** — ciro, KDV, gider, net,
+tahsilat, personel gideri, bekleyen toplam dahil.
+
+21 finans işlevinin hepsi bağlı, 9 bölümün hepsi erişilebilir. 16 kod denetimi + 30 test
+dosyası temiz.
