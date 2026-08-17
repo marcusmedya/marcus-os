@@ -821,6 +821,9 @@ export function parseTrTarih(str) {
 
 
 export const TR_AYLAR_KISA = ["oca", "şub", "mar", "nis", "may", "haz", "tem", "ağu", "eyl", "eki", "kas", "ara"];
+/* Tam ay adları — kısaltmalar grafik eksenlerinde iyi duruyor ama başlıkta "ağu 2026"
+ * yazması hem eksik hem küçük harfle çirkin duruyordu. */
+export const TR_AYLAR = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
 
 /* DURUM GRUPLARI — yönetici listesindeki ayrım, müşteri panelindeki üç sekmeyle AYNI mantık
  * ve aynı adlar. Ortak yerde durur ki iki taraf aynı içeriği farklı adlandıramasın. */

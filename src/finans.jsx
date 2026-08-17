@@ -3,8 +3,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Plus, Trash2, Receipt, Landmark, CircleDollarSign, CalendarClock, Wallet, ArrowRightLeft, Percent } from "lucide-react";
 import {
   T, Card, SectionTitle, KpiCard, Pill, FieldForm, fmt, computeLive, tarihGoster,
-  TR_AYLAR_KISA, clientFaturaliTutar, clientPaymentStatus, monthKey, bugunISOTarih, addBtnStyle,
-  inputStyle, saveBtnStyle, cancelBtnStyle,
+  TR_AYLAR_KISA, TR_AYLAR, clientFaturaliTutar, clientPaymentStatus, monthKey, bugunISOTarih, addBtnStyle,
+  inputStyle, saveBtnStyle, cancelBtnStyle, iconBtnStyle, fmtShort,
 } from "./tema.jsx";
 
 /**
@@ -175,7 +175,7 @@ const TR_GUNLER = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
  * Bakiye hâlâ hiçbir yerde saklanmıyor — elle girdiğin rakam bile bir "düzeltme kaydı"
  * olarak tutuluyor. Bu sayede her işlem geri alınabilir ve neyin nereden geldiği izlenebilir.
  */
-function hesapBakiyesi(hesapId, veri = {}) {
+export function hesapBakiyesi(hesapId, veri = {}) {
   const { clients, transferler, avanslar, odemeler, hesaplar, duzeltmeler } = veri;
   const hesap = (hesaplar || []).find((h) => h.id === hesapId);
   const elleTakip = !!(hesap && hesap.elleTakip);
@@ -436,7 +436,7 @@ export function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, o
 
   /* Kasada: her hesabın türetilmiş bakiyesinin toplamı. Hesaplama değiştirilmedi. */
   const kasaToplami = (data.hesaplar || []).reduce((t, h) => t + hesapBakiyesi(h.id, data), 0);
-  const ayAdi = `${TR_AYLAR_KISA[new Date().getMonth()]} ${new Date().getFullYear()}`;
+  const ayAdi = `${TR_AYLAR[new Date().getMonth()]} ${new Date().getFullYear()}`;
   const tahsilToplam = live.tahsilEdilen + live.bekleyenToplam;
   const tahsilOran = tahsilToplam > 0 ? Math.round((live.tahsilEdilen / tahsilToplam) * 100) : 0;
 
@@ -475,20 +475,6 @@ export function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, o
                 <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter, sans-serif", fontWeight: 700 }}>Net</span>
                 <span style={{ fontSize: 20, color: live.net >= 0 ? T.success : T.danger, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700 }}>{fmt(live.net)}</span>
               </div>
-            </div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: T.surfaceRaised, borderRadius: 999, padding: "6px 10px", whiteSpace: "nowrap" }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(live.tahsilEdilen)}</span>
-                <span style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif" }}>tahsil edilen</span>
-              </span>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: T.surfaceRaised, borderRadius: 999, padding: "6px 10px", whiteSpace: "nowrap" }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(live.faturaliCiro)}</span>
-                <span style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif" }}>faturalı ciro</span>
-              </span>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, background: T.surfaceRaised, borderRadius: 999, padding: "6px 10px", whiteSpace: "nowrap" }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(live.kdvTutari)}</span>
-                <span style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif" }}>KDV</span>
-              </span>
             </div>
             <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif", lineHeight: 1.7 }}>
               Bu ay {fmt(live.ciro)} gelir ürettin, {fmt(live.gider)} giderin var. Net sonucun {fmt(live.net)}.
@@ -541,6 +527,14 @@ export function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, o
           </div>
         </div>
       </Card>
+          {/* İkincil rakamlar — küçük rozet yerine üsttekiyle aynı kart biçiminde.
+            * Rozet hâlinde "kalem gibi" duruyor ve okunmuyordu. */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 14 }}>
+            <KpiCard label="TAHSİL EDİLEN" value={fmt(live.tahsilEdilen)} accent={T.success} />
+            <KpiCard label="FATURALI CİRO" value={fmt(live.faturaliCiro)} />
+            <KpiCard label="KDV" value={fmt(live.kdvTutari)} accent={T.warning} />
+          </div>
+
           {/* PARALARIM — özette yalnızca toplam; hesap dökümü Hesaplar sekmesinde */}
           <Card style={{ padding: "18px 22px", marginBottom: 14 }}>
             <SectionTitle>Paralarım</SectionTitle>

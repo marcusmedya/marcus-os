@@ -38,7 +38,8 @@ import {
 import { DriveGorsel, DriveVideo, driveEmbedUrl, VIDEO_YONLERI, DriveKucukGorsel } from "./drive.jsx";
 import { InstagramOnizleme, InstagramIzgara, aylikRaporAc } from "./instagram.jsx";
 import { MusteriPaneli } from "./musteriPaneli.jsx";
-import { Finans, HesapBakiyeleri, MiniList } from "./finans.jsx";
+import { Finans, HesapBakiyeleri, MiniList, hesapBakiyesi } from "./finans.jsx";
+import { HataYakalayici } from "./hataYakalayici.jsx";
 import { Personel, avansToplami, avansKisiyeAitMi, odemeToplami, odemeKisiyeAitMi, AvansVerFormu, AvansListesi } from "./personel.jsx";
 
 function Dashboard({ data }) {
@@ -1522,6 +1523,22 @@ function OdemeTakvimi({ bekleyenTahsilatlar, onAddBekleyen, onDeleteBekleyen, cl
   }, 0);
 
   const gunTanimliSayisi = izlenenler.filter((c) => c.odemeGunu).length;
+
+  /* Bekleyen tahsilat formundaki müşteri alanı: kayıtlı müşteriler varsa seçim kutusu,
+   * yoksa serbest metin. Finans'taki listeyle aynı mantık — liste buraya taşınırken
+   * bu tanım geride kalmıştı ve ekran açılmıyordu. */
+  const bekleyenMusteriAdlari = (clients || []).filter((c) => c.durum !== "ayrildi").map((c) => c.ad);
+  const bekleyenFields = bekleyenMusteriAdlari.length
+    ? [
+        { key: "musteri", label: "Müşteri", type: "select", options: bekleyenMusteriAdlari.map((n) => ({ val: n, label: n })) },
+        { key: "tutar", label: "Tutar (₺)", type: "number" },
+        { key: "vade", label: "Vade Durumu", type: "text", placeholder: "örn. bugün / 3 gün gecikti" },
+      ]
+    : [
+        { key: "musteri", label: "Müşteri", type: "text" },
+        { key: "tutar", label: "Tutar (₺)", type: "number" },
+        { key: "vade", label: "Vade Durumu", type: "text", placeholder: "örn. bugün / 3 gün gecikti" },
+      ];
 
   return (
     <div>
@@ -4068,11 +4085,11 @@ function OrtakMarkaPaneli({ firmaAdi }) {
       )}
 
       {panel && (
-        <MusteriPaneli
+        <HataYakalayici anahtar="musteri"><MusteriPaneli
           musteriData={{ ...panel, firmaAdi: panel.firmaAdi || firmaAdi }}
           ortakModu
           onIslemSonrasi={() => getir(seciliId)}
-        />
+        /></HataYakalayici>
       )}
     </div>
   );
@@ -7567,6 +7584,7 @@ export default function MarcusOS() {
           </div>
         )}
         <div style={{ padding: "20px 20px 40px" }}>
+          <HataYakalayici anahtar={staffTab}>
           {!staffTab && <div style={{ color: T.textFaint, fontFamily: "Inter", fontSize: 13 }}>Henüz erişimin olan bir bölüm yok. Yöneticine sor.</div>}
           {staffTab === "dashboard" && <Dashboard data={data} />}
           {staffTab === "musteriler" && (
@@ -7681,6 +7699,7 @@ export default function MarcusOS() {
           {staffTab === "musteri-girisleri" && (
             <MusteriGirisleri clients={data.clients || []} girisler={data.musteriGirisleri || {}} onUpdate={updateMusteriGiris} firmaAdi={data.firmaAdi} logo={data.markaKimligiGorseli} role="staff" />
           )}
+                  </HataYakalayici>
         </div>
       </div>
     );
@@ -7954,6 +7973,11 @@ export default function MarcusOS() {
         </div>
 
         <div style={{ padding: isMobile ? "16px 16px 32px" : "20px 30px 40px" }}>
+          {/* HATA YAKALAYICI — bir bölüm çizilirken hata olursa React tüm ağacı söküyor ve
+            * sayfa siyah kalıyordu. Artık hata bu sınırda duruyor: menü ayakta kalıyor,
+            * hatanın ne olduğu yazıyor ve başka bir sekmeye geçilebiliyor.
+            * anahtar={tab} → sekme değişince hata ekranı temizlenir. */}
+          <HataYakalayici anahtar={tab}>
           {/* Dashboard yalnızca FİNANSAL durum + Bugünün Kararı. Görevler ve onay kutusu
             * Planım'da: ikisi farklı iş — biri "işler nasıl gidiyor", diğeri "benim ne
             * yapmam gerekiyor". Aynı ekranda birleştirilince Dashboard uzuyordu. */}
@@ -8190,6 +8214,7 @@ export default function MarcusOS() {
               islemGecmisi={data.islemGecmisi || []}
             />
           )}
+                  </HataYakalayici>
         </div>
       </div>
 

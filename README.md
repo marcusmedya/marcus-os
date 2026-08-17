@@ -3447,3 +3447,103 @@ Doğrulandı: 24 dosyada sessiz, v137'nin bozuk hâlini satır numarasıyla yaka
 ### Ders
 Bir denetleyiciyi genişletirken dilin gerçek kuralına bakmak gerekiyor. "Daha geniş ara"
 demek yeterli değil — neyin gerçekten hata olduğunu bilmek gerekiyor.
+
+## Güncelleme 139: Siyah Ekranlar — Dört Hata + On Yedinci Denetleyici
+
+v137'de Finans yeni dosyaya taşınırken **dört ad geride kaldı.** Hepsi siyah ekran demekti.
+
+| Ad | Sorun | Etkilenen ekran |
+|---|---|---|
+| `fmtShort` | finans.jsx'te kullanılıyor, import edilmemiş | Finans |
+| `iconBtnStyle` | finans.jsx'te kullanılıyor, import edilmemiş | Finans |
+| `bekleyenFields` | App.jsx'te kullanılıyor, tanımı finans.jsx'te kaldı | Ödeme Takvimi |
+| `hesapBakiyesi` | App.jsx'te kullanılıyor, export edilmemişti | CSV dışa aktarma |
+
+Dördü de düzeltildi: iki import eklendi, `hesapBakiyesi` export edildi, `bekleyenFields`
+Ödeme Takvimi içinde yeniden tanımlandı (Finans'takiyle aynı mantık).
+
+### On altı denetleyici neden göremedi
+- **5** yalnızca `<Bileşen>` biçimini kapsıyor
+- **10** ve **12** tek dosya içinde bakıyor
+- **16** yalnızca BÜYÜK_HARFLİ sabitlere bakıyor
+- **9** "import edilen ad kaynağında var mı" diye soruyor — **"kullanılan ad import edilmiş mi"
+  diye sormuyor**
+
+### testler/erisimdenetle.py
+Tersini sorar: JSX'te `prop={ad}` olarak kullanılan her ad, o dosyada tanımlı mı ya da import
+edilmiş mi?
+
+**İlk sürümü bir hatayı kaçırdı:** ok fonksiyonu parametre kalıbı (`(...) =>`) JSX gövdesinin
+tamamını parametre listesi sanıp içindeki her adı "tanımlı" kabul ediyordu. Kalıp tek satırla
+ve JSX içermeyecek şekilde daraltıldı.
+
+Doğrulandı: temiz dosyalarda sessiz, üç hatanın üçünü de adıyla yakalıyor.
+
+### Ders
+Dosya bölmek bu projede tekrar eden en riskli işlem — v81, v91, v108, v120 ve şimdi v137.
+Her seferinde "bağımlılık geride kaldı" ile bitiyor. Artık beş yüzü de denetleniyor:
+eksik import (5) · tanımsız değişken (10) · kapsam dışı (12) · yayılım (14) · sabit (16) ·
+**erişilemeyen ad (17)**.
+
+## Güncelleme 140: Özet Sekmesi Düzeni
+
+### Ay adı
+"ağu 2026" → **"Ağustos 2026"**. Grafik eksenlerindeki kısaltmalar (`TR_AYLAR_KISA`) başlıkta
+kullanılıyordu; hem eksik hem küçük harfliydi. `TR_AYLAR` eklendi, kısaltmalar olduğu yerde
+kaldı.
+
+### İkincil rakamlar kart oldu
+Tahsil edilen · Faturalı ciro · KDV küçük rozetlerdi, "kalem gibi" görünüp okunmuyordu.
+Artık üstteki dört kartla aynı biçimde.
+
+### Yeni sıra
+```
+KASADA · BU AY KAZANÇ · TAHSİL EDİLECEK · BU AY GİDER
+Ağustos 2026 (gelir / gider / net + tek cümle)
+Tahsilat (%42 çubuk)
+Para Nereye Gidiyor? (kalem kalem)
+TAHSİL EDİLEN · FATURALI CİRO · KDV
+Paralarım
+```
+
+Hesaplamalara dokunulmadı. 17 kod denetimi + 30 test dosyası temiz.
+
+## Güncelleme 141: Siyah Ekran Artık İmkânsız
+
+### Siyah ekran neden oluyordu
+React'te bir bileşen çizilirken hata olursa React **tüm ağacı söker**. Sonuç: bomboş siyah
+sayfa. Ne hata mesajı, ne geri dönüş, ne menü. Uygulamanın geri kalanı sapasağlam olsa bile
+erişilemez.
+
+Bu projedeki siyah ekranların hepsi aynı türdendi: bir ad taşınırken geride kaldı ve
+**o bileşen ekrana gelene kadar** hata ortaya çıkmadı. Kod geçerli, denetimler geçiyor —
+hata yalnızca o sekmeye tıklanınca doğuyor. Tarayıcıda çalıştıramadığım için statik
+denetleyiciler bu sınıfın bir kısmını yakalıyor ama hepsini yakalaması mümkün değil.
+
+### src/hataYakalayici.jsx
+React sınıf bileşeni (`getDerivedStateFromError` + `componentDidCatch`). Hatayı bölümün kendi
+sınırında durdurur:
+
+- **Menü ve uygulama ayakta kalır** — başka sekmeye geçilebilir
+- **Hata metni ekranda yazar** — "siyah ekran" yerine "X tanımlı değil" denebilir
+- **Kopyala düğmesi** — hatayı bana aynen iletmek için
+- **Tekrar dene** düğmesi
+- Sekme değişince hata ekranı otomatik temizlenir (`anahtar` prop'u)
+- Veriye dokunmaz
+
+### Kapsam
+| Panel | Korunan sekme |
+|---|---|
+| Yönetici | 18 |
+| Personel | 15 |
+| Müşteri | tamamı |
+
+Açılış/kapanış dengeli, 33 sekmenin hepsi koruma içinde.
+
+### Denetleyici 7 güncellendi
+React sınıf metotları (`render`, `componentDidCatch`, `super`…) "tanımsız çağrı" sanılıyordu —
+projedeki ilk sınıf bileşen bu. Tanınan adlar listesine eklendi.
+
+### Bu bir mazeret değil
+Koruma katmanı hatayı önlemiyor, **felaket olmaktan çıkarıyor**. Asıl iş hâlâ hatayı
+yapmamak: dosya bölerken taşınan her adı tek tek doğrulamak.
