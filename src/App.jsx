@@ -1758,117 +1758,6 @@ const TR_GUNLER = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
  * "26 Ağustos 2026" biçimine çevirir; eski kayıtlardaki serbest metin tarihleri
  * ("26 Ağu", "11.08.2026") olduğu gibi geçirir — geçmiş veri bozulmasın diye.
  */
-function Takvim({ data }) {
-  const [viewDate, setViewDate] = useState(new Date());
-  const [selectedDay, setSelectedDay] = useState(null);
-
-  const year = viewDate.getFullYear();
-  const month = viewDate.getMonth();
-
-  const activeClients = data.clients.filter((c) => c.durum !== "ayrildi" && c.durum !== "donduruldu" && c.odemeGunu);
-
-  const eventsForDay = (day) => {
-    // Tarih seçiciden gelen kayıtlarda yıl da var — o zaman yılı da eşleştiriyoruz.
-    // Eski serbest metin kayıtlarında ("26 Ağu") yıl yok, onlar her yıl görünmeye devam eder.
-    const vergiler = data.vergiTakvimi.filter((v) => {
-      const p = parseTrTarih(v.tarih);
-      if (!p || p.day !== day || p.month !== month) return false;
-      return p.year === undefined || p.year === year;
-    });
-    const odemeler = activeClients.filter((c) => Number(c.odemeGunu) === day);
-    return { vergiler, odemeler };
-  };
-
-  const firstOfMonth = new Date(year, month, 1);
-  const startOffset = (firstOfMonth.getDay() + 6) % 7; // Pazartesi başlangıçlı
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const cells = [];
-  for (let i = 0; i < startOffset; i++) cells.push(null);
-  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-
-  const today = new Date();
-  const isToday = (d) => d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
-
-  const selected = selectedDay ? eventsForDay(selectedDay) : null;
-
-  return (
-    <div>
-      <Card style={{ padding: "16px 18px", marginBottom: 16 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <button onClick={() => { setViewDate(new Date(year, month - 1, 1)); setSelectedDay(null); }} style={{ ...iconBtnStyle, background: T.surfaceRaised, borderRadius: 8 }}><ChevronLeft size={16} color={T.text} /></button>
-          <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15.5, fontWeight: 600, color: T.text }}>{TR_AYLAR_TAM[month]} {year}</div>
-          <button onClick={() => { setViewDate(new Date(year, month + 1, 1)); setSelectedDay(null); }} style={{ ...iconBtnStyle, background: T.surfaceRaised, borderRadius: 8 }}><ChevronRight size={16} color={T.text} /></button>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 6 }}>
-          {TR_GUNLER.map((g) => (
-            <div key={g} style={{ textAlign: "center", fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, padding: "4px 0" }}>{g}</div>
-          ))}
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
-          {cells.map((d, i) => {
-            if (d === null) return <div key={i} />;
-            const { vergiler, odemeler } = eventsForDay(d);
-            const hasEvents = vergiler.length + odemeler.length > 0;
-            return (
-              <button
-                key={i}
-                onClick={() => setSelectedDay(d)}
-                style={{
-                  aspectRatio: "1", minHeight: 44, borderRadius: 9, border: `1px solid ${isToday(d) ? T.accent : T.borderSoft}`,
-                  background: selectedDay === d ? T.accentSoft : T.surfaceRaised, cursor: "pointer",
-                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 3, padding: 4,
-                }}
-              >
-                <span style={{ fontSize: 12.5, color: isToday(d) ? T.accentText : T.text, fontFamily: "Inter", fontWeight: isToday(d) ? 700 : 500 }}>{d}</span>
-                {hasEvents && (
-                  <div style={{ display: "flex", gap: 2 }}>
-                    {odemeler.length > 0 && <span style={{ width: 5, height: 5, borderRadius: 999, background: T.warning }} />}
-                    {vergiler.length > 0 && <span style={{ width: 5, height: 5, borderRadius: 999, background: T.danger }} />}
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        <div style={{ display: "flex", gap: 14, marginTop: 14, flexWrap: "wrap" }}>
-          <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}><span style={{ width: 6, height: 6, borderRadius: 999, background: T.warning }} /> Müşteri ödeme günü</span>
-          <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}><span style={{ width: 6, height: 6, borderRadius: 999, background: T.danger }} /> Vergi tarihi</span>
-        </div>
-      </Card>
-
-      {selected && (
-        <Card style={{ padding: "18px 20px" }}>
-          <SectionTitle>{selectedDay} {TR_AYLAR_TAM[month]}</SectionTitle>
-          {selected.vergiler.length === 0 && selected.odemeler.length === 0 && (
-            <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Bu günde bir şey yok.</div>
-          )}
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {selected.odemeler.map((c) => (
-              <div key={"c" + c.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", background: T.surfaceRaised, borderRadius: 10 }}>
-                <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{c.ad} — ödeme günü</div>
-                <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: T.warning }}>{fmt(c.aylikUcret)}</span>
-              </div>
-            ))}
-            {selected.vergiler.map((v) => (
-              <div key={"v" + v.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", background: T.surfaceRaised, borderRadius: 10 }}>
-                <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{v.kalem}</div>
-                <Pill color={T.danger} soft={T.dangerSoft}>Vergi</Pill>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* ÖDEME TAKVİMİ                                                         */
-/* ------------------------------------------------------------------ */
-/** Son N ayın anahtarlarını (en eskiden en yeniye) ve kısa etiketlerini üretir. */
 function sonAylar(n) {
   const now = new Date();
   const arr = [];
@@ -6028,7 +5917,6 @@ const STAFF_IZIN_LISTESI = [
             { key: "dashboard", label: "Dashboard", varsayilan: false },
             { key: "musteriler", label: "Müşteriler", varsayilan: false },
             { key: "finans", label: "Finans", varsayilan: false },
-            { key: "takvim", label: "Takvim", varsayilan: false },
             { key: "odemeTakvimi", label: "Ödeme Takvimi", varsayilan: false },
             { key: "teklif", label: "Teklif & Sözleşme", varsayilan: false },
             { key: "reklamlar", label: "Reklamlar", varsayilan: true },
@@ -6117,7 +6005,6 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
     { key: "dashboard", label: "Dashboard" },
     { key: "musteriler", label: "Müşteriler" },
     { key: "finans", label: "Finans" },
-    { key: "takvim", label: "Takvim" },
     { key: "odemeTakvimi", label: "Ödeme Takvimi" },
     { key: "teklif", label: "Teklif & Sözleşme" },
     { key: "reklamlar", label: "Reklamlar" },
@@ -6605,20 +6492,21 @@ function SaveBlockedModal({ info, onCancel, onForce }) {
  * çizilmez ve tüm maddeleri izinsiz olan grubun BAŞLIĞI da çizilmez — aksi halde personel
  * boş bir "Para" başlığı görür ve orada bir şey olduğunu sanırdı.
  */
-const NAV_UST = ["dashboard", "planim", "takvim"];
+/* Planım artık Dashboard'ın içinde, Takvim kaldırıldı (vergi kayıtları Finans'tan
+ * düzenlenebiliyor, ayrı bir takvim görünümüne gerek kalmadı).
+ * Şifre Kasası gruptan çıkarılıp üst seviyeye alındı — sık ve tek başına açılıyor. */
+const NAV_UST = ["dashboard", "musteri-girisleri"];
 const NAV_GRUPLARI = [
   { key: "uretim",  label: "Üretim",         icon: Camera,     maddeler: ["cekim-edit", "cekim-listesi", "gunluk-kontrol", "paylasimlar"] },
   { key: "musteri", label: "Müşteri",        icon: Users,      maddeler: ["musteriler", "musteri-paneli", "teklif", "reklamlar"] },
-  { key: "para",    label: "Para",           icon: Wallet,     maddeler: ["finans", "odeme-takvimi", "birikim", "uyelikler"] },
-  { key: "sistem",  label: "Ekip & Sistem",  icon: Briefcase,  maddeler: ["personel", "musteri-girisleri", "ayarlar"] },
+  { key: "para",    label: "Para",           icon: Wallet,     maddeler: ["finans", "odeme-takvimi", "personel", "birikim", "uyelikler"] },
+  { key: "sistem",  label: "Sistem",         icon: Settings,   maddeler: ["ayarlar"] },
 ];
 
 const NAV = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { key: "planim", label: "Planım", icon: NotebookPen },
   { key: "musteriler", label: "Müşteriler", icon: Users },
   { key: "finans", label: "Finans", icon: Wallet },
-  { key: "takvim", label: "Takvim", icon: Calendar },
   { key: "odeme-takvimi", label: "Ödeme Takvimi", icon: ListChecks },
   { key: "teklif", label: "Teklif & Sözleşme", icon: FileText },
   { key: "reklamlar", label: "Reklamlar", icon: Megaphone },
@@ -8211,7 +8099,6 @@ export default function MarcusOS() {
       { key: "dashboard", label: "Dashboard", izin: izinler.dashboard },
       { key: "musteriler", label: "Müşteriler", izin: izinler.musteriler },
       { key: "finans", label: "Finans", izin: izinler.finans },
-      { key: "takvim", label: "Takvim", izin: izinler.takvim },
       { key: "odeme-takvimi", label: "Ödeme Takvimi", izin: izinler.odemeTakvimi },
       { key: "teklif", label: "Teklif & Sözleşme", izin: izinler.teklif },
       { key: "reklamlar", label: "Reklamlar", izin: izinler.reklamlar },
@@ -8251,7 +8138,7 @@ export default function MarcusOS() {
         `}</style>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 20px", borderBottom: `1px solid ${T.borderSoft}`, flexWrap: "wrap", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <UygulamaLogosu gorsel={data.markaKimligiGorseli} boyut={32} />
+            <UygulamaLogosu gorsel={data.markaKimligiGorseli} boyut={38} />
             <div>
               <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14.5, color: T.text }}>Marcus Medya App</div>
               <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter" }}>Personel Paneli</div>
@@ -8327,7 +8214,6 @@ export default function MarcusOS() {
               firmaAdi={data.firmaAdi}
             />
           )}
-          {staffTab === "takvim" && <Takvim data={data} />}
           {staffTab === "odeme-takvimi" && (
             <OdemeTakvimi
               clients={data.clients || []}
@@ -8439,7 +8325,7 @@ export default function MarcusOS() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "0 8px", marginBottom: 30 }}>
-          <UygulamaLogosu gorsel={data.markaKimligiGorseli} boyut={30} />
+          <UygulamaLogosu gorsel={data.markaKimligiGorseli} boyut={38} />
           <div>
             <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14.5, color: T.text, letterSpacing: 0.2 }}>Marcus Medya App</div>
             <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter" }}>Marcus Medya</div>
@@ -8453,7 +8339,9 @@ export default function MarcusOS() {
               const n = NAV.find((x) => x.key === key);
               if (!n) return null;
               const Icon = n.icon;
-              const rozet = key === "planim" ? onayBekleyenSayisi : 0;
+              // Planım Dashboard'a taşındığı için sayaç da oraya geçti; sekmeye girmeden
+              // bekleyen iş olduğu görünsün.
+              const rozet = key === "dashboard" ? onayBekleyenSayisi : 0;
               const aktif = tab === key;
               return (
                 <button
@@ -8633,8 +8521,10 @@ export default function MarcusOS() {
         </div>
 
         <div style={{ padding: isMobile ? "16px 16px 32px" : "20px 30px 40px" }}>
+          {/* Planım artık Dashboard'ın içinde: görevlerin ve onay kutusu ayrı bir sekmede
+            * durunca her sabah iki yere bakmak gerekiyordu. */}
           {tab === "dashboard" && <Dashboard data={data} />}
-          {tab === "planim" && (
+          {tab === "dashboard" && (
             <Planim
               gorevler={data.kisiselGorevler || []}
               onAdd={addGorev} onUpdate={updateGorev} onDelete={deleteGorev}
@@ -8720,7 +8610,6 @@ export default function MarcusOS() {
               firmaAdi={data.firmaAdi}
             />
           )}
-          {tab === "takvim" && <Takvim data={data} />}
           {tab === "odeme-takvimi" && (
             <OdemeTakvimi
               clients={data.clients}

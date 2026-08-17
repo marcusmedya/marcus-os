@@ -61,30 +61,83 @@ const ETIKET = {
 /** Ortak logo bandı: Marcus Medya × Marka.
  * Logolar Drive bağlantısı olabildiği için aynı adres zincirinden geçirilir; logo yoksa
  * markanın baş harfiyle bir monogram karesi gösterilir — boş bir alan bırakmaktansa. */
+/**
+ * LOGONUN PARLAKLIĞINI ÖLÇER — açık renkli bir logo açık zeminde kaybolur.
+ *
+ * Görseli bir tuvale çizip SAYDAM OLMAYAN piksellerin ortalama parlaklığına bakar. Saydam
+ * pikselleri saymak şart: çoğu logo saydam zeminli PNG'dir ve onları da sayarsak her logo
+ * "açık" çıkardı.
+ *
+ * Drive bağlantılarında tarayıcı güvenlik kuralları piksel okumayı engeller — o durumda null
+ * döner ve arayüz zemin eklemez (mevcut davranış korunur).
+ */
+function useLogoParlakligi(kaynak) {
+  const [parlaklik, setParlaklik] = useState(null);
+  useEffect(() => {
+    if (!kaynak || !String(kaynak).startsWith("data:")) { setParlaklik(null); return undefined; }
+    let iptal = false;
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const boy = 32;                       // küçük örnek yeterli, hızlı
+        const c = document.createElement("canvas");
+        c.width = boy; c.height = boy;
+        const ctx = c.getContext("2d");
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0, boy, boy);
+        const d = ctx.getImageData(0, 0, boy, boy).data;
+        let toplam = 0, sayi = 0;
+        for (let i = 0; i < d.length; i += 4) {
+          if (d[i + 3] < 40) continue;        // saydam piksel sayılmaz
+          toplam += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+          sayi += 1;
+        }
+        if (!iptal && sayi > 0) setParlaklik(toplam / sayi);
+      } catch (e) { /* piksel okunamadı — zemin eklenmez */ }
+    };
+    img.src = kaynak;
+    return () => { iptal = true; };
+  }, [kaynak]);
+  return parlaklik;
+}
+
 function LogoKilidi({ ajansLogo, markaLogo, marka, firmaAdi }) {
-  const kutu = { height: 34, maxWidth: 132, objectFit: "contain", display: "block" };
+  // Logolar 34px'ti ve marka bandında kaybolup gidiyordu.
+  const kutu = { height: 52, maxWidth: 200, objectFit: "contain", display: "block" };
+  const ajansParlaklik = useLogoParlakligi(ajansLogo);
+  const markaParlaklik = useLogoParlakligi(markaLogo);
+
+  /* Açık renkli logo (parlaklık > 170) bu açık zeminli panelde kaybolur; arkasına koyu bir
+   * zemin konur. Koyu logolar olduğu gibi bırakılır — zaten görünüyorlar. */
+  const zemin = (p) => (p != null && p > 170
+    ? { background: MT.murekkep, borderRadius: 10, padding: "7px 11px" }
+    : null);
   const monogram = (metin, dolu) => (
     <div style={{
-      width: 34, height: 34, borderRadius: 9, display: "flex", alignItems: "center", justifyContent: "center",
+      width: 52, height: 52, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center",
       background: dolu ? MT.mor : "transparent", border: dolu ? "none" : `1.5px solid ${MT.cizgiKoyu}`,
-      color: dolu ? "#fff" : MT.murekkep, fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 16,
+      color: dolu ? "#fff" : MT.murekkep, fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 23,
     }}>
       {(metin || "M").charAt(0).toLocaleUpperCase("tr")}
     </div>
   );
-  const gorsel = (kaynak, yedekMetin, dolu) => {
+  const gorsel = (kaynak, yedekMetin, dolu, parlaklik) => {
     if (!kaynak) return monogram(yedekMetin, dolu);
-    if (String(kaynak).startsWith("data:")) return <img src={kaynak} alt="" style={kutu} />;
+    const sar = (ic) => {
+      const z = zemin(parlaklik);
+      return z ? <span style={{ display: "inline-flex", ...z }}>{ic}</span> : ic;
+    };
+    if (String(kaynak).startsWith("data:")) return sar(<img src={kaynak} alt="" style={kutu} />);
     const adaylar = driveGorselAdaylari(kaynak);
     if (!adaylar.length) return monogram(yedekMetin, dolu);
-    return <img src={adaylar[0]} alt="" style={kutu} referrerPolicy="no-referrer" />;
+    return sar(<img src={adaylar[0]} alt="" style={kutu} referrerPolicy="no-referrer" />);
   };
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
-      {gorsel(ajansLogo, firmaAdi || "Marcus", true)}
-      <span style={{ color: MT.cizgiKoyu, fontSize: 17, fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>×</span>
-      {gorsel(markaLogo, marka, false)}
+      {gorsel(ajansLogo, firmaAdi || "Marcus", true, ajansParlaklik)}
+      <span style={{ color: MT.cizgiKoyu, fontSize: 20, fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>×</span>
+      {gorsel(markaLogo, marka, false, markaParlaklik)}
     </div>
   );
 }

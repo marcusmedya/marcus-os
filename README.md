@@ -3028,3 +3028,68 @@ yüklenince kayboluyor ve "bu neydi?" sorusu cevapsız kalıyordu.
   kare logo kullanılır
 
 Kutu içindeki metin sadeleşti: "Görsel yüklemek için tıkla".
+
+## Güncelleme 124: Logolar Büyütüldü + Zemine Göre Otomatik Uyum
+
+### Boyut
+Müşteri panelindeki marka bandında logolar 34px'ti ve kaybolup gidiyordu:
+
+| | Öncesi | Şimdi |
+|---|---|---|
+| Müşteri paneli logoları | 34 px | **52 px** |
+| Monogram (logo yoksa) | 34 px | 52 px |
+| Yönetici/personel paneli başlığı | 30-32 px | 38 px |
+
+### Açık renkli logo artık kaybolmuyor
+Müşteri paneli açık zeminli. Beyaz ya da açık gri bir logo orada görünmez oluyordu.
+
+Sistem artık logonun parlaklığını **ölçüyor**: görseli küçük bir tuvale çizip saydam olmayan
+piksellerin ortalama parlaklığına bakıyor. Açık renkliyse (parlaklık > 170) arkasına koyu bir
+zemin koyuyor; koyu logolara dokunmuyor — zaten görünüyorlar.
+
+**Saydam pikseller sayılmıyor.** Bu şart: çoğu logo saydam zeminli PNG ve onlar da sayılsaydı
+her logo "açık" çıkar, hepsine gereksiz koyu zemin eklenirdi.
+
+Drive bağlantılı müşteri logolarında tarayıcı güvenlik kuralları piksel okumayı engelliyor —
+o durumda ölçüm yapılmıyor ve zemin eklenmiyor, yani mevcut davranış korunuyor.
+
+### Doğrulama
+8 parlaklık senaryosu: beyaz, siyah, mor, saydam zeminli beyaz, saydam zeminli siyah, tamamen
+saydam, açık gri, orta gri. 16 kod denetimi + 30 test dosyası temiz.
+
+## Güncelleme 125: Menü Yeniden Düzenlendi
+
+```
+Dashboard  (Planım artık burada)
+Şifre Kasası
+📹 ÜRETİM       Operasyon · Çekim · Günlük Kontrol · Paylaşımlar
+👥 MÜŞTERİ      Müşteriler · Müşteri Paneli · Teklif & Sözleşme · Reklamlar
+💰 PARA         Finans · Ödeme Takvimi · Personel · Birikim · Üyelikler
+⚙️ SİSTEM       Ayarlar
+```
+
+### Planım → Dashboard
+Kişisel görevlerin ve Onayını Bekleyenler kutusu artık Dashboard'ın altında. Ayrı sekmede
+dururken her sabah iki yere bakmak gerekiyordu.
+
+Bekleyen iş sayacı da Dashboard'a taşındı — sekmeye girmeden görünüyor.
+
+### Takvim kaldırıldı
+Hem yönetici hem personel tarafından, bileşeniyle birlikte.
+
+**Veri kaybı yok:** Takvim yalnızca bir görünümdü. Vergi kayıtları **Finans** sekmesinden
+düzenlenmeye devam ediyor, müşteri ödeme günleri **Ödeme Takvimi**'nde. Kaldırılmadan önce
+kontrol edildi.
+
+Yetki listesinden de çıkarıldı, artık kimseye verilemiyor.
+
+### Personel → Para
+Maaş, avans ve ödemelerle ilgili olduğu için Para grubunda daha doğru yerde.
+
+### Şifre Kasası üst seviyede
+Gruptan çıkarıldı — tek başına ve sık açılan bir ekran, bir tık daha eklemenin anlamı yoktu.
+
+Menü artık **6 satır** (önce 7, başlangıçta 18).
+
+### Doğrulama
+16 menü maddesinin hepsi kapsanıyor, kapsanmayan yok. 16 kod denetimi + 30 test dosyası temiz.
