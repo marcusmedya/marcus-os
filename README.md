@@ -2949,3 +2949,68 @@ metninde geçen Türkçe kelimeler, kod değil.
 
 **Yedek alınmayan yer bulunamadı.** daily-backup veriyi alan alan değil bütün olarak
 kopyaladığı için, ileride eklenecek her alan otomatik olarak yedeğe girer.
+
+## Güncelleme 121: Maliyeti Girilmemiş Markalar %100 Marjla Hesaplanıyor
+
+14 marka "kârı hesaplanamıyor" diye sıralamanın dışında kalıyordu. Artık hesaba giriyorlar.
+
+### Neden bu doğru
+Sistemdeki maliyetler **doğrudan** maliyetlerdir: elle girilen kalemler, o markaya ait
+freelancer iş ücretleri, reklam bütçesi. **Maaşlı ekibin zamanı hiçbir müşteriye
+dağıtılmıyor** — hiçbiri için.
+
+Dolayısıyla doğrudan maliyeti olmayan bir markanın marjı gerçekten %100'dür: o iş maaşlı
+ekiple yapılmış demektir.
+
+### Ama işaretleniyor
+Bu, kendi ekiple çalışılan markaları freelancer'la çalışılanlardan kârlı gösterir. Hata değil,
+maaşın müşterilere dağıtılmamasının sonucu — ama karar verirken bilinmeli.
+
+Bu yüzden:
+- En çok kazandıran o markaysa adının yanına **\*** konur ve altında sebebi yazar
+- Ayrı bir satır: **"3 markada doğrudan maliyet girilmemiş — %100 marjla hesaplandı"**,
+  isimleri ve tutarlarıyla
+- Uyarı metni açıkça söyler: freelancer'la çalıştığın markalar yanlarında daha az kârlı görünür
+
+### Hesaba hiç girmeyenler
+Yalnızca **aylık ücreti girilmemiş** müşteriler dışarıda kalıyor — onlarda hesaplanacak bir
+gelir yok. Ayrı bir satırda isimleriyle listeleniyor.
+
+### Doğrulama
+9 kârlılık kontrolü + gerçek veriye yakın bir senaryoyla sıralama simülasyonu.
+16 kod denetimi ve 29 test dosyası temiz.
+
+## Güncelleme 122: Üç Ayrı Marka Görseli
+
+Tek logo alanı üç farklı iş yapmaya çalışıyordu; üçünün ihtiyacı gerçekten farklı.
+
+Ayarlar > Görünüm & Marka > Marka Kimliği artık üç alan:
+
+| Alan | Ölçü | Nerede kullanılır |
+|---|---|---|
+| **Kare logo** | kare, şeffaf PNG | Tarayıcı sekmesi, telefon ana ekranı, panel başlığı |
+| **Paylaşım görseli** | yatay, 1200×630 | WhatsApp/Slack'te bağlantı paylaşınca çıkan kart |
+| **Açık zemin logosu** | kare | Müşteri paneli (açık zeminli) |
+
+### Neden ayrı
+**Paylaşım görseli:** WhatsApp kare bir logoyu minik ikon olarak gösterir. Tam genişlikte kart
+için yatay görsel gerekiyor. Etiket de `summary` yerine `summary_large_image` yapıldı.
+
+**Açık zemin logosu:** Müşteri paneli açık zeminli, uygulama koyu. Koyu zemin için yapılmış bir
+logo orada kaybolabilir ya da göze batabilir.
+
+### Boş bırakılabilir
+Her alan kendi görseli yoksa **kare logoya** düşer, o da yoksa varsayılan simgeye. Hiçbir yerde
+boşluk kalmaz — yani sadece kare logo yükleyip devam edebilirsin.
+
+### Paylaşım kartı metni
+Sabit ama düzgün yazıldı:
+> **Marcus Medya — İçerik Onay Paneli**
+> Hazırladığımız içerikleri buradan inceleyip onaylayabilir ya da değişiklik isteyebilirsiniz.
+
+Değiştirmek istersen söyle, tek satırlık iş.
+
+### Doğrulama
+`t30.mjs` — 10 kontrol: üç görsel ayrı ayrı dönüyor, eksik olanlar kare logoya düşüyor,
+hiçbiri yoksa varsayılan, müşteri paneli açık zemin logosunu alıyor, yeni alanlar personele
+sızmıyor. 16 kod denetimi + 30 test dosyası temiz.

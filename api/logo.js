@@ -25,7 +25,19 @@ export default async function handler(req, res) {
 
   try {
     const data = await kv.get("marcus-os-data");
-    const gorsel = data && data.markaKimligiGorseli;
+
+    /* TİP — hangi görsel isteniyor:
+     *   (yok)     → kare logo: tarayıcı sekmesi, telefon simgesi, panel başlığı
+     *   paylasim  → yatay kart görseli: WhatsApp/Slack bağlantı önizlemesi
+     *   acik      → açık zemin logosu: müşteri paneli
+     * Her biri kendi alanı yoksa kare logoya, o da yoksa varsayılan simgeye düşer —
+     * böylece hiçbir yerde boşluk kalmaz. */
+    const tip = String((req.query && req.query.tip) || "").toLowerCase();
+    const gorsel = tip === "paylasim"
+      ? (data && (data.paylasimGorseli || data.markaKimligiGorseli))
+      : tip === "acik"
+        ? (data && (data.acikZeminLogosu || data.markaKimligiGorseli))
+        : (data && data.markaKimligiGorseli);
 
     // "data:image/png;base64,AAA..." biçimini parçala.
     const m = typeof gorsel === "string" && gorsel.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);

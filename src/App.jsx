@@ -118,14 +118,20 @@ function KararSeridi({ data }) {
     });
     const olculebilir = karliliklar.filter((x) => x.k.hesaplanabilir).sort((a, b) => b.k.net - a.k.net);
     const eksikVeri = karliliklar.filter((x) => !x.k.hesaplanabilir);
+    /* Doğrudan maliyeti hiç girilmemişler sıralamaya GİRER (marjları gerçekten %100'dür,
+     * çünkü maaşlı ekip zamanı hiçbir müşteriye dağıtılmıyor) — ama işaretlenirler.
+     * İşaretlenmeseydi kendi ekiple çalışılan markalar, freelancer'la çalışılanlardan
+     * yapay biçimde kârlı görünür ve fark edilmezdi. */
+    const dogrulanmamis = olculebilir.filter((x) => !x.k.maliyetDogrulanmis);
 
     if (olculebilir.length >= 2) {
       const enIyi = olculebilir[0];
       const enKotu = olculebilir[olculebilir.length - 1];
       cikti.push({
         tip: "iyi",
-        baslik: `En çok kazandıran: ${enIyi.c.ad}`,
-        detay: `Bu ay net ${fmt(enIyi.k.net)} (marj %${enIyi.k.marj}). Gelir ${fmt(enIyi.k.gelir)}, maliyet ${fmt(enIyi.k.toplamMaliyet)}.`,
+        baslik: `En çok kazandıran: ${enIyi.c.ad}${enIyi.k.maliyetDogrulanmis ? "" : " *"}`,
+        detay: `Bu ay net ${fmt(enIyi.k.net)} (marj %${enIyi.k.marj}). Gelir ${fmt(enIyi.k.gelir)}, maliyet ${fmt(enIyi.k.toplamMaliyet)}.`
+          + (enIyi.k.maliyetDogrulanmis ? "" : " * Bu markaya doğrudan maliyet girilmemiş — maaşlı ekiple yapılmış varsayıldı."),
       });
       if (enKotu.k.net < 0) {
         cikti.push({ tip: "kotu", baslik: `${enKotu.c.ad} zarar ettiriyor`, detay: `Bu ay net ${fmt(enKotu.k.net)}. Fiyat ya da kapsam gözden geçirilmeli.` });
@@ -139,11 +145,21 @@ function KararSeridi({ data }) {
       }
     }
 
+    if (dogrulanmamis.length > 0) {
+      cikti.push({
+        tip: "veri",
+        baslik: `${dogrulanmamis.length} markada doğrudan maliyet girilmemiş — %100 marjla hesaplandı`,
+        detay: dogrulanmamis.slice(0, 5).map((x) => `${x.c.ad} (${fmt(x.k.net)})`).join(" · ")
+          + (dogrulanmamis.length > 5 ? " …" : "")
+          + ". Bunlar maaşlı ekiple yapılmış sayıldı; freelancer'la çalıştığın markalar yanlarında daha az kârlı görünür.",
+      });
+    }
+
     if (eksikVeri.length > 0) {
       cikti.push({
         tip: "veri",
-        baslik: `${eksikVeri.length} müşterinin kârı hesaplanamıyor`,
-        detay: eksikVeri.slice(0, 4).map((x) => `${x.c.ad} (${x.k.eksikler.join(", ")})`).join(" · ") + (eksikVeri.length > 4 ? " …" : ""),
+        baslik: `${eksikVeri.length} müşterinin aylık ücreti girilmemiş`,
+        detay: eksikVeri.slice(0, 5).map((x) => x.c.ad).join(" · ") + (eksikVeri.length > 5 ? " …" : "") + ". Kâr hesabına hiç girmiyorlar.",
       });
     }
 
@@ -5638,7 +5654,7 @@ const AYAR_SEKMELERI = [
   { key: "hesap", label: "Hesaplar" },
 ];
 
-function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu, onSaveTeblig, staffPermissions, onUpdatePermissions, markaKimligiGorseli, onSaveMarkaKimligi, onRosterChange, clients, gizlilikModu, onToggleGizlilik, islemGecmisi }) {
+function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu, onSaveTeblig, staffPermissions, onUpdatePermissions, markaKimligiGorseli, onSaveMarkaKimligi, paylasimGorseli, onSavePaylasimGorseli, acikZeminLogosu, onSaveAcikZeminLogosu, onRosterChange, clients, gizlilikModu, onToggleGizlilik, islemGecmisi }) {
   const [ayarSekme, setAyarSekme] = useState("gorunum");
   const fileInputRef = useRef(null);
   const rows = [
@@ -5697,8 +5713,32 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
       <IslemGecmisiKarti kayitlar={islemGecmisi} />
       <Card style={{ padding: "18px 22px" }}>
         <SectionTitle>Marka Kimliği</SectionTitle>
-        
-        <MarkaKimligiYukleyici value={markaKimligiGorseli} onChange={onSaveMarkaKimligi} />
+
+        <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 6 }}>KARE LOGO</div>
+        <MarkaKimligiYukleyici
+          value={markaKimligiGorseli}
+          onChange={onSaveMarkaKimligi}
+          maxKenar={800}
+          ipucu="Kare, şeffaf PNG · uygulama simgesi, telefon ana ekranı, panel başlığı"
+        />
+
+        <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, margin: "16px 0 6px" }}>PAYLAŞIM GÖRSELİ</div>
+        <MarkaKimligiYukleyici
+          value={paylasimGorseli}
+          onChange={onSavePaylasimGorseli}
+          maxKenar={1200}
+          hedefBayt={400 * 1024}
+          yukseklik={110}
+          ipucu="Yatay, 1200×630 · WhatsApp/Slack'te bağlantı paylaşınca çıkan kart"
+        />
+
+        <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, margin: "16px 0 6px" }}>AÇIK ZEMİN LOGOSU</div>
+        <MarkaKimligiYukleyici
+          value={acikZeminLogosu}
+          onChange={onSaveAcikZeminLogosu}
+          maxKenar={800}
+          ipucu="Müşteri paneli açık zeminli · boş bırakırsan kare logo kullanılır"
+        />
       </Card>
       </>}
 
@@ -6264,14 +6304,25 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
   );
 }
 
-function MarkaKimligiYukleyici({ value, onChange }) {
+/**
+ * GÖRSEL YÜKLEYİCİ — üç farklı amaç için, farklı ölçülerle.
+ *
+ * Üçünü tek alan yapmak işe yaramıyor çünkü kullanıldıkları yerlerin ihtiyacı farklı:
+ *  - KARE logo: uygulama simgesi, telefon ana ekranı, panel başlığı. Şeffaf PNG olmalı.
+ *  - PAYLAŞIM görseli: WhatsApp/Slack kartı. YATAY (1200×630) olmalı — kare bir logo orada
+ *    minik bir ikon olarak çıkar, yatay görsel tam genişlikte kart yapar.
+ *  - AÇIK ZEMİN logosu: müşteri paneli açık zeminli, uygulama koyu. Koyu zemin için yapılmış
+ *    bir logo açık zeminde kaybolabilir ya da göze batabilir.
+ *
+ * maxKenar ve hedefBayt amaca göre değişir: paylaşım görseli daha geniş ve daha büyük olabilir.
+ */
+function MarkaKimligiYukleyici({ value, onChange, maxKenar = 800, hedefBayt = 250 * 1024, yukseklik = 90, ipucu }) {
   const inputRef = useRef(null);
   const dosyaSec = (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
-    // Logo olduğu için şeffaflık korunur; yine de küçültülüp sıkıştırılır ki
-    // veri bloğunu şişirmesin.
-    gorseliKucult(file, { maxKenar: 800, seffafKoru: true, hedefBayt: 250 * 1024 })
+    // Şeffaflık korunur; yine de küçültülüp sıkıştırılır ki veri bloğunu şişirmesin.
+    gorseliKucult(file, { maxKenar, seffafKoru: true, hedefBayt })
       .then(onChange)
       .catch((err) => window.alert(err.message || "Görsel yüklenemedi."));
   };
@@ -6279,7 +6330,7 @@ function MarkaKimligiYukleyici({ value, onChange }) {
     <div>
       <div
         onClick={() => inputRef.current && inputRef.current.click()}
-        style={{ height: 90, borderRadius: 12, border: `1.5px dashed ${T.border}`, background: T.surfaceRaised, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", position: "relative" }}
+        style={{ height: yukseklik, borderRadius: 12, border: `1.5px dashed ${T.border}`, background: T.surfaceRaised, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", position: "relative" }}
       >
         {value ? (
           <>
@@ -6287,7 +6338,7 @@ function MarkaKimligiYukleyici({ value, onChange }) {
             <button onClick={(e) => { e.stopPropagation(); onChange(null); }} style={{ position: "absolute", top: 6, right: 6, width: 22, height: 22, borderRadius: 999, border: "none", background: T.danger, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><X size={13} /></button>
           </>
         ) : (
-          <span style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Görsel yüklemek için tıkla</span>
+          <span style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", textAlign: "center", padding: "0 12px" }}>{ipucu || "Görsel yüklemek için tıkla"}</span>
         )}
       </div>
       <input ref={inputRef} type="file" accept="image/*" onChange={dosyaSec} style={{ display: "none" }} />
@@ -7201,6 +7252,8 @@ export default function MarcusOS() {
   const deleteSozlesmeSablonu = (id) => setData((d) => ({ ...d, sozlesmeSablonlari: (d.sozlesmeSablonlari || []).filter((s) => s.id !== id) }));
   const saveSozlesmeSablonu = (ad, metin) => setData((d) => ({ ...d, sozlesmeSablonlari: [...(d.sozlesmeSablonlari || []), { id: nextId(d.sozlesmeSablonlari || []), ad, metin }] }));
   const saveMarkaKimligi = (gorsel) => setData((d) => ({ ...d, markaKimligiGorseli: gorsel }));
+  const savePaylasimGorseli = (gorsel) => setData((d) => ({ ...d, paylasimGorseli: gorsel }));
+  const saveAcikZeminLogosu = (gorsel) => setData((d) => ({ ...d, acikZeminLogosu: gorsel }));
   const updateStaffPermissions = (perms) => setData((d) => ({ ...d, staffPermissions: perms }));
 
   const updateMusteriGiris = (clientId, platform, field, value) => setData((d) => {
@@ -8788,6 +8841,10 @@ export default function MarcusOS() {
               onUpdatePermissions={updateStaffPermissions}
               markaKimligiGorseli={data.markaKimligiGorseli}
               onSaveMarkaKimligi={saveMarkaKimligi}
+              paylasimGorseli={data.paylasimGorseli}
+              onSavePaylasimGorseli={savePaylasimGorseli}
+              acikZeminLogosu={data.acikZeminLogosu}
+              onSaveAcikZeminLogosu={saveAcikZeminLogosu}
               onRosterChange={(roster) => setData((d) => ({ ...d, personelRosteri: roster }))}
               clients={data.clients || []}
               gizlilikModu={gizlilikModu}

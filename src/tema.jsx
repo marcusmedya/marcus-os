@@ -405,20 +405,28 @@ export function musteriKarlilik(c, { isMaliyeti = 0, eksikUcret = 0, reklamButce
   const toplamMaliyet = elleMaliyet + isMaliyeti + reklamButcesi;
   const net = gelir - toplamMaliyet;
 
-  /* Hesaplanabilir sayılmasının şartı: gelir tanımlı OLMALI ve maliyet tarafında en az bir
-   * gerçek veri bulunmalı (elle girilmiş maliyet ya da o ay yapılmış ücretli iş).
-   * Hiçbiri yoksa net = gelirin tamamı çıkar ve müşteri sahte biçimde "çok kârlı" görünür. */
-  const hesaplanabilir = gelir > 0 && (maliyetGirilmis || isMaliyeti > 0);
+  /* HESAPLANABİLİRLİK — yalnızca GELİR şartı.
+   *
+   * Buradaki maliyetler DOĞRUDAN maliyetlerdir: elle girilen kalemler, o markaya ait
+   * freelancer iş ücretleri, reklam bütçesi. Maaşlı ekibin zamanı hiçbir müşteriye
+   * dağıtılmıyor — hiçbiri için. Dolayısıyla doğrudan maliyeti olmayan bir müşterinin
+   * marjı gerçekten %100'dür; iş maaşlı ekiple yapılmış demektir.
+   *
+   * DİKKAT: bu, kendi ekibinle çalıştığın markaları freelancer'la çalıştıklarından kârlı
+   * gösterir. Bu bir hata değil, maaşın müşterilere dağıtılmamasının sonucu — ama karar
+   * verirken bilinmesi gerekir. Bu yüzden `maliyetDogrulanmis` bayrağı taşınır ve arayüz
+   * bunu işaretler. */
+  const hesaplanabilir = gelir > 0;
+  const maliyetDogrulanmis = maliyetGirilmis || isMaliyeti > 0;
 
   const eksikler = [];
   if (gelir <= 0) eksikler.push("aylık ücret girilmemiş");
-  if (!maliyetGirilmis) eksikler.push("maliyet girilmemiş");
   if (eksikUcret > 0) eksikler.push(`${eksikUcret} işte kişi ücreti tanımsız`);
 
   return {
     gelir, elleMaliyet, isMaliyeti, reklamButcesi, toplamMaliyet, net,
     marj: gelir > 0 ? Math.round((net / gelir) * 100) : 0,
-    hesaplanabilir, eksikler,
+    hesaplanabilir, maliyetDogrulanmis, eksikler,
   };
 }
 
