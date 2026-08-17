@@ -4353,7 +4353,8 @@ function OnayKutusuOnizleme({ i }) {
   );
 }
 
-function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, reklamlar, onOperasyonaAktar, onAta, onGit, onReklamaGit }) {
+function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, reklamlar, talepler, onTalepKarar, onOperasyonaAktar, onAta, onGit, onReklamaGit }) {
+  const bekleyenTalepler = (talepler || []).filter((t) => t.durum === "bekliyor");
   const [acikId, setAcikId] = useState(null);
   const [form, setForm] = useState({ kategori: "Video", kameraman: "", editor: "", teslimTarihi: "", asama: "" });
 
@@ -4434,9 +4435,40 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, reklamla
   return (
     <Card style={{ padding: "18px 22px", marginBottom: 18, border: `1px solid ${T.warning}` }}>
       <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 4 }}>
-        Onayını Bekleyenler ({revizeler.length + onaylananlar.length + atanmamislar.length + eksikReklamlar.length})
+        Onayını Bekleyenler ({revizeler.length + onaylananlar.length + atanmamislar.length + eksikReklamlar.length + bekleyenTalepler.length})
       </div>
       
+
+      {/* MÜŞTERİ TALEPLERİ — en üstte, çünkü müşteri cevap bekliyor.
+        * Onaylanınca "Talep Alındı" aşamasında bir Operasyon kartına dönüşür. */}
+      {bekleyenTalepler.map((t) => {
+        const marka = (clients || []).find((c) => String(c.id) === String(t.clientId));
+        return (
+          <div key={`talep-${t.id}`} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 15px", marginBottom: 8, borderLeft: `3px solid ${t.acil ? T.danger : T.accent}` }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
+              <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 700 }}>
+                <span style={{ color: T.accentText }}>İçerik isteği</span> · {marka ? marka.ad : "?"} — {t.tur}
+                {t.acil && <span style={{ color: T.danger }}> · acil</span>}
+              </span>
+              <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button onClick={() => onTalepKarar && onTalepKarar(t.id, "onayla")} style={{ padding: "6px 10px", borderRadius: 8, border: "none", background: T.accentSoft, color: T.accentText, fontSize: 13, fontWeight: 600, fontFamily: "Inter", cursor: "pointer" }}>
+                  Operasyon'a al
+                </button>
+                <button onClick={() => { if (window.confirm("Bu istek reddedilecek. Müşteri panelinde \"şimdilik alınmadı\" görünecek. Devam edilsin mi?")) onTalepKarar && onTalepKarar(t.id, "reddet"); }} style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: "transparent", color: T.textDim, fontSize: 13, fontWeight: 600, fontFamily: "Inter", cursor: "pointer" }}>
+                  Reddet
+                </button>
+              </span>
+            </div>
+            <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{t.aciklama}</div>
+            {(t.neZaman || t.referans) && (
+              <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 4 }}>
+                {t.neZaman ? `İstenen tarih: ${t.neZaman}` : ""}{t.neZaman && t.referans ? " · " : ""}
+                {t.referans ? <a href={t.referans} target="_blank" rel="noreferrer" style={{ color: T.accentText }}>referans ↗</a> : null}
+              </div>
+            )}
+          </div>
+        );
+      })}
 
       {revizeler.map((i) => (
         <div key={`rev-${i.id}`} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 15px", marginBottom: 8 }}>
@@ -4620,7 +4652,88 @@ function AtanmamisIsSatiri({ job, kisiler, onAta }) {
   );
 }
 
-function Planim({ gorevler, onAdd, onUpdate, onDelete, onayKutusu }) {
+/**
+ * EKİP HATIRLATMALARI — gece e-postasıyla AYNI kuralları uygular, ama ekranda.
+ *
+ * Hatırlatma e-postası RESEND_API_KEY tanımlı olmadığında sessizce atlanıyor; yani şu an
+ * kimseye ulaşmıyor. Kural mantığı sağlam, eksik olan yalnızca gönderim kanalı.
+ *
+ * Bu kart aynı listeyi burada gösterir: e-posta çalışmasa da bilgi kaybolmaz. Anahtar
+ * tanımlanınca e-posta da gitmeye başlar, bu kart yine durur — ikisi aynı kuralı okur.
+ *
+ * KURALLAR (api/daily-reminders.js ile birebir):
+ *   · teslim tarihi geçmiş ve "Teslim Edildi" olmayan işler
+ *   · "Talep Alındı" aşamasında bekleyen işler (kişi işe başlamış mı belli olsun)
+ * Kişi başına gruplanır; bir işte hem kameraman hem editör varsa ikisine de sayılır.
+ */
+function EkipHatirlatmalari({ isler, onGit }) {
+  const liste = useMemo(() => {
+    const bugun = new Date();
+    bugun.setHours(0, 0, 0, 0);
+    const gecikmis = (isler || []).filter((j) => {
+      if (j.asama === "Teslim Edildi" || !j.teslimTarihi) return false;
+      return new Date(j.teslimTarihi) < bugun;
+    });
+    const talep = (isler || []).filter((j) => j.asama === "Talep Alındı");
+
+    const kisiler = {};
+    const ekle = (j, tip) => {
+      [j.kameraman, j.editor].filter(Boolean).forEach((kisi) => {
+        if (!kisiler[kisi]) kisiler[kisi] = { gecikmis: [], talep: [] };
+        if (!kisiler[kisi][tip].some((x) => x.id === j.id)) kisiler[kisi][tip].push(j);
+      });
+    };
+    gecikmis.forEach((j) => ekle(j, "gecikmis"));
+    talep.forEach((j) => ekle(j, "talep"));
+    return Object.entries(kisiler)
+      .map(([ad, x]) => ({ ad, ...x, toplam: x.gecikmis.length + x.talep.length }))
+      .filter((x) => x.toplam > 0)
+      .sort((a, b) => b.gecikmis.length - a.gecikmis.length || b.toplam - a.toplam);
+  }, [isler]);
+
+  if (liste.length === 0) return null;
+
+  return (
+    <Card style={{ padding: "18px 22px", marginBottom: 14, border: `1px solid ${T.warning}` }}>
+      <SectionTitle>Ekibin Bekleyen İşleri</SectionTitle>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {liste.map((k) => (
+          <div key={k.ad} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 15px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: T.text, fontFamily: "Inter, sans-serif" }}>{k.ad}</span>
+              <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {k.gecikmis.length > 0 && (
+                  <span style={{ fontSize: 11, fontWeight: 700, color: T.danger, background: T.dangerSoft, borderRadius: 999, padding: "2px 9px", whiteSpace: "nowrap" }}>
+                    {k.gecikmis.length} gecikmiş
+                  </span>
+                )}
+                {k.talep.length > 0 && (
+                  <span style={{ fontSize: 11, fontWeight: 700, color: T.warning, background: T.warningSoft, borderRadius: 999, padding: "2px 9px", whiteSpace: "nowrap" }}>
+                    {k.talep.length} başlamamış
+                  </span>
+                )}
+              </span>
+            </div>
+            <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif", lineHeight: 1.7 }}>
+              {[...k.gecikmis, ...k.talep].slice(0, 4).map((j) => `${j.marka} — ${j.icerikTuru || "iş"}`).join(" · ")}
+              {k.toplam > 4 ? ` … +${k.toplam - 4}` : ""}
+            </div>
+          </div>
+        ))}
+      </div>
+      {onGit && (
+        <button
+          onClick={() => onGit("cekim-edit")}
+          style={{ marginTop: 12, background: "none", border: "none", color: T.accentText, cursor: "pointer", fontSize: 13, fontFamily: "Inter, sans-serif", fontWeight: 600, padding: 0 }}
+        >
+          Operasyon'da aç →
+        </button>
+      )}
+    </Card>
+  );
+}
+
+function Planim({ gorevler, onAdd, onUpdate, onDelete, onayKutusu, isler, onGit }) {
   const [metin, setMetin] = useState("");
   const [tarih, setTarih] = useState("");
   const [onemli, setOnemli] = useState(false);
@@ -4723,6 +4836,9 @@ function Planim({ gorevler, onAdd, onUpdate, onDelete, onayKutusu }) {
 
   return (
     <div>
+      {/* Ekip hatırlatmaları en üstte: sabah ilk bakılan yer burası. */}
+      <EkipHatirlatmalari isler={isler} onGit={onGit} />
+
       <SayacRozetleri ogeler={[
         { etiket: "açık not", deger: acikGorevler.length },
         gecikmisSayisi > 0 && { etiket: "tarihi geçti", deger: gecikmisSayisi, renk: T.danger },
@@ -7066,6 +7182,47 @@ export default function MarcusOS() {
    * Bağlı bir iş zaten varsa onu "Revize İstendi" aşamasına alır ve atamayı günceller;
    * yoksa seçtiğin kategorinin ilk aşamasında yeni bir iş açar.
    */
+  /**
+   * MÜŞTERİ TALEBİ KARARI.
+   *
+   * Onay → "Talep Alındı" aşamasında bir Operasyon kartı doğar. Bu aşama zaten Grafik
+   * Tasarım akışının ilk adımı ve gece hatırlatması onu takip ediyor; yani talep var olan
+   * iş akışına giriyor, yeni bir mekanizma kurulmuyor.
+   *
+   * Ret → kayıt silinmez, "reddedildi" olarak işaretlenir. Müşteri panelinde "şimdilik
+   * alınmadı" görünür ve o talep 3'lük sınırdan düşer. Silmek yerine işaretlemek, aynı
+   * isteğin tekrar tekrar gelmesini de görünür kılar.
+   */
+  const musteriTalepKarari = (talepId, karar) => setData((d) => {
+    const liste = d.musteriTalepleri || [];
+    const t = liste.find((x) => String(x.id) === String(talepId));
+    if (!t) return d;
+    const guncelTalepler = liste.map((x) => (String(x.id) === String(talepId)
+      ? { ...x, durum: karar === "onayla" ? "onaylandi" : "reddedildi" }
+      : x));
+    if (karar !== "onayla") return { ...d, musteriTalepleri: guncelTalepler };
+
+    const marka = (d.clients || []).find((c) => String(c.id) === String(t.clientId));
+    const isler = d.cekimIsleri || [];
+    const yeniId = isler.reduce((m, j) => Math.max(m, Number(j.id) || 0), 0) + 1;
+    const kategori = t.tur === "Reels" ? "Video" : t.tur === "Görsel" ? "Fotoğraf" : "Grafik Tasarım";
+    return {
+      ...d,
+      musteriTalepleri: guncelTalepler,
+      cekimIsleri: [...isler, {
+        id: yeniId,
+        marka: marka ? marka.ad : "",
+        kategori,
+        asama: "Talep Alındı",
+        icerikTuru: t.tur,
+        brief: `MÜŞTERİ İSTEĞİ:\n${t.aciklama}${t.referans ? `\n\nReferans: ${t.referans}` : ""}`,
+        teslimTarihi: t.neZaman || "",
+        oncelik: t.acil ? "yuksek" : "normal",
+        gecmis: [{ id: 1, tarih: new Date().toLocaleString("tr-TR"), yazan: "Müşteri talebi", aciklama: "Müşteri panelinden gelen istek onaylandı." }],
+      }],
+    };
+  });
+
   const revizeyiOperasyonaAktar = (icerikId, { kategori, kameraman, editor, teslimTarihi, asama }) => setData((d) => {
     const icerik = (d.musteriIcerikleri || []).find((i) => i.id === icerikId);
     if (!icerik) return d;
@@ -7998,10 +8155,14 @@ export default function MarcusOS() {
           {tab === "dashboard" && <Dashboard data={data} />}
           {tab === "planim" && (
             <Planim
+              isler={data.cekimIsleri || []}
+              onGit={(hedef) => setTab(hedef)}
               gorevler={data.kisiselGorevler || []}
               onAdd={addGorev} onUpdate={updateGorev} onDelete={deleteGorev}
               onayKutusu={
                 <OnayKutusu
+                  talepler={data.musteriTalepleri || []}
+                  onTalepKarar={musteriTalepKarari}
                   icerikler={data.musteriIcerikleri || []}
                   isler={data.cekimIsleri || []}
                   clients={data.clients || []}

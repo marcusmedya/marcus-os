@@ -3656,3 +3656,78 @@ Tüm dosyalarda "başlık var, içerik yok" kalıbı arandı. Bu ikisi dışınd
 ("Otomatik Yedekler" ve "Operasyon Hatırlatmaları" yanlış alarm — ikisi de bileşen içeriyor.)
 
 17 kod denetimi + 30 test dosyası temiz.
+
+## Güncelleme 147: Ekip Hatırlatmaları Planım'da
+
+### "Şimdi Test Et" çalışıyor mu?
+Kod çalışıyor, **e-posta gitmiyor**. Uç nokta test edildi:
+
+```
+RESEND_API_KEY yok  → HTTP 200 {"skipped": true, "reason": "RESEND_API_KEY tanımlı değil"}
+RESEND_API_KEY var  → HTTP 200 {"ok": true, operasyonHatirlatma: [{kisi: "Önder", gecikmis: 1}]}
+```
+
+Yani kural mantığı sağlam; eksik olan yalnızca gönderim kanalı. Anahtar Vercel'de tanımlı
+değil, o yüzden hatırlatma kimseye ulaşmıyor.
+
+### Planım'a taşındı
+`EkipHatirlatmalari` kartı Planım'ın en üstünde. E-posta ile **birebir aynı kuralları**
+uygular:
+- Teslim tarihi geçmiş ve "Teslim Edildi" olmayan işler
+- "Talep Alındı" aşamasında bekleyen işler (kişi başlamış mı belli olsun)
+
+Kişi başına gruplanır, bir işte hem kameraman hem editör varsa ikisine de sayılır.
+Hiç bekleyen iş yoksa kart hiç görünmez.
+
+E-posta çalışmasa da bilgi kaybolmuyor. Anahtar tanımlanınca e-posta da gitmeye başlar —
+ikisi aynı kuralı okuduğu için ayrışamazlar.
+
+### Doğrulama
+7 kontrol: iki mantık aynı kişileri ve aynı işleri üretiyor, "Teslim Edildi" ve gelecek
+tarihli işler sayılmıyor, kimse atanmamış iş listeye girmiyor, iki kişili iş ikisine de
+sayılıyor. 17 kod denetimi + 30 test dosyası temiz.
+
+## Güncelleme 148: Müşteri İçerik Talebi
+
+Müşteri panelinde **"İçerik İste"** sekmesi. Talep doğrudan Operasyon'a düşmez — önce
+yöneticinin onayından geçer.
+
+### Akış
+```
+Müşteri istek gönderir
+   ↓
+Planım > Onayını Bekleyenler (en üstte, çünkü müşteri cevap bekliyor)
+   ↓  "Operasyon'a al"
+"Talep Alındı" aşamasında Operasyon kartı
+   ↓
+Ekibin Bekleyen İşleri kartı onu zaten takip ediyor
+```
+
+Yeni mekanizma kurulmadı: "Talep Alındı" zaten Grafik Tasarım akışının ilk adımıydı ve gece
+hatırlatması onu izliyordu.
+
+### Form alanları
+Ne istiyorsun (Reels/Görsel/Tasarım) · Nasıl olsun (açıklama) · Ne zaman lazım · Referans ·
+Acil mi.
+
+Bilinçli olarak **sorulmayanlar**: fiyat (ilişkinin konusu), kim yapacak (yöneticinin kararı),
+aşama (hep Talep Alındı'dan başlar).
+
+### Onaylanınca ne oluyor
+- Reels → Video · Görsel → Fotoğraf · Tasarım → Grafik Tasarım kategorisi
+- Açıklama ve referans **brief'e** yazılır
+- İstenen tarih **teslim tarihi** olur
+- Acil işaretliyse **yüksek öncelik**
+
+Ret kaydı silmez, "reddedildi" olarak işaretler — müşteri "şimdilik alınmadı" görür ve o talep
+sınırdan düşer.
+
+### Güvenlik ve sınır
+- **En fazla 3 açık talep** (sonuçlananlar sayılmaz)
+- `clientId` sunucudan alınır, tarayıcıdan değil
+- Başka markanın talebi ne görünür ne de sınırı etkiler
+- `musteriTalepleri` marka kilidine kaydedildi
+- Müşteriye giden alanlar tek tek seçilir — iç notlar gitmez
+
+### Doğrulama
+`t31.mjs` 13 sunucu kontrolü + 14 onay akışı kontrolü. 17 kod denetimi + 31 test dosyası temiz.

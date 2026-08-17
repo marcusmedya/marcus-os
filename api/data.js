@@ -325,7 +325,49 @@ export default async function handler(req, res) {
       }
 
       if (req.method === "POST") {
-        const { musteriAction, icerikId, isId, revizeNotu } = req.body || {};
+        const { musteriAction, icerikId, isId, revizeNotu, talep } = req.body || {};
+
+        /* İÇERİK TALEBİ — müşteri panelinden gelen istek.
+         *
+         * Talep DOĞRUDAN Operasyon'a düşmez; önce yöneticinin Planım onay kutusuna gider.
+         * Yönetici onaylayınca "Talep Alındı" aşamasında bir Operasyon kartına dönüşür —
+         * yani her talep bir işe dönüşmeden önce süzülür.
+         *
+         * AÇIK TALEP SINIRI 3: sınırsız olsaydı pano şişer ve gerçekten acil olan kaybolurdu.
+         * Sayım yalnızca bekleyen talepleri kapsar; onaylanan/reddedilen sayılmaz. */
+        if (musteriAction === "talepOlustur") {
+          const t = talep || {};
+          if (!t.tur || !String(t.aciklama || "").trim()) {
+            return res.status(400).json({ error: "Tür ve açıklama zorunlu." });
+          }
+          const sonucTalep = await guvenliGuncelle((guncel) => {
+            const liste = guncel.musteriTalepleri || [];
+            const acikSayi = liste.filter((x) => String(x.clientId) === String(musteriClientId) && x.durum === "bekliyor").length;
+            if (acikSayi >= 3) {
+              return { iptal: true, hata: "Aynı anda en fazla 3 açık talebin olabilir. Mevcut talepler sonuçlanınca yenisini gönderebilirsin.", kod: 409 };
+            }
+            const yeniId = liste.reduce((m, x) => Math.max(m, Number(x.id) || 0), 0) + 1;
+            return {
+              veri: {
+                ...guncel,
+                musteriTalepleri: [...liste, {
+                  id: yeniId,
+                  clientId: musteriClientId,          // sunucudan gelir, tarayıcıdan DEĞİL
+                  tur: String(t.tur).slice(0, 40),
+                  aciklama: String(t.aciklama).trim().slice(0, 2000),
+                  neZaman: String(t.neZaman || "").slice(0, 20),
+                  referans: String(t.referans || "").trim().slice(0, 500),
+                  acil: t.acil === true,
+                  durum: "bekliyor",
+                  tarih: new Date().toLocaleString("tr-TR"),
+                }],
+              },
+            };
+          });
+          if (!sonucTalep.ok) return res.status(sonucTalep.kod || 409).json({ error: sonucTalep.hata || "Talep kaydedilemedi." });
+          return res.status(200).json({ ok: true });
+        }
+
         if (musteriAction !== "onayla" && musteriAction !== "revizeIste") {
           return res.status(400).json({ error: "Geçersiz işlem." });
         }

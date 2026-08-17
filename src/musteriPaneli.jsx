@@ -173,6 +173,146 @@ function Damga({ durum }) {
 }
 
 /**
+ * İÇERİK TALEBİ FORMU — müşteri ne istediğini buradan söyler.
+ *
+ * Talep doğrudan Operasyon'a düşmez: önce yöneticinin onay kutusuna gider, onaylanınca
+ * "Talep Alındı" aşamasında bir iş kartına dönüşür. Böylece her istek bir işe dönüşmeden
+ * önce süzülür.
+ *
+ * Alanlar bilinçli olarak az: fiyat sorulmaz (o ilişkinin konusu), kişi seçtirilmez
+ * (yöneticinin kararı), aşama seçtirilmez (hep Talep Alındı'dan başlar).
+ *
+ * REFERANS alanı en değerlisi — "şuna benzer olsun" demek üç paragraf açıklamadan iyidir
+ * ve revize turlarını azaltır.
+ */
+function TalepFormu({ talepler, gonderiliyor, onGonder }) {
+  const [tur, setTur] = useState("Reels");
+  const [aciklama, setAciklama] = useState("");
+  const [neZaman, setNeZaman] = useState("");
+  const [referans, setReferans] = useState("");
+  const [acil, setAcil] = useState(false);
+
+  const acikSayi = (talepler || []).filter((t) => t.durum === "bekliyor").length;
+  const sinirDoldu = acikSayi >= 3;
+
+  const gonder = () => {
+    if (!aciklama.trim()) return;
+    onGonder({ tur, aciklama, neZaman, referans, acil });
+    setAciklama(""); setNeZaman(""); setReferans(""); setAcil(false);
+  };
+
+  const DURUM = {
+    bekliyor: { etiket: "Değerlendiriliyor", renk: MT.bekleyen, zemin: MT.bekleyenZemin },
+    onaylandi: { etiket: "Kabul edildi — üretime alındı", renk: MT.onay, zemin: MT.onayZemin },
+    reddedildi: { etiket: "Şimdilik alınmadı", renk: MT.soluk, zemin: MT.kagit },
+  };
+
+  return (
+    <div>
+      <div style={{ background: "#fff", border: `1px solid ${MT.cizgi}`, borderRadius: 14, padding: "18px 22px", marginBottom: 18 }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 600, color: MT.murekkep, marginBottom: 14 }}>
+          Yeni içerik isteği
+        </div>
+
+        {sinirDoldu ? (
+          <div style={{ background: MT.bekleyenZemin, borderRadius: 10, padding: "12px 15px", fontSize: 13, color: MT.murekkep, fontFamily: "Inter, sans-serif", lineHeight: 1.7 }}>
+            Şu an 3 açık isteğin var. Bunlar sonuçlanınca yenisini gönderebilirsin.
+          </div>
+        ) : (
+          <>
+            <div style={{ fontSize: 13, color: MT.soluk, fontFamily: "Inter, sans-serif", fontWeight: 600, marginBottom: 6 }}>Ne istiyorsun?</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+              {["Reels", "Görsel", "Tasarım"].map((x) => (
+                <button
+                  key={x}
+                  onClick={() => setTur(x)}
+                  style={{ padding: "12px 15px", borderRadius: 999, border: `1px solid ${tur === x ? MT.mor : MT.cizgi}`, background: tur === x ? MT.mor : "transparent", color: tur === x ? "#fff" : MT.murekkep, fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer" }}
+                >
+                  {x}
+                </button>
+              ))}
+            </div>
+
+            <div style={{ fontSize: 13, color: MT.soluk, fontFamily: "Inter, sans-serif", fontWeight: 600, marginBottom: 6 }}>Nasıl olsun?</div>
+            <textarea
+              value={aciklama}
+              onChange={(e) => setAciklama(e.target.value)}
+              placeholder="Örn. Yeni menü için 3 görsel — kahve odaklı, sıcak tonlar"
+              rows={3}
+              style={{ width: "100%", background: MT.kagit, border: `1px solid ${MT.cizgi}`, borderRadius: 10, padding: "12px 15px", fontSize: 13, fontFamily: "Inter, sans-serif", color: MT.murekkep, resize: "vertical", marginBottom: 14, boxSizing: "border-box" }}
+            />
+
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
+              <span style={{ flex: "1 1 180px" }}>
+                <span style={{ display: "block", fontSize: 13, color: MT.soluk, fontFamily: "Inter, sans-serif", fontWeight: 600, marginBottom: 6 }}>Ne zaman lazım? (opsiyonel)</span>
+                <input
+                  type="date"
+                  value={neZaman}
+                  onChange={(e) => setNeZaman(e.target.value)}
+                  style={{ width: "100%", background: MT.kagit, border: `1px solid ${MT.cizgi}`, borderRadius: 10, padding: "12px 15px", fontSize: 13, fontFamily: "Inter, sans-serif", color: MT.murekkep, boxSizing: "border-box" }}
+                />
+              </span>
+              <span style={{ flex: "2 1 260px" }}>
+                <span style={{ display: "block", fontSize: 13, color: MT.soluk, fontFamily: "Inter, sans-serif", fontWeight: 600, marginBottom: 6 }}>Referans (opsiyonel)</span>
+                <input
+                  value={referans}
+                  onChange={(e) => setReferans(e.target.value)}
+                  placeholder="Beğendiğin bir örneğin bağlantısı"
+                  style={{ width: "100%", background: MT.kagit, border: `1px solid ${MT.cizgi}`, borderRadius: 10, padding: "12px 15px", fontSize: 13, fontFamily: "Inter, sans-serif", color: MT.murekkep, boxSizing: "border-box" }}
+                />
+              </span>
+            </div>
+
+            <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, cursor: "pointer" }}>
+              <input type="checkbox" checked={acil} onChange={(e) => setAcil(e.target.checked)} style={{ width: 16, height: 16, cursor: "pointer" }} />
+              <span style={{ fontSize: 13, color: MT.murekkep, fontFamily: "Inter, sans-serif" }}>Acil</span>
+            </label>
+
+            <button
+              onClick={gonder}
+              disabled={gonderiliyor || !aciklama.trim()}
+              style={{ padding: "12px 15px", borderRadius: 10, border: "none", background: aciklama.trim() ? MT.mor : MT.cizgi, color: "#fff", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: aciklama.trim() ? "pointer" : "default" }}
+            >
+              {gonderiliyor ? "Gönderiliyor…" : "İsteği Gönder"}
+            </button>
+          </>
+        )}
+      </div>
+
+      {(talepler || []).length > 0 && (
+        <div>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, letterSpacing: 1, color: MT.soluk, marginBottom: 10 }}>
+            İSTEKLERİN · {talepler.length}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {[...talepler].reverse().map((t) => {
+              const d = DURUM[t.durum] || DURUM.bekliyor;
+              return (
+                <div key={t.id} style={{ background: "#fff", border: `1px solid ${MT.cizgi}`, borderRadius: 12, padding: "12px 15px" }}>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: MT.murekkep, fontFamily: "Inter, sans-serif" }}>
+                      {t.tur}{t.acil ? " · acil" : ""}
+                    </span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: d.renk, background: d.zemin, borderRadius: 999, padding: "2px 9px", whiteSpace: "nowrap" }}>{d.etiket}</span>
+                  </div>
+                  <div style={{ fontSize: 13, color: MT.murekkep, fontFamily: "Inter, sans-serif", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{t.aciklama}</div>
+                  {(t.neZaman || t.referans) && (
+                    <div style={{ fontSize: 13, color: MT.soluk, fontFamily: "Inter, sans-serif", marginTop: 6 }}>
+                      {t.neZaman ? `İstenen tarih: ${t.neZaman}` : ""}{t.neZaman && t.referans ? " · " : ""}
+                      {t.referans ? <a href={t.referans} target="_blank" rel="noreferrer" style={{ color: MT.mor }}>referans ↗</a> : null}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * Müşteri Paneli.
  *
  * ortakModu=true olduğunda çözüm ortağı, atandığı markanın panelini MÜŞTERİNİN GÖRDÜĞÜ
@@ -191,6 +331,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
   // onay sonrası veri yenilense bile müşterinin ekranı ilk açılıştaki hâlinde donuyordu.
   useEffect(() => { setIcerikler(musteriData.icerikler || []); }, [musteriData]);
   const [revizeAcikId, setRevizeAcikId] = useState(null);
+  const [talepGonderiliyor, setTalepGonderiliyor] = useState(false);
   const [acikIcerikId, setAcikIcerikId] = useState(null); // açık olan içerik kartı
   // Ortak "Üretim Durumu" ile açılır: ilk sorusu "işler nerede?" — müşterininki ise
   // "onayımı bekleyen ne var?".
@@ -249,6 +390,24 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
       })
       .catch(() => window.alert("Bağlantı hatası — tekrar dene."))
       .finally(() => setGonderiliyor(null));
+  };
+
+  /* Talep gönderimi: sunucu kaydettikten sonra veri tazelenir ki liste ve 3'lük sınır
+   * anında güncellensin. Tarayıcıda ayrıca liste tutulmaz — tek kaynak sunucu. */
+  const talepGonder = (talep) => {
+    setTalepGonderiliyor(true);
+    fetch("/api/data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ musteriAction: "talepOlustur", talep }),
+    })
+      .then((r) => r.json())
+      .then((res) => {
+        if (res.ok) { if (onIslemSonrasi) onIslemSonrasi(); }
+        else window.alert(res.error || "İstek gönderilemedi.");
+      })
+      .catch(() => window.alert("Bağlantı hatası — tekrar dene."))
+      .finally(() => setTalepGonderiliyor(false));
   };
 
   const istekAt = (musteriAction, icerikId, revizeNotu) => {
@@ -319,6 +478,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
     { key: "takvim", label: "Paylaşım Takvimi", rozet: 0 },
     { key: "reklam", label: "Reklamlar", rozet: 0 },
     { key: "uretim", label: "Üretim Durumu", rozet: 0 },
+    { key: "talep", label: "İçerik İste", rozet: 0 },
   ];
 
   /* ORTAK MODU — yalnızca İLERLEYİŞ ve ONAYLANANLAR.
@@ -664,6 +824,9 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
 
         {/* ÜRETİM — hangi iş hangi aşamada. */}
         {sekme === "uretim" && <MusteriOperasyon isler={musteriData.operasyonIsleri || []} />}
+        {sekme === "talep" && (
+          <TalepFormu talepler={musteriData.talepler || []} gonderiliyor={talepGonderiliyor} onGonder={talepGonder} />
+        )}
 
         {/* Alt çıkış — uzun listelerde en yukarı dönmek zorunda kalmamak için. */}
         <div style={{ marginTop: 40, paddingTop: 20, borderTop: `1px solid ${MT.cizgi}`, textAlign: "center" }}>
