@@ -2873,3 +2873,79 @@ yanlış uç noktaya bakıyordu. Gerçek akış (yedek al → listele → içeri
 ve sorunsuz.
 
 Yeni kalıcı test: `t28.mjs` — 9 kontrol.
+
+## Güncelleme 119: Gerçek Logo — Her Yerde, Değiştirilebilir
+
+Link gönderildiğinde mavi "M" simgesi görünüyordu. Sebebi: uygulama içi logo veriden geliyordu
+ama **tarayıcı simgesi, telefon simgesi ve link önizlemesi sabit dosyalardan** geliyordu.
+
+Ayrıca link önizleme etiketleri (og:) **hiç yoktu** — paylaşılan bağlantı çıplak görünüyordu.
+
+### Çözüm: /api/logo
+Ayarlar > Marka Kimliği'ne yüklenen logo veride base64 olarak duruyor; tarayıcı ve WhatsApp
+bunu okuyamaz, gerçek bir görsel adresi isterler. Yeni uç nokta kayıtlı logoyu **normal bir
+resim gibi** sunuyor.
+
+Sonuç: logoyu Ayarlar'dan değiştirdiğinde **her yer birden güncellenir** — dosya değiştirmeye
+ya da yeniden yayına almaya gerek yok.
+
+| Nerede | Öncesi | Şimdi |
+|---|---|---|
+| Tarayıcı sekmesi | mavi M | senin logon |
+| Telefon ana ekranı | mavi M | senin logon |
+| WhatsApp/Slack önizleme | yoktu | başlık + logo kartı |
+| Yönetici paneli başlığı | mavi M | senin logon |
+| Personel paneli başlığı | mavi M | senin logon |
+| Müşteri paneli | zaten logo | değişmedi |
+
+Logo yüklenmemişse hepsi varsayılan M rozetine düşüyor — hiçbir yerde boşluk kalmıyor.
+
+### Güvenlik
+Uç nokta **şifresiz** olmak zorunda: link önizlemesini oluşturan WhatsApp/Slack sunucuları
+giriş yapamaz. Bu bir açık değil — yalnızca logo dönüyor.
+
+Test edildi: şifre kasası ve personel verisi yanıtta yok, yalnızca görsel baytları dönüyor.
+Bozuk değer, eksik logo ve veri yokluğunda çökmüyor; POST reddediliyor.
+
+### Slot durumu
+12/12 → 10/12 (v117) → **11/12**. Bir slot payı kaldı.
+
+### Doğrulama
+`t29.mjs` — 10 kontrol. 15 kod denetimi + 29 test dosyası temiz.
+
+## Güncelleme 120: Müşteriler Siyah Ekran + On Altıncı Denetleyici
+
+### Hata
+Müşteriler sekmesi siyah ekran veriyordu. Sebep: v117'de App.jsx eski bir kopyadan geri
+yüklenirken **CLIENT_FIELDS ve CLIENT_DURUM sabitleri kesilmiş.** İkisi de Müşteriler
+ekranının olmazsa olmazı — biri müşteri formunun alanlarını, diğeri durum etiketlerini
+tanımlıyor.
+
+Kod sözdizimi olarak geçerliydi; hata ancak o sekme açıldığında ortaya çıkıyordu.
+
+**Düzeltildi** — iki sabit önceki sürümden geri alındı.
+
+### Neden 15 denetleyicinin hiçbiri görmedi
+- **10 (tanımsız değişken)** yalnızca küçük harfli adlara bakıyor
+- **12 (kapsam dışı)** bir bileşende tanımlı olup başkasında kullanılanı arıyor; burada ad
+  **hiçbir yerde** tanımlı değildi
+- **5 (eksik bileşen)** yalnızca `<Bileşen>` biçimindekileri kapsıyor
+
+`testler/sabitdenetle.py` eklendi: BÜYÜK_HARFLİ sabitlerin tanımlı olduğunu doğrular.
+Her iki sabit için ayrı ayrı test edildi, temiz dosyalarda susuyor.
+
+Bilinen yanlış alarmlar (OKUBENI'ye eklendi): CEO, KAPALI, KDV, PDF, CSV, API — hepsi JSX
+metninde geçen Türkçe kelimeler, kod değil.
+
+### Tam sistem taraması — sonuç
+| Alan | Sonuç |
+|---|---|
+| 16 kod denetimi | temiz |
+| 29 test dosyası | düşen yok |
+| Marka kilidi kapsamı | 25 alanın hepsi kapsanıyor |
+| Ortak paneli sızıntı testi | 14 tuzak alanı, sızıntı yok |
+| Yeni logo uç noktası | yalnızca görsel baytları dönüyor |
+| Yedek kapsamı | tüm blok kopyalanıyor, alan listesi yok → yeni alanlar kendiliğinden dahil |
+
+**Yedek alınmayan yer bulunamadı.** daily-backup veriyi alan alan değil bütün olarak
+kopyaladığı için, ileride eklenecek her alan otomatik olarak yedeğe girer.

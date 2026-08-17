@@ -79,6 +79,28 @@ function Dashboard({ data }) {
 /*                                                                      */
 /* Yeni hâl model çağırmaz (maliyeti sıfır) ve hesaplayamadığı şey için */
 /* sayı UYDURMAZ — verinin eksik olduğunu söyler.                       */
+/**
+ * UYGULAMA LOGOSU — Ayarlar > Marka Kimliği'ne yüklenen görsel.
+ *
+ * Yüklenmemişse "M" harfli varsayılan rozete düşer, yani logo yokken de boşluk görünmez.
+ * Tek bileşen: yönetici ve personel başlıkları aynı yerden beslendiği için biri güncellenip
+ * diğeri unutulamaz.
+ */
+function UygulamaLogosu({ gorsel, boyut = 30 }) {
+  if (gorsel) {
+    return (
+      <img
+        src={gorsel}
+        alt=""
+        style={{ width: boyut, height: boyut, borderRadius: 9, objectFit: "contain", background: T.surfaceRaised, flexShrink: 0 }}
+      />
+    );
+  }
+  return (
+    <div style={{ width: boyut, height: boyut, borderRadius: 9, background: T.accent, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: "#fff", fontSize: boyut / 2.1, flexShrink: 0 }}>M</div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 function KararSeridi({ data }) {
   const kararlar = useMemo(() => {
@@ -187,6 +209,34 @@ function KararSeridi({ data }) {
 
 /* ------------------------------------------------------------------ */
 /* DASHBOARD                                                            */
+
+const CLIENT_DURUM = {
+  aktif: { label: "Aktif", color: T.success, soft: T.successSoft },
+  yeni: { label: "Yeni", color: T.accentText, soft: T.accentSoft },
+  donduruldu: { label: "❄️ Donduruldu", color: T.warning, soft: T.warningSoft },
+  ayrildi: { label: "Ayrıldı", color: T.textFaint, soft: T.borderSoft },
+};
+
+/* ------------------------------------------------------------------ */
+/* MÜŞTERİLER                                                           */
+/* ------------------------------------------------------------------ */
+const CLIENT_FIELDS = [
+  { key: "ad", label: "Müşteri Adı", type: "text" },
+  { key: "kategori", label: "Kategori", type: "text" },
+  { key: "durum", label: "Durum", type: "select", options: [{ value: "aktif", label: "Aktif" }, { value: "yeni", label: "Yeni" }, { value: "donduruldu", label: "Donduruldu" }, { value: "ayrildi", label: "Ayrıldı" }] },
+  { key: "email", label: "Yetkili E-postası (opsiyonel — ödeme hatırlatması için)", type: "text", placeholder: "yetkili@marka.com" },
+  { key: "telefon", label: "Yetkili Telefonu (opsiyonel — WhatsApp için, ülke koduyla)", type: "text", placeholder: "905XXXXXXXXX" },
+  // Müşteri panelinin üst kısmındaki ortak logo bandında kullanılır (Marcus Medya × Marka).
+  { key: "logoUrl", label: "Marka Logosu (opsiyonel — Drive bağlantısı, müşteri panelinde görünür)", type: "text", placeholder: "https://drive.google.com/file/d/..." },
+  { key: "aylikUcret", label: "Aylık Ücret (₺)", type: "number" },
+  { key: "karMarji", label: "Kâr Marjı (%) — müşteri detayında maliyet eklersen otomatik hesaplanır", type: "number" },
+  { key: "odemeGunu", label: "Ödeme Günü (ayın kaçı — opsiyonel, örn. 5)", type: "number" },
+  { key: "faturaliTutar", label: "Faturalı Tutar (₺/ay) — aylık ücretin ne kadarı faturalı? Kalanı otomatik faturasız sayılır", type: "number" },
+  { key: "baslangic", label: "Başlangıç Ayı (ne zaman çalışmaya başladınız)", type: "month" },
+  { key: "odemeSekli", label: "Ödeme Şekli", type: "select", options: [{ value: "pesin", label: "Peşin (ay başında/önceden)" }, { value: "sonra", label: "Sonra (ay sonunda/hizmet sonrası)" }] },
+  { key: "not", label: "Not (opsiyonel)", type: "text" },
+];
+
 function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, freelancerlar, onAdd, onUpdate, onDelete, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, openClient, onOpenClientHandled, duzenleyenAdi, musteriIcerikleri, onAddIcerik, onUpdateIcerik, onDeleteIcerik, onOnaylaIcerik, firmaAdi }) {
   const [filter, setFilter] = useState("hepsi");
   const [adding, setAdding] = useState(false);
@@ -8140,7 +8190,7 @@ export default function MarcusOS() {
         `}</style>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 20px", borderBottom: `1px solid ${T.borderSoft}`, flexWrap: "wrap", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 9, background: T.accent, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: "#fff", fontSize: 14 }}>M</div>
+            <UygulamaLogosu gorsel={data.markaKimligiGorseli} boyut={32} />
             <div>
               <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14.5, color: T.text }}>Marcus Medya App</div>
               <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter" }}>Personel Paneli</div>
@@ -8328,7 +8378,7 @@ export default function MarcusOS() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "0 8px", marginBottom: 30 }}>
-          <div style={{ width: 30, height: 30, borderRadius: 9, background: T.accent, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: "#fff", fontSize: 14 }}>M</div>
+          <UygulamaLogosu gorsel={data.markaKimligiGorseli} boyut={30} />
           <div>
             <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14.5, color: T.text, letterSpacing: 0.2 }}>Marcus Medya App</div>
             <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter" }}>Marcus Medya</div>
