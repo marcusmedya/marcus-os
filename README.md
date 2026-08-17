@@ -3798,3 +3798,31 @@ ve kartın `hamDosyaLink` alanına geçiyor. Yükleme için yazılan alt yapı b
 ### Doğrulama
 17 sunucu kontrolü + 3 bağlantı zinciri kontrolü. 17 kod denetimi + 31 test dosyası temiz.
 Serverless slot 11/12 (hiç değişmedi).
+
+## Güncelleme 151: "Yetkisiz" Hatası — Eski Kimlik Kopyası
+
+Operasyon kartındaki **Durum Bildirimi Gönder** düğmesi "Gönderilemedi: (Yetkisiz.)" veriyordu.
+
+### Sebep
+`CekimEditTakibi.jsx` içinde `authHeadersLokal` adında **yerel bir kimlik başlığı kopyası**
+vardı ve şifreyi `localStorage`'dan okumaya çalışıyordu.
+
+Yönetici şifresi v62'de güvenlik gerekçesiyle tarayıcıdan kaldırılmış, yerine **oturum
+anahtarı** getirilmişti. Ortak `authHeaders` güncellenmiş ama bu yerel kopya güncellenmemiş —
+boş başlık üretmeye başlamış. Sunucu haklı olarak 401 dönüyordu.
+
+Yani e-posta altyapısı çalışıyordu; istek kimliksiz gidiyordu.
+
+### Düzeltme
+Yerel kopya kaldırıldı, `tema.jsx`'teki ortak `authHeaders` kullanılıyor. Üç çağrı da
+düzeltildi.
+
+### Tarama
+`localStorage.getItem("marcus-os-pw")` kalıbı tüm dosyalarda arandı — başka kopya yok.
+Diğer 19 fetch çağrısı incelendi, hepsi oturum anahtarını gönderiyor (yalnızca farklı
+yazılmışlar).
+
+### Ders
+Aynı işi yapan ikinci bir kopya, güncellenmediğinde sessizce bozulur. Bu projede üçüncü kez:
+e-posta göndericisi (v115'te birleştirildi), müşteri görünümü (v110'da birleştirildi), şimdi
+kimlik başlıkları.

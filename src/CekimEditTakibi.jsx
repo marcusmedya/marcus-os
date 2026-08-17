@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 // Para gösterimleri Gizlilik Modu'na uymalı — aksi halde ücretler gizliyken de görünür kalırdı.
-import { fmt, T } from "./tema.jsx";
+import { fmt, T, authHeaders } from "./tema.jsx";
 import {
   Camera, Plus, X, Clock, AlertTriangle, CheckCircle2, User, Link2,
   MessageSquare, History, ChevronRight, ChevronLeft, Pencil, Trash2, LayoutGrid, BarChart3, ListTodo, Rocket,
@@ -197,18 +197,12 @@ const gunFarki = (tarihISO) => {
   return Math.round((t - bugun) / 86400000);
 };
 
-// App.jsx'teki ile aynı localStorage anahtarları — bu dosya App.jsx'ten bağımsız çalıştığı
-// için kimlik bilgilerini kendi başına aynı yerden okuyor.
-const authHeadersLokal = () => {
-  try {
-    const pw = localStorage.getItem("marcus-os-pw");
-    if (pw) return { "X-Site-Password": pw };
-    const kullaniciAdi = localStorage.getItem("marcus-os-staff-user");
-    const sifre = localStorage.getItem("marcus-os-staff-pw");
-    if (kullaniciAdi && sifre) return { "X-Staff-Username": kullaniciAdi, "X-Staff-Password": sifre };
-  } catch (e) { /* localStorage erişilemezse sessizce geç */ }
-  return {};
-};
+/* NOT: burada eskiden authHeadersLokal adında yerel bir kopya vardı ve şifreyi
+ * localStorage'dan okumaya çalışıyordu. Yönetici şifresi v62'de tarayıcıdan kaldırılıp
+ * yerine OTURUM ANAHTARI getirilince bu kopya boş başlık üretmeye başladı — durum
+ * bildirimi e-postaları sessizce "Yetkisiz" hatası alıyordu.
+ * Artık tema.jsx'teki ortak authHeaders kullanılıyor; tek kopya, tek doğru. */
+
 
 /** Bir kayıt (iş) düzenleme ekranı açıkken, başka biri de aynı kaydı açtıysa erken uyarı verir. */
 function useDuzenlemeKilidi(tur, id, aktifMi, benKimim) {
@@ -219,7 +213,7 @@ function useDuzenlemeKilidi(tur, id, aktifMi, benKimim) {
     const kilitAl = () => {
       fetch("/api/data", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeadersLokal() },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ kilitAction: "al", tur, id, kisi: benKimim }),
       })
         .then((r) => r.json())
@@ -233,7 +227,7 @@ function useDuzenlemeKilidi(tur, id, aktifMi, benKimim) {
       clearInterval(interval);
       fetch("/api/data", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeadersLokal() },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ kilitAction: "birak", tur, id, kisi: benKimim }),
       }).catch(() => {});
     };
@@ -547,7 +541,7 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
       kisiler.map((kisi) =>
         fetch("/api/notify-job", {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeadersLokal() },
+          headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify({ email: kisi.email, ad: kisi.ad, marka: job.marka, icerikTuru: job.icerikTuru, kategori: job.kategori, asama: job.asama, teslimTarihi: job.teslimTarihi, firmaAdi, mod: "durum" }),
         }).then((r) => r.json()).then((res) => ({ kisi: kisi.ad, ...res }))
       )
