@@ -111,11 +111,11 @@ Sol menü altı satır, gruplu:
 
 ```
 Dashboard          → KPI'lar, "Bugünün Kararı", kişisel görevler, onay kutusu
-MÜŞTERİ            Müşteriler · Müşteri Paneli · Teklif & Sözleşme · Reklamlar
+MÜŞTERİ            Müşteriler · Teklif & Sözleşme · Reklamlar
 PARA               Finans · Ödeme Takvimi · Personel · Birikim · Üyelikler
-ÜRETİM             Operasyon · Çekim · Günlük Kontrol · Paylaşımlar
-SİSTEM             Ayarlar
+ÜRETİM             Operasyon · Çekim · Günlük Kontrol · Paylaşımlar · Müşteri Paneli
 Şifre Kasası       → müşteri hesaplarının sosyal medya şifreleri
+Ayarlar
 ```
 
 ### Operasyon (iş takibi)

@@ -6498,12 +6498,11 @@ function SaveBlockedModal({ info, onCancel, onForce }) {
 const NAV_UST = ["dashboard"];
 /* Şifre Kasası grupların ALTINDA duruyor — kullanıcının istediği sıra bu. Gruplu değil,
  * tek başına bir madde. */
-const NAV_ALT = ["musteri-girisleri"];
+const NAV_ALT = ["musteri-girisleri", "ayarlar"];
 const NAV_GRUPLARI = [
-  { key: "musteri", label: "Müşteri",        icon: Users,      maddeler: ["musteriler", "musteri-paneli", "teklif", "reklamlar"] },
+  { key: "musteri", label: "Müşteri",        icon: Users,      maddeler: ["musteriler", "teklif", "reklamlar"] },
   { key: "para",    label: "Para",           icon: Wallet,     maddeler: ["finans", "odeme-takvimi", "personel", "birikim", "uyelikler"] },
-  { key: "uretim",  label: "Üretim",         icon: Camera,     maddeler: ["cekim-edit", "cekim-listesi", "gunluk-kontrol", "paylasimlar"] },
-  { key: "sistem",  label: "Sistem",         icon: Settings,   maddeler: ["ayarlar"] },
+  { key: "uretim",  label: "Üretim",         icon: Camera,     maddeler: ["cekim-edit", "cekim-listesi", "gunluk-kontrol", "paylasimlar", "musteri-paneli"] },
 ];
 
 const NAV = [
@@ -8369,18 +8368,28 @@ export default function MarcusOS() {
                   // Bulunduğun grup kendiliğinden açık gelir — açtığın sayfayı menüde
                   // göremezsen nerede olduğunu kaybedersin.
                   const icinde = grup.maddeler.includes(tab);
-                  const acik = acikGrup === grup.key || icinde;
+                  // "__kapali__" = kullanıcı elle kapattı; o an hangi sekmede olursa olsun kapalı kalır.
+                  const acik = acikGrup === grup.key || (icinde && acikGrup !== "__kapali__");
                   return (
                     <div key={grup.key}>
                       <button
-                        /* Bulunduğun grup her zaman açık kalır (kapatılamaz): açık sayfayı
-                          * menüde göremezsen nerede olduğunu kaybedersin. Diğer gruplar
-                          * tıklamayla açılıp kapanır. */
-                        onClick={() => { if (!icinde) setAcikGrup(acikGrup === grup.key ? null : grup.key); }}
+                        /* HER grup kapanabilir. Eskiden içinde bulunduğun grup kilitliydi
+                          * ("nerede olduğunu kaybetme" gerekçesiyle) ama bu, tıklayınca
+                          * kapanmayan bir menü demekti. Yerine: grup kapalıyken başlığı
+                          * vurgulanır ve açık sayfanın adı yanında yazar — yerini yine
+                          * kaybetmezsin, ama menüyü toplayabilirsin. */
+                        onClick={() => setAcikGrup(acik ? "__kapali__" : grup.key)}
                         style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 9, background: "transparent", border: "none", cursor: "pointer", textAlign: "left", width: "100%" }}
                       >
                         <GIcon size={16} color={icinde ? T.accentText : T.textFaint} />
-                        <span style={{ flex: 1, fontSize: 12, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", color: icinde ? T.text : T.textFaint, fontFamily: "Inter, sans-serif" }}>{grup.label}</span>
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ display: "block", fontSize: 12, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", color: icinde ? T.text : T.textFaint, fontFamily: "Inter, sans-serif" }}>{grup.label}</span>
+                          {icinde && !acik && (
+                            <span style={{ display: "block", fontSize: 10.5, color: T.accentText, fontFamily: "Inter, sans-serif", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {(NAV.find((x) => x.key === tab) || {}).label}
+                            </span>
+                          )}
+                        </span>
                         <span style={{ fontSize: 10, color: T.textFaint }}>{acik ? "▲" : "▼"}</span>
                       </button>
                       {acik && (

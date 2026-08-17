@@ -3111,3 +3111,33 @@ Dashboard
 olarak duruyor.
 
 16 menü maddesinin hepsi hâlâ kapsanıyor, kapsanmayan yok. Tanıtım dosyası da güncellendi.
+
+## Güncelleme 127: Menü Yerleşimi + Kapanmama Hatası
+
+```
+Dashboard
+👥 MÜŞTERİ      Müşteriler · Teklif & Sözleşme · Reklamlar
+💰 PARA         Finans · Ödeme Takvimi · Personel · Birikim · Üyelikler
+📹 ÜRETİM       Operasyon · Çekim · Günlük Kontrol · Paylaşımlar · Müşteri Paneli
+🔑 Şifre Kasası
+⚙️ Ayarlar
+```
+
+Müşteri Paneli **Üretim**'e taşındı — içerik akışının son halkası orası. Ayarlar tek başına
+en altta, artık grup değil; Sistem grubu tamamen kalktı.
+
+### Kapanmama hatası
+İçinde bulunduğun grup **kilitliydi** — bilerek koymuştum ("açık sayfayı menüde göremezsen
+nerede olduğunu kaybedersin"). Ama pratikte bu, tıklayınca kapanmayan bir menü demekti ve
+gerekçem kullanıcının işine engel oluyordu.
+
+Artık **her grup kapanabiliyor.** Yerini kaybetmemen için: grup kapalıyken başlığı vurgulanıyor
+ve **altında açık olduğun sayfanın adı yazıyor**. Yani menüyü toplayabiliyorsun ama nerede
+olduğunu yine görüyorsun.
+
+Elle kapattığın grup, o sekmedeyken bile kapalı kalıyor; tekrar tıklayınca açılıyor.
+
+### Doğrulama
+12 senaryo: aktif grubun kapanması, tekrar açılması, başka grubun açılıp kapanması, elle
+kapatılmışken davranış, Dashboard'da hiçbir grubun açılmaması, yeni yerleşim. 16 kod denetimi
++ 30 test dosyası temiz.
