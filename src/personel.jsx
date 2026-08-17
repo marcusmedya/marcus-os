@@ -29,8 +29,12 @@ export const PERSONEL_FIELDS = [
   { key: "sigorta", label: "SGK / Sigorta (₺/ay)", type: "number" },
   { key: "yemek", label: "Yemek Gideri (₺/ay)", type: "number" },
   { key: "odemeGunu", label: "Maaş Ödeme Günü (ayın kaçı — örn. 5)", type: "number" },
+  { key: "maasOdemeSekli", label: "Maaş Ne Zaman Ödenir", type: "select", options: [
+    { value: "ertesi", label: "Ertesi ay (Ağustos maaşı Eylül'de ödenir)" },
+    { value: "ayni", label: "Aynı ay içinde (Ağustos maaşı Ağustos'ta ödenir)" },
+  ] },
   { key: "tazminatBirikimi", label: "Kıdem Tazminatı Birikimi (₺/ay, opsiyonel)", type: "number" },
-  { key: "baslangic", label: "İşe Başlama (YYYY-AA)", type: "text", placeholder: "2026-01" },
+  { key: "baslangic", label: "İşe Başlama Tarihi", type: "date" },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -160,15 +164,33 @@ export function odemeToplami(odemeler, hedef, ay) {
     .reduce((s, o) => s + (Number(o.tutar) || 0), 0);
 }
 
-/** Maaş ödeme gününe göre durum: henüz vadesi gelmedi / bekliyor / gecikti / ödendi. */
-export function maasOdemeDurumu(odemeGunu, kalan, ay) {
+/**
+ * Maaş ödeme gününe göre durum: henüz vadesi gelmedi / bekliyor / gecikti / ödendi.
+ *
+ * ÖDEME ŞEKLİ: eskiden maaşın AYNI AY içinde ödendiği varsayılıyordu — Ağustos maaşı
+ * Ağustos'un 5'inde beklenir, o gün geçince "Gecikti" derdi. Ertesi ay ödeyen bir işletmede
+ * bu her ay yanlış alarm demekti ve kullanıcı kaydı elle ileri atmak zorunda kalıyordu.
+ *
+ * "ertesi" (varsayılan): Ağustos maaşının vadesi EYLÜL'ün ödeme günüdür.
+ * "ayni": eski davranış — vade aynı ayın ödeme günü.
+ */
+export function maasOdemeDurumu(odemeGunu, kalan, ay, odemeSekli) {
   if (kalan <= 0) return { etiket: "Ödendi", renk: T.success };
   const gun = Number(odemeGunu) || 0;
   if (!gun) return { etiket: "Ödeme günü yok", renk: T.textFaint };
   const bugun = new Date();
   const buAy = monthKey(bugun);
-  if (ay > buAy) return { etiket: "Gelecek ay", renk: T.textFaint };
-  if (ay < buAy) return { etiket: "Gecikti", renk: T.danger };
+
+  /* Vade ayı: "ertesi" ise maaş ayının bir sonrası. Karşılaştırmalar bu ay üzerinden yapılır. */
+  const ertesiMi = (odemeSekli || "ertesi") !== "ayni";
+  let vadeAyi = ay;
+  if (ertesiMi && /^\d{4}-\d{2}$/.test(String(ay || ""))) {
+    const [y, a] = String(ay).split("-").map(Number);
+    const d = new Date(y, a, 1);                       // a zaten 1 fazla → sonraki ay
+    vadeAyi = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }
+  if (vadeAyi > buAy) return { etiket: "Gelecek ay", renk: T.textFaint };
+  if (vadeAyi < buAy) return { etiket: "Gecikti", renk: T.danger };
   const fark = gun - bugun.getDate();
   if (fark > 0) return { etiket: `${fark} gün sonra`, renk: T.textFaint };
   if (fark === 0) return { etiket: "Bugün", renk: T.warning };
@@ -556,7 +578,7 @@ export function KadroluBolumu({ personel, onAdd, onUpdate, onDelete, duzenleyenA
                     </td>
                   )}
                   {avansAktif && (() => {
-                    const durum = maasOdemeDurumu(p.odemeGunu, odenecek(p), avansAy);
+                    const durum = maasOdemeDurumu(p.odemeGunu, odenecek(p), avansAy, p.maasOdemeSekli);
                     return (
                       <td style={{ padding: "12px 15px", textAlign: "right", fontSize: 11, fontFamily: "Inter", color: durum.renk, fontWeight: 600 }}>{durum.etiket}</td>
                     );

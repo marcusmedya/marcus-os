@@ -1532,12 +1532,12 @@ function OdemeTakvimi({ bekleyenTahsilatlar, onAddBekleyen, onDeleteBekleyen, cl
     ? [
         { key: "musteri", label: "Müşteri", type: "select", options: bekleyenMusteriAdlari.map((n) => ({ val: n, label: n })) },
         { key: "tutar", label: "Tutar (₺)", type: "number" },
-        { key: "vade", label: "Vade Durumu", type: "text", placeholder: "örn. bugün / 3 gün gecikti" },
+        { key: "vade", label: "Vade Tarihi", type: "date" },
       ]
     : [
         { key: "musteri", label: "Müşteri", type: "text" },
         { key: "tutar", label: "Tutar (₺)", type: "number" },
-        { key: "vade", label: "Vade Durumu", type: "text", placeholder: "örn. bugün / 3 gün gecikti" },
+        { key: "vade", label: "Vade Tarihi", type: "date" },
       ];
 
   return (
@@ -4926,9 +4926,11 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
     { label: "Mali Yıl Başlangıcı", value: "Ocak" },
   ];
   return (
-    /* Ayarlar 560px'e sıkışmıştı ve geniş ekranda sağ taraf boş kalıyordu. Kartlar iki
-      * sütuna yayılıyor; dar ekranda tek sütuna düşer. */
-    <div style={{ maxWidth: 1100, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(330px, 1fr))", gap: 14, alignItems: "start" }}>
+    /* TEK SÜTUN. v128'de "geniş ekranda sağ taraf boş kalıyor" diye iki sütuna yaymıştım
+      * ama kartlar yan yana gelince göz nereden okuyacağını şaşırdı — ayarlar sırayla
+      * okunan bir liste, gazete sayfası değil. Her kart kendi başlığının altında,
+      * alt alta. Boşluk kalması sorun değil; dağınıklık sorun. */
+    <div style={{ maxWidth: 720, display: "flex", flexDirection: "column", gap: 14 }}>
       {/* AYARLAR SEKMELERİ — kartların hiçbirinin içeriği değişmedi, yalnızca
         * gruplandılar. Tek sayfada 21 bölüm alt alta duruyordu; aradığını bulmak
         * için uzun uzun kaydırmak gerekiyordu. */}

@@ -3547,3 +3547,92 @@ projedeki ilk sınıf bileşen bu. Tanınan adlar listesine eklendi.
 ### Bu bir mazeret değil
 Koruma katmanı hatayı önlemiyor, **felaket olmaktan çıkarıyor**. Asıl iş hâlâ hatayı
 yapmamak: dosya bölerken taşınan her adı tek tek doğrulamak.
+
+## Güncelleme 142: Ayarlar Tek Sütuna Döndü
+
+v128'de "geniş ekranda sağ taraf boş kalıyor" diye Ayarlar kartlarını iki sütuna yaymıştım.
+Sonuç dağınık oldu: kartlar yan yana gelince göz nereden okuyacağını şaşırıyor.
+
+Ayarlar sırayla okunan bir liste, gazete sayfası değil. Her kart kendi başlığının altında,
+alt alta (maksimum 720px).
+
+**Boşluk kalması sorun değil; dağınıklık sorun.**
+
+Diğer ekranlardaki `auto-fit` ızgaralar kontrol edildi — dördü de yalnızca KPI kartları
+içeriyor, onlar yan yana doğru duruyor. Dokunulmadı.
+
+## Güncelleme 143: Dağınık Yerleşim Taraması
+
+Ayarlar'daki iki sütun sorunu diğer ekranlarda da var mı diye tüm dosyalar tarandı.
+
+### Sonuç: başka yok
+Yedi aday çıktı, hepsi incelendi ve **yedisi de doğru kullanım**:
+
+| Yer | Ne olduğu |
+|---|---|
+| Paylaşımlar (satır 2176) | Marka stok kartları ızgarası — yan yana doğru |
+| Ayarlar (5028) | Düğme sırası |
+| Finans (490) | Tahsilat etiket satırı |
+| Müşteri Paneli (1180) | Düğme sırası |
+| Haftalık Plan (2046) | Başlık + kontrol satırı |
+| Operasyon (4056) | Marka süzgeç düğmeleri |
+| Personel (320) | Önerilen kişi düğmeleri |
+
+Kart yan yana koyan tek yer Ayarlar'dı; o da v142'de düzeltildi (14 kart, 5 sekme, tek sütun,
+maksimum 720px).
+
+### Genişlik tutarlılığı
+Ana ekranların hiçbirinde sabit genişlik sınırı yok — hepsi ekranı doldurup aynı şekilde
+davranıyor. Yalnızca giriş ekranı (380px) ve Instagram ızgarası (500px) sınırlı, ikisi de
+kasıtlı.
+
+17 kod denetimi + 30 test dosyası temiz.
+
+## Güncelleme 144: Banka Hesapları + Katlanabilir Gider Kutucukları
+
+### Banka hesapları kayıptı
+Hesaplar sekmesi yalnızca "Banka Hareketleri" gösteriyordu — **hesapların kendisi ve bakiyeleri
+hiç görünmüyordu.** `HesapBakiyeleri` bileşeni Finans'ta hiç çağrılmıyordu (Ödeme Takvimi'nde
+duruyordu). v137'de sekmelere bölerken atlanmış.
+
+Şimdi:
+- **Hesaplar sekmesi**: hesap listesi, bakiyeler, transfer, bakiye düzeltme, hesap ekleme
+- **Özet > Paralarım**: toplam üstte, altında her hesabın bakiyesi kutucuk halinde
+
+Hesap yoksa "Hesaplar sekmesinden ekleyebilirsin" yazıyor.
+
+### Para Nereye Gidiyor? — kutucuk ve katlanabilir
+Satır listesi yerine kutucuklar. Alt kalemi olanlar (Personel) tıklanınca açılıyor,
+ilk açılışta kapalı.
+
+Sıfır olan kalemler gösterilmiyor. Toplam gider altta ayrı satırda.
+
+### Doğrulama
+Kutucuk toplamı = toplam gider, personel alt kalemleri = personel gideri. Hesap bakiyesi
+`hesapBakiyesi()` ile hesaplanıyor — hesaplama mantığına dokunulmadı.
+17 kod denetimi + 30 test dosyası temiz.
+
+## Güncelleme 145: Takvim Seçici + Maaş Ödeme Zamanı
+
+### Tarih alanları artık takvim
+| Alan | Öncesi | Şimdi |
+|---|---|---|
+| Personel · İşe Başlama | serbest metin ("2026-01") | **takvim** |
+| Bekleyen tahsilat · Vade | serbest metin ("3 gün gecikti") | **takvim** |
+
+`FieldForm` `type: "date"` zaten destekliyordu; alanlar metin bırakılmıştı.
+
+### Maaş "peşin görünüyor" sorunu
+`maasOdemeDurumu` maaşın **aynı ay içinde** ödendiğini varsayıyordu: Ağustos maaşı Ağustos'un
+5'inde beklenir, o gün geçince "Gecikti" derdi. Ertesi ay ödeyen bir işletmede bu her ay
+yanlış alarm demekti — kullanıcı kaydı elle ileri atmak zorunda kalıyordu.
+
+Personel kaydına **"Maaş Ne Zaman Ödenir"** alanı eklendi:
+- **Ertesi ay** (varsayılan) — Ağustos maaşının vadesi Eylül'ün ödeme günü
+- **Aynı ay içinde** — eski davranış
+
+Kişi bazında ayarlanabiliyor; farklı çalışanlar için farklı olabilir.
+
+### Doğrulama
+7 vade kontrolü: ay kayması, yıl dönümü (Aralık → Ocak), "ayni" seçiliyken kaymaması, bozuk
+ve boş değerde çökmemesi. 17 kod denetimi + 30 test dosyası temiz.

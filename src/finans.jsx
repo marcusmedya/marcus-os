@@ -28,7 +28,7 @@ const GELIR_FIELDS = [
   ...KALEM_FIELDS,
   { key: "faturali", label: "Faturalı mı? (KDV %20 otomatik hesaplanır)", type: "select", options: [{ value: "evet", label: "Evet - Faturalı (KDV'li)" }, { value: "hayir", label: "Hayır - Faturasız" }] },
 ];
-const BEKLEYEN_FIELDS = [{ key: "musteri", label: "Müşteri", type: "text" }, { key: "tutar", label: "Tutar (₺)", type: "number" }, { key: "vade", label: "Vade Durumu", type: "text", placeholder: "örn. bugün / 3 gün gecikti" }];
+const BEKLEYEN_FIELDS = [{ key: "musteri", label: "Müşteri", type: "text" }, { key: "tutar", label: "Tutar (₺)", type: "number" }, { key: "vade", label: "Vade Tarihi", type: "date" }];
 const VERGI_FIELDS = [
   { key: "kalem", label: "Kalem Adı", type: "text" },
   { key: "tarih", label: "Tarih", type: "date" },
@@ -419,6 +419,7 @@ export function HesapBakiyeleri({ hesaplar, clients, transferler, avanslar, odem
 
 export function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDeleteGider, onAddOfisGider, onDeleteOfisGider, onAddBekleyen, onDeleteBekleyen, onAddVergi, onDeleteVergi, onAddMonth, onDeleteMonth, onCloseMonth, onExport, onTransfer, onDeleteTransfer, onAddHesap, onDeleteHesap, onUpdateHesap, onAddDuzeltme, onDeleteDuzeltme }) {
   const [sekme, setSekme] = useState("ozet");
+  const [acikGider, setAcikGider] = useState(null); // Para Nereye Gidiyor: açık kalem
   const { monthly, gelirKalemleri, giderKalemleri, ofisGiderleri, bekleyenTahsilatlar, vergiTakvimi } = data;
   const [addingMonth, setAddingMonth] = useState(false);
   const live = computeLive(data);
@@ -430,7 +431,7 @@ export function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, o
     ? [
         { key: "musteri", label: "Müşteri", type: "select", options: clientNames.map((n) => ({ value: n, label: n })) },
         { key: "tutar", label: "Tutar (₺)", type: "number" },
-        { key: "vade", label: "Vade Durumu", type: "text", placeholder: "örn. bugün / 3 gün gecikti" },
+        { key: "vade", label: "Vade Tarihi", type: "date" },
       ]
     : BEKLEYEN_FIELDS;
 
@@ -493,40 +494,56 @@ export function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, o
             </div>
           </Card>
 
-<Card style={{ padding: "18px 22px", marginBottom: 16 }}>
-        <SectionTitle>Para Nereye Gidiyor? <span style={{ fontWeight: 400, opacity: 0.7 }}>— aylık</span></SectionTitle>
-        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {[
-            { ad: "Personel", tutar: live.personelGideri, alt: [
-              { ad: "Maaş", tutar: live.personelMaas },
-              { ad: "SGK / sigorta", tutar: live.personelSigorta },
-              { ad: "Yemek", tutar: live.personelYemek },
-              { ad: "Kıdem tazminatı birikimi", tutar: live.personelTazminat },
-            ] },
-            { ad: "Ofis gideri", tutar: live.ofisGiderToplam },
-            { ad: "Müşteri maliyetleri", tutar: live.clientCosts },
-            { ad: "Üyelikler", tutar: live.uyelikGideri },
-            { ad: "Diğer gider kalemleri", tutar: live.giderKalemToplam },
-          ].filter((x) => x.tutar > 0).map((x) => (
-            <div key={x.ad}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "6px 10px", borderRadius: 8, background: T.surfaceRaised }}>
-                <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter, sans-serif", fontWeight: 600 }}>{x.ad}</span>
-                <span style={{ fontSize: 13, color: T.text, fontFamily: "'IBM Plex Mono', monospace", whiteSpace: "nowrap" }}>{fmt(x.tutar)}</span>
-              </div>
-              {(x.alt || []).filter((a) => a.tutar > 0).map((a) => (
-                <div key={a.ad} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "6px 10px", paddingLeft: 24 }}>
-                  <span style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif" }}>{a.ad}</span>
-                  <span style={{ fontSize: 13, color: T.textDim, fontFamily: "'IBM Plex Mono', monospace", whiteSpace: "nowrap" }}>{fmt(a.tutar)}</span>
-                </div>
-              ))}
+<Card style={{ padding: "18px 22px", marginBottom: 14 }}>
+            <SectionTitle>Para Nereye Gidiyor? <span style={{ fontWeight: 400, opacity: 0.7 }}>— aylık</span></SectionTitle>
+            {/* Kalemler KUTUCUK halinde ve KATLANABİLİR. Personel gibi alt kalemi olanlar
+              * tıklanınca açılır; ilk açılışta kapalıdır — üst seviye rakam yeter, detay
+              * istendiğinde gelir. */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10, marginBottom: 12 }}>
+              {[
+                { key: "personel", ad: "Personel", tutar: live.personelGideri, alt: [
+                  { ad: "Maaş", tutar: live.personelMaas },
+                  { ad: "SGK / sigorta", tutar: live.personelSigorta },
+                  { ad: "Yemek", tutar: live.personelYemek },
+                  { ad: "Kıdem tazminatı", tutar: live.personelTazminat },
+                ] },
+                { key: "ofis", ad: "Ofis gideri", tutar: live.ofisGiderToplam },
+                { key: "musteri", ad: "Müşteri maliyetleri", tutar: live.clientCosts },
+                { key: "uyelik", ad: "Üyelikler", tutar: live.uyelikGideri },
+                { key: "diger", ad: "Diğer gider kalemleri", tutar: live.giderKalemToplam },
+              ].filter((x) => x.tutar > 0).map((x) => {
+                const altVar = (x.alt || []).some((a) => a.tutar > 0);
+                const acik = acikGider === x.key;
+                return (
+                  <div
+                    key={x.key}
+                    onClick={() => altVar && setAcikGider(acik ? null : x.key)}
+                    style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 15px", cursor: altVar ? "pointer" : "default" }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 6 }}>
+                      <span style={{ fontSize: 11, color: T.textDim, fontFamily: "Inter, sans-serif", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.ad}</span>
+                      {altVar && <span style={{ fontSize: 11, color: T.textFaint, flexShrink: 0 }}>{acik ? "▲" : "▼"}</span>}
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(x.tutar)}</div>
+                    {acik && (
+                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.border}`, display: "flex", flexDirection: "column", gap: 6 }}>
+                        {(x.alt || []).filter((a) => a.tutar > 0).map((a) => (
+                          <div key={a.ad} style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                            <span style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif" }}>{a.ad}</span>
+                            <span style={{ fontSize: 13, color: T.textDim, fontFamily: "'IBM Plex Mono', monospace", whiteSpace: "nowrap" }}>{fmt(a.tutar)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          ))}
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "12px 10px", marginTop: 6, borderTop: `1px solid ${T.border}` }}>
-            <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter, sans-serif", fontWeight: 700 }}>Toplam gider</span>
-            <span style={{ fontSize: 15, color: T.danger, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700 }}>{fmt(live.gider)}</span>
-          </div>
-        </div>
-      </Card>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
+              <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter, sans-serif", fontWeight: 700 }}>Toplam gider</span>
+              <span style={{ fontSize: 20, color: T.danger, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700 }}>{fmt(live.gider)}</span>
+            </div>
+          </Card>
           {/* İkincil rakamlar — küçük rozet yerine üsttekiyle aynı kart biçiminde.
             * Rozet hâlinde "kalem gibi" duruyor ve okunmuyordu. */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 14 }}>
@@ -536,12 +553,33 @@ export function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, o
           </div>
 
           {/* PARALARIM — özette yalnızca toplam; hesap dökümü Hesaplar sekmesinde */}
+          {/* PARALARIM — toplam üstte, altında hangi hesapta ne kadar olduğu.
+            * Yalnızca toplam gösterilince "banka hesaplarım nerede?" sorusu doğuyordu. */}
           <Card style={{ padding: "18px 22px", marginBottom: 14 }}>
             <SectionTitle>Paralarım</SectionTitle>
-            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
               <span style={{ fontSize: 28, fontWeight: 600, color: T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(kasaToplami)}</span>
-              <button onClick={() => setSekme("hesaplar")} style={{ background: "none", border: "none", color: T.accentText, cursor: "pointer", fontSize: 13, fontFamily: "Inter, sans-serif", fontWeight: 600, padding: 0 }}>Hesap dökümü →</button>
+              <button onClick={() => setSekme("hesaplar")} style={{ background: "none", border: "none", color: T.accentText, cursor: "pointer", fontSize: 13, fontFamily: "Inter, sans-serif", fontWeight: 600, padding: 0 }}>Hesapları yönet →</button>
             </div>
+            {(data.hesaplar || []).length === 0 ? (
+              <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif" }}>
+                Henüz hesap tanımlı değil. Hesaplar sekmesinden ekleyebilirsin.
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
+                {(data.hesaplar || []).map((h) => {
+                  const bakiye = hesapBakiyesi(h.id, data);
+                  return (
+                    <div key={h.id} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 15px" }}>
+                      <div style={{ fontSize: 11, color: T.textDim, fontFamily: "Inter, sans-serif", fontWeight: 600, marginBottom: 6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {h.ad}{h.anaHesap ? " · ana" : ""}
+                      </div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: bakiye < 0 ? T.danger : T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(bakiye)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </Card>
         </>
       )}
@@ -653,6 +691,25 @@ export function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, o
 
       {sekme === "hesaplar" && (
         <>
+          {/* HESAP BAKİYELERİ — sekme yalnızca "Banka Hareketleri" gösteriyordu, hesapların
+            * kendisi ve bakiyeleri hiç görünmüyordu. Transfer, bakiye düzeltme ve hesap
+            * ekleme de buradan yapılıyor. */}
+          <HesapBakiyeleri
+            hesaplar={data.hesaplar || []}
+            clients={clients}
+            transferler={data.hesapTransferleri || []}
+            avanslar={data.avanslar || []}
+            odemeler={data.personelOdemeleri || []}
+            duzeltmeler={data.hesapDuzeltmeleri || []}
+            onTransfer={onTransfer}
+            onDeleteTransfer={onDeleteTransfer}
+            onAddHesap={onAddHesap}
+            onDeleteHesap={onDeleteHesap}
+            onUpdateHesap={onUpdateHesap}
+            onAddDuzeltme={onAddDuzeltme}
+            onDeleteDuzeltme={onDeleteDuzeltme}
+          />
+
 <Card style={{ padding: "18px 22px", marginTop: 16 }}>
         <SectionTitle>Banka Hareketleri <span style={{ fontWeight: 400, opacity: 0.7 }}>— Ödeme Takvimi'nde kaydedilen tüm tahsilatlar</span></SectionTitle>
         {(() => {
