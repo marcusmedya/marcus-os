@@ -6587,6 +6587,45 @@ export default function MarcusOS() {
    * seçili gelmediği için boş bir sayfaya düşülüyor, doğru içeriği elle bulmak gerekiyordu.
    * Bu hedef, hem markayı seçtirir hem de o içeriğin düzenleme formunu açar. */
   const [acikGrup, setAcikGrup] = useState(null); // menüde elle açılan grup
+
+  /* YAN MENÜ GENİŞLİĞİ — kenarından sürüklenerek ayarlanır ve cihazda hatırlanır.
+   * Sabit 220px'te uzun adlar ("Müşteri Hesapları", "Teklif & Sözleşme") iki satıra
+   * kayıyordu. Sınırlar: 180 (ikon+kısa ad) ile 420 (en uzun ad rahat sığar). */
+  const [menuGenisligi, setMenuGenisligi] = useState(() => {
+    try {
+      const kayitli = Number(localStorage.getItem("marcus-os-menu-genislik"));
+      return kayitli >= 180 && kayitli <= 420 ? kayitli : 220;
+    } catch (e) { return 220; }
+  });
+  const surukluyor = useRef(false);
+  useEffect(() => {
+    const hareket = (e) => {
+      if (!surukluyor.current) return;
+      const x = e.touches ? e.touches[0].clientX : e.clientX;
+      const yeniGenislik = Math.min(420, Math.max(180, Math.round(x)));
+      setMenuGenisligi(yeniGenislik);
+    };
+    const birak = () => {
+      if (!surukluyor.current) return;
+      surukluyor.current = false;
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+    };
+    window.addEventListener("mousemove", hareket);
+    window.addEventListener("mouseup", birak);
+    window.addEventListener("touchmove", hareket, { passive: true });
+    window.addEventListener("touchend", birak);
+    return () => {
+      window.removeEventListener("mousemove", hareket);
+      window.removeEventListener("mouseup", birak);
+      window.removeEventListener("touchmove", hareket);
+      window.removeEventListener("touchend", birak);
+    };
+  }, []);
+  // Genişlik değişince kaydet — her açılışta yeniden ayarlamak gerekmesin.
+  useEffect(() => {
+    try { localStorage.setItem("marcus-os-menu-genislik", String(menuGenisligi)); } catch (e) { /* yoksay */ }
+  }, [menuGenisligi]);
   const [panelHedef, setPanelHedef] = useState(null);
   const [guvenlikDurumu, setGuvenlikDurumu] = useState(null);
   const [gizlilikModu, setGizlilikModuState] = useState(gizlilikModuOku());
@@ -8346,7 +8385,8 @@ export default function MarcusOS() {
 
       <div
         style={{
-          width: 220,
+          width: menuGenisligi,
+          position: "relative",
           borderRight: `1px solid ${T.borderSoft}`,
           padding: "18px 22px",
           display: "flex",
@@ -8357,6 +8397,18 @@ export default function MarcusOS() {
             : {}),
         }}
       >
+        {/* SÜRÜKLEME KOLU — menünün sağ kenarı. Görünmez ama 6px genişliğinde bir tutma
+          * alanı; üzerine gelince imleç değişir. Çift tıklayınca varsayılana döner. */}
+        {!isMobile && (
+          <div
+            onMouseDown={() => { surukluyor.current = true; document.body.style.userSelect = "none"; document.body.style.cursor = "col-resize"; }}
+            onTouchStart={() => { surukluyor.current = true; }}
+            onDoubleClick={() => setMenuGenisligi(220)}
+            title="Sürükleyerek genişlet · çift tıkla sıfırla"
+            style={{ position: "absolute", top: 0, right: -3, width: 6, height: "100%", cursor: "col-resize", zIndex: 5 }}
+          />
+        )}
+
         <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "0 8px", marginBottom: 30 }}>
           <UygulamaLogosu gorsel={data.markaKimligiGorseli} boyut={38} />
           <div>
@@ -8386,7 +8438,10 @@ export default function MarcusOS() {
                   style={{ display: "flex", alignItems: "center", gap: 11, padding: "12px 15px", borderRadius: 10, background: aktif ? T.accentSoft : "transparent", border: "none", cursor: "pointer", textAlign: "left", width: "100%" }}
                 >
                   <Icon size={18} color={aktif ? T.accentText : T.textDim} />
-                  <span style={{ flex: 1, fontSize: 15, fontWeight: aktif ? 700 : 500, color: aktif ? T.text : T.textDim, fontFamily: "Inter, sans-serif" }}>{n.label}</span>
+                  {/* Uzun adlar ("Müşteri Hesapları", "Teklif & Sözleşme") iki satıra kayıp
+                    * menüyü zıplatıyordu. Tek satırda kalır, sığmazsa ... ile kısalır —
+                    * tamamını görmek istersen menüyü kenarından genişletebilirsin. */}
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: aktif ? 700 : 500, color: aktif ? T.text : T.textDim, fontFamily: "Inter, sans-serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={n.label}>{n.label}</span>
                   {rozet > 0 && (
                     <span style={{ background: T.warning, color: "#fff", borderRadius: 999, padding: "6px 10px", fontSize: 11, fontWeight: 700, fontFamily: "Inter" }}>{rozet}</span>
                   )}
@@ -8417,7 +8472,7 @@ export default function MarcusOS() {
                       >
                         <GIcon size={18} color={icinde ? T.accentText : T.textFaint} />
                         <span style={{ flex: 1, minWidth: 0 }}>
-                          <span style={{ display: "block", fontSize: 13, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", color: icinde ? T.text : T.textFaint, fontFamily: "Inter, sans-serif" }}>{grup.label}</span>
+                          <span style={{ display: "block", fontSize: 13, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", color: icinde ? T.text : T.textFaint, fontFamily: "Inter, sans-serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{grup.label}</span>
                           {icinde && !acik && (
                             <span style={{ display: "block", fontSize: 11, color: T.accentText, fontFamily: "Inter, sans-serif", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {(NAV.find((x) => x.key === tab) || {}).label}
@@ -8442,7 +8497,7 @@ export default function MarcusOS() {
         </div>
 
         <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", textAlign: "center", lineHeight: 1.6, padding: "6px 10px", background: T.surface, borderRadius: 9, border: `1px solid ${T.borderSoft}` }}>
+          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", textAlign: "center", lineHeight: 1.6, padding: "6px 10px", background: T.surface, borderRadius: 9, border: `1px solid ${T.borderSoft}`, overflow: "hidden" }}>
             <div>
               {saveStatus === "saving" ? "Kaydediliyor…" : saveStatus === "saved" ? "✓ Kaydedildi" : saveStatus === "error" ? "⚠ Kaydetme hatası" : "…"}
               {lastSavedAt && saveStatus === "saved" && ` · ${lastSavedAt.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}`}

@@ -3270,3 +3270,28 @@ Bölümler arası 22px → 14px, kart araları 14px → 12px.
 ### İlke
 Sayfayı doldurmak amaç değil. Küçük bir rakam küçük bir yer kaplamalı; kart formatı onu
 büyütmüyor, sadece etrafında boşluk yaratıyor.
+
+## Güncelleme 133: Yan Menü Genişletilebilir
+
+### Sürüklenebilir kenar
+Menünün sağ kenarına tutma alanı eklendi. İmleç üzerine gelince `col-resize`'a dönüşüyor,
+sürükleyerek genişletiyorsun.
+
+- Sınırlar: **180 – 420 px** (varsayılan 220)
+- Genişlik **cihazda hatırlanıyor** — her açılışta yeniden ayarlamak gerekmiyor
+- **Çift tıklayınca** varsayılana döner
+- Dokunmatik ekranda da çalışır
+- Mobilde kol görünmez (menü zaten tam ekran açılıyor)
+
+### Asıl sorun: yazıların alta kayması
+Genişletme tek başına yetmezdi. "Müşteri Hesapları" ve "Teklif & Sözleşme" iki satıra kayıp
+menüyü zıplatıyordu.
+
+Menü yazıları artık **tek satırda** kalıyor; sığmazsa `...` ile kısalıyor ve üzerine gelince
+tam adı görünüyor. Tamamını kalıcı görmek istersen menüyü genişletiyorsun.
+
+Grup başlıkları ve alttaki yedek durumu kutusu da aynı şekilde taşmıyor.
+
+### Doğrulama
+9 kontrol: sürükleme sınırları (180'de ve 420'de durma), negatif değer, ondalık yuvarlama,
+bozuk/sınır dışı kayıtta varsayılana dönme. 16 kod denetimi + 30 test dosyası temiz.
