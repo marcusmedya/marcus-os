@@ -4915,7 +4915,7 @@ const AYAR_SEKMELERI = [
   { key: "hesap", label: "Hesaplar" },
 ];
 
-function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu, onSaveTeblig, staffPermissions, onUpdatePermissions, markaKimligiGorseli, onSaveMarkaKimligi, paylasimGorseli, onSavePaylasimGorseli, acikZeminLogosu, onSaveAcikZeminLogosu, onRosterChange, clients, gizlilikModu, onToggleGizlilik, islemGecmisi }) {
+function Ayarlar({ onGit, guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu, onSaveTeblig, staffPermissions, onUpdatePermissions, markaKimligiGorseli, onSaveMarkaKimligi, paylasimGorseli, onSavePaylasimGorseli, acikZeminLogosu, onSaveAcikZeminLogosu, onRosterChange, clients, gizlilikModu, onToggleGizlilik, islemGecmisi }) {
   const [ayarSekme, setAyarSekme] = useState("gorunum");
   const fileInputRef = useRef(null);
   const rows = [
@@ -5100,10 +5100,6 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
 
       {ayarSekme === "bildirim" && <>
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
-        <SectionTitle>Sabah E-postasıyla AI Özeti</SectionTitle>
-        
-      </Card>
-      <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Operasyon & Günlük Kontrol Hatırlatmaları</SectionTitle>
         
         <EmailYedekTest endpoint="/api/daily-reminders" />
@@ -5113,15 +5109,31 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
       {ayarSekme === "hesap" && <>
       {/* Müşteri Paneli hesapları artık "Müşteri Paneli" sekmesinde — panel içerikleriyle
         * aynı yerde durması, iki farklı sekmeye bakmak zorunda kalmandan daha anlaşılır. */}
+      {/* Bu iki kart BOŞ KABUK kalmıştı: içerikleri kendi ekranlarına taşındı (müşteri hesapları
+        * Müşteri > Müşteri Hesapları'na, personel hesapları Personel > Hesaplar & Yetkiler'e),
+        * sonra açıklama yazıları da temizlenince geriye yalnızca başlık kaldı.
+        * Kartı silmek yerine çalışır kısayola çevrildi — buraya bakan biri nereye gideceğini
+        * bilsin diye. */}
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
-        <SectionTitle>Müşteri Paneli Hesapları</SectionTitle>
-        
-      </Card>
-      {/* PersonelHesaplariKart Personel > Hesaplar & Yetkiler'e taşındı — iki ayrı ekrandan
-        * aynı hesapları düzenlemek karışıklık yaratırdı. */}
-      <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
-        <SectionTitle>Personel Hesapları ve Yetkileri</SectionTitle>
-        
+        <SectionTitle>Hesaplar</SectionTitle>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {[
+            { ad: "Müşteri Paneli Hesapları", aciklama: "Müşterilerin panele giriş bilgileri", hedef: "musteri-hesaplari" },
+            { ad: "Personel Hesapları ve Yetkileri", aciklama: "Ekip hesapları, şifreler ve izinler", hedef: "personel" },
+          ].map((x) => (
+            <button
+              key={x.hedef}
+              onClick={() => onGit && onGit(x.hedef)}
+              style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%", textAlign: "left", background: T.surfaceRaised, border: "none", borderRadius: 10, padding: "12px 15px", cursor: "pointer" }}
+            >
+              <span style={{ minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 13, fontWeight: 600, color: T.text, fontFamily: "Inter, sans-serif" }}>{x.ad}</span>
+                <span style={{ display: "block", fontSize: 11, color: T.textDim, fontFamily: "Inter, sans-serif", marginTop: 2 }}>{x.aciklama}</span>
+              </span>
+              <span style={{ fontSize: 13, color: T.accentText, flexShrink: 0 }}>→</span>
+            </button>
+          ))}
+        </div>
       </Card>
       </>}
 
@@ -8194,6 +8206,7 @@ export default function MarcusOS() {
           )}
           {tab === "ayarlar" && (
             <Ayarlar
+              onGit={(hedef) => setTab(hedef)}
               guvenlik={guvenlikDurumu}
               silinenler={data.silinenler || []}
               onGeriAl={silinmisiGeriAl}

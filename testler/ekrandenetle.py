@@ -15,7 +15,9 @@ EKRANLAR = {
   "Ayarlar · Veri & Yedek": ["Tam Yedek", "Geri Yükle", "Otomatik Yedekler", "silinenler", "Veri"],
   "Ayarlar · Güvenlik":     ["Şifre Koruması", "Personel Erişimi", "SITE_PASSWORD", "OWNER_EMAIL", "Güvenlik"],
   "Ayarlar · Görünüm":      ["Marka Kimliği", "Gizlilik Modu"],
-  "Ayarlar · Bildirimler":  ["Sabah E-postasıyla AI Özeti", "Operasyon & Günlük Kontrol Hatırlatmaları"],
+  # NOT: "Sabah E-postasıyla AI Özeti" kartı v146'da kaldırıldı — AI v117'de silinmişti,
+  # kart boş kabuk olarak kalmıştı.
+  "Ayarlar · Bildirimler":  ["Operasyon & Günlük Kontrol Hatırlatmaları"],
   "Ödeme Takvimi":          ["tam ödendi", "kısmi ödendi", "ödenmedi"],
   "Paylaşımlar":            ["planlandı (henüz paylaşılmadı)", "Haftalık Paylaşım Planı"],
   "Günlük Kontrol":         ["GECİKENLER", "SIRADAKİ GÜNLER", "Paylaşıldı işaretle", "tarihi okunamıyor"],

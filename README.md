@@ -3636,3 +3636,23 @@ Kişi bazında ayarlanabiliyor; farklı çalışanlar için farklı olabilir.
 ### Doğrulama
 7 vade kontrolü: ay kayması, yıl dönümü (Aralık → Ocak), "ayni" seçiliyken kaymaması, bozuk
 ve boş değerde çökmemesi. 17 kod denetimi + 30 test dosyası temiz.
+
+## Güncelleme 146: Boş Kartlar Temizlendi
+
+### Ayarlar > Hesaplar boştu
+İki kart yalnızca başlıktan ibaretti. Sebep zincirleme: içerikleri kendi ekranlarına taşınmış
+(müşteri hesapları Müşteri > Müşteri Hesapları'na, personel hesapları Personel > Hesaplar &
+Yetkiler'e), v113'te açıklama yazıları temizlenince geriye başlık kalmış.
+
+Silmek yerine **çalışır kısayola** çevrildi — tek kart, iki düğme, tıklayınca doğru ekrana
+götürüyor. Buraya bakan biri nereye gideceğini bilsin diye.
+
+### Kalıntı AI kartı
+"Sabah E-postasıyla AI Özeti" kartı duruyordu — AI v117'de silinmişti, kart boş kabuk olarak
+kalmış. Kaldırıldı, ekran envanterinden de çıkarıldı.
+
+### Tarama
+Tüm dosyalarda "başlık var, içerik yok" kalıbı arandı. Bu ikisi dışında boş kart yok.
+("Otomatik Yedekler" ve "Operasyon Hatırlatmaları" yanlış alarm — ikisi de bileşen içeriyor.)
+
+17 kod denetimi + 30 test dosyası temiz.
