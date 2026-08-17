@@ -182,7 +182,14 @@ export function computeLive(data) {
   const giderKalemToplam = (data.giderKalemleri || []).reduce((s, g) => s + (Number(g.tutar) || 0), 0);
   const ofisGiderToplam = (data.ofisGiderleri || []).reduce((s, g) => s + (Number(g.tutar) || 0), 0);
   const clientCosts = clients.reduce((s, c) => s + (c.maliyetler || []).reduce((s2, m) => s2 + (Number(m.tutar) || 0), 0), 0);
-  const personelGideri = (data.personel || []).reduce((s, p) => s + (Number(p.maas) || 0) + (Number(p.sigorta) || 0) + (Number(p.yemek) || 0) + (Number(p.tazminatBirikimi) || 0), 0);
+  /* PERSONEL GİDERİ KALEM KALEM — toplam zaten hesaplanıyordu ama ekranda tek rakam olarak
+   * görünüyordu, "bu ₺X neyin toplamı?" sorusu cevapsız kalıyordu. Parçalar ayrı ayrı
+   * döndürülüyor; toplam aynı kalıyor, muhasebe değişmiyor. */
+  const personelMaas = (data.personel || []).reduce((s, p) => s + (Number(p.maas) || 0), 0);
+  const personelSigorta = (data.personel || []).reduce((s, p) => s + (Number(p.sigorta) || 0), 0);
+  const personelYemek = (data.personel || []).reduce((s, p) => s + (Number(p.yemek) || 0), 0);
+  const personelTazminat = (data.personel || []).reduce((s, p) => s + (Number(p.tazminatBirikimi) || 0), 0);
+  const personelGideri = personelMaas + personelSigorta + personelYemek + personelTazminat;
   // Üyelikler (Canva, Adobe, ChatGPT vb.) de aylık gidere dahil edilir — yıllık ödenenler
   // 12'ye bölünerek aylık karşılığı hesaplanır, böylece "Toplam Gider" gerçek aylık maliyeti yansıtır.
   const uyelikGideri = (data.uyelikler || []).filter(uyelikEfektifAktifMi).reduce((s, u) => s + (u.periyot === "yillik" ? (Number(u.tutar) || 0) / 12 : (Number(u.tutar) || 0)), 0);
@@ -200,7 +207,7 @@ export function computeLive(data) {
   // hiç ödeme alınmamışken bile öyle görünüyordu). Bunun yerine gerçek ödeme kayıtlarından toplanıyor.
   const tahsilEdilen = extra + activeClients.reduce((s, c) => s + monthPaidAmount(c, monthKey()), 0);
   const karMarji = ciro ? Math.round((net / ciro) * 100) : 0;
-  return { recurring, extra, ciro, faturaliCiro, faturasizCiro, kdvTutari, kdvDahilToplamCiro, faturaliKdvDahil, giderKalemToplam, ofisGiderToplam, clientCosts, personelGideri, uyelikGideri, gider, net, manuelBekleyen, otomatikBekleyen, bekleyenToplam, tahsilEdilen, karMarji };
+  return { recurring, extra, ciro, faturaliCiro, faturasizCiro, kdvTutari, kdvDahilToplamCiro, faturaliKdvDahil, giderKalemToplam, ofisGiderToplam, clientCosts, personelGideri, personelMaas, personelSigorta, personelYemek, personelTazminat, uyelikGideri, gider, net, manuelBekleyen, otomatikBekleyen, bekleyenToplam, tahsilEdilen, karMarji };
 }
 
 /** Bir müşterinin bu ayki ödeme durumunu, kayıtlı "ödeme günü"ne göre otomatik hesaplar. */
@@ -394,6 +401,10 @@ export function clientFaturaliTutar(c) {
  * Yeni hesap TUTAR üretir ve verinin yeterli olup olmadığını da söyler. Yetersizse
  * `hesaplanabilir: false` döner; çağıran taraf uydurma bir sayı göstermek yerine
  * "veri eksik" demelidir.
+ *
+ * reklamButcesi: VARSAYILAN 0 VE ÖYLE KALMALI. Reklam bütçesi müşterinin harcamasıdır,
+ * ajansın gideri değil — gider sayılınca kâr haksız yere sıfırlanıyordu. Ajans reklam
+ * parasını kendi ödüyorsa doğru yer Müşteri > Maliyetler kalemi.
  *
  * isMaliyeti: markaAylikIsMaliyeti'nden gelen o ayki freelancer ücretleri (çağıran verir,
  * bu dosya CekimEditTakibi'ye bağımlı olmasın diye).

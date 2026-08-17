@@ -110,7 +110,8 @@ Tüm veri **tek bir JSON nesnesi** olarak Redis'te durur. 28 ana alan:
 Sol menü altı satır, gruplu:
 
 ```
-Dashboard          → KPI'lar, "Bugünün Kararı", kişisel görevler, onay kutusu
+Dashboard          → finansal KPI'lar ve "Bugünün Kararı"
+Planım             → kişisel görevler ve Onayını Bekleyenler kutusu
 MÜŞTERİ            Müşteriler · Teklif & Sözleşme · Reklamlar
 PARA               Finans · Ödeme Takvimi · Personel · Birikim · Üyelikler
 ÜRETİM             Operasyon · Çekim · Günlük Kontrol · Paylaşımlar · Müşteri Paneli

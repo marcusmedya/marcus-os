@@ -3295,3 +3295,83 @@ Grup başlıkları ve alttaki yedek durumu kutusu da aynı şekilde taşmıyor.
 ### Doğrulama
 9 kontrol: sürükleme sınırları (180'de ve 420'de durma), negatif değer, ondalık yuvarlama,
 bozuk/sınır dışı kayıtta varsayılana dönme. 16 kod denetimi + 30 test dosyası temiz.
+
+## Güncelleme 134: "7 Lezzet marjı %0" — Reklam Bütçesi Hatası
+
+Net tam ₺0 çıkması tesadüf değildi. İki hata vardı, ikisi de kâr hesabında:
+
+### 1. Reklam bütçesi ajansın gideri sayılıyordu
+Reklam bütçesi **müşterinin harcamasıdır** — ajans kampanyayı yönetir, parayı müşteri öder.
+Gider sayılınca kâr haksız yere sıfırlanıyordu:
+
+```
+7 Lezzet: gelir ₺35.000 − kampanya bütçesi ₺35.000 = net ₺0  ← yanlış
+7 Lezzet: gelir ₺35.000 − gerçek maliyet ₺0      = net ₺35.000  ← doğru
+```
+
+### 2. Tarih filtresi yoktu
+Markaya ait TÜM kampanyaların bütçesi toplanıyordu. Aylar önceki bir kampanya bu ayın
+kârından düşüyordu.
+
+### Düzeltme
+Reklam bütçesi kâr hesabından tamamen çıkarıldı. `musteriKarlilik`'in `reklamButcesi`
+parametresi duruyor ama varsayılanı 0 ve açıklamasına "öyle kalmalı" notu eklendi.
+
+**Ajans reklam parasını kendi cebinden ödüyorsa** doğru yer Müşteri > Maliyetler kalemi —
+orası zaten hesaba katılıyor.
+
+### Değişmeyenler
+Freelancer iş ücretleri ve elle girilen maliyetler hâlâ sayılıyor. Smell Coffee gibi gerçek
+maliyeti olan markaların rakamları aynı kaldı.
+
+## Güncelleme 135: Dashboard Sadeleşti, Planım Geri Ayrıldı
+
+```
+Dashboard    → Bugünün Kararı + 6 finansal kart. Başka hiçbir şey yok.
+Planım       → kişisel görevler + Onayını Bekleyenler kutusu
+```
+
+v125'te Planım'ı Dashboard'a taşımıştım ("her sabah iki yere bakmak gerekiyordu" diye). Ama
+sonuç Dashboard'ı uzattı: finansal durum ile yapılacak işler farklı iki soru —
+**"işler nasıl gidiyor"** ve **"benim ne yapmam gerekiyor"**. Aynı ekranda birleşince ikisi de
+zayıfladı.
+
+Planım sol menüde, Dashboard'ın hemen altında. Bekleyen iş sayacı da oraya döndü — sekmeye
+girmeden görünüyor.
+
+Dashboard içeriği doğrulandı: KararSeridi + 6 KpiCard, başka bileşen yok.
+
+## Güncelleme 136: Finans Yerleşimi + Gider Dağılımı
+
+### Yerleşim
+Altı kart eşit ağırlıktaydı, göz nereye bakacağını bilmiyordu.
+
+Şimdi iki ana rakam üstte büyük — **NAKİT AKIŞI** (bu ay ne kazandın) ve **KASADA BULUNAN**
+(şu an elinde ne var). Ciro, KDV, tahsilat oranı ve bekleyen ödeme altta destek satırında.
+
+"Kasada bulunan" yeni: tüm hesapların bakiyesi toplamı. Bakiye saklanmıyor, her seferinde
+hesaplanıyor — geri almaların güvenli olmasının sebebi bu.
+
+### Gider Dağılımı kartı
+"Toplam gider ₺250.690" tek rakamdı, neyin toplamı olduğu görünmüyordu. Artık kalem kalem:
+
+```
+Personel                    ₺92.000
+   Maaş                     ₺70.000
+   SGK / sigorta            ₺14.000
+   Yemek                     ₺6.000
+   Kıdem tazminatı           ₺2.000
+Ofis gideri                 ₺16.500
+Müşteri maliyetleri          ₺9.000
+Üyelikler                      ₺600
+Diğer gider kalemleri        ₺3.200
+─────────────────────────────────────
+Toplam gider               ₺121.300
+```
+
+Sıfır olan kalemler hiç gösterilmiyor — boş satır kalabalığı olmuyor.
+
+### Muhasebe değişmedi
+Maaş, sigorta, yemek ve kıdem tazminatı **zaten** toplam gidere dahildi; sadece görünmüyordu.
+Toplamın birebir aynı kaldığı ayrıca doğrulandı: dağılım toplamı = toplam gider, personel alt
+kalemleri = personel gideri.

@@ -136,10 +136,14 @@ function KararSeridi({ data }) {
 
     const karliliklar = aktifler.map((c) => {
       const im = markaAylikIsMaliyeti(data.cekimIsleri, c.ad, buAy, data.isUcretleri, data.isUcretDetaylari);
-      const reklam = (data.reklamlar || [])
-        .filter((r) => markaAnahtari(r.marka) === markaAnahtari(c.ad))
-        .reduce((t, r) => t + (Number(r.butce) || 0), 0);
-      return { c, k: musteriKarlilik(c, { isMaliyeti: im.tutar, eksikUcret: im.eksikUcret, reklamButcesi: reklam }) };
+      /* REKLAM BÜTÇESİ ARTIK MALİYETE GİRMİYOR — iki sebeple yanlıştı:
+       *  1) O para AJANSIN gideri değil, MÜŞTERİNİN reklam harcaması. Ajans kampanyayı
+       *     yönetir, bütçeyi müşteri öder. Gider sayınca kâr haksız yere sıfırlanıyordu
+       *     (7 Lezzet: gelir ₺35.000, kampanya ₺35.000 → net ₺0 göründü).
+       *  2) Tarih filtresi yoktu; aylar önceki bir kampanya bu ayın kârından düşüyordu.
+       * Ajans reklam parasını kendi cebinden ödüyorsa bunu Müşteri > Maliyetler'e kalem
+       * olarak girmek gerekir — orası zaten hesaba katılıyor. */
+      return { c, k: musteriKarlilik(c, { isMaliyeti: im.tutar, eksikUcret: im.eksikUcret }) };
     });
     const olculebilir = karliliklar.filter((x) => x.k.hesaplanabilir).sort((a, b) => b.k.net - a.k.net);
     const eksikVeri = karliliklar.filter((x) => !x.k.hesaplanabilir);
@@ -1408,19 +1412,64 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
       ]
     : BEKLEYEN_FIELDS;
 
+  /* Kasada bulunan para: tüm hesapların türetilmiş bakiyesi toplamı. Bakiye saklanmaz,
+   * her seferinde hesaplanır — bu yüzden geri almalar güvenli. */
+  const kasaToplami = (data.hesaplar || []).reduce((t, h) => t + hesapBakiyesi(h.id, data), 0);
+
   return (
     <div>
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 22 }}>
-        <KpiCard label="NAKİT AKIŞI (BU AY)" value={fmt(live.net)} accent={T.success} />
+      {/* YERLEŞİM: iki ana rakam üstte büyük (bu ay ne kazandın, kasada ne var), destek
+        * rakamları altta. Öncesinde altı kart eşit ağırlıktaydı ve göz nereye bakacağını
+        * bilmiyordu. */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 12, marginBottom: 12 }}>
+        <KpiCard label="NAKİT AKIŞI (BU AY)" value={fmt(live.net)} accent={live.net >= 0 ? T.success : T.danger} buyuk />
+        <KpiCard label="KASADA BULUNAN" value={fmt(kasaToplami)} accent={T.accentText} buyuk />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 12 }}>
+        <KpiCard label="CİRO (KDV HARİÇ)" value={fmt(live.ciro)} />
+        <KpiCard label="KDV TUTARI (%20)" value={fmt(live.kdvTutari)} mono accent={T.warning} />
+        <KpiCard label="KDV DAHİL TOPLAM" value={fmt(live.kdvDahilToplamCiro)} mono />
         <KpiCard label="TAHSİLAT ORANI" value={`%${tahsilatOrani}`} mono />
         <KpiCard label="BEKLEYEN ÖDEME" value={fmt(live.bekleyenToplam)} accent={T.warning} />
       </div>
 
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 8 }}>
-        <KpiCard label="CİRO (KDV HARİÇ)" value={fmt(live.ciro)} accent={T.accentText} />
-        <KpiCard label="KDV TUTARI (%20)" value={fmt(live.kdvTutari)} mono accent={T.warning} />
-        <KpiCard label="KDV DAHİL TOPLAM" value={fmt(live.kdvDahilToplamCiro)} mono />
-      </div>
+      {/* GİDER DAĞILIMI — "toplam gider ₺250.690" tek rakamdı, neyin toplamı olduğu
+        * görünmüyordu. Personel gideri de kalem kalem açılıyor. */}
+      <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+        <SectionTitle>Gider Dağılımı <span style={{ fontWeight: 400, opacity: 0.7 }}>— aylık</span></SectionTitle>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {[
+            { ad: "Personel", tutar: live.personelGideri, alt: [
+              { ad: "Maaş", tutar: live.personelMaas },
+              { ad: "SGK / sigorta", tutar: live.personelSigorta },
+              { ad: "Yemek", tutar: live.personelYemek },
+              { ad: "Kıdem tazminatı birikimi", tutar: live.personelTazminat },
+            ] },
+            { ad: "Ofis gideri", tutar: live.ofisGiderToplam },
+            { ad: "Müşteri maliyetleri", tutar: live.clientCosts },
+            { ad: "Üyelikler", tutar: live.uyelikGideri },
+            { ad: "Diğer gider kalemleri", tutar: live.giderKalemToplam },
+          ].filter((x) => x.tutar > 0).map((x) => (
+            <div key={x.ad}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "6px 10px", borderRadius: 8, background: T.surfaceRaised }}>
+                <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter, sans-serif", fontWeight: 600 }}>{x.ad}</span>
+                <span style={{ fontSize: 13, color: T.text, fontFamily: "'IBM Plex Mono', monospace", whiteSpace: "nowrap" }}>{fmt(x.tutar)}</span>
+              </div>
+              {(x.alt || []).filter((a) => a.tutar > 0).map((a) => (
+                <div key={a.ad} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "6px 10px", paddingLeft: 24 }}>
+                  <span style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif" }}>{a.ad}</span>
+                  <span style={{ fontSize: 13, color: T.textDim, fontFamily: "'IBM Plex Mono', monospace", whiteSpace: "nowrap" }}>{fmt(a.tutar)}</span>
+                </div>
+              ))}
+            </div>
+          ))}
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "12px 10px", marginTop: 6, borderTop: `1px solid ${T.border}` }}>
+            <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter, sans-serif", fontWeight: 700 }}>Toplam gider</span>
+            <span style={{ fontSize: 15, color: T.danger, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700 }}>{fmt(live.gider)}</span>
+          </div>
+        </div>
+      </Card>
       
 
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
@@ -6525,7 +6574,7 @@ function SaveBlockedModal({ info, onCancel, onForce }) {
 /* Planım artık Dashboard'ın içinde, Takvim kaldırıldı (vergi kayıtları Finans'tan
  * düzenlenebiliyor, ayrı bir takvim görünümüne gerek kalmadı).
  * Şifre Kasası gruptan çıkarılıp üst seviyeye alındı — sık ve tek başına açılıyor. */
-const NAV_UST = ["dashboard"];
+const NAV_UST = ["dashboard", "planim"];
 /* Şifre Kasası grupların ALTINDA duruyor — kullanıcının istediği sıra bu. Gruplu değil,
  * tek başına bir madde. */
 const NAV_ALT = ["musteri-girisleri", "ayarlar"];
@@ -6537,6 +6586,7 @@ const NAV_GRUPLARI = [
 
 const NAV = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { key: "planim", label: "Planım", icon: NotebookPen },
   { key: "musteriler", label: "Müşteriler", icon: Users },
   { key: "musteri-hesaplari", label: "Müşteri Hesapları", icon: KeyRound },
   { key: "finans", label: "Finans", icon: Wallet },
@@ -8424,9 +8474,8 @@ export default function MarcusOS() {
               const n = NAV.find((x) => x.key === key);
               if (!n) return null;
               const Icon = n.icon;
-              // Planım Dashboard'a taşındığı için sayaç da oraya geçti; sekmeye girmeden
-              // bekleyen iş olduğu görünsün.
-              const rozet = key === "dashboard" ? onayBekleyenSayisi : 0;
+              // Onay kutusu Planım'da; sayaç da orada dursun ki sekmeye girmeden görünsün.
+              const rozet = key === "planim" ? onayBekleyenSayisi : 0;
               const aktif = tab === key;
               return (
                 <button
@@ -8624,10 +8673,11 @@ export default function MarcusOS() {
         </div>
 
         <div style={{ padding: isMobile ? "16px 16px 32px" : "20px 30px 40px" }}>
-          {/* Planım artık Dashboard'ın içinde: görevlerin ve onay kutusu ayrı bir sekmede
-            * durunca her sabah iki yere bakmak gerekiyordu. */}
+          {/* Dashboard yalnızca FİNANSAL durum + Bugünün Kararı. Görevler ve onay kutusu
+            * Planım'da: ikisi farklı iş — biri "işler nasıl gidiyor", diğeri "benim ne
+            * yapmam gerekiyor". Aynı ekranda birleştirilince Dashboard uzuyordu. */}
           {tab === "dashboard" && <Dashboard data={data} />}
-          {tab === "dashboard" && (
+          {tab === "planim" && (
             <Planim
               gorevler={data.kisiselGorevler || []}
               onAdd={addGorev} onUpdate={updateGorev} onDelete={deleteGorev}
