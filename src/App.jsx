@@ -54,9 +54,13 @@ function Dashboard({ data }) {
     <div>
       <KararSeridi data={data} />
 
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 22 }}>
-        <KpiCard label="TOPLAM CİRO (BU AY)" value={fmt(live.ciro)} delta={ciroDelta} />
-        <KpiCard label="NET KAZANÇ" value={fmt(live.net)} delta={netDelta} accent={T.success} />
+      {/* HİYERARŞİ: altı kart aynı ağırlıktayken ciro ile bekleyen tahsilat eşit görünüyordu —
+        * biri sonuç, diğeri uyarı. İki ana rakam öne çıkarıldı, dördü destek satırına indi. */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 14, marginBottom: 12 }}>
+        <KpiCard label="TOPLAM CİRO (BU AY)" value={fmt(live.ciro)} delta={ciroDelta} buyuk />
+        <KpiCard label="NET KAZANÇ" value={fmt(live.net)} delta={netDelta} accent={T.success} buyuk />
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 22 }}>
         <KpiCard label="TOPLAM GİDER" value={fmt(live.gider)} delta={giderDelta} />
         <KpiCard label="KÂR MARJI" value={`%${live.karMarji}`} mono />
         <KpiCard label="TAHSİL EDİLEN" value={fmt(live.tahsilEdilen)} />
@@ -203,18 +207,18 @@ function KararSeridi({ data }) {
   };
 
   return (
-    <Card style={{ padding: "16px 18px", marginBottom: 22 }}>
+    <Card style={{ padding: "18px 22px", marginBottom: 22 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <ClipboardCheck size={15} color={T.accentText} />
-        <span style={{ fontFamily: "Inter, sans-serif", fontWeight: 700, fontSize: 12, letterSpacing: 0.4, color: T.accentText }}>BUGÜNÜN KARARI</span>
+        <span style={{ fontFamily: "Inter, sans-serif", fontWeight: 700, fontSize: 13, letterSpacing: 0.4, color: T.accentText }}>BUGÜNÜN KARARI</span>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {kararlar.map((k, i) => {
           const r = RENK[k.tip] || RENK.uyari;
           return (
-            <div key={i} style={{ borderLeft: `3px solid ${r.c}`, background: r.s, borderRadius: 8, padding: "9px 12px" }}>
+            <div key={i} style={{ borderLeft: `3px solid ${r.c}`, background: r.s, borderRadius: 8, padding: "6px 10px" }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: T.text, fontFamily: "Inter, sans-serif", marginBottom: 2 }}>{k.baslik}</div>
-              <div style={{ fontSize: 12.5, color: T.textDim, fontFamily: "Inter, sans-serif", lineHeight: 1.6 }}>{k.detay}</div>
+              <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif", lineHeight: 1.6 }}>{k.detay}</div>
             </div>
           );
         })}
@@ -278,16 +282,16 @@ function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, freelancerlar, onA
   return (
     <div>
       {odenmeyenler.length > 0 && (
-        <Card style={{ padding: "16px 18px", marginBottom: 16, border: `1px solid ${T.danger}` }}>
+        <Card style={{ padding: "18px 22px", marginBottom: 16, border: `1px solid ${T.danger}` }}>
           <SectionTitle>⚠️ Ödenmeyen Ödemeler ({odenmeyenler.length})</SectionTitle>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {odenmeyenler.map(({ client: c, ay }) => {
               const toplam = (Number(c.aylikUcret) || 0) * ay;
               return (
-                <div key={c.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, padding: "10px 12px", background: T.surfaceRaised, borderRadius: 10 }}>
+                <div key={c.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, padding: "12px 15px", background: T.surfaceRaised, borderRadius: 10 }}>
                   <div>
-                    <div style={{ fontSize: 13.5, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{c.ad}</div>
-                    <div style={{ fontSize: 11.5, color: T.danger, fontFamily: "Inter" }}>{ay} aydır ödenmedi · Toplam {fmt(toplam)}</div>
+                    <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{c.ad}</div>
+                    <div style={{ fontSize: 11, color: T.danger, fontFamily: "Inter" }}>{ay} aydır ödenmedi · Toplam {fmt(toplam)}</div>
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
                     <button style={saveBtnStyle} onClick={() => onOpenTeblig(c, ay, toplam)}>Tebliğ Oluştur / Düzenle</button>
@@ -308,10 +312,10 @@ function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, freelancerlar, onA
         <KpiCard label="EN DÜŞÜK KÂRLI" value={enDusuk ? enDusuk.ad : "—"} mono={false} accent={T.warning} />
       </div>
 
-      <Card style={{ padding: "10px 12px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+      <Card style={{ padding: "12px 15px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", gap: 8 }}>
           {[["hepsi", "Hepsi"], ["aktif", "Aktif"], ["yeni", "Yeni"], ["donduruldu", "Donduruldu"], ["ayrildi", "Ayrılan"]].map(([k, l]) => (
-            <button key={k} onClick={() => setFilter(k)} style={{ background: filter === k ? T.accentSoft : "transparent", color: filter === k ? T.accentText : T.textDim, border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 12.5, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer" }}>
+            <button key={k} onClick={() => setFilter(k)} style={{ background: filter === k ? T.accentSoft : "transparent", color: filter === k ? T.accentText : T.textDim, border: "none", borderRadius: 8, padding: "6px 10px", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer" }}>
               {l}
             </button>
           ))}
@@ -340,7 +344,7 @@ function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, freelancerlar, onA
           <thead>
             <tr>
               {["Müşteri", "Kategori", "Durum", "Ödeme", "Aylık Ücret", "Kâr Marjı", ""].map((h, i) => (
-                <th key={i} style={{ textAlign: i >= 4 ? "right" : "left", padding: "12px 16px", fontSize: 11.5, color: T.textFaint, fontWeight: 600, letterSpacing: 0.3, borderBottom: `1px solid ${T.borderSoft}` }}>{h}</th>
+                <th key={i} style={{ textAlign: i >= 4 ? "right" : "left", padding: "12px 15px", fontSize: 11, color: T.textFaint, fontWeight: 600, letterSpacing: 0.3, borderBottom: `1px solid ${T.borderSoft}` }}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -348,33 +352,33 @@ function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, freelancerlar, onA
             {filtered.map((c) =>
               editingId === c.id ? (
                 <tr key={c.id}>
-                  <td colSpan={7} style={{ padding: "12px 16px" }}>
+                  <td colSpan={7} style={{ padding: "12px 15px" }}>
                     <FieldForm fields={CLIENT_FIELDS} initial={{ ...c, faturaliTutar: clientFaturaliTutar(c) }} onSubmit={(v) => { onUpdate(c.id, v); setEditingId(null); }} onCancel={() => setEditingId(null)} />
                   </td>
                 </tr>
               ) : (
                 <tr key={c.id} style={{ borderBottom: `1px solid ${T.borderSoft}` }}>
-                  <td style={{ padding: "13px 16px" }}>
-                    <div style={{ color: T.text, fontSize: 13.5, fontWeight: 600, cursor: "pointer" }} onClick={() => setDetailClientId(c.id)}>{c.ad}</div>
-                    {c.not && <div style={{ color: T.textFaint, fontSize: 11.5, marginTop: 2 }}>{c.not}</div>}
+                  <td style={{ padding: "12px 15px" }}>
+                    <div style={{ color: T.text, fontSize: 13, fontWeight: 600, cursor: "pointer" }} onClick={() => setDetailClientId(c.id)}>{c.ad}</div>
+                    {c.not && <div style={{ color: T.textFaint, fontSize: 11, marginTop: 2 }}>{c.not}</div>}
                   </td>
-                  <td style={{ padding: "13px 16px", color: T.textDim, fontSize: 13 }}>{c.kategori}</td>
-                  <td style={{ padding: "13px 16px" }}>
+                  <td style={{ padding: "12px 15px", color: T.textDim, fontSize: 13 }}>{c.kategori}</td>
+                  <td style={{ padding: "12px 15px" }}>
                     {(() => {
                       const cd = CLIENT_DURUM[c.durum] || CLIENT_DURUM.aktif;
                       return <Pill color={cd.color} soft={cd.soft}>{cd.label}</Pill>;
                     })()}
                   </td>
-                  <td style={{ padding: "13px 16px" }}>
+                  <td style={{ padding: "12px 15px" }}>
                     {(() => {
                       const st = clientPaymentStatus(c);
-                      if (!st) return <span style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>—</span>;
+                      if (!st) return <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>—</span>;
                       const map = { odendi: { c: T.success, s: T.successSoft, l: "Ödendi" }, yaklasiyor: { c: T.textFaint, s: T.borderSoft, l: "Yaklaşıyor" }, bekliyor: { c: T.warning, s: T.warningSoft, l: "Bekliyor" }, gecikti: { c: T.danger, s: T.dangerSoft, l: "Gecikti" } };
                       const m = map[st.status];
                       return <Pill color={m.c} soft={m.s}>{m.l}</Pill>;
                     })()}
                   </td>
-                  <td style={{ padding: "13px 16px", textAlign: "right", color: T.text, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>
+                  <td style={{ padding: "12px 15px", textAlign: "right", color: T.text, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>
                     {c.aylikUcret ? fmt(c.aylikUcret) : "—"}
                     {c.aylikUcret > 0 && (() => {
                       const ft = clientFaturaliTutar(c);
@@ -382,22 +386,22 @@ function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, freelancerlar, onA
                       const none = ft <= 0;
                       const symbol = full ? "●" : none ? "○" : "◐";
                       const title = full ? "Tamamen faturalı (KDV %20)" : none ? "Faturasız" : `Kısmi faturalı: ${fmt(ft)} faturalı, ${fmt(c.aylikUcret - ft)} faturasız`;
-                      return <span title={title} style={{ marginLeft: 6, fontSize: 10, color: full ? T.success : none ? T.textFaint : T.warning }}>{symbol}</span>;
+                      return <span title={title} style={{ marginLeft: 6, fontSize: 11, color: full ? T.success : none ? T.textFaint : T.warning }}>{symbol}</span>;
                     })()}
                   </td>
-                  <td style={{ padding: "13px 16px", textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>
+                  <td style={{ padding: "12px 15px", textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>
                     {(() => {
                       const km = clientKarMarji(c);
                       const color = km >= 55 ? T.success : km >= 35 ? T.warning : T.danger;
                       const hasCosts = (c.maliyetler || []).length > 0;
                       return (
                         <span style={{ color }} title={hasCosts ? "Maliyetlerden otomatik hesaplandı" : undefined}>
-                          {c.aylikUcret ? `%${km}` : "—"}{hasCosts && <span style={{ color: T.textFaint, fontSize: 10 }}> •</span>}
+                          {c.aylikUcret ? `%${km}` : "—"}{hasCosts && <span style={{ color: T.textFaint, fontSize: 11 }}> •</span>}
                         </span>
                       );
                     })()}
                   </td>
-                  <td style={{ padding: "13px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
+                  <td style={{ padding: "12px 15px", textAlign: "right", whiteSpace: "nowrap" }}>
                     <button style={iconBtnStyle} onClick={() => { setEditingId(c.id); setAdding(false); }}><Pencil size={14} color={T.textFaint} /></button>
                     <button style={iconBtnStyle} onClick={() => { if (window.confirm(`${c.ad} silinsin mi?`)) onDelete(c.id); }}><Trash2 size={14} color={T.danger} /></button>
                   </td>
@@ -405,13 +409,13 @@ function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, freelancerlar, onA
               )
             )}
             {filtered.length === 0 && (
-              <tr><td colSpan={7} style={{ padding: "24px 16px", textAlign: "center", color: T.textFaint, fontSize: 13 }}>Bu filtrede müşteri yok.</td></tr>
+              <tr><td colSpan={7} style={{ padding: "18px 22px", textAlign: "center", color: T.textFaint, fontSize: 13 }}>Bu filtrede müşteri yok.</td></tr>
             )}
           </tbody>
         </table>
         </div>
       </Card>
-      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 10 }}>
+      <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 10 }}>
         Aylık Ücret yanındaki <span style={{ color: T.success }}>●</span> tamamen faturalı, <span style={{ color: T.warning }}>◐</span> kısmi faturalı, <span>○</span> faturasız demektir.
       </div>
 
@@ -488,21 +492,21 @@ function OdemeHatirlatmasiGonder({ client, tutar, ayAdi, firmaAdi, baslangictaAc
   };
 
   if (!acik) {
-    return <button onClick={() => setAcik(true)} style={{ ...cancelBtnStyle, fontSize: 12 }}>✉️ Ödeme Hatırlatması Gönder</button>;
+    return <button onClick={() => setAcik(true)} style={{ ...cancelBtnStyle, fontSize: 13 }}>✉️ Ödeme Hatırlatması Gönder</button>;
   }
 
   return (
     <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: 12, marginTop: 10 }}>
       <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-        <input type="text" placeholder="Müşteri e-postası" value={email} onChange={(e) => setEmail(e.target.value)} style={{ ...inputStyle, fontSize: 12.5, padding: "7px 10px" }} />
-        <input type="text" placeholder="WhatsApp telefonu (905XXXXXXXXX)" value={telefon} onChange={(e) => setTelefon(e.target.value)} style={{ ...inputStyle, fontSize: 12.5, padding: "7px 10px" }} />
+        <input type="text" placeholder="Müşteri e-postası" value={email} onChange={(e) => setEmail(e.target.value)} style={{ ...inputStyle, fontSize: 13, padding: "6px 10px" }} />
+        <input type="text" placeholder="WhatsApp telefonu (905XXXXXXXXX)" value={telefon} onChange={(e) => setTelefon(e.target.value)} style={{ ...inputStyle, fontSize: 13, padding: "6px 10px" }} />
       </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button style={saveBtnStyle} onClick={epostaGonder} disabled={gonderiliyor}>{gonderiliyor ? "Gönderiliyor…" : "E-posta Gönder"}</button>
         <button style={{ ...saveBtnStyle, background: "#25D366" }} onClick={whatsappAc}>WhatsApp'ta Aç</button>
         <button style={cancelBtnStyle} onClick={() => setAcik(false)}>Kapat</button>
       </div>
-      {sonuc && <div style={{ fontSize: 12, color: sonuc.startsWith("✅") ? T.success : T.danger, marginTop: 8 }}>{sonuc}</div>}
+      {sonuc && <div style={{ fontSize: 13, color: sonuc.startsWith("✅") ? T.success : T.danger, marginTop: 8 }}>{sonuc}</div>}
     </div>
   );
 }
@@ -764,14 +768,14 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                   style={{
                     display: "flex", alignItems: "center", gap: 6, padding: "8px 13px 9px",
                     background: "transparent", border: "none", cursor: "pointer", whiteSpace: "nowrap",
-                    fontFamily: "Inter, sans-serif", fontSize: 12.5, fontWeight: aktif ? 700 : 500,
+                    fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: aktif ? 700 : 500,
                     color: aktif ? T.text : T.textDim,
                     borderBottom: `2px solid ${aktif ? T.accent : "transparent"}`, marginBottom: -1,
                   }}
                 >
                   {sk.label}
                   {sayi > 0 && (
-                    <span style={{ background: aktif ? T.accent : T.surfaceRaised, color: aktif ? "#fff" : T.textDim, borderRadius: 999, padding: "1px 7px", fontSize: 10.5, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace" }}>{sayi}</span>
+                    <span style={{ background: aktif ? T.accent : T.surfaceRaised, color: aktif ? "#fff" : T.textDim, borderRadius: 999, padding: "6px 10px", fontSize: 11, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace" }}>{sayi}</span>
                   )}
                 </button>
               );
@@ -789,11 +793,11 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                     key={tr}
                     onClick={() => setTurSuzgec(tr)}
                     style={{
-                      padding: "5px 12px", borderRadius: 999, cursor: "pointer",
+                      padding: "6px 10px", borderRadius: 999, cursor: "pointer",
                       border: `1px solid ${aktif ? e.renk : T.border}`,
                       background: aktif ? e.zemin : "transparent",
                       color: aktif ? e.renk : T.textDim,
-                      fontFamily: "Inter, sans-serif", fontSize: 12, fontWeight: aktif ? 700 : 500,
+                      fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: aktif ? 700 : 500,
                     }}
                   >
                     {e.ad} <span style={{ opacity: 0.7 }}>{sayi}</span>
@@ -804,7 +808,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
           )}
 
           {kendiListesi.length === 0 ? (
-            <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginBottom: 12 }}>{icerikSekme === "fikir" ? "Bu markaya henüz çekim planı gönderilmedi." : icerikSekme === "bekliyor" ? "Onay bekleyen içerik yok." : icerikSekme === "revize" ? "Revize istenen içerik yok." : "Onaylanmış içerik yok."}</div>
+            <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginBottom: 12 }}>{icerikSekme === "fikir" ? "Bu markaya henüz çekim planı gönderilmedi." : icerikSekme === "bekliyor" ? "Onay bekleyen içerik yok." : icerikSekme === "revize" ? "Revize istenen içerik yok." : "Onaylanmış içerik yok."}</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
               {/* DURUM GRUPLARI — müşteri panelindekiyle aynı ayrım ve aynı adlar.
@@ -814,7 +818,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                 const etiket = MUSTERI_DURUM_ETIKET[i.durum] || MUSTERI_DURUM_ETIKET.bekliyor;
                 return (
                   <React.Fragment key={i.id}>
-                  <div style={{ background: T.surfaceRaised, borderRadius: 9, padding: "8px 12px" }}>
+                  <div style={{ background: T.surfaceRaised, borderRadius: 9, padding: "6px 10px" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                       {/* Küçük önizleme: 10 satırlık bir listede "Görsel 7 hangisiydi?" sorusunu
                         * başlıktan cevaplamak mümkün değil. Müşteri panelinde de aynısı var. */}
@@ -830,7 +834,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                         style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer", fontFamily: "inherit", flex: 1, minWidth: 0 }}
                         title="İçeriği aç"
                       >
-                        <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", fontSize: 12, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
                           <TurRozet anahtar={i.tur} />
                           <span>{basligiTemizle(i.aciklama) || turEtiketi(i.tur).ad} <span style={{ color: T.textFaint, fontWeight: 400 }}>· {i.tarih}</span>
                           {i.guncellemeTarihi && <span style={{ color: T.textFaint, fontWeight: 400 }}> · düzenlendi {i.guncellemeTarihi}</span>}</span>
@@ -838,19 +842,19 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                         {i.revizeNotu && <div style={{ fontSize: 11, color: T.danger, fontFamily: "Inter", fontStyle: "italic" }}>"{i.revizeNotu}"</div>}
                       </button>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontSize: 10.5, fontWeight: 600, color: etiket.color, background: etiket.bg, padding: "2px 8px", borderRadius: 999, fontFamily: "Inter" }} title={i.onaylayan ? `Onaylayan: ${i.onaylayan}` : undefined}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: etiket.color, background: etiket.bg, padding: "6px 10px", borderRadius: 999, fontFamily: "Inter" }} title={i.onaylayan ? `Onaylayan: ${i.onaylayan}` : undefined}>
                           {etiket.label}{i.onaylayan === "Yönetici" ? " (sen)" : ""}
                         </span>
                         {/* ÇEKİLDİ — çekim planları için hızlı yol: Operasyon'da iş doğrudan
                           * "Çekim Yapıldı"ya düşer, onay kutusundan geçmeden. */}
                         {onCekildi && i.tur === "cekim" && (
                           i.cekildi ? (
-                            <span style={{ fontSize: 10.5, fontWeight: 600, color: T.success, fontFamily: "Inter", whiteSpace: "nowrap" }}>✓ Çekildi</span>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: T.success, fontFamily: "Inter", whiteSpace: "nowrap" }}>✓ Çekildi</span>
                           ) : (
                             <button
                               title="Çekim yapıldı olarak işaretle — Operasyon'a düşsün"
                               onClick={() => { if (window.confirm(`"${basligiTemizle(i.aciklama) || "Bu plan"}" çekildi olarak işaretlenecek ve Operasyon'a düşecek. Devam edilsin mi?`)) onCekildi(i.id); }}
-                              style={{ background: "none", border: `1px solid ${T.accentText}`, color: T.accentText, cursor: "pointer", padding: "2px 9px", borderRadius: 999, fontSize: 10.5, fontWeight: 600, fontFamily: "Inter", whiteSpace: "nowrap" }}
+                              style={{ background: "none", border: `1px solid ${T.accentText}`, color: T.accentText, cursor: "pointer", padding: "6px 10px", borderRadius: 999, fontSize: 11, fontWeight: 600, fontFamily: "Inter", whiteSpace: "nowrap" }}
                             >
                               ✓ Çekildi
                             </button>
@@ -861,7 +865,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                           <button
                             title="Müşteri adına onayla"
                             onClick={() => { if (window.confirm(`"${basligiTemizle(i.aciklama) || "Bu içerik"}" senin adına onaylanacak ve Planım'daki onay kutusuna düşecek. Devam edilsin mi?`)) onOnayla(i.id); }}
-                            style={{ background: "none", border: `1px solid ${T.success}`, color: T.success, cursor: "pointer", padding: "2px 9px", borderRadius: 999, fontSize: 10.5, fontWeight: 600, fontFamily: "Inter" }}
+                            style={{ background: "none", border: `1px solid ${T.success}`, color: T.success, cursor: "pointer", padding: "6px 10px", borderRadius: 999, fontSize: 11, fontWeight: 600, fontFamily: "Inter" }}
                           >
                             ✓ Onayla
                           </button>
@@ -875,7 +879,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                               title="Yukarı taşı"
                               disabled={idx === 0}
                               onClick={() => tasi(i.id, -1)}
-                              style={{ background: "none", border: "none", cursor: idx === 0 ? "default" : "pointer", padding: "2px 3px", opacity: idx === 0 ? 0.25 : 1, color: T.textFaint, fontSize: 13, lineHeight: 1 }}
+                              style={{ background: "none", border: "none", cursor: idx === 0 ? "default" : "pointer", padding: "6px 10px", opacity: idx === 0 ? 0.25 : 1, color: T.textFaint, fontSize: 13, lineHeight: 1 }}
                             >
                               ▲
                             </button>
@@ -883,7 +887,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                               title="Aşağı taşı"
                               disabled={idx === kendiListesi.length - 1}
                               onClick={() => tasi(i.id, 1)}
-                              style={{ background: "none", border: "none", cursor: idx === kendiListesi.length - 1 ? "default" : "pointer", padding: "2px 3px", opacity: idx === kendiListesi.length - 1 ? 0.25 : 1, color: T.textFaint, fontSize: 13, lineHeight: 1 }}
+                              style={{ background: "none", border: "none", cursor: idx === kendiListesi.length - 1 ? "default" : "pointer", padding: "6px 10px", opacity: idx === kendiListesi.length - 1 ? 0.25 : 1, color: T.textFaint, fontSize: 13, lineHeight: 1 }}
                             >
                               ▼
                             </button>
@@ -911,10 +915,10 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                           <div style={{ marginBottom: 8 }}><DriveVideo link={i.driveLinki} yon={i.videoYonu} /></div>
                         )}
                         {!i.driveLinki && !i.gorselUrl && (
-                          <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>Bu kayda ait dosya yok.</div>
+                          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>Bu kayda ait dosya yok.</div>
                         )}
                         {i.driveLinki && (
-                          <a href={i.driveLinki} target="_blank" rel="noreferrer" style={{ display: "inline-block", fontSize: 11.5, color: T.accentText, fontFamily: "Inter" }}>Drive'da aç ↗</a>
+                          <a href={i.driveLinki} target="_blank" rel="noreferrer" style={{ display: "inline-block", fontSize: 11, color: T.accentText, fontFamily: "Inter" }}>Drive'da aç ↗</a>
                         )}
                       </div>
                     )}
@@ -923,29 +927,29 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                       <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.border}` }}>
                         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
                           {i.konusmali && (
-                            <span style={{ fontSize: 10, fontWeight: 700, color: T.accentText, background: T.accentSoft, padding: "2px 9px", borderRadius: 999, fontFamily: "Inter" }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: T.accentText, background: T.accentSoft, padding: "6px 10px", borderRadius: 999, fontFamily: "Inter" }}>
                               {i.konusmali === "konusmali" ? "KONUŞMALI" : i.konusmali === "seslendirme" ? "DIŞ SES" : "KONUŞMASIZ"}
                             </span>
                           )}
-                          {i.kategori && <span style={{ fontSize: 10, fontWeight: 700, color: T.textDim, background: T.surface, padding: "2px 9px", borderRadius: 999, fontFamily: "Inter" }}>{i.kategori.toLocaleUpperCase("tr")}</span>}
+                          {i.kategori && <span style={{ fontSize: 11, fontWeight: 700, color: T.textDim, background: T.surface, padding: "6px 10px", borderRadius: 999, fontFamily: "Inter" }}>{i.kategori.toLocaleUpperCase("tr")}</span>}
                           {i.planlananTarih && <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>Planlanan çekim: {tarihGoster(i.planlananTarih)}</span>}
-                          {i.olusturulanIsId && <span style={{ fontSize: 10.5, color: T.success, fontFamily: "Inter", fontWeight: 600 }}>✓ Operasyon'da iş açıldı</span>}
+                          {i.olusturulanIsId && <span style={{ fontSize: 11, color: T.success, fontFamily: "Inter", fontWeight: 600 }}>✓ Operasyon'da iş açıldı</span>}
                         </div>
                         {i.referansLink && (
-                          <a href={i.referansLink} target="_blank" rel="noreferrer" style={{ display: "block", fontSize: 11.5, color: T.accentText, fontFamily: "Inter", marginBottom: 8 }}>▶ Referans videoyu aç ↗</a>
+                          <a href={i.referansLink} target="_blank" rel="noreferrer" style={{ display: "block", fontSize: 11, color: T.accentText, fontFamily: "Inter", marginBottom: 8 }}>▶ Referans videoyu aç ↗</a>
                         )}
                         {i.konusmaMetni && (
                           <>
-                            <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter", fontWeight: 700, marginBottom: 4 }}>
+                            <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 700, marginBottom: 4 }}>
                               {i.konusmali === "seslendirme" ? "DIŞ SES METNİ" : "KONUŞMA METNİ"}
                             </div>
-                            <div style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", lineHeight: 1.7, whiteSpace: "pre-wrap", background: T.surface, borderRadius: 8, padding: "10px 12px", marginBottom: 8 }}>{i.konusmaMetni}</div>
+                            <div style={{ fontSize: 13, color: T.text, fontFamily: "Inter", lineHeight: 1.7, whiteSpace: "pre-wrap", background: T.surface, borderRadius: 8, padding: "12px 15px", marginBottom: 8 }}>{i.konusmaMetni}</div>
                           </>
                         )}
                         {i.cekimNotu && (
                           <>
-                            <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter", fontWeight: 700, marginBottom: 4 }}>ÇEKİM NOTU</div>
-                            <div style={{ fontSize: 12, color: T.textDim, fontFamily: "Inter", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{i.cekimNotu}</div>
+                            <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 700, marginBottom: 4 }}>ÇEKİM NOTU</div>
+                            <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{i.cekimNotu}</div>
                           </>
                         )}
                       </div>
@@ -960,21 +964,21 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
           {ekleAcik ? (
             <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: 12 }}>
               {duzenlenenId != null && (
-                <div style={{ fontSize: 11.5, color: T.warning, fontFamily: "Inter", marginBottom: 8, lineHeight: 1.6 }}>
+                <div style={{ fontSize: 11, color: T.warning, fontFamily: "Inter", marginBottom: 8, lineHeight: 1.6 }}>
                   Düzenleme modundasın. Kaydedince bu içerik müşteriye <strong>yeniden onaya</strong> gider ve durumu "Bekliyor"a döner.
                 </div>
               )}
               <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-                <button onClick={() => { setTur("gorsel"); setGorselHata(""); }} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: tur === "gorsel" ? T.accent : T.surface, color: tur === "gorsel" ? "#fff" : T.textDim, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "Inter" }}>Görsel</button>
-                <button onClick={() => { setTur("video"); setGorselHata(""); }} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: tur === "video" ? T.accent : T.surface, color: tur === "video" ? "#fff" : T.textDim, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "Inter" }}>Video</button>
-                <button onClick={() => { setTur("cekim"); setGorselHata(""); }} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: tur === "cekim" ? T.accent : T.surface, color: tur === "cekim" ? "#fff" : T.textDim, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "Inter" }}>Çekim Planı</button>
+                <button onClick={() => { setTur("gorsel"); setGorselHata(""); }} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: tur === "gorsel" ? T.accent : T.surface, color: tur === "gorsel" ? "#fff" : T.textDim, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "Inter" }}>Görsel</button>
+                <button onClick={() => { setTur("video"); setGorselHata(""); }} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: tur === "video" ? T.accent : T.surface, color: tur === "video" ? "#fff" : T.textDim, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "Inter" }}>Video</button>
+                <button onClick={() => { setTur("cekim"); setGorselHata(""); }} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: tur === "cekim" ? T.accent : T.surface, color: tur === "cekim" ? "#fff" : T.textDim, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "Inter" }}>Çekim Planı</button>
               </div>
               <input
                 type="text"
                 placeholder={tur === "cekim" ? "Başlık — örn. Reels 1: Ürün tanıtımı" : "Açıklama (opsiyonel — örn. Ağustos Reels 1)"}
                 value={aciklama}
                 onChange={(e) => setAciklama(e.target.value)}
-                style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "7px 10px" }}
+                style={{ ...inputStyle, marginBottom: 8, fontSize: 13, padding: "6px 10px" }}
               />
               {(tur === "gorsel" || tur === "video") && (
                 <>
@@ -983,10 +987,10 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                     placeholder="https://drive.google.com/file/d/..."
                     value={driveLinki}
                     onChange={(e) => { setDriveLinki(e.target.value); setGorselHata(""); }}
-                    style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "7px 10px" }}
+                    style={{ ...inputStyle, marginBottom: 8, fontSize: 13, padding: "6px 10px" }}
                   />
                   {tur === "gorsel" && (
-                    <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 8, lineHeight: 1.6 }}>
+                    <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginBottom: 8, lineHeight: 1.6 }}>
                       Drive'da görsele sağ tık → Paylaş → <strong>"Bağlantıya sahip olan herkes / Görüntüleyen"</strong> yap, sonra bağlantıyı buraya yapıştır.
                     </div>
                   )}
@@ -996,7 +1000,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                   )}
                   {tur === "video" && (
                     <>
-                      <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 4 }}>Video yönü (oynatıcı buna göre şekillenir)</div>
+                      <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginBottom: 4 }}>Video yönü (oynatıcı buna göre şekillenir)</div>
                       <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
                         {VIDEO_YONLERI.map((y) => (
                           <button
@@ -1020,9 +1024,9 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                     placeholder="Referans video linki (Drive, Instagram, TikTok — opsiyonel)"
                     value={driveLinki}
                     onChange={(e) => setDriveLinki(e.target.value)}
-                    style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "7px 10px" }}
+                    style={{ ...inputStyle, marginBottom: 8, fontSize: 13, padding: "6px 10px" }}
                   />
-                  <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 4 }}>Referans video yönü</div>
+                  <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginBottom: 4 }}>Referans video yönü</div>
                   <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
                     {VIDEO_YONLERI.map((y) => (
                       <button
@@ -1036,13 +1040,13 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                   </div>
 
                   {/* Onaylanınca Operasyon'da hangi akışa düşeceğini bu belirler. */}
-                  <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 4 }}>Onaylanınca Operasyon'da açılacak iş türü</div>
+                  <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginBottom: 4 }}>Onaylanınca Operasyon'da açılacak iş türü</div>
                   <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
                     {KATEGORILER.map((k) => (
                       <button
                         key={k}
                         onClick={() => setKategori(k)}
-                        style={{ flex: 1, padding: "6px 0", borderRadius: 8, border: "none", background: kategori === k ? T.accentSoft : T.surface, color: kategori === k ? T.accentText : T.textDim, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "Inter" }}
+                        style={{ flex: 1, padding: "6px 0", borderRadius: 8, border: "none", background: kategori === k ? T.accentSoft : T.surface, color: kategori === k ? T.accentText : T.textDim, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "Inter" }}
                       >
                         {k}
                       </button>
@@ -1057,7 +1061,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                       <button
                         key={x.key}
                         onClick={() => setKonusmali(x.key)}
-                        style={{ flex: 1, padding: "6px 0", borderRadius: 8, border: "none", background: konusmali === x.key ? T.accentSoft : T.surface, color: konusmali === x.key ? T.accentText : T.textDim, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "Inter" }}
+                        style={{ flex: 1, padding: "6px 0", borderRadius: 8, border: "none", background: konusmali === x.key ? T.accentSoft : T.surface, color: konusmali === x.key ? T.accentText : T.textDim, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "Inter" }}
                       >
                         {x.label}
                       </button>
@@ -1069,7 +1073,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                       value={konusmaMetni}
                       onChange={(e) => setKonusmaMetni(e.target.value)}
                       rows={5}
-                      style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "8px 10px", width: "100%", resize: "vertical", fontFamily: "Inter", lineHeight: 1.6 }}
+                      style={{ ...inputStyle, marginBottom: 8, fontSize: 13, padding: "6px 10px", width: "100%", resize: "vertical", fontFamily: "Inter", lineHeight: 1.6 }}
                     />
                   )}
                   <textarea
@@ -1077,14 +1081,14 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                     value={cekimNotu}
                     onChange={(e) => setCekimNotu(e.target.value)}
                     rows={2}
-                    style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "8px 10px", width: "100%", resize: "vertical", fontFamily: "Inter" }}
+                    style={{ ...inputStyle, marginBottom: 8, fontSize: 13, padding: "6px 10px", width: "100%", resize: "vertical", fontFamily: "Inter" }}
                   />
                   <input
                     type="date"
                     value={planlananTarih}
                     onChange={(e) => setPlanlananTarih(e.target.value)}
                     title="Planlanan çekim tarihi (opsiyonel)"
-                    style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "7px 10px" }}
+                    style={{ ...inputStyle, marginBottom: 8, fontSize: 13, padding: "6px 10px" }}
                   />
                 </>
               )}
@@ -1092,7 +1096,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                 * böylece müşteri paneli ile Operasyon arasında "dışarıdan eklenmiş", takibi
                 * olmayan bir kayıt kalmaz. Düzenlemede gösterilmez: kart zaten oluşmuştur. */}
               {tur !== "cekim" && duzenlenenId == null && onIsOlustur && (
-                <div style={{ background: T.surface, borderRadius: 10, padding: "12px 13px", marginBottom: 10, border: `1px solid ${T.borderSoft}` }}>
+                <div style={{ background: T.surface, borderRadius: 10, padding: "12px 15px", marginBottom: 10, border: `1px solid ${T.borderSoft}` }}>
                   <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 700, letterSpacing: 0.3, marginBottom: 9 }}>
                     OPERASYON KARTI
                   </div>
@@ -1102,7 +1106,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                       <button
                         key={k}
                         onClick={() => { setIsKategori(k); setIsAsama(asamaListesi(k).includes(isAsama) ? isAsama : "Kontrol Bekliyor"); }}
-                        style={{ padding: "6px 12px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: "Inter", background: isKategori === k ? T.accent : T.surfaceRaised, color: isKategori === k ? "#fff" : T.textDim }}
+                        style={{ padding: "6px 10px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "Inter", background: isKategori === k ? T.accent : T.surfaceRaised, color: isKategori === k ? "#fff" : T.textDim }}
                       >
                         {k}
                       </button>
@@ -1110,16 +1114,16 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                   </div>
 
                   <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Aşama</label>
-                  <select value={isAsama} onChange={(e) => setIsAsama(e.target.value)} style={{ ...inputStyle, marginBottom: 9, fontSize: 12.5, padding: "7px 10px" }}>
+                  <select value={isAsama} onChange={(e) => setIsAsama(e.target.value)} style={{ ...inputStyle, marginBottom: 9, fontSize: 13, padding: "6px 10px" }}>
                     {asamaListesi(isKategori).map((a) => <option key={a} value={a}>{a}</option>)}
                   </select>
 
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     {isKategori !== "Grafik Tasarım" && (
-                      <input value={isKameraman} onChange={(e) => setIsKameraman(e.target.value)} placeholder="Kameraman (opsiyonel)" style={{ ...inputStyle, flex: "1 1 140px", fontSize: 12.5, padding: "7px 10px" }} />
+                      <input value={isKameraman} onChange={(e) => setIsKameraman(e.target.value)} placeholder="Kameraman (opsiyonel)" style={{ ...inputStyle, flex: "1 1 140px", fontSize: 13, padding: "6px 10px" }} />
                     )}
-                    <input value={isEditor} onChange={(e) => setIsEditor(e.target.value)} placeholder={isKategori === "Grafik Tasarım" ? "Tasarımcı" : isKategori === "Fotoğraf" ? "Düzenleyen" : "Editör"} style={{ ...inputStyle, flex: "1 1 140px", fontSize: 12.5, padding: "7px 10px" }} />
-                    <input type="date" value={isTeslim} onChange={(e) => setIsTeslim(e.target.value)} title="Teslim tarihi" style={{ ...inputStyle, flex: "1 1 140px", fontSize: 12.5, padding: "7px 10px" }} />
+                    <input value={isEditor} onChange={(e) => setIsEditor(e.target.value)} placeholder={isKategori === "Grafik Tasarım" ? "Tasarımcı" : isKategori === "Fotoğraf" ? "Düzenleyen" : "Editör"} style={{ ...inputStyle, flex: "1 1 140px", fontSize: 13, padding: "6px 10px" }} />
+                    <input type="date" value={isTeslim} onChange={(e) => setIsTeslim(e.target.value)} title="Teslim tarihi" style={{ ...inputStyle, flex: "1 1 140px", fontSize: 13, padding: "6px 10px" }} />
                   </div>
 
                   <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 8, lineHeight: 1.6 }}>
@@ -1130,7 +1134,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                 </div>
               )}
 
-              {gorselHata && <div style={{ color: T.danger, fontSize: 11.5, fontFamily: "Inter", marginBottom: 8 }}>{gorselHata}</div>}
+              {gorselHata && <div style={{ color: T.danger, fontSize: 11, fontFamily: "Inter", marginBottom: 8 }}>{gorselHata}</div>}
               <div style={{ display: "flex", gap: 8 }}>
                 <button style={cancelBtnStyle} onClick={formuTemizle}>İptal</button>
                 <button style={saveBtnStyle} onClick={ekle}>{duzenlenenId != null ? "Değişiklikleri Kaydet" : (tur === "cekim" ? "Çekim Planını Gönder" : "Operasyon Kartı Oluştur")}</button>
@@ -1147,7 +1151,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                 </div>
               )}
               {bildirimDurumu && (
-                <div style={{ fontSize: 11.5, color: bildirimDurumu.startsWith("✓") ? T.success : T.textFaint, fontFamily: "Inter", marginTop: 8, lineHeight: 1.6 }}>{bildirimDurumu}</div>
+                <div style={{ fontSize: 11, color: bildirimDurumu.startsWith("✓") ? T.success : T.textFaint, fontFamily: "Inter", marginTop: 8, lineHeight: 1.6 }}>{bildirimDurumu}</div>
               )}
             </div>
           )}
@@ -1157,7 +1161,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
   if (!kompakt) return <div>{govde}</div>;
 
   return (
-    <Card style={{ padding: "14px 18px", marginBottom: 16 }}>
+    <Card style={{ padding: "12px 15px", marginBottom: 16 }}>
       <button onClick={() => setAcik((v) => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
         <span style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter" }}>Müşteri Paneli İçerikleri <span style={{ fontWeight: 400, color: T.textFaint, fontSize: 11 }}>· asıl yönetim: Müşteri Paneli sekmesi</span></span>
         <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{kendiListesi.length > 0 ? `${kendiListesi.length} kayıt` : "Kayıt yok"} {acik ? "▲" : "▼"}</span>
@@ -1180,11 +1184,11 @@ function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, freelancerlar, on
   const overdueMonths = clientOverdueMonths(client);
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div onClick={(e) => e.stopPropagation()} className="marcus-card" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 18, width: 560, maxWidth: "100%", maxHeight: "85vh", overflowY: "auto", padding: "24px 26px" }}>
+      <div onClick={(e) => e.stopPropagation()} className="marcus-card" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 18, width: 560, maxWidth: "100%", maxHeight: "85vh", overflowY: "auto", padding: "18px 22px" }}>
         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 18 }}>
           <div>
-            <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 19, fontWeight: 600, color: T.text, margin: 0 }}>{client.ad}</h2>
-            <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginTop: 4 }}>{client.kategori} · {client.baslangic}</div>
+            <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 600, color: T.text, margin: 0 }}>{client.ad}</h2>
+            <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginTop: 4 }}>{client.kategori} · {client.baslangic}</div>
           </div>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><X size={18} color={T.textFaint} /></button>
         </div>
@@ -1209,14 +1213,14 @@ function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, freelancerlar, on
         </div>
 
         {client.not && (
-          <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter", marginBottom: 20, padding: "10px 12px", background: T.surfaceRaised, borderRadius: 10 }}>{client.not}</div>
+          <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter", marginBottom: 20, padding: "12px 15px", background: T.surfaceRaised, borderRadius: 10 }}>{client.not}</div>
         )}
 
         {paymentStatus && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 20, padding: "12px 14px", background: T.surfaceRaised, borderRadius: 12, border: `1px solid ${T.border}` }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 20, padding: "12px 15px", background: T.surfaceRaised, borderRadius: 12, border: `1px solid ${T.border}` }}>
             <div>
-              <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 3 }}>BU AYIN ÖDEMESİ</div>
-              <div style={{ fontSize: 13.5, fontFamily: "Inter", fontWeight: 600, color: paymentStatus.status === "odendi" ? T.success : paymentStatus.status === "gecikti" ? T.danger : paymentStatus.status === "bekliyor" ? T.warning : T.textDim }}>
+              <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 3 }}>BU AYIN ÖDEMESİ</div>
+              <div style={{ fontSize: 13, fontFamily: "Inter", fontWeight: 600, color: paymentStatus.status === "odendi" ? T.success : paymentStatus.status === "gecikti" ? T.danger : paymentStatus.status === "bekliyor" ? T.warning : T.textDim }}>
                 {paymentStatus.label}
               </div>
             </div>
@@ -1224,7 +1228,7 @@ function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, freelancerlar, on
           </div>
         )}
         {!paymentStatus && (
-          <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 20 }}>
+          <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginBottom: 20 }}>
             Bu müşteri için ödeme günü tanımlı değil — düzenle butonundan "Ödeme Günü" alanını doldurursan otomatik takip başlar.
           </div>
         )}
@@ -1239,17 +1243,17 @@ function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, freelancerlar, on
           />
         )}
         {overdueMonths > 0 && (
-          <div style={{ marginBottom: 20, padding: "12px 14px", background: T.dangerSoft, borderRadius: 12, border: `1px solid ${T.danger}` }}>
+          <div style={{ marginBottom: 20, padding: "12px 15px", background: T.dangerSoft, borderRadius: 12, border: `1px solid ${T.danger}` }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
               <div>
-                <div style={{ fontSize: 12.5, color: T.danger, fontFamily: "Inter", fontWeight: 600 }}>{overdueMonths} aydır ödenmedi</div>
+                <div style={{ fontSize: 13, color: T.danger, fontFamily: "Inter", fontWeight: 600 }}>{overdueMonths} aydır ödenmedi</div>
                 <div style={{ display: "flex", gap: 16, marginTop: 4 }}>
                   <div>
-                    <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter" }}>YENİ AY ÖDEMESİ</div>
+                    <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>YENİ AY ÖDEMESİ</div>
                     <div style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{fmt(client.aylikUcret)}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter" }}>KALAN BAKİYE (kısmi ödemeler düşülmüş)</div>
+                    <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>KALAN BAKİYE (kısmi ödemeler düşülmüş)</div>
                     <div style={{ fontSize: 13, color: T.danger, fontFamily: "Inter", fontWeight: 700 }}>{fmt(clientOverdueBalance(client))}</div>
                   </div>
                 </div>
@@ -1263,13 +1267,13 @@ function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, freelancerlar, on
         )}
 
         <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 8 }}>
+          <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 8 }}>
             MALİYETLER ({maliyetler.length}) <span style={{ opacity: 0.7, fontWeight: 400 }}>— freelance ödemeleri, dış hizmetler vb. Toplam Gider'e otomatik yansır</span>
           </div>
-          {maliyetler.length === 0 && <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 10 }}>Bu müşteriye bağlı maliyet yok.</div>}
+          {maliyetler.length === 0 && <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginBottom: 10 }}>Bu müşteriye bağlı maliyet yok.</div>}
           <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 10 }}>
             {maliyetler.map((m) => (
-              <div key={m.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", background: T.surfaceRaised, borderRadius: 10 }}>
+              <div key={m.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", background: T.surfaceRaised, borderRadius: 10 }}>
                 <div>
                   <div style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{m.kalem}</div>
                   {m.freelancerId && (
@@ -1285,7 +1289,7 @@ function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, freelancerlar, on
               </div>
             ))}
             {maliyetler.length > 0 && (
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 12px", fontSize: 12, color: T.textFaint, fontFamily: "Inter" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 10px", fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>
                 <span>Toplam</span><span style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(maliyetToplam)}</span>
               </div>
             )}
@@ -1298,12 +1302,12 @@ function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, freelancerlar, on
         </div>
 
         <div>
-          <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 8 }}>BEKLEYEN TAHSİLATLAR ({bekleyenTahsilatlar.length})</div>
-          {bekleyenTahsilatlar.length === 0 && <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Bekleyen ödeme yok.</div>}
+          <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 8 }}>BEKLEYEN TAHSİLATLAR ({bekleyenTahsilatlar.length})</div>
+          {bekleyenTahsilatlar.length === 0 && <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>Bekleyen ödeme yok.</div>}
           <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
             {bekleyenTahsilatlar.map((b) => (
-              <div key={b.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", background: T.surfaceRaised, borderRadius: 10 }}>
-                <div style={{ fontSize: 12.5, color: b.vade.includes("gecikti") ? T.danger : T.textDim, fontFamily: "Inter" }}>{b.vade}</div>
+              <div key={b.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", background: T.surfaceRaised, borderRadius: 10 }}>
+                <div style={{ fontSize: 13, color: b.vade.includes("gecikti") ? T.danger : T.textDim, fontFamily: "Inter" }}>{b.vade}</div>
                 <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: T.text }}>{fmt(b.tutar)}</div>
               </div>
             ))}
@@ -1342,7 +1346,7 @@ const MONTH_FIELDS = [
 function MiniList({ title, icon, items, fields, renderRow, onAdd, onDelete, addLabel }) {
   const [adding, setAdding] = useState(false);
   return (
-    <Card style={{ padding: "20px 22px" }}>
+    <Card style={{ padding: "18px 22px" }}>
       <SectionTitle action={icon}>{title}</SectionTitle>
       <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 10 }}>
         {items.map((item, i) => (
@@ -1351,7 +1355,7 @@ function MiniList({ title, icon, items, fields, renderRow, onAdd, onDelete, addL
             <button style={iconBtnStyle} onClick={() => { if (window.confirm("Bu kayıt silinsin mi?")) onDelete(item.id); }}><Trash2 size={13} color={T.danger} /></button>
           </div>
         ))}
-        {items.length === 0 && <div style={{ color: T.textFaint, fontSize: 12.5, fontFamily: "Inter", padding: "8px 0" }}>Henüz kayıt yok.</div>}
+        {items.length === 0 && <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter", padding: "8px 0" }}>Henüz kayıt yok.</div>}
       </div>
       {adding ? (
         <FieldForm fields={fields} onSubmit={(v) => { onAdd(v); setAdding(false); }} onCancel={() => setAdding(false)} submitLabel="Ekle" />
@@ -1393,7 +1397,7 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
       </div>
       
 
-      <Card style={{ padding: "16px 20px", marginBottom: 16 }}>
+      <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Faturalı İşler <span style={{ fontWeight: 400, opacity: 0.7 }}>— bu ciroyu oluşturanlar</span></SectionTitle>
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
           {clients.filter((c) => c.durum !== "ayrildi" && c.durum !== "donduruldu" && clientFaturaliTutar(c) > 0).map((c) => {
@@ -1420,7 +1424,7 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
             </div>
           ))}
           {clients.filter((c) => c.durum !== "ayrildi" && c.durum !== "donduruldu" && clientFaturaliTutar(c) > 0).length === 0 && gelirKalemleri.filter((g) => g.faturali !== "hayir").length === 0 && (
-            <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", padding: "6px 0" }}>Faturalı işaretlenmiş müşteri/gelir yok.</div>
+            <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", padding: "6px 0" }}>Faturalı işaretlenmiş müşteri/gelir yok.</div>
           )}
           <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingTop: 10, marginTop: 4 }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontFamily: "Inter" }}>
@@ -1431,7 +1435,7 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
               <span style={{ color: T.textDim }}>+ KDV (%20)</span>
               <span style={{ color: T.warning, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(live.kdvTutari)}</span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13.5, fontFamily: "Inter", fontWeight: 600, paddingTop: 4, borderTop: `1px solid ${T.borderSoft}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontFamily: "Inter", fontWeight: 600, paddingTop: 4, borderTop: `1px solid ${T.borderSoft}` }}>
               <span style={{ color: T.text }}>= Faturalı Ciro (KDV Dahil)</span>
               <span style={{ color: T.accentText, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(live.faturaliKdvDahil)}</span>
             </div>
@@ -1439,7 +1443,7 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
         </div>
       </Card>
 
-      <Card style={{ padding: "16px 20px", marginBottom: 16 }}>
+      <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle
           action={
             <div style={{ display: "flex", gap: 8 }}>
@@ -1459,49 +1463,49 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
         </SectionTitle>
         <div style={{ display: "flex", gap: 28, flexWrap: "wrap" }}>
           <div>
-            <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>Müşteri Aylık Ücretleri <span style={{ opacity: 0.7 }}>(Müşteriler sekmesi)</span></div>
-            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: T.text, marginTop: 3 }}>{fmt(live.recurring)}</div>
+            <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>Müşteri Aylık Ücretleri <span style={{ opacity: 0.7 }}>(Müşteriler sekmesi)</span></div>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 15, color: T.text, marginTop: 3 }}>{fmt(live.recurring)}</div>
           </div>
           <div>
-            <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>Ek Gelirler <span style={{ opacity: 0.7 }}>(aşağıdaki Gelirler listesi)</span></div>
-            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: T.text, marginTop: 3 }}>{fmt(live.extra)}</div>
+            <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>Ek Gelirler <span style={{ opacity: 0.7 }}>(aşağıdaki Gelirler listesi)</span></div>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 15, color: T.text, marginTop: 3 }}>{fmt(live.extra)}</div>
           </div>
           <div>
-            <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>= Toplam Ciro</div>
-            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: T.accentText, fontWeight: 600, marginTop: 3 }}>{fmt(live.ciro)}</div>
+            <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>= Toplam Ciro</div>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 15, color: T.accentText, fontWeight: 600, marginTop: 3 }}>{fmt(live.ciro)}</div>
           </div>
           <div>
-            <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>Gider Kalemleri</div>
-            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: T.text, marginTop: 3 }}>{fmt(live.giderKalemToplam)}</div>
+            <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>Gider Kalemleri</div>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 15, color: T.text, marginTop: 3 }}>{fmt(live.giderKalemToplam)}</div>
           </div>
           <div>
-            <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>Ofis Giderleri</div>
-            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: T.text, marginTop: 3 }}>{fmt(live.ofisGiderToplam)}</div>
+            <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>Ofis Giderleri</div>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 15, color: T.text, marginTop: 3 }}>{fmt(live.ofisGiderToplam)}</div>
           </div>
           <div>
-            <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>Personel Gideri <span style={{ opacity: 0.7 }}>(Personel sekmesi)</span></div>
-            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: T.text, marginTop: 3 }}>{fmt(live.personelGideri)}</div>
+            <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>Personel Gideri <span style={{ opacity: 0.7 }}>(Personel sekmesi)</span></div>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 15, color: T.text, marginTop: 3 }}>{fmt(live.personelGideri)}</div>
           </div>
           <div>
-            <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>Müşteri Maliyetleri <span style={{ opacity: 0.7 }}>(Müşteriler sekmesi)</span></div>
-            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: T.text, marginTop: 3 }}>{fmt(live.clientCosts)}</div>
+            <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>Müşteri Maliyetleri <span style={{ opacity: 0.7 }}>(Müşteriler sekmesi)</span></div>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 15, color: T.text, marginTop: 3 }}>{fmt(live.clientCosts)}</div>
           </div>
           <div>
-            <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>Üyelikler <span style={{ opacity: 0.7 }}>(Üyelikler sekmesi, aylık karşılık)</span></div>
-            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 16, color: T.text, marginTop: 3 }}>{fmt(live.uyelikGideri)}</div>
+            <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>Üyelikler <span style={{ opacity: 0.7 }}>(Üyelikler sekmesi, aylık karşılık)</span></div>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 15, color: T.text, marginTop: 3 }}>{fmt(live.uyelikGideri)}</div>
           </div>
         </div>
       </Card>
 
       <div className="marcus-grid-2" style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 16, marginBottom: 16 }}>
-        <Card style={{ padding: "20px 22px" }}>
+        <Card style={{ padding: "18px 22px" }}>
           <SectionTitle>Gelir & Gider — Son Aylar + Bu Ay</SectionTitle>
           <ResponsiveContainer width="100%" height={180}>
             <BarChart data={chartData} margin={{ left: -18, right: 8 }} barGap={4}>
               <CartesianGrid stroke={T.borderSoft} vertical={false} />
-              <XAxis dataKey="ay" tick={{ fill: T.textFaint, fontSize: 11.5, fontFamily: "Inter" }} axisLine={{ stroke: T.border }} tickLine={false} />
+              <XAxis dataKey="ay" tick={{ fill: T.textFaint, fontSize: 11, fontFamily: "Inter" }} axisLine={{ stroke: T.border }} tickLine={false} />
               <YAxis tick={{ fill: T.textFaint, fontSize: 11, fontFamily: "Inter" }} axisLine={false} tickLine={false} tickFormatter={fmtShort} width={40} />
-              <Tooltip formatter={(v) => fmt(v)} contentStyle={{ background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 10, fontFamily: "Inter", fontSize: 12.5 }} />
+              <Tooltip formatter={(v) => fmt(v)} contentStyle={{ background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 10, fontFamily: "Inter", fontSize: 13 }} />
               <Bar dataKey="ciro" fill={T.accent} radius={[4, 4, 0, 0]} name="Gelir" />
               <Bar dataKey="gider" fill={T.textFaint} radius={[4, 4, 0, 0]} name="Gider" />
             </BarChart>
@@ -1510,12 +1514,12 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
           <div style={{ display: "flex", flexDirection: "column", gap: 2, marginBottom: 12 }}>
             {monthly.map((m, i) => (
               <div key={m.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 0", borderBottom: i < monthly.length - 1 ? `1px solid ${T.borderSoft}` : "none" }}>
-                <span style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{m.ay} {m.yil || ""}</span>
-                <span style={{ fontSize: 12, color: T.textDim, fontFamily: "'IBM Plex Mono', monospace" }}>Ciro {fmt(m.ciro)} · Gider {fmt(m.gider)} · Net {fmt(m.net)}</span>
+                <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{m.ay} {m.yil || ""}</span>
+                <span style={{ fontSize: 13, color: T.textDim, fontFamily: "'IBM Plex Mono', monospace" }}>Ciro {fmt(m.ciro)} · Gider {fmt(m.gider)} · Net {fmt(m.net)}</span>
                 <button style={iconBtnStyle} onClick={() => { if (window.confirm("Bu ay silinsin mi?")) onDeleteMonth(m.id); }}><Trash2 size={12} color={T.danger} /></button>
               </div>
             ))}
-            {monthly.length === 0 && <div style={{ color: T.textFaint, fontSize: 12, fontFamily: "Inter" }}>Henüz geçmiş ay eklenmedi.</div>}
+            {monthly.length === 0 && <div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Henüz geçmiş ay eklenmedi.</div>}
           </div>
           {addingMonth ? (
             <FieldForm fields={MONTH_FIELDS} initial={{ yil: new Date().getFullYear() }} onSubmit={(v) => { onAddMonth(v); setAddingMonth(false); }} onCancel={() => setAddingMonth(false)} submitLabel="Ayı Ekle" />
@@ -1536,7 +1540,7 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{v.kalem}</div>
-                <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>{tarihGoster(v.tarih)}</div>
+                <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{tarihGoster(v.tarih)}</div>
               </div>
               {v.durum === "yaklaşıyor" && <Pill color={T.warning} soft={T.warningSoft}>Yaklaşıyor</Pill>}
             </div>
@@ -1618,29 +1622,29 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
         renderRow={(b) => (
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             <div>
-              <div style={{ fontSize: 13.5, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{b.musteri}</div>
-              <div style={{ fontSize: 11.5, color: b.vade.includes("gecikti") ? T.danger : T.textFaint, fontFamily: "Inter" }}>{b.vade}</div>
+              <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{b.musteri}</div>
+              <div style={{ fontSize: 11, color: b.vade.includes("gecikti") ? T.danger : T.textFaint, fontFamily: "Inter" }}>{b.vade}</div>
             </div>
-            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 14, color: T.text }}>{fmt(b.tutar)}</div>
+            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 15, color: T.text }}>{fmt(b.tutar)}</div>
           </div>
         )}
       />
       {live.otomatikBekleyen > 0 && (
-        <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginTop: 10 }}>
+        <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginTop: 10 }}>
           + {fmt(live.otomatikBekleyen)} — Müşteriler sekmesinde ödeme günü geçtiği halde "ödendi" işaretlenmemiş müşterilerden otomatik hesaplanan tutar. "Bekleyen Ödeme" KPI'sı bu ikisinin toplamıdır.
         </div>
       )}
 
       <HesapBakiyeleri hesaplar={data.hesaplar} clients={clients} transferler={data.hesapTransferleri} avanslar={data.avanslar} odemeler={data.personelOdemeleri} duzeltmeler={data.hesapDuzeltmeleri} onTransfer={onTransfer} onDeleteTransfer={onDeleteTransfer} onAddHesap={onAddHesap} onDeleteHesap={onDeleteHesap} onUpdateHesap={onUpdateHesap} onAddDuzeltme={onAddDuzeltme} onDeleteDuzeltme={onDeleteDuzeltme} />
 
-      <Card style={{ padding: "16px 20px", marginTop: 16 }}>
+      <Card style={{ padding: "18px 22px", marginTop: 16 }}>
         <SectionTitle>Banka Hareketleri <span style={{ fontWeight: 400, opacity: 0.7 }}>— Ödeme Takvimi'nde kaydedilen tüm tahsilatlar</span></SectionTitle>
         {(() => {
           const hareketler = (clients || [])
             .flatMap((c) => (c.odemeKayitlari || []).map((k) => ({ ...k, musteri: c.ad })))
             .reverse();
           if (hareketler.length === 0) {
-            return <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Henüz bir ödeme kaydı yok. Ödeme Takvimi sekmesinden tutar ve banka bilgisiyle kayıt ekleyebilirsin.</div>;
+            return <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>Henüz bir ödeme kaydı yok. Ödeme Takvimi sekmesinden tutar ve banka bilgisiyle kayıt ekleyebilirsin.</div>;
           }
           return (
             <div className="marcus-table-wrap">
@@ -1648,18 +1652,18 @@ function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDelete
                 <thead>
                   <tr>
                     {["Müşteri", "Banka", "Tarih", "Not", "Tutar"].map((h, i) => (
-                      <th key={i} style={{ textAlign: i === 4 ? "right" : "left", padding: "8px 10px", fontSize: 11, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}` }}>{h}</th>
+                      <th key={i} style={{ textAlign: i === 4 ? "right" : "left", padding: "6px 10px", fontSize: 11, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}` }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {hareketler.slice(0, 40).map((h, i) => (
                     <tr key={i} style={{ borderBottom: `1px solid ${T.borderSoft}` }}>
-                      <td style={{ padding: "8px 10px", fontSize: 12.5, color: T.text, fontWeight: 600 }}>{h.musteri}</td>
-                      <td style={{ padding: "8px 10px", fontSize: 12.5, color: T.textDim }}>{h.banka || "—"}</td>
-                      <td style={{ padding: "8px 10px", fontSize: 12.5, color: T.textDim }}>{h.tarih}</td>
-                      <td style={{ padding: "8px 10px", fontSize: 12.5, color: T.textFaint }}>{h.not || ""}</td>
-                      <td style={{ padding: "8px 10px", textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: T.success, fontWeight: 600 }}>{fmt(h.tutar)}</td>
+                      <td style={{ padding: "6px 10px", fontSize: 13, color: T.text, fontWeight: 600 }}>{h.musteri}</td>
+                      <td style={{ padding: "6px 10px", fontSize: 13, color: T.textDim }}>{h.banka || "—"}</td>
+                      <td style={{ padding: "6px 10px", fontSize: 13, color: T.textDim }}>{h.tarih}</td>
+                      <td style={{ padding: "6px 10px", fontSize: 13, color: T.textFaint }}>{h.not || ""}</td>
+                      <td style={{ padding: "6px 10px", textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: T.success, fontWeight: 600 }}>{fmt(h.tutar)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1692,7 +1696,7 @@ function Karsilastirma({ chartData }) {
   const yillar = Object.values(yillikMap).sort((a, b) => a.yil - b.yil);
 
   return (
-    <Card style={{ padding: "20px 22px", marginBottom: 16 }}>
+    <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
       <SectionTitle>Aylık & Yıllık Karşılaştırma</SectionTitle>
 
       <div className="marcus-table-wrap" style={{ marginBottom: 20 }}>
@@ -1700,18 +1704,18 @@ function Karsilastirma({ chartData }) {
           <thead>
             <tr>
               {["Ay", "Ciro", "Gider", "Net", "Değişim"].map((h, i) => (
-                <th key={i} style={{ textAlign: i === 0 ? "left" : "right", padding: "8px 10px", fontSize: 11, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}` }}>{h}</th>
+                <th key={i} style={{ textAlign: i === 0 ? "left" : "right", padding: "6px 10px", fontSize: 11, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}` }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {withDelta.map((m, i) => (
               <tr key={i} style={{ borderBottom: `1px solid ${T.borderSoft}` }}>
-                <td style={{ padding: "8px 10px", fontSize: 12.5, color: T.text, fontWeight: m.id === "live" ? 600 : 400, fontFamily: "Inter" }}>{m.ay} {m.yil}{m.id === "live" && " (şimdi)"}</td>
-                <td style={{ padding: "8px 10px", textAlign: "right", fontSize: 12.5, fontFamily: "'IBM Plex Mono', monospace", color: T.text }}>{fmt(m.ciro)}</td>
-                <td style={{ padding: "8px 10px", textAlign: "right", fontSize: 12.5, fontFamily: "'IBM Plex Mono', monospace", color: T.textDim }}>{fmt(m.gider)}</td>
-                <td style={{ padding: "8px 10px", textAlign: "right", fontSize: 12.5, fontFamily: "'IBM Plex Mono', monospace", color: T.success }}>{fmt(m.net)}</td>
-                <td style={{ padding: "8px 10px", textAlign: "right", fontSize: 12, fontFamily: "Inter" }}>
+                <td style={{ padding: "6px 10px", fontSize: 13, color: T.text, fontWeight: m.id === "live" ? 600 : 400, fontFamily: "Inter" }}>{m.ay} {m.yil}{m.id === "live" && " (şimdi)"}</td>
+                <td style={{ padding: "6px 10px", textAlign: "right", fontSize: 13, fontFamily: "'IBM Plex Mono', monospace", color: T.text }}>{fmt(m.ciro)}</td>
+                <td style={{ padding: "6px 10px", textAlign: "right", fontSize: 13, fontFamily: "'IBM Plex Mono', monospace", color: T.textDim }}>{fmt(m.gider)}</td>
+                <td style={{ padding: "6px 10px", textAlign: "right", fontSize: 13, fontFamily: "'IBM Plex Mono', monospace", color: T.success }}>{fmt(m.net)}</td>
+                <td style={{ padding: "6px 10px", textAlign: "right", fontSize: 13, fontFamily: "Inter" }}>
                   {m.ciroDelta === null ? <span style={{ color: T.textFaint }}>—</span> : <span style={{ color: m.ciroDelta >= 0 ? T.success : T.danger }}>{m.ciroDelta >= 0 ? "+" : ""}{m.ciroDelta}%</span>}
                 </td>
               </tr>
@@ -1720,9 +1724,9 @@ function Karsilastirma({ chartData }) {
         </table>
       </div>
 
-      <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 10 }}>YILLIK TOPLAMLAR</div>
+      <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 10 }}>YILLIK TOPLAMLAR</div>
       {yillar.length < 2 && (
-        <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 8 }}>
+        <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginBottom: 8 }}>
           Karşılaştırma için en az 2 yıllık veri gerekiyor — şu an sadece {yillar[0]?.yil} verisi var. Aylar birikince burada geçen yılla otomatik karşılaştırma göreceksin.
         </div>
       )}
@@ -1731,11 +1735,11 @@ function Karsilastirma({ chartData }) {
           const prevYear = yillar[i - 1];
           const delta = prevYear && prevYear.ciro ? Math.round(((y.ciro - prevYear.ciro) / prevYear.ciro) * 100) : null;
           return (
-            <div key={y.yil} style={{ flex: "1 1 160px", minWidth: 160, padding: "14px 16px", background: T.surfaceRaised, borderRadius: 12 }}>
-              <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 6 }}>{y.yil} ({y.ayCount} ay)</div>
-              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 18, color: T.text, fontWeight: 600 }}>{fmt(y.ciro)}</div>
+            <div key={y.yil} style={{ flex: "1 1 160px", minWidth: 160, padding: "12px 15px", background: T.surfaceRaised, borderRadius: 12 }}>
+              <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginBottom: 6 }}>{y.yil} ({y.ayCount} ay)</div>
+              <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 20, color: T.text, fontWeight: 600 }}>{fmt(y.ciro)}</div>
               {delta !== null && (
-                <div style={{ fontSize: 12, fontFamily: "Inter", color: delta >= 0 ? T.success : T.danger, marginTop: 4 }}>{delta >= 0 ? "+" : ""}{delta}% önceki yıla göre</div>
+                <div style={{ fontSize: 13, fontFamily: "Inter", color: delta >= 0 ? T.success : T.danger, marginTop: 4 }}>{delta >= 0 ? "+" : ""}{delta}% önceki yıla göre</div>
               )}
             </div>
           );
@@ -1788,14 +1792,14 @@ function OdemeGunuHucre({ client, onUpdateClient }) {
         onChange={(e) => setVal(e.target.value)}
         onBlur={save}
         onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
-        style={{ width: 70, background: T.surface, border: `1px solid ${T.accent}`, borderRadius: 7, padding: "6px 8px", color: T.text, fontSize: 13, fontFamily: "Inter, sans-serif", outline: "none" }}
+        style={{ width: 70, background: T.surface, border: `1px solid ${T.accent}`, borderRadius: 7, padding: "6px 10px", color: T.text, fontSize: 13, fontFamily: "Inter, sans-serif", outline: "none" }}
       />
     );
   }
   return (
     <button
       onClick={() => setEditing(true)}
-      style={{ background: "transparent", border: `1px dashed ${client.odemeGunu ? T.border : T.warning}`, borderRadius: 7, padding: "6px 10px", color: client.odemeGunu ? T.text : T.warning, fontSize: 12.5, fontFamily: "Inter, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}
+      style={{ background: "transparent", border: `1px dashed ${client.odemeGunu ? T.border : T.warning}`, borderRadius: 7, padding: "6px 10px", color: client.odemeGunu ? T.text : T.warning, fontSize: 13, fontFamily: "Inter, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}
     >
       {client.odemeGunu ? `Ayın ${client.odemeGunu}'i` : "+ Gün gir"}
     </button>
@@ -1822,12 +1826,12 @@ function AyOdemeModal({ client, ayObj, hesaplar, onAddKaydi, onDeleteKaydi, onCl
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div className="marcus-card" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 18, width: 440, maxWidth: "100%", padding: "22px 24px" }}>
+      <div className="marcus-card" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 18, width: 440, maxWidth: "100%", padding: "18px 22px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-          <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15.5, fontWeight: 600, color: T.text, margin: 0 }}>{client.ad} — {ayObj.label}</h2>
+          <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: T.text, margin: 0 }}>{client.ad} — {ayObj.label}</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><X size={17} color={T.textFaint} /></button>
         </div>
-        <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 16 }}>
+        <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginBottom: 16 }}>
           Aylık ücret {fmt(client.aylikUcret)} · Ödenen {fmt(odenen)} · <span style={{ color: kalan > 0 ? T.danger : T.success, fontWeight: 600 }}>Kalan {fmt(kalan)}</span>
         </div>
 
@@ -1836,7 +1840,7 @@ function AyOdemeModal({ client, ayObj, hesaplar, onAddKaydi, onDeleteKaydi, onCl
             <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 6 }}>ÖDEME KAYITLARI</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {kayitlar.map((k) => (
-                <div key={k.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", background: T.surfaceRaised, borderRadius: 9 }}>
+                <div key={k.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", background: T.surfaceRaised, borderRadius: 9 }}>
                   <div>
                     <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{fmt(k.tutar)}{k.banka ? ` · ${k.banka}` : ""}</div>
                     <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{tarihGoster(k.tarih)}{k.not ? ` · ${k.not}` : ""}</div>
@@ -1937,12 +1941,12 @@ function OdemeTakvimi({ clients, hesaplar, transferler, avanslar, odemeler, duze
 
       <HesapBakiyeleri hesaplar={hesaplar} clients={clients} transferler={transferler} avanslar={avanslar} odemeler={odemeler} duzeltmeler={duzeltmeler} onTransfer={onTransfer} onDeleteTransfer={onDeleteTransfer} onAddHesap={onAddHesap} onDeleteHesap={onDeleteHesap} onUpdateHesap={onUpdateHesap} onAddDuzeltme={onAddDuzeltme} onDeleteDuzeltme={onDeleteDuzeltme} />
 
-      <Card style={{ padding: "10px 12px", marginBottom: 16, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+      <Card style={{ padding: "12px 15px", marginBottom: 16, display: "flex", justifyContent: "flex-end", gap: 8 }}>
         {[6, 12].map((n) => (
           <button
             key={n}
             onClick={() => setAyCount(n)}
-            style={{ background: ayCount === n ? T.accentSoft : "transparent", color: ayCount === n ? T.accentText : T.textDim, border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 12.5, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer" }}
+            style={{ background: ayCount === n ? T.accentSoft : "transparent", color: ayCount === n ? T.accentText : T.textDim, border: "none", borderRadius: 8, padding: "6px 10px", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer" }}
           >
             Son {n} ay
           </button>
@@ -1959,12 +1963,12 @@ function OdemeTakvimi({ clients, hesaplar, transferler, avanslar, odemeler, duze
             <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Inter, sans-serif", minWidth: 620 + aylar.length * 64 }}>
               <thead>
                 <tr>
-                  <th style={{ textAlign: "left", padding: "12px 16px", fontSize: 11.5, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}`, position: "sticky", left: 0, background: T.surface }}>Müşteri</th>
-                  <th style={{ textAlign: "left", padding: "12px 12px", fontSize: 11.5, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}` }}>Ödeme Günü</th>
+                  <th style={{ textAlign: "left", padding: "12px 15px", fontSize: 11, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}`, position: "sticky", left: 0, background: T.surface }}>Müşteri</th>
+                  <th style={{ textAlign: "left", padding: "12px 15px", fontSize: 11, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}` }}>Ödeme Günü</th>
                   {aylar.map((a) => (
-                    <th key={a.key} style={{ textAlign: "center", padding: "12px 8px", fontSize: 11.5, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}`, minWidth: 64 }}>{a.label}</th>
+                    <th key={a.key} style={{ textAlign: "center", padding: "12px 15px", fontSize: 11, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}`, minWidth: 64 }}>{a.label}</th>
                   ))}
-                  <th style={{ textAlign: "right", padding: "12px 16px", fontSize: 11.5, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}` }}>Birikmiş Borç</th>
+                  <th style={{ textAlign: "right", padding: "12px 15px", fontSize: 11, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}` }}>Birikmiş Borç</th>
                 </tr>
               </thead>
               <tbody>
@@ -1972,8 +1976,8 @@ function OdemeTakvimi({ clients, hesaplar, transferler, avanslar, odemeler, duze
                   const borc = borcHesapla(c);
                   return (
                     <tr key={c.id} style={{ borderBottom: `1px solid ${T.borderSoft}` }}>
-                      <td style={{ padding: "10px 16px", fontSize: 13, color: T.text, fontWeight: 600, position: "sticky", left: 0, background: T.surface }}>{c.ad}</td>
-                      <td style={{ padding: "8px 12px" }}>
+                      <td style={{ padding: "12px 15px", fontSize: 13, color: T.text, fontWeight: 600, position: "sticky", left: 0, background: T.surface }}>{c.ad}</td>
+                      <td style={{ padding: "6px 10px" }}>
                         <OdemeGunuHucre client={c} onUpdateClient={onUpdateClient} />
                       </td>
                       {aylar.map((a) => {
@@ -2004,7 +2008,7 @@ function OdemeTakvimi({ clients, hesaplar, transferler, avanslar, odemeler, duze
                           </td>
                         );
                       })}
-                      <td style={{ padding: "10px 16px", textAlign: "right" }}>
+                      <td style={{ padding: "12px 15px", textAlign: "right" }}>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
                           <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: borc > 0 ? T.danger : T.textFaint, fontWeight: 600 }}>{fmt(borc)}</span>
                           {borc > 0 && (
@@ -2023,7 +2027,7 @@ function OdemeTakvimi({ clients, hesaplar, transferler, avanslar, odemeler, duze
         </Card>
       )}
 
-      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 10 }}>
+      <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 10 }}>
         <span style={{ color: T.success }}>✓</span> tam ödendi · <span style={{ color: T.warning }}>½</span> kısmi ödendi · <span style={{ color: T.danger }}>✕</span> ödenmedi (tıkla, tutar + banka gir) · <span style={{ color: T.textFaint }}>·</span> henüz vadesi gelmedi · <span style={{ color: T.textFaint }}>—</span> ödeme günü tanımlı değil. "Ödeme Günü" sütununa tıklayıp buradan doğrudan girebilir/değiştirebilirsin — Müşteriler sekmesiyle aynı veriyi paylaşır.
       </div>
 
@@ -2045,7 +2049,7 @@ function OdemeTakvimi({ clients, hesaplar, transferler, avanslar, odemeler, duze
               <div style={{ fontSize: 15, color: T.text, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif" }}>{hatirlatmaClient.ad}</div>
               <button onClick={() => setHatirlatmaClient(null)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><X size={17} color={T.textFaint} /></button>
             </div>
-            <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginBottom: 14 }}>Kalan bakiye: <strong style={{ color: T.danger }}>{fmt(borcHesapla(hatirlatmaClient))}</strong></div>
+            <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginBottom: 14 }}>Kalan bakiye: <strong style={{ color: T.danger }}>{fmt(borcHesapla(hatirlatmaClient))}</strong></div>
             <OdemeHatirlatmasiGonder client={hatirlatmaClient} tutar={borcHesapla(hatirlatmaClient)} ayAdi={new Date().toLocaleDateString("tr-TR", { month: "long", year: "numeric" })} firmaAdi={firmaAdi} baslangictaAcik />
           </div>
         </div>
@@ -2112,13 +2116,13 @@ function HesapGelisimi({ clients, olcumler, onKaydet, onSil }) {
     const artiMi = f.degisim != null && f.degisim > 0;
     const eksiMi = f.degisim != null && f.degisim < 0;
     return (
-      <div key={etiket} style={{ background: T.surfaceRaised, borderRadius: 11, padding: "12px 14px", flex: "1 1 150px" }}>
-        <div style={{ fontSize: 10, color: T.textFaint, fontFamily: "Inter", fontWeight: 700, letterSpacing: 0.3 }}>{etiket.toLocaleUpperCase("tr")}</div>
-        <div style={{ fontSize: 19, color: T.text, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", marginTop: 3 }}>
+      <div key={etiket} style={{ background: T.surfaceRaised, borderRadius: 11, padding: "12px 15px", flex: "1 1 150px" }}>
+        <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 700, letterSpacing: 0.3 }}>{etiket.toLocaleUpperCase("tr")}</div>
+        <div style={{ fontSize: 20, color: T.text, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", marginTop: 3 }}>
           {f.simdi ? f.simdi.toLocaleString("tr-TR") : "—"}
         </div>
         {f.degisim != null && f.degisim !== 0 && (
-          <div style={{ fontSize: 11.5, fontFamily: "Inter", marginTop: 3, color: artiMi ? T.success : eksiMi ? T.danger : T.textFaint, fontWeight: 600 }}>
+          <div style={{ fontSize: 11, fontFamily: "Inter", marginTop: 3, color: artiMi ? T.success : eksiMi ? T.danger : T.textFaint, fontWeight: 600 }}>
             {artiMi ? "▲" : "▼"} {Math.abs(f.degisim).toLocaleString("tr-TR")}
             {f.yuzde != null && ` (%${Math.abs(f.yuzde).toFixed(1)})`}
           </div>
@@ -2129,9 +2133,9 @@ function HesapGelisimi({ clients, olcumler, onKaydet, onSil }) {
   };
 
   return (
-    <Card style={{ padding: "16px 18px", marginBottom: 16 }}>
+    <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
       <SectionTitle>Hesap Gelişimi (Takipçi & Görünürlük)</SectionTitle>
-      <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginBottom: 12, lineHeight: 1.6 }}>
+      <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginBottom: 12, lineHeight: 1.6 }}>
         Ayda bir Instagram istatistiklerinden okuyup gir. Artış rakamları bir önceki kayıtla karşılaştırılarak
         otomatik hesaplanır ve aylık müşteri raporuna girer.
       </div>
@@ -2141,7 +2145,7 @@ function HesapGelisimi({ clients, olcumler, onKaydet, onSil }) {
           <button
             key={c.id}
             onClick={() => { setSecili(String(secili) === String(c.id) ? null : c.id); setDuzenle(false); }}
-            style={{ padding: "7px 13px", borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 12.5, fontWeight: 600,
+            style={{ padding: "6px 10px", borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 13, fontWeight: 600,
               background: String(secili) === String(c.id) ? T.accent : T.surfaceRaised, color: String(secili) === String(c.id) ? "#fff" : T.textDim }}
           >
             {c.ad}
@@ -2150,7 +2154,7 @@ function HesapGelisimi({ clients, olcumler, onKaydet, onSil }) {
       </div>
 
       {!marka ? (
-        <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Ölçümlerini görmek için bir marka seç.</div>
+        <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>Ölçümlerini görmek için bir marka seç.</div>
       ) : (
         <>
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12 }}>
@@ -2188,7 +2192,7 @@ function HesapGelisimi({ clients, olcumler, onKaydet, onSil }) {
               )}
             </>
           ) : (
-            <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Bu ay için ölçüm girilmemiş.</div>
+            <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>Bu ay için ölçüm girilmemiş.</div>
           )}
         </>
       )}
@@ -2220,10 +2224,10 @@ function Reklamlar({ reklamlar, clients, onAdd, onUpdate, onDelete, duzenleyenAd
 
       <HesapGelisimi clients={clients} olcumler={olcumler} onKaydet={onKaydetOlcum} onSil={onSilOlcum} />
 
-      <Card style={{ padding: "10px 12px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+      <Card style={{ padding: "12px 15px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", gap: 8 }}>
           {[["hepsi", "Hepsi"], ["aktif", "Aktif"], ["yakinda", "Yakında Bitiyor"], ["bitti", "Bitti"]].map(([k, l]) => (
-            <button key={k} onClick={() => setFilter(k)} style={{ background: filter === k ? T.accentSoft : "transparent", color: filter === k ? T.accentText : T.textDim, border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 12.5, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer" }}>{l}</button>
+            <button key={k} onClick={() => setFilter(k)} style={{ background: filter === k ? T.accentSoft : "transparent", color: filter === k ? T.accentText : T.textDim, border: "none", borderRadius: 8, padding: "6px 10px", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer" }}>{l}</button>
           ))}
         </div>
         <button style={addBtnStyle} onClick={() => { setAdding(true); setEditingId(null); }}><Plus size={14} /> Reklam Ekle</button>
@@ -2234,16 +2238,16 @@ function Reklamlar({ reklamlar, clients, onAdd, onUpdate, onDelete, duzenleyenAd
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {filtered.map((r) =>
           editingId === r.id ? (
-            <Card key={r.id} style={{ padding: "12px 14px" }}>
+            <Card key={r.id} style={{ padding: "12px 15px" }}>
               <KilitUyarisi kisi={kilitleyen} />
               <FieldForm fields={REKLAM_FIELDS} clientList={aktifMarkalar} initial={r} onSubmit={(v) => { onUpdate(r.id, v); setEditingId(null); }} onCancel={() => setEditingId(null)} />
             </Card>
           ) : (
-            <Card key={r.id} style={{ padding: "13px 16px" }}>
+            <Card key={r.id} style={{ padding: "12px 15px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
                 <div>
-                  <div style={{ fontSize: 13.5, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{r.marka} — {r.reklamAdi}</div>
-                  <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>
+                  <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{r.marka} — {r.reklamAdi}</div>
+                  <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>
                     {r.baslangicTarihi} → {r.bitisTarihi}{r.butce ? ` · ${fmt(r.butce)}` : ""}{r.not ? ` · ${r.not}` : ""}
                   </div>
                 </div>
@@ -2287,10 +2291,10 @@ function MarkaStokKarti({ client, stoklar, gecmis, subeler, onStokDegis, onAddSu
   const toplamStok = PAYLASIM_TURLERI.reduce((s, t) => s + (stoklar[stokAnahtari(client.id, t)] || 0), 0);
   const buMarkaSubeleri = (subeler || []).filter((s) => s.clientId === client.id);
   return (
-    <Card style={{ padding: "16px 18px" }}>
+    <Card style={{ padding: "18px 22px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-        <div style={{ fontSize: 14, fontWeight: 700, color: T.text, fontFamily: "Inter" }}>{client.ad}</div>
-        <span style={{ fontSize: 12, fontWeight: 700, color: toplamStok > 0 ? T.accentText : T.textFaint, fontFamily: "'IBM Plex Mono', monospace", background: T.accentSoft, padding: "2px 9px", borderRadius: 999 }}>{toplamStok}</span>
+        <div style={{ fontSize: 15, fontWeight: 700, color: T.text, fontFamily: "Inter" }}>{client.ad}</div>
+        <span style={{ fontSize: 13, fontWeight: 700, color: toplamStok > 0 ? T.accentText : T.textFaint, fontFamily: "'IBM Plex Mono', monospace", background: T.accentSoft, padding: "6px 10px", borderRadius: 999 }}>{toplamStok}</span>
       </div>
       <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginBottom: 14 }}>Stoktaki içerikler {buMarkaSubeleri.length > 0 ? "(tüm şubeler dahil toplam)" : ""}</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: buMarkaSubeleri.length > 0 || onAddSube ? 14 : 0 }}>
@@ -2308,11 +2312,11 @@ function MarkaStokKarti({ client, stoklar, gecmis, subeler, onStokDegis, onAddSu
                   disabled={adet <= 0}
                   onClick={() => onStokDegis(client.id, client.ad, tur, -1)}
                   title="Paylaşıldı — stoktan bir tane düş"
-                  style={{ padding: "5px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: "transparent", color: adet > 0 ? T.text : T.textFaint, fontSize: 11.5, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: adet > 0 ? "pointer" : "default" }}
+                  style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: "transparent", color: adet > 0 ? T.text : T.textFaint, fontSize: 11, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: adet > 0 ? "pointer" : "default" }}
                 >
                   Paylaşıldı
                 </button>
-                <span style={{ minWidth: 22, textAlign: "center", fontSize: 14, fontWeight: 700, color: dusuk ? T.warning : adet > 0 ? T.text : T.textFaint, fontFamily: "'IBM Plex Mono', monospace" }}>{adet}</span>
+                <span style={{ minWidth: 22, textAlign: "center", fontSize: 15, fontWeight: 700, color: dusuk ? T.warning : adet > 0 ? T.text : T.textFaint, fontFamily: "'IBM Plex Mono', monospace" }}>{adet}</span>
                 <button
                   onClick={() => onStokDegis(client.id, client.ad, tur, 1)}
                   title="Çekim yapıldı — stoğa bir tane ekle"
@@ -2330,9 +2334,9 @@ function MarkaStokKarti({ client, stoklar, gecmis, subeler, onStokDegis, onAddSu
         <div style={{ borderTop: `1px solid ${T.borderSoft}`, paddingTop: 12 }}>
           <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 8 }}>ŞUBELER</div>
           {buMarkaSubeleri.map((sube) => (
-            <div key={sube.id} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "8px 10px", marginBottom: 8 }}>
+            <div key={sube.id} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "6px 10px", marginBottom: 8 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                <span style={{ fontSize: 12, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{sube.ad}</span>
+                <span style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{sube.ad}</span>
                 <button
                   onClick={() => {
                     const subeToplami = PAYLASIM_TURLERI.reduce((s, t) => s + (stoklar[`${client.id}_${sube.id}_${t}`] || 0), 0);
@@ -2350,10 +2354,10 @@ function MarkaStokKarti({ client, stoklar, gecmis, subeler, onStokDegis, onAddSu
                   const adet = stoklar[key] || 0;
                   return (
                     <div key={tur} style={{ display: "flex", alignItems: "center", gap: 4, background: T.surface, borderRadius: 999, padding: "2px 4px 2px 8px" }}>
-                      <span style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter" }}>{tur.slice(0, 3)}</span>
-                      <button onClick={() => onSubeStokDegis(client.id, sube.id, tur, -1)} disabled={adet <= 0} style={{ width: 16, height: 16, borderRadius: 999, border: "none", background: "transparent", color: adet > 0 ? T.text : T.textFaint, cursor: adet > 0 ? "pointer" : "default", fontSize: 12, lineHeight: 1 }}>–</button>
+                      <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{tur.slice(0, 3)}</span>
+                      <button onClick={() => onSubeStokDegis(client.id, sube.id, tur, -1)} disabled={adet <= 0} style={{ width: 16, height: 16, borderRadius: 999, border: "none", background: "transparent", color: adet > 0 ? T.text : T.textFaint, cursor: adet > 0 ? "pointer" : "default", fontSize: 13, lineHeight: 1 }}>–</button>
                       <span style={{ fontSize: 11, fontWeight: 700, color: T.text, fontFamily: "'IBM Plex Mono', monospace", minWidth: 12, textAlign: "center" }}>{adet}</span>
-                      <button onClick={() => onSubeStokDegis(client.id, sube.id, tur, 1)} style={{ width: 16, height: 16, borderRadius: 999, border: "none", background: "transparent", color: T.accentText, cursor: "pointer", fontSize: 12, lineHeight: 1 }}>+</button>
+                      <button onClick={() => onSubeStokDegis(client.id, sube.id, tur, 1)} style={{ width: 16, height: 16, borderRadius: 999, border: "none", background: "transparent", color: T.accentText, cursor: "pointer", fontSize: 13, lineHeight: 1 }}>+</button>
                     </div>
                   );
                 })}
@@ -2362,12 +2366,12 @@ function MarkaStokKarti({ client, stoklar, gecmis, subeler, onStokDegis, onAddSu
           ))}
           {subeEkleAcik ? (
             <div style={{ display: "flex", gap: 6 }}>
-              <input autoFocus value={subeAdi} onChange={(e) => setSubeAdi(e.target.value)} placeholder="örn. Antalya Şubesi" style={{ ...inputStyle, flex: 1, fontSize: 12.5, padding: "7px 10px" }} />
-              <button style={{ ...saveBtnStyle, padding: "7px 12px", fontSize: 12 }} onClick={() => { if (subeAdi.trim()) { onAddSube(client.id, subeAdi.trim()); setSubeAdi(""); setSubeEkleAcik(false); } }}>Ekle</button>
-              <button style={{ ...cancelBtnStyle, padding: "7px 12px", fontSize: 12 }} onClick={() => setSubeEkleAcik(false)}>İptal</button>
+              <input autoFocus value={subeAdi} onChange={(e) => setSubeAdi(e.target.value)} placeholder="örn. Antalya Şubesi" style={{ ...inputStyle, flex: 1, fontSize: 13, padding: "6px 10px" }} />
+              <button style={{ ...saveBtnStyle, padding: "6px 10px", fontSize: 13 }} onClick={() => { if (subeAdi.trim()) { onAddSube(client.id, subeAdi.trim()); setSubeAdi(""); setSubeEkleAcik(false); } }}>Ekle</button>
+              <button style={{ ...cancelBtnStyle, padding: "6px 10px", fontSize: 13 }} onClick={() => setSubeEkleAcik(false)}>İptal</button>
             </div>
           ) : (
-            <button onClick={() => setSubeEkleAcik(true)} style={{ background: "none", border: "none", color: T.accentText, fontSize: 11.5, cursor: "pointer", padding: 0, fontFamily: "Inter" }}>+ Şube Ekle</button>
+            <button onClick={() => setSubeEkleAcik(true)} style={{ background: "none", border: "none", color: T.accentText, fontSize: 11, cursor: "pointer", padding: 0, fontFamily: "Inter" }}>+ Şube Ekle</button>
           )}
         </div>
       )}
@@ -2408,33 +2412,33 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, onAddPlan, onToggleYapi
   };
 
   return (
-    <Card style={{ padding: "16px 18px", marginBottom: 16 }}>
+    <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
         <SectionTitle>Haftalık Paylaşım Planı</SectionTitle>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button onClick={() => setHaftaKey((h) => haftaEkle(h, -1))} style={{ ...iconBtnStyle, background: T.surfaceRaised, borderRadius: 8 }}><ChevronLeft size={15} color={T.text} /></button>
-          <span style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600, minWidth: 100, textAlign: "center" }}>{new Date(haftaKey).toLocaleDateString("tr-TR", { day: "numeric", month: "short" })} haftası</span>
+          <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600, minWidth: 100, textAlign: "center" }}>{new Date(haftaKey).toLocaleDateString("tr-TR", { day: "numeric", month: "short" })} haftası</span>
           <button onClick={() => setHaftaKey((h) => haftaEkle(h, 1))} style={{ ...iconBtnStyle, background: T.surfaceRaised, borderRadius: 8 }}><ChevronRight size={15} color={T.text} /></button>
         </div>
       </div>
 
       {aktifMarkalar.length === 0 ? (
-        <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Aktif marka yok.</div>
+        <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>Aktif marka yok.</div>
       ) : (
         <div className="marcus-table-wrap">
           <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "Inter, sans-serif", minWidth: 560 }}>
             <thead>
               <tr>
-                <th style={{ textAlign: "left", padding: "8px 10px", fontSize: 11, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}`, position: "sticky", left: 0, background: T.surface }}>Marka</th>
+                <th style={{ textAlign: "left", padding: "6px 10px", fontSize: 11, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}`, position: "sticky", left: 0, background: T.surface }}>Marka</th>
                 {GUN_ADLARI.map((g, i) => (
-                  <th key={g} style={{ textAlign: "center", padding: "8px 6px", fontSize: 10.5, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}`, minWidth: 62 }}>{g}<br /><span style={{ fontWeight: 400 }}>{gunTarihi(i)}</span></th>
+                  <th key={g} style={{ textAlign: "center", padding: "6px 10px", fontSize: 11, color: T.textFaint, fontWeight: 600, borderBottom: `1px solid ${T.borderSoft}`, minWidth: 62 }}>{g}<br /><span style={{ fontWeight: 400 }}>{gunTarihi(i)}</span></th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {aktifMarkalar.map((c) => (
                 <tr key={c.id} style={{ borderBottom: `1px solid ${T.borderSoft}` }}>
-                  <td style={{ padding: "8px 10px", fontSize: 12.5, color: T.text, fontWeight: 600, position: "sticky", left: 0, background: T.surface }}>{c.ad}</td>
+                  <td style={{ padding: "6px 10px", fontSize: 13, color: T.text, fontWeight: 600, position: "sticky", left: 0, background: T.surface }}>{c.ad}</td>
                   {GUN_ADLARI.map((_, gunIndex) => {
                     const p = planBul(c.id, gunIndex);
                     return (
@@ -2469,20 +2473,20 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, onAddPlan, onToggleYapi
         </div>
       )}
 
-      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 10 }}>
+      <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 10 }}>
         <span style={{ color: T.warning }}>■</span> planlandı (henüz paylaşılmadı) · <span style={{ color: T.success }}>■</span> paylaşıldı (G=Görsel, V=Video, R=Reels, S=Story, C=Carousel). Bir güne tıklayıp tür seçerek plan ekle; planlı güne tıklayınca "paylaşıldı" işaretlenir (o markanın kartından o birim düşer), çift tıklayınca silinir.
       </div>
 
       {secim && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 90, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={() => setSecim(null)}>
-          <div onClick={(e) => e.stopPropagation()} className="marcus-card" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: "18px 20px", width: 280 }}>
+          <div onClick={(e) => e.stopPropagation()} className="marcus-card" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: "18px 22px", width: 280 }}>
             <div style={{ fontSize: 13, color: T.text, fontWeight: 600, marginBottom: 12 }}>Hangi tür paylaşılacak?</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {PAYLASIM_TURLERI.map((t) => (
                 <button
                   key={t}
                   onClick={() => { onAddPlan(secim.clientId, secim.gun, haftaKey, t); setSecim(null); }}
-                  style={{ padding: "9px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.surfaceRaised, color: T.text, fontSize: 13, fontFamily: "Inter", cursor: "pointer", textAlign: "left" }}
+                  style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.surfaceRaised, color: T.text, fontSize: 13, fontFamily: "Inter", cursor: "pointer", textAlign: "left" }}
                 >
                   {t}
                 </button>
@@ -2524,11 +2528,11 @@ function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, onAd
       />
 
       {toplamStok.length > 0 && (
-        <Card style={{ padding: "14px 18px", marginBottom: 16, display: "flex", gap: 18, flexWrap: "wrap" }}>
+        <Card style={{ padding: "12px 15px", marginBottom: 16, display: "flex", gap: 18, flexWrap: "wrap" }}>
           {toplamStok.map((x) => (
             <div key={x.tur}>
               <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{x.tur}</div>
-              <div style={{ fontSize: 17, fontWeight: 700, color: T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{x.adet}</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{x.adet}</div>
             </div>
           ))}
         </Card>
@@ -2547,11 +2551,11 @@ function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, onAd
       )}
 
       {sonHareketler.length > 0 && (
-        <Card style={{ padding: "14px 18px" }}>
+        <Card style={{ padding: "12px 15px" }}>
           <SectionTitle>Son Hareketler</SectionTitle>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {sonHareketler.map((h) => (
-              <div key={h.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5, fontFamily: "Inter", padding: "6px 0", borderBottom: `1px solid ${T.borderSoft}` }}>
+              <div key={h.id} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontFamily: "Inter", padding: "6px 0", borderBottom: `1px solid ${T.borderSoft}` }}>
                 <span style={{ color: T.text }}>{h.marka} — {h.tur}</span>
                 <span style={{ color: h.tip === "cekim" ? T.success : T.textDim }}>{h.tip === "cekim" ? "+ stok eklendi" : "paylaşıldı"} · {h.tarih}</span>
               </div>
@@ -2659,14 +2663,14 @@ function HesapBakiyeleri({ hesaplar, clients, transferler, avanslar, odemeler, d
   };
 
   return (
-    <Card style={{ padding: "16px 20px", marginBottom: 16 }}>
+    <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
       <SectionTitle>Hesap Bakiyeleri</SectionTitle>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
         {liste.map((h) => {
           const bakiye = hesapBakiyesi(h.id, { clients, transferler, avanslar, odemeler, hesaplar: liste, duzeltmeler });
           const acik = aktarAcik === h.id;
           return (
-            <div key={h.id} style={{ background: h.anaHesap ? T.accentSoft : T.surfaceRaised, borderRadius: 10, padding: "10px 12px" }}>
+            <div key={h.id} style={{ background: h.anaHesap ? T.accentSoft : T.surfaceRaised, borderRadius: 10, padding: "12px 15px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -2677,7 +2681,7 @@ function HesapBakiyeleri({ hesaplar, clients, transferler, avanslar, odemeler, d
                         title={h.elleTakip
                           ? "Şu an elle takip: müşteri ödemeleri bu hesaba otomatik eklenmiyor. Otomatiğe çevirmek için tıkla."
                           : "Şu an otomatik: müşteri ödemeleri bu hesaba akıyor. Elle takibe çevirmek için tıkla."}
-                        style={{ background: h.elleTakip ? T.warningSoft : T.surfaceRaised, border: "none", borderRadius: 999, padding: "2px 9px", cursor: "pointer", fontSize: 10, fontFamily: "Inter", color: h.elleTakip ? T.warning : T.textFaint, fontWeight: 600 }}
+                        style={{ background: h.elleTakip ? T.warningSoft : T.surfaceRaised, border: "none", borderRadius: 999, padding: "6px 10px", cursor: "pointer", fontSize: 11, fontFamily: "Inter", color: h.elleTakip ? T.warning : T.textFaint, fontWeight: 600 }}
                       >
                         {h.elleTakip ? "elle takip" : "otomatik"}
                       </button>
@@ -2721,7 +2725,7 @@ function HesapBakiyeleri({ hesaplar, clients, transferler, avanslar, odemeler, d
 
               {acik && (
                 <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.borderSoft}`, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                  <span style={{ fontSize: 12, color: T.textDim, fontFamily: "Inter" }}>Nereye:</span>
+                  <span style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter" }}>Nereye:</span>
                   <select value={hedefId} onChange={(e) => setHedefId(e.target.value)} style={{ ...inputStyle, width: "auto", minWidth: 160, marginBottom: 0 }}>
                     <option value="">Hesap seç…</option>
                     {liste.filter((x) => x.id !== h.id).map((x) => (
@@ -2770,10 +2774,10 @@ function HesapBakiyeleri({ hesaplar, clients, transferler, avanslar, odemeler, d
         * bir düzeltmeyi silmek her şeyi kendiliğinden eski haline döndürür. */}
       {(duzeltmeler || []).length > 0 && (
         <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${T.borderSoft}` }}>
-          <div style={{ fontSize: 12, color: T.textDim, fontFamily: "Inter", fontWeight: 600, marginBottom: 8 }}>Elle Bakiye Düzeltmeleri ({(duzeltmeler || []).length})</div>
+          <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter", fontWeight: 600, marginBottom: 8 }}>Elle Bakiye Düzeltmeleri ({(duzeltmeler || []).length})</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 200, overflowY: "auto" }}>
             {[...(duzeltmeler || [])].reverse().map((d) => (
-              <div key={d.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: T.surfaceRaised, borderRadius: 8, padding: "7px 10px", fontSize: 12, fontFamily: "Inter", flexWrap: "wrap" }}>
+              <div key={d.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: T.surfaceRaised, borderRadius: 8, padding: "6px 10px", fontSize: 13, fontFamily: "Inter", flexWrap: "wrap" }}>
                 <span style={{ color: T.textDim }}>
                   <span style={{ color: T.textFaint }}>{tarihGoster(d.tarih)}</span>{" · "}{hesapAdi(d.hesapId)}
                 </span>
@@ -2799,14 +2803,14 @@ function HesapBakiyeleri({ hesaplar, clients, transferler, avanslar, odemeler, d
         <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${T.borderSoft}` }}>
           <button
             onClick={() => setGecmisAcik((v) => !v)}
-            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 12, color: T.textDim, fontFamily: "Inter", fontWeight: 600 }}
+            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 13, color: T.textDim, fontFamily: "Inter", fontWeight: 600 }}
           >
             {gecmisAcik ? "▾" : "▸"} Transfer Geçmişi ({kayitlar.length})
           </button>
           {gecmisAcik && (
             <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 8, maxHeight: 220, overflowY: "auto" }}>
               {[...kayitlar].reverse().map((t) => (
-                <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: T.surfaceRaised, borderRadius: 8, padding: "7px 10px", fontSize: 12, fontFamily: "Inter", flexWrap: "wrap" }}>
+                <div key={t.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: T.surfaceRaised, borderRadius: 8, padding: "6px 10px", fontSize: 13, fontFamily: "Inter", flexWrap: "wrap" }}>
                   <span style={{ color: T.textDim }}>
                     <span style={{ color: T.textFaint }}>{t.tarih}</span>{" · "}
                     {hesapAdi(t.kaynakHesapId)} <span style={{ color: T.textFaint }}>→</span> {hesapAdi(t.hedefHesapId)}
@@ -2885,17 +2889,17 @@ function CekimListesi({ clients, stoklar, subeler, gecmis }) {
           {gruplar.map((g) => {
             const kenarRenk = g.toplam <= 1 ? T.danger : g.toplam <= 2 ? T.warning : T.border;
             return (
-              <Card key={g.anahtar} style={{ padding: "14px 16px", border: `1px solid ${kenarRenk}` }}>
+              <Card key={g.anahtar} style={{ padding: "12px 15px", border: `1px solid ${kenarRenk}` }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: g.turler.length > 0 ? 8 : 0 }}>
-                  <div style={{ fontSize: 14, color: T.text, fontWeight: 700, fontFamily: "Inter" }}>{g.marka}{g.sube ? ` — ${g.sube}` : ""}</div>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: kenarRenk, fontFamily: "'IBM Plex Mono', monospace", background: T.surfaceRaised, padding: "2px 9px", borderRadius: 999 }}>Toplam: {g.toplam}</span>
+                  <div style={{ fontSize: 15, color: T.text, fontWeight: 700, fontFamily: "Inter" }}>{g.marka}{g.sube ? ` — ${g.sube}` : ""}</div>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: kenarRenk, fontFamily: "'IBM Plex Mono', monospace", background: T.surfaceRaised, padding: "6px 10px", borderRadius: 999 }}>Toplam: {g.toplam}</span>
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {g.turler.map((x) => {
                     const renk = x.adet <= 1 ? T.danger : x.adet <= 2 ? T.warning : T.textDim;
                     const soft = x.adet <= 1 ? T.dangerSoft : x.adet <= 2 ? T.warningSoft : T.surfaceRaised;
                     return (
-                      <span key={x.tur} title={x.sonCekim ? `Son çekim: ${x.sonCekim}` : undefined} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", borderRadius: 999, background: soft, fontSize: 12, fontFamily: "Inter" }}>
+                      <span key={x.tur} title={x.sonCekim ? `Son çekim: ${x.sonCekim}` : undefined} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 999, background: soft, fontSize: 13, fontFamily: "Inter" }}>
                         <span style={{ color: T.textDim }}>{x.tur}</span>
                         <span style={{ color: renk, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace" }}>{x.adet}</span>
                       </span>
@@ -2990,37 +2994,37 @@ function GunlukKontrol({ clients, haftalikPlan, onToggle, onYenile, role }) {
   };
 
   const GunKarti = ({ gun, vurgu }) => (
-    <Card style={{ padding: "14px 16px", marginBottom: 10, border: `1px solid ${vurgu || T.border}` }}>
+    <Card style={{ padding: "12px 15px", marginBottom: 10, border: `1px solid ${vurgu || T.border}` }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: gun.kayitlar.length ? 10 : 0 }}>
-        <span style={{ fontSize: 13.5, color: T.text, fontFamily: "Inter", fontWeight: 700 }}>
+        <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 700 }}>
           {gunAdi(gun.tarih)}
           {gun.tarih === bugun && <span style={{ color: T.accentText, fontWeight: 600 }}> · bugün</span>}
         </span>
-        <span style={{ fontSize: 11.5, fontFamily: "'IBM Plex Mono', monospace", color: gun.bekleyen === 0 ? T.success : T.warning, fontWeight: 700 }}>
+        <span style={{ fontSize: 11, fontFamily: "'IBM Plex Mono', monospace", color: gun.bekleyen === 0 ? T.success : T.warning, fontWeight: 700 }}>
           {gun.toplam - gun.bekleyen} / {gun.toplam} paylaşıldı
         </span>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {gun.kayitlar.map((k) => (
-          <div key={k.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", background: T.surfaceRaised, borderRadius: 8, padding: "8px 11px" }}>
+          <div key={k.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", background: T.surfaceRaised, borderRadius: 8, padding: "6px 10px" }}>
             <span style={{ minWidth: 0 }}>
-              <span style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{markaAdi(k.clientId)}</span>
-              <span style={{ fontSize: 12, color: T.textDim, fontFamily: "Inter" }}> · {k.tur || "Paylaşım"}</span>
+              <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{markaAdi(k.clientId)}</span>
+              <span style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter" }}> · {k.tur || "Paylaşım"}</span>
             </span>
             {k.yapildi ? (
-              <span style={{ fontSize: 11, fontWeight: 700, color: T.success, background: T.successSoft, padding: "3px 10px", borderRadius: 999, fontFamily: "Inter", whiteSpace: "nowrap" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: T.success, background: T.successSoft, padding: "6px 10px", borderRadius: 999, fontFamily: "Inter", whiteSpace: "nowrap" }}>
                 ✓ Paylaşıldı{k.yapildigiTarih && k.yapildigiTarih !== k.tarih ? ` · ${tarihGoster(k.yapildigiTarih)}` : ""}
               </span>
             ) : (
               <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: gun.tarih < bugun ? T.danger : T.warning, background: gun.tarih < bugun ? T.dangerSoft : T.warningSoft, padding: "3px 10px", borderRadius: 999, fontFamily: "Inter", whiteSpace: "nowrap" }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: gun.tarih < bugun ? T.danger : T.warning, background: gun.tarih < bugun ? T.dangerSoft : T.warningSoft, padding: "6px 10px", borderRadius: 999, fontFamily: "Inter", whiteSpace: "nowrap" }}>
                   {gun.tarih < bugun ? "Gecikti" : "Bekliyor"}
                 </span>
                 {onToggle && (
                   <button
                     onClick={() => onToggle(k.id)}
-                    style={{ background: "none", border: `1px solid ${T.success}`, color: T.success, cursor: "pointer", padding: "3px 11px", borderRadius: 999, fontSize: 11, fontWeight: 700, fontFamily: "Inter", whiteSpace: "nowrap" }}
+                    style={{ background: "none", border: `1px solid ${T.success}`, color: T.success, cursor: "pointer", padding: "6px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700, fontFamily: "Inter", whiteSpace: "nowrap" }}
                   >
                     Paylaşıldı işaretle
                   </button>
@@ -3044,7 +3048,7 @@ function GunlukKontrol({ clients, haftalikPlan, onToggle, onYenile, role }) {
           <KpiCard label="GECİKEN" value={String(gecikenler.reduce((n, g) => n + g.bekleyen, 0))} mono={false} accent={gecikenler.length ? T.danger : T.success} />
           <KpiCard label="TOPLAM BEKLEYEN" value={String(toplamBekleyen)} mono={false} accent={T.textDim} />
         </div>
-        <button onClick={tikla} disabled={yenileniyor} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: `1px solid ${T.border}`, background: T.surfaceRaised, color: T.text, fontSize: 12.5, fontWeight: 600, fontFamily: "Inter", cursor: yenileniyor ? "default" : "pointer", opacity: yenileniyor ? 0.6 : 1 }}>
+        <button onClick={tikla} disabled={yenileniyor} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 9, border: `1px solid ${T.border}`, background: T.surfaceRaised, color: T.text, fontSize: 13, fontWeight: 600, fontFamily: "Inter", cursor: yenileniyor ? "default" : "pointer", opacity: yenileniyor ? 0.6 : 1 }}>
           <RefreshCw size={13} style={yenileniyor ? { animation: "marcus-spin 0.8s linear infinite" } : undefined} />
           {yenileniyor ? "Yenileniyor…" : "Yenile"}
         </button>
@@ -3054,7 +3058,7 @@ function GunlukKontrol({ clients, haftalikPlan, onToggle, onYenile, role }) {
 
       {tarihsizler.length > 0 && (
         <Card style={{ padding: "12px 15px", marginBottom: 12, border: `1px solid ${T.warning}` }}>
-          <div style={{ fontSize: 12.5, color: T.textDim, fontFamily: "Inter", lineHeight: 1.7 }}>
+          <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter", lineHeight: 1.7 }}>
             <strong style={{ color: T.warning }}>{tarihsizler.length} plan kaydının tarihi okunamıyor.</strong>{" "}
             Bu kayıtlar hiçbir günde görünmüyor. Paylaşımlar sekmesindeki Haftalık Plan'dan
             silip yeniden ekleyerek düzeltebilirsin.
@@ -3063,9 +3067,9 @@ function GunlukKontrol({ clients, haftalikPlan, onToggle, onYenile, role }) {
       )}
 
       {gunler.length === 0 && (
-        <Card style={{ padding: "26px 22px", textAlign: "center" }}>
-          <div style={{ fontSize: 14, color: T.text, fontFamily: "Inter", fontWeight: 600, marginBottom: 5 }}>Planda hiç paylaşım yok</div>
-          <div style={{ fontSize: 12.5, color: T.textDim, fontFamily: "Inter" }}>Paylaşımlar sekmesindeki Haftalık Paylaşım Planı'ndan gün seçip ekleyebilirsin.</div>
+        <Card style={{ padding: "18px 22px", textAlign: "center" }}>
+          <div style={{ fontSize: 15, color: T.text, fontFamily: "Inter", fontWeight: 600, marginBottom: 5 }}>Planda hiç paylaşım yok</div>
+          <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter" }}>Paylaşımlar sekmesindeki Haftalık Paylaşım Planı'ndan gün seçip ekleyebilirsin.</div>
         </Card>
       )}
 
@@ -3080,8 +3084,8 @@ function GunlukKontrol({ clients, haftalikPlan, onToggle, onYenile, role }) {
       {bugunku
         ? <GunKarti gun={bugunku} vurgu={bugunku.bekleyen ? T.warning : T.success} />
         : (
-          <Card style={{ padding: "16px 18px", marginBottom: 10 }}>
-            <div style={{ fontSize: 12.5, color: T.textDim, fontFamily: "Inter" }}>Bugün için planlanmış paylaşım yok.</div>
+          <Card style={{ padding: "18px 22px", marginBottom: 10 }}>
+            <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter" }}>Bugün için planlanmış paylaşım yok.</div>
           </Card>
         )}
 
@@ -3096,7 +3100,7 @@ function GunlukKontrol({ clients, haftalikPlan, onToggle, onYenile, role }) {
         <div style={{ marginTop: 16 }}>
           <button
             onClick={() => setGecmisiGoster((v) => !v)}
-            style={{ background: "none", border: "none", color: T.textDim, cursor: "pointer", fontSize: 12, fontFamily: "Inter", fontWeight: 600, padding: 0 }}
+            style={{ background: "none", border: "none", color: T.textDim, cursor: "pointer", fontSize: 13, fontFamily: "Inter", fontWeight: 600, padding: 0 }}
           >
             {gecmisiGoster ? "Tamamlanan günleri gizle ▲" : `Tamamlanan ${tamamlananGecmis.length} günü göster ▼`}
           </button>
@@ -3129,11 +3133,11 @@ function FonCard({ fon, onDelete, onAddHareket, onDeleteHareket }) {
   const hareketler = [...(fon.hareketler || [])].reverse();
 
   return (
-    <Card style={{ padding: "20px 22px" }}>
+    <Card style={{ padding: "18px 22px" }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 4 }}>
         <div>
           <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: T.text }}>{fon.ad}</div>
-          {fon.not && <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>{fon.not}</div>}
+          {fon.not && <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>{fon.not}</div>}
         </div>
         <button style={iconBtnStyle} onClick={() => { if (window.confirm(`"${fon.ad}" fonu tüm hareketleriyle silinsin mi?`)) onDelete(); }}><Trash2 size={14} color={T.danger} /></button>
       </div>
@@ -3145,7 +3149,7 @@ function FonCard({ fon, onDelete, onAddHareket, onDeleteHareket }) {
           <div style={{ height: 6, borderRadius: 999, background: T.borderSoft, overflow: "hidden", marginBottom: 5 }}>
             <div style={{ width: `${pct}%`, height: "100%", background: T.accent, borderRadius: 999 }} />
           </div>
-          <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>%{pct} · Hedef {fmt(hedef)}</div>
+          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>%{pct} · Hedef {fmt(hedef)}</div>
         </div>
       )}
 
@@ -3170,9 +3174,9 @@ function FonCard({ fon, onDelete, onAddHareket, onDeleteHareket }) {
           <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 6 }}>HAREKETLER</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 160, overflowY: "auto" }}>
             {hareketler.map((h) => (
-              <div key={h.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 8px", background: T.surfaceRaised, borderRadius: 8 }}>
+              <div key={h.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", background: T.surfaceRaised, borderRadius: 8 }}>
                 <div>
-                  <span style={{ fontSize: 12, fontFamily: "Inter", color: h.tip === "ekleme" ? T.success : T.danger, fontWeight: 600 }}>{h.tip === "ekleme" ? "+" : "−"}{fmt(h.tutar)}</span>
+                  <span style={{ fontSize: 13, fontFamily: "Inter", color: h.tip === "ekleme" ? T.success : T.danger, fontWeight: 600 }}>{h.tip === "ekleme" ? "+" : "−"}{fmt(h.tutar)}</span>
                   <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginLeft: 6 }}>{tarihGoster(h.tarih)}{h.not ? " · " + h.not : ""}</span>
                 </div>
                 <button style={iconBtnStyle} onClick={() => onDeleteHareket(h.id)}><Trash2 size={11} color={T.textFaint} /></button>
@@ -3223,7 +3227,7 @@ function UyelikBilgisiGonder({ uyelik, personelRosteri, firmaAdi, onClose }) {
 
   return (
     <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: 12, marginTop: 10 }}>
-      <div style={{ fontSize: 12, color: T.text, fontWeight: 600, marginBottom: 8 }}>Kimin e-postasına gönderilsin?</div>
+      <div style={{ fontSize: 13, color: T.text, fontWeight: 600, marginBottom: 8 }}>Kimin e-postasına gönderilsin?</div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <select value={secilenAd} onChange={(e) => setSecilenAd(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: 160 }}>
           <option value="">Kişi seç…</option>
@@ -3232,7 +3236,7 @@ function UyelikBilgisiGonder({ uyelik, personelRosteri, firmaAdi, onClose }) {
         <button style={saveBtnStyle} onClick={gonder} disabled={gonderiliyor}>{gonderiliyor ? "Gönderiliyor…" : "Gönder"}</button>
         <button style={cancelBtnStyle} onClick={onClose}>Kapat</button>
       </div>
-      {sonuc && <div style={{ fontSize: 12, color: sonuc.startsWith("✅") ? T.success : T.danger, marginTop: 8 }}>{sonuc}</div>}
+      {sonuc && <div style={{ fontSize: 13, color: sonuc.startsWith("✅") ? T.success : T.danger, marginTop: 8 }}>{sonuc}</div>}
     </div>
   );
 }
@@ -3263,7 +3267,7 @@ function Uyelikler({ uyelikler, onAdd, onUpdate, onDelete, personelRosteri, firm
         <KpiCard label="ÜYELİK SAYISI" value={`${aktifListe.length} aktif / ${liste.length} toplam`} mono={false} />
       </div>
 
-      <Card style={{ padding: "10px 12px", marginBottom: 16, display: "flex", justifyContent: "flex-end" }}>
+      <Card style={{ padding: "12px 15px", marginBottom: 16, display: "flex", justifyContent: "flex-end" }}>
         <button style={addBtnStyle} onClick={() => setAdding(true)}><Plus size={14} /> Yeni Üyelik Ekle</button>
       </Card>
 
@@ -3285,7 +3289,7 @@ function Uyelikler({ uyelikler, onAdd, onUpdate, onDelete, personelRosteri, firm
             const suresiDolduMu = !aktifMi && u.aktif !== false; // otomatik pasif (tarih geçmiş), elle kapatılmamış
             const sifreGoster = gosterilenSifreId === u.id;
             return (
-              <Card key={u.id} style={{ padding: "14px 18px", border: !aktifMi ? `1px solid ${T.border}` : yakinda ? `1px solid ${T.warning}` : undefined, opacity: aktifMi ? 1 : 0.7 }}>
+              <Card key={u.id} style={{ padding: "12px 15px", border: !aktifMi ? `1px solid ${T.border}` : yakinda ? `1px solid ${T.warning}` : undefined, opacity: aktifMi ? 1 : 0.7 }}>
                 {editingId === u.id ? (
                   <FieldForm
                     fields={UYELIK_FIELDS}
@@ -3297,16 +3301,16 @@ function Uyelikler({ uyelikler, onAdd, onUpdate, onDelete, personelRosteri, firm
                 ) : (
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
                   <div>
-                    <div style={{ fontSize: 13.5, color: T.text, fontWeight: 600, fontFamily: "Inter", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                       {u.ad}
                       {aktifMi ? (
-                        <span style={{ fontSize: 10.5, color: T.success, background: T.successSoft, padding: "2px 8px", borderRadius: 999, fontWeight: 600 }}>Aktif</span>
+                        <span style={{ fontSize: 11, color: T.success, background: T.successSoft, padding: "6px 10px", borderRadius: 999, fontWeight: 600 }}>Aktif</span>
                       ) : (
-                        <span style={{ fontSize: 10.5, color: T.textFaint, background: T.borderSoft, padding: "2px 8px", borderRadius: 999, fontWeight: 600 }}>{suresiDolduMu ? "Pasif (süresi doldu)" : "Pasif"}</span>
+                        <span style={{ fontSize: 11, color: T.textFaint, background: T.borderSoft, padding: "6px 10px", borderRadius: 999, fontWeight: 600 }}>{suresiDolduMu ? "Pasif (süresi doldu)" : "Pasif"}</span>
                       )}
-                      {aktifMi && yakinda && <span style={{ fontSize: 10.5, color: T.warning, background: T.warningSoft, padding: "2px 8px", borderRadius: 999, fontWeight: 600 }}>7 gün içinde bitecek</span>}
+                      {aktifMi && yakinda && <span style={{ fontSize: 11, color: T.warning, background: T.warningSoft, padding: "6px 10px", borderRadius: 999, fontWeight: 600 }}>7 gün içinde bitecek</span>}
                     </div>
-                    <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>
+                    <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>
                       {fmt(u.tutar)} / {u.periyot === "yillik" ? "yıl" : "ay"}
                       {u.baslangicTarihi && ` · Başlangıç: ${new Date(u.baslangicTarihi).toLocaleDateString("tr-TR")}`}
                       {u.bitisTarihi && ` · Bitiş: ${new Date(u.bitisTarihi).toLocaleDateString("tr-TR")}`}
@@ -3315,13 +3319,13 @@ function Uyelikler({ uyelikler, onAdd, onUpdate, onDelete, personelRosteri, firm
                     {(u.kullaniciAdi || u.sifre) && (
                       <div style={{ display: "flex", gap: 14, marginTop: 8, flexWrap: "wrap" }}>
                         {u.kullaniciAdi && (
-                          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: T.textDim, fontFamily: "Inter" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: T.textDim, fontFamily: "Inter" }}>
                             <span style={{ color: T.textFaint }}>Kullanıcı:</span> {u.kullaniciAdi}
                             <button onClick={() => kopyala(u.kullaniciAdi)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><Copy size={11} color={T.textFaint} /></button>
                           </div>
                         )}
                         {u.sifre && (
-                          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: T.textDim, fontFamily: "Inter" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: T.textDim, fontFamily: "Inter" }}>
                             <span style={{ color: T.textFaint }}>Şifre:</span> {sifreGoster ? u.sifre : "••••••"}
                             <button onClick={() => setGosterilenSifreId(sifreGoster ? null : u.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>{sifreGoster ? <EyeOff size={11} color={T.textFaint} /> : <Eye size={11} color={T.textFaint} />}</button>
                             <button onClick={() => kopyala(u.sifre)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><Copy size={11} color={T.textFaint} /></button>
@@ -3333,7 +3337,7 @@ function Uyelikler({ uyelikler, onAdd, onUpdate, onDelete, personelRosteri, firm
                       gonderAcikId === u.id ? (
                         <UyelikBilgisiGonder uyelik={u} personelRosteri={personelRosteri} firmaAdi={firmaAdi} onClose={() => setGonderAcikId(null)} />
                       ) : (
-                        <button onClick={() => setGonderAcikId(u.id)} style={{ background: "none", border: "none", color: T.accentText, fontSize: 11.5, cursor: "pointer", padding: 0, marginTop: 8, fontFamily: "Inter" }}>✉️ Bilgileri Mail Gönder</button>
+                        <button onClick={() => setGonderAcikId(u.id)} style={{ background: "none", border: "none", color: T.accentText, fontSize: 11, cursor: "pointer", padding: 0, marginTop: 8, fontFamily: "Inter" }}>✉️ Bilgileri Mail Gönder</button>
                       )
                     )}
                   </div>
@@ -3366,7 +3370,7 @@ function Birikim({ birikimler, onAddFon, onDeleteFon, onAddHareket, onDeleteHare
         <KpiCard label="FON SAYISI" value={birikimler.length} mono={false} />
       </div>
 
-      <Card style={{ padding: "10px 12px", marginBottom: 16, display: "flex", justifyContent: "flex-end" }}>
+      <Card style={{ padding: "12px 15px", marginBottom: 16, display: "flex", justifyContent: "flex-end" }}>
         <button style={addBtnStyle} onClick={() => setAdding(true)}><Plus size={14} /> Yeni fon ekle</button>
       </Card>
 
@@ -3394,7 +3398,7 @@ function Birikim({ birikimler, onAddFon, onDeleteFon, onAddHareket, onDeleteHare
         </div>
       )}
 
-      <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginTop: 16 }}>
+      <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginTop: 16 }}>
         İpucu: Personel sekmesinde bir çalışanın "Kıdem Tazminatı Birikimi" alanı her ay Toplam Gider'e otomatik ekleniyor —
         o parayı fiilen kenara koyduğunda buradaki ilgili fona "Para Ekle" ile işleyerek gerçek bakiyeni takip edebilirsin.
       </div>
@@ -3435,7 +3439,7 @@ function EmailYedekTest({ endpoint = "/api/daily-backup" }) {
         {status === "loading" ? "Gönderiliyor…" : "Şimdi Test Et"}
       </button>
       {message && (
-        <div style={{ fontSize: 12, fontFamily: "Inter", color: status === "ok" ? T.success : T.warning, marginTop: 8 }}>{message}</div>
+        <div style={{ fontSize: 13, fontFamily: "Inter", color: status === "ok" ? T.success : T.warning, marginTop: 8 }}>{message}</div>
       )}
     </div>
   );
@@ -3514,7 +3518,7 @@ function YedekGecmisi() {
     return duz;
   };
 
-  if (liste === null) return <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Yükleniyor…</div>;
+  if (liste === null) return <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>Yükleniyor…</div>;
 
   const sekmeler = [
     { key: "gunluk", label: `Günlük (${liste.dates.length})` },
@@ -3540,22 +3544,22 @@ function YedekGecmisi() {
           <button
             key={sk.key}
             onClick={() => setGorunum(sk.key)}
-            style={{ padding: "6px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 12,
+            style={{ padding: "6px 10px", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 13,
               background: gorunum === sk.key ? T.accentSoft : T.surfaceRaised, color: gorunum === sk.key ? T.accentText : T.textDim, fontWeight: 600 }}
           >
             {sk.label}
           </button>
         ))}
       </div>
-      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 10, lineHeight: 1.6 }}>{aciklama}</div>
+      <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginBottom: 10, lineHeight: 1.6 }}>{aciklama}</div>
       {kayitlar.length === 0 ? (
-        <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>
+        <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>
           {gorunum === "geriAlma" ? "Henüz hiç geri yükleme yapılmadı — bu iyi bir şey." : "Henüz yedek oluşmadı; ilk kayıttan itibaren otomatik birikmeye başlar."}
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 320, overflowY: "auto" }}>
           {kayitlar.map((k) => (
-            <div key={k.anahtar} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", background: T.surfaceRaised, borderRadius: 9, flexWrap: "wrap", gap: 8 }}>
+            <div key={k.anahtar} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: T.surfaceRaised, borderRadius: 9, flexWrap: "wrap", gap: 8 }}>
               <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter" }}>{k.etiket}</span>
               <div style={{ display: "flex", gap: 6 }}>
                 <button style={cancelBtnStyle} disabled={indiriliyor === k.anahtar} onClick={() => indir(k.anahtar, k.etiket)}>{indiriliyor === k.anahtar ? "İndiriliyor…" : "İndir (JSON)"}</button>
@@ -3585,11 +3589,11 @@ function TebligSablonuKart({ firmaAdi, tebligSablonu, onSave }) {
         value={sablon}
         onChange={(e) => setSablon(e.target.value)}
         rows={12}
-        style={{ width: "100%", background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px 14px", color: T.text, fontSize: 13.5, fontFamily: "Inter, sans-serif", outline: "none", resize: "vertical", lineHeight: 1.6, marginBottom: 12 }}
+        style={{ width: "100%", background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px 15px", color: T.text, fontSize: 13, fontFamily: "Inter, sans-serif", outline: "none", resize: "vertical", lineHeight: 1.6, marginBottom: 12 }}
       />
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <button style={saveBtnStyle} onClick={() => { onSave(ad, sablon); setKaydedildi(true); setTimeout(() => setKaydedildi(false), 2000); }}>Şablonu Kaydet</button>
-        {kaydedildi && <span style={{ fontSize: 12.5, color: T.success, fontFamily: "Inter" }}>✓ Kaydedildi</span>}
+        {kaydedildi && <span style={{ fontSize: 13, color: T.success, fontFamily: "Inter" }}>✓ Kaydedildi</span>}
       </div>
     </Card>
   );
@@ -3643,8 +3647,8 @@ function SifreGateli({ children }) {
         <div style={{ width: 44, height: 44, borderRadius: 12, background: T.warningSoft, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
           <KeyRound size={20} color={T.warning} />
         </div>
-        <div style={{ fontSize: 14, color: T.text, fontWeight: 600, fontFamily: "Inter", marginBottom: 6 }}>Henüz kasa şifresi belirlenmedi</div>
-        <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", lineHeight: 1.6 }}>
+        <div style={{ fontSize: 15, color: T.text, fontWeight: 600, fontFamily: "Inter", marginBottom: 6 }}>Henüz kasa şifresi belirlenmedi</div>
+        <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", lineHeight: 1.6 }}>
           Bu sayfa, owner (site) şifrenden <strong>tamamen bağımsız</strong> ayrı bir şifre gerektiriyor.
           Devam edebilmek için önce <strong>Ayarlar → Şifre Kasası Şifresi</strong> bölümünden bir şifre belirlemen gerekiyor.
         </div>
@@ -3657,8 +3661,8 @@ function SifreGateli({ children }) {
       <div style={{ width: 44, height: 44, borderRadius: 12, background: T.surfaceRaised, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
         <Lock size={20} color={T.textFaint} />
       </div>
-      <div style={{ fontSize: 14, color: T.text, fontWeight: 600, fontFamily: "Inter", marginBottom: 6 }}>Bu sayfa ekstra korumalı</div>
-      <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 18 }}>Devam etmek için Ayarlar'dan belirlediğin kasa şifresini gir.</div>
+      <div style={{ fontSize: 15, color: T.text, fontWeight: 600, fontFamily: "Inter", marginBottom: 6 }}>Bu sayfa ekstra korumalı</div>
+      <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginBottom: 18 }}>Devam etmek için Ayarlar'dan belirlediğin kasa şifresini gir.</div>
       <input
         type="text"
         autoFocus
@@ -3678,7 +3682,7 @@ function SifreGateli({ children }) {
       <button onClick={dogrula} disabled={kontrolEdiliyor} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", opacity: kontrolEdiliyor ? 0.6 : 1 }}>
         {kontrolEdiliyor ? "Kontrol ediliyor…" : "Devam Et"}
       </button>
-      {hata && <div style={{ color: T.danger, fontSize: 12.5, fontFamily: "Inter", marginTop: 10 }}>{hata}</div>}
+      {hata && <div style={{ color: T.danger, fontSize: 13, fontFamily: "Inter", marginTop: 10 }}>{hata}</div>}
     </div>
   );
 }
@@ -3706,7 +3710,7 @@ function KopyalanabilirAlan({ label, value, onChange, gizli }) {
   };
   return (
     <div style={{ marginBottom: 8 }}>
-      <label style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 3 }}>{label}</label>
+      <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 3 }}>{label}</label>
       <div style={{ display: "flex", gap: 6 }}>
         <input
           type="text"
@@ -3719,7 +3723,7 @@ function KopyalanabilirAlan({ label, value, onChange, gizli }) {
           name={rastgeleAd}
           data-lpignore="true"
           data-1p-ignore="true"
-          style={{ ...inputStyle, flex: 1, padding: "7px 10px", fontSize: 12.5, WebkitTextSecurity: gizli && !gosterildi ? "disc" : "none" }}
+          style={{ ...inputStyle, flex: 1, padding: "6px 10px", fontSize: 13, WebkitTextSecurity: gizli && !gosterildi ? "disc" : "none" }}
         />
         {gizli && (
           <button type="button" onClick={() => setGosterildi((v) => !v)} title={gosterildi ? "Gizle" : "Göster"} style={{ ...iconBtnStyle, width: 30, height: 30 }}>
@@ -3760,13 +3764,13 @@ function OwnerSifreOnay({ onConfirmed, onCancel }) {
 
   return (
     <div style={{ background: T.surface, border: `1px solid ${T.danger}`, borderRadius: 10, padding: 12, marginTop: 8 }}>
-      <div style={{ fontSize: 12, color: T.text, fontWeight: 600, marginBottom: 8 }}>🔒 Göndermeden önce owner şifreni onayla</div>
+      <div style={{ fontSize: 13, color: T.text, fontWeight: 600, marginBottom: 8 }}>🔒 Göndermeden önce owner şifreni onayla</div>
       <div style={{ display: "flex", gap: 8 }}>
         <input type="password" autoFocus autoComplete="off" value={sifre} onChange={(e) => setSifre(e.target.value)} onKeyDown={(e) => e.key === "Enter" && dogrula()} placeholder="Owner Şifresi" style={{ ...inputStyle, flex: 1 }} />
         <button style={saveBtnStyle} onClick={dogrula} disabled={kontrolEdiliyor}>{kontrolEdiliyor ? "…" : "Onayla ve Gönder"}</button>
         <button style={cancelBtnStyle} onClick={onCancel}>İptal</button>
       </div>
-      {hata && <div style={{ color: T.danger, fontSize: 11.5, marginTop: 6 }}>{hata}</div>}
+      {hata && <div style={{ color: T.danger, fontSize: 11, marginTop: 6 }}>{hata}</div>}
     </div>
   );
 }
@@ -3915,7 +3919,7 @@ function DevirTeslimFormu({ client, girisler, firmaAdi, logo, onClose }) {
 
   return (
     <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: 14 }}>
-      <div style={{ fontSize: 12.5, color: T.text, fontWeight: 600, marginBottom: 10 }}>Devir Teslim Bildirimi — {client.ad}</div>
+      <div style={{ fontSize: 13, color: T.text, fontWeight: 600, marginBottom: 10 }}>Devir Teslim Bildirimi — {client.ad}</div>
       <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Belgelerin Bulunduğu Drive Linki</label>
       <input value={driveLinki} onChange={(e) => setDriveLinki(e.target.value)} placeholder="https://drive.google.com/..." style={{ ...inputStyle, marginBottom: 10 }} />
       <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
@@ -3947,7 +3951,7 @@ function DevirTeslimFormu({ client, girisler, firmaAdi, logo, onClose }) {
           }}
         />
       )}
-      {sonuc && <div style={{ fontSize: 12, color: sonuc.startsWith("✅") ? T.success : T.danger, marginTop: 10 }}>{sonuc}</div>}
+      {sonuc && <div style={{ fontSize: 13, color: sonuc.startsWith("✅") ? T.success : T.danger, marginTop: 10 }}>{sonuc}</div>}
     </div>
   );
 }
@@ -3990,7 +3994,7 @@ function HizliSifreGonderFormu({ client, girisler, firmaAdi, logo, onClose }) {
 
   return (
     <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: 14 }}>
-      <div style={{ fontSize: 12.5, color: T.text, fontWeight: 600, marginBottom: 10 }}>Şifreleri Gönder — {client.ad}</div>
+      <div style={{ fontSize: 13, color: T.text, fontWeight: 600, marginBottom: 10 }}>Şifreleri Gönder — {client.ad}</div>
       <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Müşteri E-postası</label>
       <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="musteri@ornek.com" style={{ ...inputStyle, marginBottom: 10 }} />
       <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginBottom: 10 }}>
@@ -4004,7 +4008,7 @@ function HizliSifreGonderFormu({ client, girisler, firmaAdi, logo, onClose }) {
       {onayAcik && (
         <OwnerSifreOnay onCancel={() => setOnayAcik(false)} onConfirmed={() => { gonderGercek(); setOnayAcik(false); }} />
       )}
-      {sonuc && <div style={{ fontSize: 12, color: sonuc.startsWith("✅") ? T.success : T.danger, marginTop: 10 }}>{sonuc}</div>}
+      {sonuc && <div style={{ fontSize: 13, color: sonuc.startsWith("✅") ? T.success : T.danger, marginTop: 10 }}>{sonuc}</div>}
     </div>
   );
 }
@@ -4034,9 +4038,9 @@ function KisiselSifrelerim({ sifreler, onAdd, onUpdate, onDelete }) {
   const kopyala = (deger) => { if (deger) navigator.clipboard.writeText(deger).catch(() => {}); };
 
   return (
-    <Card style={{ padding: "16px 18px", marginBottom: 16, border: `1px solid ${T.accent}` }}>
+    <Card style={{ padding: "18px 22px", marginBottom: 16, border: `1px solid ${T.accent}` }}>
       <button onClick={() => setAcik((v) => !v)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-        <span style={{ fontSize: 13.5, color: T.text, fontWeight: 700, fontFamily: "Inter" }}>🔒 Kişisel Şifrelerim <span style={{ color: T.textFaint, fontWeight: 400 }}>(sadece bana özel)</span></span>
+        <span style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter" }}>🔒 Kişisel Şifrelerim <span style={{ color: T.textFaint, fontWeight: 400 }}>(sadece bana özel)</span></span>
         <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{liste.length > 0 ? `${liste.length} kayıt` : "Kayıt yok"} {acik ? "▲" : "▼"}</span>
       </button>
 
@@ -4049,9 +4053,9 @@ function KisiselSifrelerim({ sifreler, onAdd, onUpdate, onDelete }) {
               {liste.map((s) => {
                 const sifreGoster = gosterilenId === s.id;
                 return (
-                  <div key={s.id} style={{ background: T.surfaceRaised, borderRadius: 9, padding: "10px 12px" }}>
+                  <div key={s.id} style={{ background: T.surfaceRaised, borderRadius: 9, padding: "12px 15px" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                      <div style={{ fontSize: 12.5, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{s.ad}</div>
+                      <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{s.ad}</div>
                       <div style={{ display: "flex", gap: 4 }}>
                         <button onClick={() => duzenlemeyeBasla(s)} style={{ background: "none", border: "none", cursor: "pointer", padding: 3 }}><Pencil size={12} color={T.textFaint} /></button>
                         <button onClick={() => { if (window.confirm(`"${s.ad}" silinsin mi?`)) onDelete(s.id); }} style={{ background: "none", border: "none", cursor: "pointer", padding: 3 }}><Trash2 size={12} color={T.danger} /></button>
@@ -4060,13 +4064,13 @@ function KisiselSifrelerim({ sifreler, onAdd, onUpdate, onDelete }) {
                     {(s.kullaniciAdi || s.sifre) && (
                       <div style={{ display: "flex", gap: 14, marginTop: 6, flexWrap: "wrap" }}>
                         {s.kullaniciAdi && (
-                          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: T.textDim, fontFamily: "Inter" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: T.textDim, fontFamily: "Inter" }}>
                             <span style={{ color: T.textFaint }}>Kullanıcı:</span> {s.kullaniciAdi}
                             <button onClick={() => kopyala(s.kullaniciAdi)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><Copy size={11} color={T.textFaint} /></button>
                           </div>
                         )}
                         {s.sifre && (
-                          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11.5, color: T.textDim, fontFamily: "Inter" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: T.textDim, fontFamily: "Inter" }}>
                             <span style={{ color: T.textFaint }}>Şifre:</span> {sifreGoster ? s.sifre : "••••••"}
                             <button onClick={() => setGosterilenId(sifreGoster ? null : s.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>{sifreGoster ? <EyeOff size={11} color={T.textFaint} /> : <Eye size={11} color={T.textFaint} />}</button>
                             <button onClick={() => kopyala(s.sifre)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><Copy size={11} color={T.textFaint} /></button>
@@ -4083,17 +4087,17 @@ function KisiselSifrelerim({ sifreler, onAdd, onUpdate, onDelete }) {
 
           {ekleAcik ? (
             <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: 12 }}>
-              <input type="text" placeholder="Hizmet/Hesap Adı (örn. Kişisel Gmail)" value={ad} onChange={(e) => setAd(e.target.value)} style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "7px 10px" }} />
-              <input type="text" autoComplete="off" placeholder="Kullanıcı Adı (opsiyonel)" value={kullaniciAdi} onChange={(e) => setKullaniciAdi(e.target.value)} style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "7px 10px" }} />
-              <input type="text" autoComplete="off" placeholder="Şifre (opsiyonel)" value={sifre} onChange={(e) => setSifre(e.target.value)} style={{ ...inputStyle, marginBottom: 8, fontSize: 12.5, padding: "7px 10px" }} />
-              <input type="text" placeholder="Not (opsiyonel)" value={not} onChange={(e) => setNot(e.target.value)} style={{ ...inputStyle, marginBottom: 10, fontSize: 12.5, padding: "7px 10px" }} />
+              <input type="text" placeholder="Hizmet/Hesap Adı (örn. Kişisel Gmail)" value={ad} onChange={(e) => setAd(e.target.value)} style={{ ...inputStyle, marginBottom: 8, fontSize: 13, padding: "6px 10px" }} />
+              <input type="text" autoComplete="off" placeholder="Kullanıcı Adı (opsiyonel)" value={kullaniciAdi} onChange={(e) => setKullaniciAdi(e.target.value)} style={{ ...inputStyle, marginBottom: 8, fontSize: 13, padding: "6px 10px" }} />
+              <input type="text" autoComplete="off" placeholder="Şifre (opsiyonel)" value={sifre} onChange={(e) => setSifre(e.target.value)} style={{ ...inputStyle, marginBottom: 8, fontSize: 13, padding: "6px 10px" }} />
+              <input type="text" placeholder="Not (opsiyonel)" value={not} onChange={(e) => setNot(e.target.value)} style={{ ...inputStyle, marginBottom: 10, fontSize: 13, padding: "6px 10px" }} />
               <div style={{ display: "flex", gap: 8 }}>
                 <button style={cancelBtnStyle} onClick={formuSifirla}>İptal</button>
                 <button style={saveBtnStyle} onClick={kaydet}>{editId ? "Kaydet" : "Ekle"}</button>
               </div>
             </div>
           ) : (
-            <button onClick={() => setEkleAcik(true)} style={{ background: "none", border: "none", color: T.accentText, fontSize: 11.5, cursor: "pointer", padding: 0, fontFamily: "Inter" }}>+ Şifre Ekle</button>
+            <button onClick={() => setEkleAcik(true)} style={{ background: "none", border: "none", color: T.accentText, fontSize: 11, cursor: "pointer", padding: 0, fontFamily: "Inter" }}>+ Şifre Ekle</button>
           )}
         </div>
       )}
@@ -4110,8 +4114,8 @@ function MusteriGirisleriIcerik({ clients, girisler, onUpdate, firmaAdi, logo, r
 
   return (
     <div>
-      <Card style={{ padding: "14px 18px", marginBottom: 16, background: T.warningSoft }}>
-        <div style={{ fontSize: 12.5, color: T.warning, fontFamily: "Inter", lineHeight: 1.6 }}>
+      <Card style={{ padding: "12px 15px", marginBottom: 16, background: T.warningSoft }}>
+        <div style={{ fontSize: 13, color: T.warning, fontFamily: "Inter", lineHeight: 1.6 }}>
           <strong>Bu bilgiler sadece sana (CEO) görünür</strong> — personelin izinlerinden bağımsız olarak, kişisel hesabıyla giren hiçbir personel bu sayfayı hiç göremez.
         </div>
       </Card>
@@ -4120,7 +4124,7 @@ function MusteriGirisleriIcerik({ clients, girisler, onUpdate, firmaAdi, logo, r
         <KisiselSifrelerim sifreler={kisiselSifreler} onAdd={onAddKisiselSifre} onUpdate={onUpdateKisiselSifre} onDelete={onDeleteKisiselSifre} />
       )}
 
-      <div style={{ fontSize: 12, color: T.text, fontWeight: 700, fontFamily: "Inter", margin: "22px 0 10px", textTransform: "uppercase", letterSpacing: 0.3 }}>Marka Hesapları</div>
+      <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", margin: "22px 0 10px", textTransform: "uppercase", letterSpacing: 0.3 }}>Marka Hesapları</div>
 
       {tumMarkalar.length === 0 ? (
         <Card style={{ padding: "24px", textAlign: "center" }}>
@@ -4133,9 +4137,9 @@ function MusteriGirisleriIcerik({ clients, girisler, onUpdate, firmaAdi, logo, r
             const acik = acikId === c.id;
             const doluSayisi = SOSYAL_PLATFORMLAR.filter((p) => g[p.key] && (g[p.key].kullanici || g[p.key].sifre)).length;
             return (
-              <Card key={c.id} style={{ padding: "14px 16px" }}>
+              <Card key={c.id} style={{ padding: "12px 15px" }}>
                 <button onClick={() => setAcikId(acik ? null : c.id)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-                  <span style={{ fontSize: 13.5, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{c.ad}</span>
+                  <span style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{c.ad}</span>
                   <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{doluSayisi > 0 ? `${doluSayisi} hesap kayıtlı` : "Kayıt yok"} {acik ? "▲" : "▼"}</span>
                 </button>
                 {acik && (
@@ -4145,7 +4149,7 @@ function MusteriGirisleriIcerik({ clients, girisler, onUpdate, firmaAdi, logo, r
                         const pv = g[p.key] || { kullanici: "", sifre: "" };
                         return (
                           <div key={p.key}>
-                            <div style={{ fontSize: 12, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 8 }}>{p.label}</div>
+                            <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 8 }}>{p.label}</div>
                             <KopyalanabilirAlan label="Kullanıcı Adı" value={pv.kullanici} onChange={(val) => onUpdate(c.id, p.key, "kullanici", val)} />
                             <KopyalanabilirAlan label="Şifre" value={pv.sifre} onChange={(val) => onUpdate(c.id, p.key, "sifre", val)} gizli />
                           </div>
@@ -4198,8 +4202,8 @@ function MusteriGirisleri(props) {
     <SifreGateli>
       <div style={{ position: "relative" }}>
         <FiligranKatmani />
-        <Card style={{ padding: "12px 16px", marginBottom: 14, background: T.dangerSoft }}>
-          <div style={{ fontSize: 12, color: T.danger, fontFamily: "Inter", lineHeight: 1.6 }}>
+        <Card style={{ padding: "12px 15px", marginBottom: 14, background: T.dangerSoft }}>
+          <div style={{ fontSize: 13, color: T.danger, fontFamily: "Inter", lineHeight: 1.6 }}>
             Not: Web teknolojisiyle ekran görüntüsü almak teknik olarak engellenemez (hiçbir web sitesi bunu tam olarak garanti edemez).
             Bunun yerine sayfaya tarih/saat içeren görünmez bir filigran basılıyor — bir görüntü paylaşılırsa nereden ve ne zaman alındığı iz sürülebilir.
           </div>
@@ -4253,13 +4257,13 @@ function KasaSifresiKarti() {
       <SectionTitle>Şifre Kasası Şifresi</SectionTitle>
       
       {ayarlandiMi !== null && (
-        <div style={{ fontSize: 12, fontFamily: "Inter", fontWeight: 600, color: ayarlandiMi ? T.success : T.warning, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontFamily: "Inter", fontWeight: 600, color: ayarlandiMi ? T.success : T.warning, marginBottom: 14 }}>
           {ayarlandiMi ? "✅ Şu an özel bir kasa şifresi ayarlı — owner şifren artık kasa şifresi olarak kabul edilmiyor." : "⚠️ Şu an henüz özel bir kasa şifresi ayarlanmadı — kasa hâlâ owner şifrenle açılıyor."}
         </div>
       )}
-      {basari && <div style={{ color: T.success, fontSize: 12.5, fontFamily: "Inter", marginBottom: 10 }}>Kasa şifresi güncellendi.</div>}
+      {basari && <div style={{ color: T.success, fontSize: 13, fontFamily: "Inter", marginBottom: 10 }}>Kasa şifresi güncellendi.</div>}
       {acik ? (
-        <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 14px" }}>
+        <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 15px" }}>
           <input
             type="text"
             name={rastgeleAd1}
@@ -4288,7 +4292,7 @@ function KasaSifresiKarti() {
             onChange={(e) => setTekrar(e.target.value)}
             style={{ ...inputStyle, marginBottom: 10, WebkitTextSecurity: "disc" }}
           />
-          {hata && <div style={{ color: T.danger, fontSize: 12, fontFamily: "Inter", marginBottom: 8 }}>{hata}</div>}
+          {hata && <div style={{ color: T.danger, fontSize: 13, fontFamily: "Inter", marginBottom: 8 }}>{hata}</div>}
           <div style={{ display: "flex", gap: 8 }}>
             <button style={cancelBtnStyle} onClick={() => { setAcik(false); setYeniSifre(""); setTekrar(""); setHata(""); }}>İptal</button>
             <button style={saveBtnStyle} onClick={kaydet} disabled={kaydediliyor}>{kaydediliyor ? "Kaydediliyor…" : "Kaydet"}</button>
@@ -4323,15 +4327,15 @@ function IslemGecmisiKarti({ kayitlar }) {
         <div>
           
           {liste.length > 0 && (
-            <input type="text" placeholder="Kişi ya da işlem ara…" value={aramaMetni} onChange={(e) => setAramaMetni(e.target.value)} style={{ ...inputStyle, marginBottom: 12, fontSize: 12.5 }} />
+            <input type="text" placeholder="Kişi ya da işlem ara…" value={aramaMetni} onChange={(e) => setAramaMetni(e.target.value)} style={{ ...inputStyle, marginBottom: 12, fontSize: 13 }} />
           )}
           {filtreli.length === 0 ? (
-            <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>{liste.length === 0 ? "Henüz kayıtlı bir işlem yok." : "Eşleşen kayıt bulunamadı."}</div>
+            <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>{liste.length === 0 ? "Henüz kayıtlı bir işlem yok." : "Eşleşen kayıt bulunamadı."}</div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 420, overflowY: "auto" }}>
               {filtreli.map((k) => (
-                <div key={k.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, padding: "8px 12px", background: T.surfaceRaised, borderRadius: 9 }}>
-                  <div style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter" }}>
+                <div key={k.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, padding: "6px 10px", background: T.surfaceRaised, borderRadius: 9 }}>
+                  <div style={{ fontSize: 13, color: T.text, fontFamily: "Inter" }}>
                     <strong>{k.kisi}</strong> — {k.aciklama}
                   </div>
                   <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", whiteSpace: "nowrap", flexShrink: 0 }}>{k.tarih}</div>
@@ -4382,7 +4386,7 @@ function VeriBoyutuKarti() {
       <div style={{ height: 8, borderRadius: 999, background: T.surfaceRaised, overflow: "hidden", marginBottom: 10 }}>
         <div style={{ width: `${oran}%`, height: "100%", background: uyari ? T.warning : T.success, borderRadius: 999 }} />
       </div>
-      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12.5, color: T.textFaint, lineHeight: 1.7, margin: 0 }}>
+      <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textFaint, lineHeight: 1.7, margin: 0 }}>
         {uyari
           ? "⚠ Veri boyutu sınıra yaklaşıyor. Sunucu tek bir istekte en fazla ~4.5 MB kabul eder; bu aşılırsa kayıtlar tamamen durur. Müşteri detaylarındaki eski içerik görsellerini silerek yer açabilirsin."
           : "Yüklediğin görseller otomatik olarak küçültülüp sıkıştırılıyor. Sınır ~4.5 MB — şu an rahat bir seviyedesin."}
@@ -4452,7 +4456,7 @@ function AylikRaporKarti({ marka, firmaAdi, logo, plan, reklamlar, isler, olcuml
   });
 
   return (
-    <Card style={{ padding: "16px 18px", marginBottom: 16 }}>
+    <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
       <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 4 }}>Aylık Müşteri Raporu</div>
       
 
@@ -4468,9 +4472,9 @@ function AylikRaporKarti({ marka, firmaAdi, logo, plan, reklamlar, isler, olcuml
           { l: "Paylaşılacak", v: planlananlar.length },
           { l: "Kampanya", v: ayinReklamlari.length },
         ].map((x) => (
-          <div key={x.l} style={{ background: T.surfaceRaised, borderRadius: 9, padding: "8px 13px", minWidth: 92 }}>
-            <div style={{ fontSize: 9.5, color: T.textFaint, fontFamily: "Inter", fontWeight: 700, letterSpacing: 0.3 }}>{x.l.toLocaleUpperCase("tr")}</div>
-            <div style={{ fontSize: 16, color: x.v > 0 ? T.text : T.textFaint, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", marginTop: 2 }}>{x.v}</div>
+          <div key={x.l} style={{ background: T.surfaceRaised, borderRadius: 9, padding: "6px 10px", minWidth: 92 }}>
+            <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 700, letterSpacing: 0.3 }}>{x.l.toLocaleUpperCase("tr")}</div>
+            <div style={{ fontSize: 15, color: x.v > 0 ? T.text : T.textFaint, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", marginTop: 2 }}>{x.v}</div>
           </div>
         ))}
       </div>
@@ -4512,7 +4516,7 @@ function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
         onClick={() => setAcik(acik === anahtar ? null : anahtar)}
         style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", background: "none", border: "none", cursor: "pointer", padding: 0 }}
       >
-        <span style={{ fontSize: 12.5, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{baslik}</span>
+        <span style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{baslik}</span>
         <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{adet} kayıt {acik === anahtar ? "▲" : "▼"}</span>
       </button>
       {acik === anahtar && <div style={{ marginTop: 10 }}>{children}</div>}
@@ -4520,13 +4524,13 @@ function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
   );
 
   return (
-    <Card style={{ padding: "16px 18px", marginBottom: 16 }}>
+    <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
       <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter" }}>Müşteri Panelinde Ayrıca Görünenler</div>
       
 
       <Bolum anahtar="plan" baslik="Paylaşım Takvimi (görsel + açıklama)" adet={yaklasanPlan.length}>
         {yaklasanPlan.length === 0 ? (
-          <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter" }}>Bu marka için bu hafta ve sonrasına plan yok. Plan eklemek için Paylaşımlar sekmesini kullan.</div>
+          <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>Bu marka için bu hafta ve sonrasına plan yok. Plan eklemek için Paylaşımlar sekmesini kullan.</div>
         ) : (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 14 }}>
             {yaklasanPlan.map((p) => (
@@ -4548,9 +4552,9 @@ function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
                       value={gorselTaslak}
                       onChange={(e) => setGorselTaslak(e.target.value)}
                       placeholder="https://drive.google.com/file/d/..."
-                      style={{ ...inputStyle, marginBottom: 6, fontSize: 12, padding: "7px 10px" }}
+                      style={{ ...inputStyle, marginBottom: 6, fontSize: 13, padding: "6px 10px" }}
                     />
-                    <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 8, lineHeight: 1.6 }}>
+                    <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginBottom: 8, lineHeight: 1.6 }}>
                       Drive'da görsele sağ tık → Paylaş → "Bağlantıya sahip olan herkes / Görüntüleyen" yap, sonra bağlantıyı yapıştır.
                     </div>
                     <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 5 }}>Açıklama metni</label>
@@ -4579,11 +4583,11 @@ function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
 
       <Bolum anahtar="reklam" baslik="Reklam Kampanyaları" adet={markaReklamlari.length}>
         {markaReklamlari.length === 0 ? (
-          <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter" }}>Bu markaya ait reklam kaydı yok.</div>
+          <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>Bu markaya ait reklam kaydı yok.</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
             {markaReklamlari.map((r) => (
-              <div key={r.id} style={{ background: T.surfaceRaised, borderRadius: 9, padding: "8px 12px", fontSize: 12, fontFamily: "Inter", display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+              <div key={r.id} style={{ background: T.surfaceRaised, borderRadius: 9, padding: "6px 10px", fontSize: 13, fontFamily: "Inter", display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
                 <span style={{ color: T.text, fontWeight: 600 }}>{r.reklamAdi}</span>
                 <span style={{ color: T.textFaint }}>{tarihGoster(r.baslangicTarihi)} — {tarihGoster(r.bitisTarihi)}</span>
               </div>
@@ -4594,11 +4598,11 @@ function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
 
       <Bolum anahtar="operasyon" baslik="Üretim Durumu (Operasyon)" adet={markaIsleri.length}>
         {markaIsleri.length === 0 ? (
-          <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter" }}>Bu markaya ait operasyon işi yok.</div>
+          <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>Bu markaya ait operasyon işi yok.</div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 260, overflowY: "auto" }}>
             {markaIsleri.map((j) => (
-              <div key={j.id} style={{ background: T.surfaceRaised, borderRadius: 9, padding: "8px 12px", fontSize: 12, fontFamily: "Inter", display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
+              <div key={j.id} style={{ background: T.surfaceRaised, borderRadius: 9, padding: "6px 10px", fontSize: 13, fontFamily: "Inter", display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
                 <span style={{ color: T.text }}>{j.icerikTuru}{j.kategori ? ` · ${j.kategori}` : ""}</span>
                 <span style={{ color: j.asama === "Teslim Edildi" ? T.success : T.warning, fontWeight: 600 }}>{j.asama}</span>
               </div>
@@ -4679,7 +4683,7 @@ function OrtakMarkaPaneli({ firmaAdi }) {
   return (
     <div>
       {markalar.length > 1 && (
-        <Card style={{ padding: "12px 14px", marginBottom: 14 }}>
+        <Card style={{ padding: "12px 15px", marginBottom: 14 }}>
           <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 700, letterSpacing: 0.3, marginBottom: 9 }}>MARKA SEÇ</div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {markalar.map((m) => (
@@ -4687,8 +4691,8 @@ function OrtakMarkaPaneli({ firmaAdi }) {
                 key={m.id}
                 onClick={() => getir(m.id)}
                 style={{
-                  padding: "8px 15px", borderRadius: 9, border: "none", cursor: "pointer",
-                  fontFamily: "Inter, sans-serif", fontSize: 12.5, fontWeight: 600,
+                  padding: "6px 15px", borderRadius: 9, border: "none", cursor: "pointer",
+                  fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 600,
                   background: String(seciliId) === String(m.id) ? T.accent : T.surfaceRaised,
                   color: String(seciliId) === String(m.id) ? "#fff" : T.textDim,
                 }}
@@ -4701,13 +4705,13 @@ function OrtakMarkaPaneli({ firmaAdi }) {
       )}
 
       {hata && (
-        <Card style={{ padding: "16px 18px", border: `1px solid ${T.warning}` }}>
+        <Card style={{ padding: "18px 22px", border: `1px solid ${T.warning}` }}>
           <div style={{ fontSize: 13, color: T.warning, fontFamily: "Inter", fontWeight: 600 }}>{hata}</div>
         </Card>
       )}
 
       {yukleniyor && !panel && !hata && (
-        <Card style={{ padding: "22px 18px" }}>
+        <Card style={{ padding: "18px 22px" }}>
           <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter" }}>Panel yükleniyor…</div>
         </Card>
       )}
@@ -4769,13 +4773,13 @@ function MusteriPaneliYonetimi({ saltOkunur = false, hedef, clients, icerikler, 
         <KpiCard label="ÇEKİM PLANI" value={toplamPlan} mono={false} />
       </div>
 
-      <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 16, lineHeight: 1.6 }}>
+      <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginBottom: 16, lineHeight: 1.6 }}>
         Markaya tıkla, ona çekim planı ya da içerik gönder. Müşteri kendi panelinden görüp onaylar veya revize ister.
       </div>
 
       {sahipsizIcerikler.length > 0 && !saltOkunur && (
-        <Card style={{ padding: "12px 16px", marginBottom: 12, border: `1px solid ${T.border}` }}>
-          <div style={{ fontSize: 12.5, color: T.textDim, fontFamily: "Inter", lineHeight: 1.7 }}>
+        <Card style={{ padding: "12px 15px", marginBottom: 12, border: `1px solid ${T.border}` }}>
+          <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter", lineHeight: 1.7 }}>
             <strong style={{ color: T.text }}>{sahipsizIcerikler.length} içerik kaydının müşterisi silinmiş.</strong>{" "}
             Hiçbir panelde görünmüyorlar ama veride duruyorlar. Müşteriyi Ayarlar → geri dönüşüm
             kutusundan geri alırsan içerikleri de geri gelir.
@@ -4784,11 +4788,11 @@ function MusteriPaneliYonetimi({ saltOkunur = false, hedef, clients, icerikler, 
       )}
 
       {bagsizKartlar.length > 0 && !saltOkunur && (
-        <Card style={{ padding: "14px 18px", marginBottom: 14, border: `1px solid ${T.warning}` }}>
+        <Card style={{ padding: "12px 15px", marginBottom: 14, border: `1px solid ${T.warning}` }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: T.warning, fontFamily: "Inter", marginBottom: 6 }}>
             ⚠ {bagsizKartlar.length} kart hiçbir müşteriye bağlanamadı
           </div>
-          <div style={{ fontSize: 12.5, color: T.textDim, fontFamily: "Inter", lineHeight: 1.7, marginBottom: 10 }}>
+          <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter", lineHeight: 1.7, marginBottom: 10 }}>
             Bu kartlar Operasyon'da "Kontrol Bekliyor" aşamasında ama üzerlerindeki marka adı hiçbir
             müşteri kaydıyla eşleşmiyor — bu yüzden <strong>müşteri panelinde görünmüyorlar</strong>.
             Operasyon'da kartın markasını düzelt ya da o markayı Müşteriler'e ekle.
@@ -4798,12 +4802,12 @@ function MusteriPaneliYonetimi({ saltOkunur = false, hedef, clients, icerikler, 
               // Yazımı farklı ama aynı markayı kastediyorsa tek tıkla düzeltilebilsin.
               const benzer = (clients || []).find((c) => markaAnahtari(c.ad) === markaAnahtari(j.marka));
               return (
-                <div key={j.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", fontSize: 12, fontFamily: "'IBM Plex Mono', monospace", color: T.text, background: T.surfaceRaised, borderRadius: 7, padding: "6px 10px" }}>
+                <div key={j.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", fontSize: 13, fontFamily: "'IBM Plex Mono', monospace", color: T.text, background: T.surfaceRaised, borderRadius: 7, padding: "6px 10px" }}>
                   <span>{j.marka || "— marka boş —"} · {j.icerikTuru || "adsız"}</span>
                   {benzer && onMarkaDuzelt && (
                     <button
                       onClick={() => { if (window.confirm(`Bu kartın markası "${benzer.ad}" olarak düzeltilecek. Devam edilsin mi?`)) onMarkaDuzelt(j.id, benzer.ad); }}
-                      style={{ background: T.accentSoft, color: T.accentText, border: "none", borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif", whiteSpace: "nowrap" }}
+                      style={{ background: T.accentSoft, color: T.accentText, border: "none", borderRadius: 6, padding: "6px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif", whiteSpace: "nowrap" }}
                     >
                       {benzer.ad} olarak düzelt
                     </button>
@@ -4816,8 +4820,8 @@ function MusteriPaneliYonetimi({ saltOkunur = false, hedef, clients, icerikler, 
       )}
 
       {/* Marka seçimi — yanlarında bekleyen/revize rozetleri */}
-      <Card style={{ padding: "14px 16px", marginBottom: 16 }}>
-        <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 10 }}>MARKA SEÇ</div>
+      <Card style={{ padding: "12px 15px", marginBottom: 16 }}>
+        <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 10 }}>MARKA SEÇ</div>
         {aktifler.length === 0 ? (
           <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>Henüz aktif marka yok.</div>
         ) : (
@@ -4831,14 +4835,14 @@ function MusteriPaneliYonetimi({ saltOkunur = false, hedef, clients, icerikler, 
                   key={c.id}
                   onClick={() => setSecili(aktif ? null : c.id)}
                   style={{
-                    display: "flex", alignItems: "center", gap: 7, padding: "9px 14px", borderRadius: 10, border: "none", cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: 7, padding: "6px 10px", borderRadius: 10, border: "none", cursor: "pointer",
                     background: aktif ? T.accent : T.surfaceRaised, color: aktif ? "#fff" : T.textDim,
                     fontSize: 13, fontWeight: 600, fontFamily: "Inter",
                   }}
                 >
                   {c.ad}
-                  {revize > 0 && <span style={{ background: T.danger, color: "#fff", borderRadius: 999, padding: "1px 7px", fontSize: 10.5, fontWeight: 700 }}>{revize}</span>}
-                  {bekleyen > 0 && <span style={{ background: aktif ? "rgba(255,255,255,.25)" : T.warningSoft, color: aktif ? "#fff" : T.warning, borderRadius: 999, padding: "1px 7px", fontSize: 10.5, fontWeight: 700 }}>{bekleyen}</span>}
+                  {revize > 0 && <span style={{ background: T.danger, color: "#fff", borderRadius: 999, padding: "6px 10px", fontSize: 11, fontWeight: 700 }}>{revize}</span>}
+                  {bekleyen > 0 && <span style={{ background: aktif ? "rgba(255,255,255,.25)" : T.warningSoft, color: aktif ? "#fff" : T.warning, borderRadius: 999, padding: "6px 10px", fontSize: 11, fontWeight: 700 }}>{bekleyen}</span>}
                 </button>
               );
             })}
@@ -4847,8 +4851,8 @@ function MusteriPaneliYonetimi({ saltOkunur = false, hedef, clients, icerikler, 
       </Card>
 
       {seciliMarka ? (
-        <Card style={{ padding: "16px 18px", marginBottom: 16 }}>
-          <div style={{ fontSize: 14, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 14 }}>{seciliMarka.ad}</div>
+        <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+          <div style={{ fontSize: 15, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 14 }}>{seciliMarka.ad}</div>
           <IcerikYonetimMotoru
             clientId={seciliMarka.id}
             icerikler={icerikler}
@@ -4865,7 +4869,7 @@ function MusteriPaneliYonetimi({ saltOkunur = false, hedef, clients, icerikler, 
           />
         </Card>
       ) : (
-        <Card style={{ padding: "28px 16px", textAlign: "center", marginBottom: 16 }}>
+        <Card style={{ padding: "18px 22px", textAlign: "center", marginBottom: 16 }}>
           <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", lineHeight: 1.7 }}>
             Yukarıdan bir marka seç — o markaya gönderdiğin çekim planlarını ve içerikleri burada yönetirsin.
           </div>
@@ -4950,12 +4954,12 @@ function OnayKutusuOnizleme({ i }) {
         {varMi ? (
           <button
             onClick={() => setAcik((v) => !v)}
-            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: T.accentText, fontSize: 11.5, fontWeight: 600, fontFamily: "Inter" }}
+            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: T.accentText, fontSize: 11, fontWeight: 600, fontFamily: "Inter" }}
           >
             {acik ? "Önizlemeyi kapat ▲" : "İçeriği gör ▼"}
           </button>
         ) : (
-          <span style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>Bu kayda ait dosya yok</span>
+          <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>Bu kayda ait dosya yok</span>
         )}
 
         {acik && (
@@ -4970,7 +4974,7 @@ function OnayKutusuOnizleme({ i }) {
               <div style={{ marginBottom: 8 }}><DriveVideo link={link} yon={i.videoYonu} baslik={cekimMi ? "Referans video" : undefined} /></div>
             )}
             {cekimMi && i.konusmaMetni && (
-              <div style={{ background: T.surface, borderRadius: 9, padding: "10px 12px", fontSize: 12.5, color: T.text, fontFamily: "Inter", whiteSpace: "pre-wrap", lineHeight: 1.7, maxWidth: 560 }}>
+              <div style={{ background: T.surface, borderRadius: 9, padding: "12px 15px", fontSize: 13, color: T.text, fontFamily: "Inter", whiteSpace: "pre-wrap", lineHeight: 1.7, maxWidth: 560 }}>
                 {i.konusmaMetni}
               </div>
             )}
@@ -5060,22 +5064,22 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, reklamla
   };
 
   return (
-    <Card style={{ padding: "16px 18px", marginBottom: 18, border: `1px solid ${T.warning}` }}>
+    <Card style={{ padding: "18px 22px", marginBottom: 18, border: `1px solid ${T.warning}` }}>
       <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 4 }}>
         Onayını Bekleyenler ({revizeler.length + onaylananlar.length + atanmamislar.length + eksikReklamlar.length})
       </div>
       
 
       {revizeler.map((i) => (
-        <div key={`rev-${i.id}`} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "11px 13px", marginBottom: 8 }}>
+        <div key={`rev-${i.id}`} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 15px", marginBottom: 8 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
+              <div style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
                 <span style={{ color: T.danger }}>Revize · </span>
                 {markaAdi(i.clientId)} — {basligiTemizle(i.aciklama) || (i.tur === "cekim" ? "Çekim Planı" : "İçerik")}
               </div>
               {i.revizeNotu && (
-                <div style={{ fontSize: 12, color: T.textDim, fontFamily: "Inter", fontStyle: "italic", marginTop: 4, lineHeight: 1.55 }}>
+                <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter", fontStyle: "italic", marginTop: 4, lineHeight: 1.55 }}>
                   "{i.revizeNotu}"
                 </div>
               )}
@@ -5084,7 +5088,7 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, reklamla
             {acikId !== i.id && (
               <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center" }}>
                 {i.operasyonaAktarildi && (
-                  <span style={{ fontSize: 10.5, color: T.success, fontFamily: "Inter", fontWeight: 600 }}>✓ Operasyon'a aktarıldı</span>
+                  <span style={{ fontSize: 11, color: T.success, fontFamily: "Inter", fontWeight: 600 }}>✓ Operasyon'a aktarıldı</span>
                 )}
                 <button style={cancelBtnStyle} onClick={() => onGit && onGit(i.clientId, i.id)}>Planı Düzenle</button>
                 <button style={i.operasyonaAktarildi ? cancelBtnStyle : saveBtnStyle} onClick={() => formuAc(i)}>
@@ -5099,10 +5103,10 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, reklamla
       ))}
 
       {onaylananlar.map((i) => (
-        <div key={`ony-${i.id}`} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "11px 13px", marginBottom: 8 }}>
+        <div key={`ony-${i.id}`} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 15px", marginBottom: 8 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
+              <div style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
                 <span style={{ color: T.success }}>{i.onaylayan === "Yönetici" ? "Sen onayladın · " : "Müşteri onayladı · "}</span>
                 {markaAdi(i.clientId)} — {basligiTemizle(i.aciklama) || "Çekim Planı"}
               </div>
@@ -5125,9 +5129,9 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, reklamla
       ))}
 
       {eksikReklamlar.map((r) => (
-        <div key={`rek-${r.id}`} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "11px 13px", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div key={`rek-${r.id}`} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 15px", marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
+            <div style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
               <span style={{ color: T.warning }}>Kampanya bitti · </span>{r.marka} — {r.reklamAdi}
             </div>
             <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>
@@ -5165,7 +5169,7 @@ function AktarimFormu({ i, form, setForm, kisiler, varsayilanAsama, onAktar, onV
           <button
             key={k}
             onClick={() => setForm((f) => ({ ...f, kategori: k, asama: varsayilanAsama(k, onaylandiMi) }))}
-            style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 12, fontWeight: 600,
+            style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 13, fontWeight: 600,
               background: form.kategori === k ? T.accentSoft : T.surface, color: form.kategori === k ? T.accentText : T.textDim }}
           >
             {k}
@@ -5210,10 +5214,10 @@ function AtanmamisIsSatiri({ job, kisiler, onAta }) {
   };
 
   return (
-    <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "11px 13px", marginBottom: 8 }}>
+    <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 15px", marginBottom: 8 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
+          <div style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
             <span style={{ color: T.warning }}>Atanmadı · </span>{job.marka} — {job.icerikTuru}
           </div>
           <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>
@@ -5293,7 +5297,7 @@ function Planim({ gorevler, onAdd, onUpdate, onDelete, onayKutusu }) {
   };
 
   const GorevSatiri = ({ g }) => (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 12px", background: T.surfaceRaised, borderRadius: 10 }}>
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "12px 15px", background: T.surfaceRaised, borderRadius: 10 }}>
       <button
         onClick={() => onUpdate(g.id, { tamamlandi: !g.tamamlandi, tamamlanmaTarihi: g.tamamlandi ? null : bugunISOTarih() })}
         title={g.tamamlandi ? "Geri al" : "Tamamlandı olarak işaretle"}
@@ -5323,7 +5327,7 @@ function Planim({ gorevler, onAdd, onUpdate, onDelete, onayKutusu }) {
             title="Düzenlemek için tıkla"
             style={{
               background: "none", border: "none", padding: 0, cursor: "text", textAlign: "left", width: "100%",
-              fontSize: 13.5, fontFamily: "Inter, sans-serif", lineHeight: 1.5,
+              fontSize: 13, fontFamily: "Inter, sans-serif", lineHeight: 1.5,
               color: g.tamamlandi ? T.textFaint : T.text,
               textDecoration: g.tamamlandi ? "line-through" : "none",
               fontWeight: g.onemli && !g.tamamlandi ? 600 : 400,
@@ -5356,7 +5360,7 @@ function Planim({ gorevler, onAdd, onUpdate, onDelete, onayKutusu }) {
         {gecikmisSayisi > 0 && <KpiCard label="TARİHİ GEÇTİ" value={gecikmisSayisi} accent={T.danger} mono={false} />}
         {bugunSayisi > 0 && <KpiCard label="BUGÜN" value={bugunSayisi} accent={T.warning} mono={false} />}
       </div>
-      <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 16, lineHeight: 1.6 }}>
+      <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginBottom: 16, lineHeight: 1.6 }}>
         Yapman gerekenleri buraya not al. Sadece sen görürsün — personel paneline hiç gönderilmez.
       </div>
 
@@ -5365,7 +5369,7 @@ function Planim({ gorevler, onAdd, onUpdate, onDelete, onayKutusu }) {
       {onayKutusu}
 
       {/* Hızlı ekleme */}
-      <Card style={{ padding: "14px 16px", marginBottom: 16 }}>
+      <Card style={{ padding: "12px 15px", marginBottom: 16 }}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <input
             value={metin}
@@ -5384,7 +5388,7 @@ function Planim({ gorevler, onAdd, onUpdate, onDelete, onayKutusu }) {
           <button
             onClick={() => setOnemli((v) => !v)}
             title="Önemli olarak işaretle"
-            style={{ padding: "9px 13px", borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 12.5, fontWeight: 600, background: onemli ? T.warningSoft : T.surfaceRaised, color: onemli ? T.warning : T.textFaint }}
+            style={{ padding: "6px 10px", borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 13, fontWeight: 600, background: onemli ? T.warningSoft : T.surfaceRaised, color: onemli ? T.warning : T.textFaint }}
           >
             ● Önemli
           </button>
@@ -5393,7 +5397,7 @@ function Planim({ gorevler, onAdd, onUpdate, onDelete, onayKutusu }) {
       </Card>
 
       {acikGorevler.length === 0 && (
-        <Card style={{ padding: "28px 16px", textAlign: "center" }}>
+        <Card style={{ padding: "18px 22px", textAlign: "center" }}>
           <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", lineHeight: 1.7 }}>
             Şu an açık bir notun yok.{bitenler.length > 0 ? " Tamamladıklarını aşağıdan görebilirsin." : " Yukarıdan ilk notunu ekleyebilirsin."}
           </div>
@@ -5405,7 +5409,7 @@ function Planim({ gorevler, onAdd, onUpdate, onDelete, onayKutusu }) {
         if (items.length === 0) return null;
         return (
           <div key={grup.key} style={{ marginBottom: 16 }}>
-            <div style={{ fontSize: 11.5, color: grup.renk, fontFamily: "Inter", fontWeight: 700, marginBottom: 8, letterSpacing: 0.3 }}>
+            <div style={{ fontSize: 11, color: grup.renk, fontFamily: "Inter", fontWeight: 700, marginBottom: 8, letterSpacing: 0.3 }}>
               {grup.baslik.toLocaleUpperCase("tr")} ({items.length})
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -5419,7 +5423,7 @@ function Planim({ gorevler, onAdd, onUpdate, onDelete, onayKutusu }) {
         <div style={{ marginTop: 20 }}>
           <button
             onClick={() => setTamamlananlarAcik((v) => !v)}
-            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 12, color: T.textDim, fontFamily: "Inter", fontWeight: 600 }}
+            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 13, color: T.textDim, fontFamily: "Inter", fontWeight: 600 }}
           >
             {tamamlananlarAcik ? "▾" : "▸"} Tamamlananlar ({bitenler.length})
           </button>
@@ -5471,15 +5475,15 @@ function GuvenlikDefteri() {
       {!acik ? (
         <button style={cancelBtnStyle} onClick={() => { setAcik(true); yukle(); }}>Defteri Aç</button>
       ) : kayitlar === "yukleniyor" ? (
-        <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Yükleniyor…</div>
+        <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>Yükleniyor…</div>
       ) : (kayitlar || []).length === 0 ? (
-        <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Henüz kayıt yok.</div>
+        <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>Henüz kayıt yok.</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 320, overflowY: "auto" }}>
           {kayitlar.map((k, i) => {
             const e = etiket(k.olay);
             return (
-              <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 10, background: T.surfaceRaised, borderRadius: 8, padding: "7px 11px", fontSize: 12, fontFamily: "Inter", flexWrap: "wrap" }}>
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 10, background: T.surfaceRaised, borderRadius: 8, padding: "6px 10px", fontSize: 13, fontFamily: "Inter", flexWrap: "wrap" }}>
                 <span style={{ color: e.renk, fontWeight: 600 }}>{e.ad}</span>
                 <span style={{ color: T.textFaint }}>
                   {new Date(k.zaman).toLocaleString("tr-TR")}
@@ -5504,13 +5508,13 @@ function SilinenlerKutusu({ silinenler, onGeriAl, onKaliciSil }) {
       
 
       {liste.length === 0 ? (
-        <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Kutu boş — silinmiş kayıt yok.</div>
+        <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>Kutu boş — silinmiş kayıt yok.</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 340, overflowY: "auto" }}>
           {liste.map((x) => (
-            <div key={x.silmeId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, background: T.surfaceRaised, borderRadius: 9, padding: "9px 12px", flexWrap: "wrap" }}>
+            <div key={x.silmeId} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, background: T.surfaceRaised, borderRadius: 9, padding: "6px 10px", flexWrap: "wrap" }}>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
+                <div style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>
                   <span style={{ color: T.textFaint, fontWeight: 400 }}>{x.tur} · </span>{x.etiket || "(adsız kayıt)"}
                 </div>
                 <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>
@@ -5554,7 +5558,9 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
     { label: "Mali Yıl Başlangıcı", value: "Ocak" },
   ];
   return (
-    <div style={{ maxWidth: 560 }}>
+    /* Ayarlar 560px'e sıkışmıştı ve geniş ekranda sağ taraf boş kalıyordu. Kartlar iki
+      * sütuna yayılıyor; dar ekranda tek sütuna düşer. */
+    <div style={{ maxWidth: 1100, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(330px, 1fr))", gap: 14, alignItems: "start" }}>
       {/* AYARLAR SEKMELERİ — kartların hiçbirinin içeriği değişmedi, yalnızca
         * gruplandılar. Tek sayfada 21 bölüm alt alta duruyordu; aradığını bulmak
         * için uzun uzun kaydırmak gerekiyordu. */}
@@ -5565,7 +5571,7 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
             onClick={() => setAyarSekme(sk.key)}
             style={{
               padding: "8px 13px 9px", background: "transparent", border: "none", cursor: "pointer",
-              whiteSpace: "nowrap", fontFamily: "Inter, sans-serif", fontSize: 12.5,
+              whiteSpace: "nowrap", fontFamily: "Inter, sans-serif", fontSize: 13,
               fontWeight: ayarSekme === sk.key ? 700 : 500,
               color: ayarSekme === sk.key ? T.text : T.textDim,
               borderBottom: `2px solid ${ayarSekme === sk.key ? T.accent : "transparent"}`, marginBottom: -1,
@@ -5577,11 +5583,11 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
       </div>
 
       {ayarSekme === "gorunum" && <>
-      <Card style={{ padding: "8px 22px", marginBottom: 16 }}>
+      <Card style={{ padding: "6px 22px", marginBottom: 16 }}>
         {rows.map((r, i) => (
           <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 0", borderBottom: i < rows.length - 1 ? `1px solid ${T.borderSoft}` : "none" }}>
-            <span style={{ fontSize: 13.5, color: T.textDim, fontFamily: "Inter" }}>{r.label}</span>
-            <span style={{ fontSize: 13.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{r.value}</span>
+            <span style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter" }}>{r.label}</span>
+            <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{r.value}</span>
           </div>
         ))}
       </Card>
@@ -5591,7 +5597,7 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
         <button
           onClick={() => onToggleGizlilik(!gizlilikModu)}
           style={{
-            display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 10, border: "none", cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 8, padding: "12px 15px", borderRadius: 10, border: "none", cursor: "pointer",
             background: gizlilikModu ? T.danger : T.accentSoft, color: gizlilikModu ? "#fff" : T.accentText, fontSize: 13, fontWeight: 600, fontFamily: "Inter",
           }}
         >
@@ -5603,7 +5609,7 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
       <Card style={{ padding: "18px 22px" }}>
         <SectionTitle>Marka Kimliği</SectionTitle>
 
-        <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 6 }}>KARE LOGO</div>
+        <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 6 }}>KARE LOGO</div>
         <MarkaKimligiYukleyici
           value={markaKimligiGorseli}
           onChange={onSaveMarkaKimligi}
@@ -5612,7 +5618,7 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
           olcu="512×512 px · şeffaf PNG · uygulama simgesi, telefon ana ekranı, panel başlığı"
         />
 
-        <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, margin: "16px 0 6px" }}>PAYLAŞIM GÖRSELİ</div>
+        <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, margin: "16px 0 6px" }}>PAYLAŞIM GÖRSELİ</div>
         <MarkaKimligiYukleyici
           value={paylasimGorseli}
           onChange={onSavePaylasimGorseli}
@@ -5623,7 +5629,7 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
           olcu="1200×630 px · yatay · WhatsApp/Slack'te bağlantı paylaşınca çıkan kart"
         />
 
-        <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, margin: "16px 0 6px" }}>AÇIK ZEMİN LOGOSU</div>
+        <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, margin: "16px 0 6px" }}>AÇIK ZEMİN LOGOSU</div>
         <MarkaKimligiYukleyici
           value={acikZeminLogosu}
           onChange={onSaveAcikZeminLogosu}
@@ -5661,7 +5667,7 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
         <ol style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.9, paddingLeft: 18, marginBottom: 14 }}>
           <li><a href="https://resend.com" target="_blank" rel="noreferrer" style={{ color: T.accentText }}>resend.com</a>'da ücretsiz hesap aç</li>
           <li>API Keys'ten bir anahtar oluştur</li>
-          <li>Vercel projende Environment Variables'a şunları ekle: <code style={{ background: T.surfaceRaised, padding: "1px 5px", borderRadius: 4 }}>RESEND_API_KEY</code> (anahtarın) ve <code style={{ background: T.surfaceRaised, padding: "1px 5px", borderRadius: 4 }}>BACKUP_EMAIL</code> (yedeği alacağın e-posta)</li>
+          <li>Vercel projende Environment Variables'a şunları ekle: <code style={{ background: T.surfaceRaised, padding: "6px 10px", borderRadius: 4 }}>RESEND_API_KEY</code> (anahtarın) ve <code style={{ background: T.surfaceRaised, padding: "6px 10px", borderRadius: 4 }}>BACKUP_EMAIL</code> (yedeği alacağın e-posta)</li>
           <li>Redeploy et</li>
         </ol>
         <EmailYedekTest endpoint="/api/daily-backup" />
@@ -5688,9 +5694,9 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
           * bu bilgi sunucudan geliyor. */}
         {guvenlik && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 9, background: guvenlik.ikiAdimliAktif ? T.successSoft : T.dangerSoft, borderRadius: 10, padding: "11px 13px" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 9, background: guvenlik.ikiAdimliAktif ? T.successSoft : T.dangerSoft, borderRadius: 10, padding: "12px 15px" }}>
               <span style={{ fontSize: 15, lineHeight: 1 }}>{guvenlik.ikiAdimliAktif ? "✓" : "⚠"}</span>
-              <div style={{ fontSize: 12.5, fontFamily: "Inter", lineHeight: 1.6, color: guvenlik.ikiAdimliAktif ? T.success : T.danger }}>
+              <div style={{ fontSize: 13, fontFamily: "Inter", lineHeight: 1.6, color: guvenlik.ikiAdimliAktif ? T.success : T.danger }}>
                 {guvenlik.ikiAdimliAktif
                   ? <><strong>İki adımlı doğrulama açık.</strong> Her girişte e-postana kod gönderiliyor.</>
                   : <>
@@ -5703,9 +5709,9 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
                     </>}
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 9, background: guvenlik.yedekEpostaSayisi >= 2 ? T.successSoft : T.warningSoft, borderRadius: 10, padding: "11px 13px" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 9, background: guvenlik.yedekEpostaSayisi >= 2 ? T.successSoft : T.warningSoft, borderRadius: 10, padding: "12px 15px" }}>
               <span style={{ fontSize: 15, lineHeight: 1 }}>{guvenlik.yedekEpostaSayisi >= 2 ? "✓" : "⚠"}</span>
-              <div style={{ fontSize: 12.5, fontFamily: "Inter", lineHeight: 1.6, color: guvenlik.yedekEpostaSayisi >= 2 ? T.success : T.warning }}>
+              <div style={{ fontSize: 13, fontFamily: "Inter", lineHeight: 1.6, color: guvenlik.yedekEpostaSayisi >= 2 ? T.success : T.warning }}>
                 {guvenlik.yedekEpostaSayisi >= 2
                   ? <><strong>Yedek {guvenlik.yedekEpostaSayisi} adrese gidiyor.</strong> Bir posta hesabı kapansa bile kopya kalır.</>
                   : guvenlik.yedekEpostaSayisi === 1
@@ -5851,26 +5857,26 @@ function MusteriHesaplariKart({ clients }) {
       
 
       {hesaplar === null ? (
-        <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Yükleniyor…</div>
+        <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>Yükleniyor…</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
-          {hesaplar.length === 0 && <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Henüz müşteri hesabı yok.</div>}
+          {hesaplar.length === 0 && <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>Henüz müşteri hesabı yok.</div>}
           {hesaplar.map((h) => (
-            <div key={h.id} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "10px 14px" }}>
+            <div key={h.id} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 15px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
                 <div>
                   <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{h.ad} <span style={{ color: T.textFaint, fontWeight: 400 }}>· {markaAdi(h.clientId)}</span></div>
                   <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>Kullanıcı adı: {h.kullaniciAdi}</div>
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <button style={{ ...iconBtnStyle, width: "auto", padding: "6px 10px", fontSize: 11.5 }} onClick={() => { setSifirlanan(sifirlanan === h.id ? null : h.id); setYeniSifreDeger(""); setHata(""); }}>Şifre Sıfırla</button>
+                  <button style={{ ...iconBtnStyle, width: "auto", padding: "6px 10px", fontSize: 11 }} onClick={() => { setSifirlanan(sifirlanan === h.id ? null : h.id); setYeniSifreDeger(""); setHata(""); }}>Şifre Sıfırla</button>
                   <button style={iconBtnStyle} onClick={() => sil(h.id, h.ad)}><Trash2 size={13} color={T.danger} /></button>
                 </div>
               </div>
               {sifirlanan === h.id && (
                 <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-                  <input type="text" autoComplete="off" placeholder="Yeni şifre" value={yeniSifreDeger} onChange={(e) => setYeniSifreDeger(e.target.value)} style={{ ...inputStyle, flex: 1, padding: "7px 10px", fontSize: 12.5 }} />
-                  <button style={{ ...saveBtnStyle, padding: "7px 12px", fontSize: 12 }} onClick={() => sifreSifirla(h.id)}>Kaydet</button>
+                  <input type="text" autoComplete="off" placeholder="Yeni şifre" value={yeniSifreDeger} onChange={(e) => setYeniSifreDeger(e.target.value)} style={{ ...inputStyle, flex: 1, padding: "6px 10px", fontSize: 13 }} />
+                  <button style={{ ...saveBtnStyle, padding: "6px 10px", fontSize: 13 }} onClick={() => sifreSifirla(h.id)}>Kaydet</button>
                 </div>
               )}
             </div>
@@ -5887,7 +5893,7 @@ function MusteriHesaplariKart({ clients }) {
           <input type="text" placeholder="Yetkili kişinin adı (örn. Ahmet Bey)" value={yeniAd} onChange={(e) => setYeniAd(e.target.value)} style={{ ...inputStyle, marginBottom: 8 }} />
           <input type="text" autoComplete="off" placeholder="Kullanıcı Adı" value={yeniKullanici} onChange={(e) => setYeniKullanici(e.target.value)} style={{ ...inputStyle, marginBottom: 8 }} />
           <input type="text" autoComplete="off" placeholder="Şifre" value={yeniSifre} onChange={(e) => setYeniSifre(e.target.value)} style={{ ...inputStyle, marginBottom: 10 }} />
-          {hata && <div style={{ color: T.danger, fontSize: 12, fontFamily: "Inter", marginBottom: 8 }}>{hata}</div>}
+          {hata && <div style={{ color: T.danger, fontSize: 13, fontFamily: "Inter", marginBottom: 8 }}>{hata}</div>}
           <div style={{ display: "flex", gap: 8 }}>
             <button style={cancelBtnStyle} onClick={() => { setEkleAcik(false); setHata(""); }}>İptal</button>
             <button style={saveBtnStyle} onClick={ekle}>Hesap Oluştur</button>
@@ -5952,19 +5958,19 @@ function StaffPermissionsKarti({ izinler, onDegis, ortakSifreAktif }) {
             <span style={{ display: "block", fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 700, color: T.text }}>
               Genel Yetkiler (ortak personel şifresi)
             </span>
-            <span style={{ display: "block", fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 3 }}>
+            <span style={{ display: "block", fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 3 }}>
               {sayim} açık · {STAFF_IZIN_LISTESI.length - sayim} kapalı
               {ortakSifreAktif === false ? " · ortak şifre tanımlı değil, şu an kullanılmıyor" : ""}
             </span>
           </span>
-          <span style={{ color: T.textDim, fontSize: 12, flexShrink: 0 }}>{acik ? "Kapat ▲" : "Aç ▼"}</span>
+          <span style={{ color: T.textDim, fontSize: 13, flexShrink: 0 }}>{acik ? "Kapat ▲" : "Aç ▼"}</span>
         </button>
 
         {acik && <>
         
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {STAFF_IZIN_LISTESI.map((m) => (
-            <label key={m.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: T.surfaceRaised, borderRadius: 10, cursor: "pointer" }}>
+            <label key={m.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 15px", background: T.surfaceRaised, borderRadius: 10, cursor: "pointer" }}>
               <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{m.label}</span>
               <input
                 type="checkbox"
@@ -6089,24 +6095,24 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
       <SectionTitle>Personel Hesapları</SectionTitle>
       
 
-      {hesaplar === null && <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Yükleniyor…</div>}
+      {hesaplar === null && <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>Yükleniyor…</div>}
 
       {hesaplar && hesaplar.length === 0 && !ekleAcik && (
-        <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 12 }}>Henüz kişisel personel hesabı yok.</div>
+        <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginBottom: 12 }}>Henüz kişisel personel hesabı yok.</div>
       )}
 
       {hesaplar && hesaplar.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
           {hesaplar.map((h) => (
-            <div key={h.id} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "10px 12px" }}>
+            <div key={h.id} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 15px" }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
                 <div>
                   <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{h.ad}</div>
-                  <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>@{h.kullaniciAdi}{h.email ? ` · ${h.email}` : ""}</div>
+                  <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>@{h.kullaniciAdi}{h.email ? ` · ${h.email}` : ""}</div>
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
                   {Array.isArray(h.markalar) && h.markalar.length > 0 && (
-                    <span style={{ fontSize: 10.5, fontWeight: 600, color: T.warning, background: T.warningSoft, padding: "2px 9px", borderRadius: 999, fontFamily: "Inter", marginRight: 6 }} title={h.markalar.join(", ")}>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: T.warning, background: T.warningSoft, padding: "6px 10px", borderRadius: 999, fontFamily: "Inter", marginRight: 6 }} title={h.markalar.join(", ")}>
                       🔒 {h.markalar.length} marka
                     </span>
                   )}
@@ -6128,8 +6134,8 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
                   <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 8 }}>BU KİŞİYE ÖZEL YETKİLER</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
                     {IZIN_LISTESI.map((m) => (
-                      <label key={m.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "7px 10px", background: T.surface, borderRadius: 8, cursor: "pointer" }}>
-                        <span style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter" }}>{m.label}</span>
+                      <label key={m.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", background: T.surface, borderRadius: 8, cursor: "pointer" }}>
+                        <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter" }}>{m.label}</span>
                         <input type="checkbox" checked={taslakIzin[m.key] === true} onChange={(e) => setTaslakIzin((s) => ({ ...s, [m.key]: e.target.checked }))} style={{ width: 16, height: 16, cursor: "pointer" }} />
                       </label>
                     ))}
@@ -6149,7 +6155,7 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
                         <button
                           key={c.id}
                           onClick={() => setTaslakMarkalar((liste) => (secili ? liste.filter((x) => x !== c.ad) : [...liste, c.ad]))}
-                          style={{ padding: "6px 12px", borderRadius: 999, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 12, fontWeight: 600,
+                          style={{ padding: "6px 10px", borderRadius: 999, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 13, fontWeight: 600,
                             background: secili ? T.accent : T.surface, color: secili ? "#fff" : T.textDim }}
                         >
                           {c.ad}
@@ -6157,12 +6163,12 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
                       );
                     })}
                   </div>
-                  <div style={{ fontSize: 11.5, fontFamily: "Inter", marginBottom: 12, color: taslakMarkalar.length ? T.warning : T.textFaint }}>
+                  <div style={{ fontSize: 11, fontFamily: "Inter", marginBottom: 12, color: taslakMarkalar.length ? T.warning : T.textFaint }}>
                     {taslakMarkalar.length
                       ? `Kilitli: ${taslakMarkalar.length} marka · reklam bütçesi ve müşteri finansalları bu hesaba gönderilmez`
                       : "Kilit yok — tüm markaları görür"}
                     {taslakMarkalar.length > 0 && (
-                      <button onClick={() => setTaslakMarkalar([])} style={{ background: "none", border: "none", color: T.accentText, cursor: "pointer", fontSize: 11.5, fontFamily: "Inter", textDecoration: "underline", marginLeft: 8 }}>kilidi kaldır</button>
+                      <button onClick={() => setTaslakMarkalar([])} style={{ background: "none", border: "none", color: T.accentText, cursor: "pointer", fontSize: 11, fontFamily: "Inter", textDecoration: "underline", marginLeft: 8 }}>kilidi kaldır</button>
                     )}
                   </div>
 
@@ -6175,13 +6181,13 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
       )}
 
       {ekleAcik ? (
-        <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 14px" }}>
+        <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 15px" }}>
           <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
             <input placeholder="Ad Soyad" name="new-staff-name" autoComplete="off" value={yeniAd} onChange={(e) => setYeniAd(e.target.value)} style={inputStyle} />
             <input placeholder="Kullanıcı Adı" name="new-staff-username" autoComplete="off" value={yeniKullanici} onChange={(e) => setYeniKullanici(e.target.value)} style={inputStyle} />
             <input type="password" placeholder="Şifre" name="new-staff-password" autoComplete="new-password" value={yeniSifre} onChange={(e) => setYeniSifre(e.target.value)} style={inputStyle} />
           </div>
-          {hata && <div style={{ color: T.danger, fontSize: 12, fontFamily: "Inter", marginBottom: 8 }}>{hata}</div>}
+          {hata && <div style={{ color: T.danger, fontSize: 13, fontFamily: "Inter", marginBottom: 8 }}>{hata}</div>}
           <div style={{ display: "flex", gap: 8 }}>
             <button style={cancelBtnStyle} onClick={() => setEkleAcik(false)}>İptal</button>
             <button style={saveBtnStyle} onClick={ekle}>Hesabı Oluştur</button>
@@ -6228,7 +6234,7 @@ function MarkaKimligiYukleyici({ value, onChange, maxKenar = 800, hedefBayt = 25
             <button onClick={(e) => { e.stopPropagation(); onChange(null); }} style={{ position: "absolute", top: 6, right: 6, width: 22, height: 22, borderRadius: 999, border: "none", background: T.danger, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}><X size={13} /></button>
           </>
         ) : (
-          <span style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", textAlign: "center", padding: "0 12px" }}>{ipucu || "Görsel yüklemek için tıkla"}</span>
+          <span style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", textAlign: "center", padding: "0 12px" }}>{ipucu || "Görsel yüklemek için tıkla"}</span>
         )}
       </div>
       {/* Ölçü satırı KUTUNUN DIŞINDA: kutunun içindeki ipucu yalnızca boşken görünüyor,
@@ -6258,21 +6264,21 @@ function LockScreen({ onSubmit, onKodSubmit, onKodIptal, kodAdimi, onStaffSubmit
     <div style={{ background: T.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <style>{FONTS}</style>
       <div style={{ width: 320, textAlign: "center" }}>
-        <div style={{ width: 44, height: 44, borderRadius: 12, background: T.accent, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: "#fff", fontSize: 18, margin: "0 auto 18px" }}>M</div>
-        <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 600, color: T.text, margin: "0 0 6px" }}>Marcus Medya App</h1>
+        <div style={{ width: 44, height: 44, borderRadius: 12, background: T.accent, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: "#fff", fontSize: 20, margin: "0 auto 18px" }}>M</div>
+        <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 600, color: T.text, margin: "0 0 6px" }}>Marcus Medya App</h1>
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, margin: "0 0 18px" }}>{mode === "sifre" ? "Devam etmek için şifreni gir." : mode === "personel" ? "Kullanıcı adın ve şifrenle giriş yap." : "Marka giriş bilgilerinle içeriklerini görüntüle."}</p>
 
         <div style={{ display: "flex", gap: 6, marginBottom: 16, background: T.surfaceRaised, borderRadius: 10, padding: 3 }}>
-          <button onClick={() => setMode("sifre")} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: mode === "sifre" ? T.accent : "transparent", color: mode === "sifre" ? "#fff" : T.textDim, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}>Şifreyle Gir</button>
-          <button onClick={() => setMode("personel")} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: mode === "personel" ? T.accent : "transparent", color: mode === "personel" ? "#fff" : T.textDim, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}>Personel</button>
-          <button onClick={() => setMode("musteri")} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: mode === "musteri" ? T.accent : "transparent", color: mode === "musteri" ? "#fff" : T.textDim, fontSize: 11.5, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}>Müşteri</button>
+          <button onClick={() => setMode("sifre")} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: mode === "sifre" ? T.accent : "transparent", color: mode === "sifre" ? "#fff" : T.textDim, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}>Şifreyle Gir</button>
+          <button onClick={() => setMode("personel")} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: mode === "personel" ? T.accent : "transparent", color: mode === "personel" ? "#fff" : T.textDim, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}>Personel</button>
+          <button onClick={() => setMode("musteri")} style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", background: mode === "musteri" ? T.accent : "transparent", color: mode === "musteri" ? "#fff" : T.textDim, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}>Müşteri</button>
         </div>
 
         {mode === "sifre" ? (
           kodAdimi ? (
             <>
               {/* İKİ ADIMLI DOĞRULAMA — şifre doğru, şimdi e-postaya gelen kod isteniyor. */}
-              <div style={{ fontSize: 12.5, color: T.textDim, fontFamily: "Inter", marginBottom: 12, lineHeight: 1.6 }}>
+              <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter", marginBottom: 12, lineHeight: 1.6 }}>
                 E-postana 6 haneli bir kod gönderdik. Kod 10 dakika geçerli.
               </div>
               <input
@@ -6285,12 +6291,12 @@ function LockScreen({ onSubmit, onKodSubmit, onKodIptal, kodAdimi, onStaffSubmit
                 onChange={(e) => setKodDeger(e.target.value.replace(/\D/g, ""))}
                 onKeyDown={(e) => e.key === "Enter" && onKodSubmit(value, kodDeger, hatirla)}
                 placeholder="______"
-                style={{ ...inputStyle, textAlign: "center", marginBottom: 12, padding: "11px 12px", fontSize: 22, letterSpacing: 8, fontFamily: "'IBM Plex Mono', monospace" }}
+                style={{ ...inputStyle, textAlign: "center", marginBottom: 12, padding: "12px 15px", fontSize: 20, letterSpacing: 8, fontFamily: "'IBM Plex Mono', monospace" }}
               />
-              <button onClick={() => onKodSubmit(value, kodDeger, hatirla)} disabled={checking || kodDeger.length !== 6} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", padding: "11px 12px", opacity: checking || kodDeger.length !== 6 ? 0.6 : 1 }}>
+              <button onClick={() => onKodSubmit(value, kodDeger, hatirla)} disabled={checking || kodDeger.length !== 6} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", padding: "12px 15px", opacity: checking || kodDeger.length !== 6 ? 0.6 : 1 }}>
                 {checking ? "Kontrol ediliyor…" : "Doğrula ve Gir"}
               </button>
-              <button onClick={onKodIptal} style={{ background: "none", border: "none", color: T.textFaint, fontSize: 12, cursor: "pointer", marginTop: 12, fontFamily: "Inter" }}>← Geri dön</button>
+              <button onClick={onKodIptal} style={{ background: "none", border: "none", color: T.textFaint, fontSize: 13, cursor: "pointer", marginTop: 12, fontFamily: "Inter" }}>← Geri dön</button>
             </>
           ) : (
             <>
@@ -6310,13 +6316,13 @@ function LockScreen({ onSubmit, onKodSubmit, onKodIptal, kodAdimi, onStaffSubmit
                 onChange={(e) => setValue(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && onSubmit(value, hatirla)}
                 placeholder="Şifre"
-                style={{ ...inputStyle, textAlign: "center", marginBottom: 12, padding: "11px 12px" }}
+                style={{ ...inputStyle, textAlign: "center", marginBottom: 12, padding: "12px 15px" }}
               />
-              <label style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginBottom: 12, cursor: "pointer", fontSize: 12, color: T.textDim, fontFamily: "Inter" }}>
+              <label style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginBottom: 12, cursor: "pointer", fontSize: 13, color: T.textDim, fontFamily: "Inter" }}>
                 <input type="checkbox" checked={hatirla} onChange={(e) => setHatirla(e.target.checked)} style={{ cursor: "pointer" }} />
                 Bu cihazı 30 gün hatırla
               </label>
-              <button onClick={() => onSubmit(value, hatirla)} disabled={checking} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", padding: "11px 12px", opacity: checking ? 0.6 : 1 }}>
+              <button onClick={() => onSubmit(value, hatirla)} disabled={checking} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", padding: "12px 15px", opacity: checking ? 0.6 : 1 }}>
                 {checking ? "Kontrol ediliyor…" : "Giriş Yap"}
               </button>
             </>
@@ -6331,7 +6337,7 @@ function LockScreen({ onSubmit, onKodSubmit, onKodIptal, kodAdimi, onStaffSubmit
               value={kullaniciAdi}
               onChange={(e) => setKullaniciAdi(e.target.value)}
               placeholder="Kullanıcı Adı"
-              style={{ ...inputStyle, textAlign: "center", marginBottom: 10, padding: "11px 12px" }}
+              style={{ ...inputStyle, textAlign: "center", marginBottom: 10, padding: "12px 15px" }}
             />
             <input
               type="password"
@@ -6342,9 +6348,9 @@ function LockScreen({ onSubmit, onKodSubmit, onKodIptal, kodAdimi, onStaffSubmit
               onChange={(e) => setPersonelSifre(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && onStaffSubmit(kullaniciAdi, personelSifre)}
               placeholder="Şifre"
-              style={{ ...inputStyle, textAlign: "center", marginBottom: 12, padding: "11px 12px" }}
+              style={{ ...inputStyle, textAlign: "center", marginBottom: 12, padding: "12px 15px" }}
             />
-            <button onClick={() => onStaffSubmit(kullaniciAdi, personelSifre)} disabled={checking} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", padding: "11px 12px", opacity: checking ? 0.6 : 1 }}>
+            <button onClick={() => onStaffSubmit(kullaniciAdi, personelSifre)} disabled={checking} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", padding: "12px 15px", opacity: checking ? 0.6 : 1 }}>
               {checking ? "Kontrol ediliyor…" : "Giriş Yap"}
             </button>
           </>
@@ -6358,7 +6364,7 @@ function LockScreen({ onSubmit, onKodSubmit, onKodIptal, kodAdimi, onStaffSubmit
               value={musteriKullaniciAdi}
               onChange={(e) => setMusteriKullaniciAdi(e.target.value)}
               placeholder="Kullanıcı Adı"
-              style={{ ...inputStyle, textAlign: "center", marginBottom: 10, padding: "11px 12px" }}
+              style={{ ...inputStyle, textAlign: "center", marginBottom: 10, padding: "12px 15px" }}
             />
             <input
               type="password"
@@ -6369,20 +6375,20 @@ function LockScreen({ onSubmit, onKodSubmit, onKodIptal, kodAdimi, onStaffSubmit
               onChange={(e) => setMusteriSifre(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && onMusteriSubmit(musteriKullaniciAdi, musteriSifre, musteriHatirla)}
               placeholder="Şifre"
-              style={{ ...inputStyle, textAlign: "center", marginBottom: 12, padding: "11px 12px" }}
+              style={{ ...inputStyle, textAlign: "center", marginBottom: 12, padding: "12px 15px" }}
             />
             {/* Varsayılan olarak AÇIK — müşteri her girişte şifre yazmak zorunda kalmasın.
               * Kapatılırsa bilgiler sadece o sekme açık kaldığı sürece hatırlanır. */}
-            <label style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginBottom: 12, cursor: "pointer", fontSize: 12.5, color: T.textDim, fontFamily: "Inter" }}>
+            <label style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, marginBottom: 12, cursor: "pointer", fontSize: 13, color: T.textDim, fontFamily: "Inter" }}>
               <input type="checkbox" checked={musteriHatirla} onChange={(e) => setMusteriHatirla(e.target.checked)} style={{ cursor: "pointer", width: 16, height: 16 }} />
               Beni hatırla (bu cihazda şifre sorma)
             </label>
-            <button onClick={() => onMusteriSubmit(musteriKullaniciAdi, musteriSifre, musteriHatirla)} disabled={checking} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", padding: "11px 12px", opacity: checking ? 0.6 : 1 }}>
+            <button onClick={() => onMusteriSubmit(musteriKullaniciAdi, musteriSifre, musteriHatirla)} disabled={checking} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", padding: "12px 15px", opacity: checking ? 0.6 : 1 }}>
               {checking ? "Kontrol ediliyor…" : "Giriş Yap"}
             </button>
           </>
         )}
-        {error && <div style={{ color: T.danger, fontSize: 12.5, fontFamily: "Inter", marginTop: 12, lineHeight: 1.6 }}>{error}</div>}
+        {error && <div style={{ color: T.danger, fontSize: 13, fontFamily: "Inter", marginTop: 12, lineHeight: 1.6 }}>{error}</div>}
         {/* Hız sınırı sayacı IP başına tutulduğu için, yöneticinin hatalı denemeleri personel
           * ve müşteri girişlerini de kilitleyebiliyor. Bu bağlantı, yönetici şifresiyle
           * beklemeden açmayı sağlar. */}
@@ -6396,7 +6402,7 @@ function LockScreen({ onSubmit, onKodSubmit, onKodIptal, kodAdimi, onStaffSubmit
                 .then((res) => window.alert(res.ok ? "Kilit açıldı — tekrar giriş yapabilirsin." : (res.error || "Açılamadı.")))
                 .catch(() => window.alert("Bağlantı hatası."));
             }}
-            style={{ background: "none", border: "none", color: T.accentText, fontSize: 12, cursor: "pointer", marginTop: 8, fontFamily: "Inter", textDecoration: "underline" }}
+            style={{ background: "none", border: "none", color: T.accentText, fontSize: 13, cursor: "pointer", marginTop: 8, fontFamily: "Inter", textDecoration: "underline" }}
           >
             Yönetici şifresiyle kilidi aç
           </button>
@@ -6410,16 +6416,16 @@ function LockScreen({ onSubmit, onKodSubmit, onKodIptal, kodAdimi, onStaffSubmit
 function BackupReminder({ onBackupNow, onDismiss }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div className="marcus-card" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 18, width: 380, maxWidth: "100%", padding: "26px 28px", textAlign: "center" }}>
+      <div className="marcus-card" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 18, width: 380, maxWidth: "100%", padding: "18px 28px", textAlign: "center" }}>
         <div style={{ width: 44, height: 44, borderRadius: 12, background: T.warningSoft, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
           <PiggyBank size={20} color={T.warning} />
         </div>
-        <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16.5, fontWeight: 600, color: T.text, margin: "0 0 8px" }}>Yedek alma zamanı</h2>
+        <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 600, color: T.text, margin: "0 0 8px" }}>Yedek alma zamanı</h2>
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.6, margin: "0 0 20px" }}>Tek tıkla tam yedek indirebilirsin.</p>
-        <button onClick={onBackupNow} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", padding: "11px 12px", marginBottom: 10 }}>
+        <button onClick={onBackupNow} style={{ ...saveBtnStyle, width: "100%", justifyContent: "center", padding: "12px 15px", marginBottom: 10 }}>
           <Plus size={13} style={{ transform: "rotate(45deg)" }} /> Şimdi Yedek Al
         </button>
-        <button onClick={onDismiss} style={{ background: "none", border: "none", color: T.textFaint, fontSize: 12.5, fontFamily: "Inter, sans-serif", cursor: "pointer", padding: "6px" }}>
+        <button onClick={onDismiss} style={{ background: "none", border: "none", color: T.textFaint, fontSize: 13, fontFamily: "Inter, sans-serif", cursor: "pointer", padding: "6px" }}>
           1 saat sonra tekrar sor
         </button>
       </div>
@@ -6431,9 +6437,9 @@ function TebligDuzenleModal({ initialText, client, firmaAdi, onClose }) {
   const [text, setText] = useState(initialText);
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div className="marcus-card" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 18, width: 560, maxWidth: "100%", maxHeight: "88vh", overflowY: "auto", padding: "24px 26px" }}>
+      <div className="marcus-card" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 18, width: 560, maxWidth: "100%", maxHeight: "88vh", overflowY: "auto", padding: "18px 22px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16.5, fontWeight: 600, color: T.text, margin: 0 }}>Tebliğ Metnini Düzenle</h2>
+          <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 600, color: T.text, margin: 0 }}>Tebliğ Metnini Düzenle</h2>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><X size={18} color={T.textFaint} /></button>
         </div>
         
@@ -6441,7 +6447,7 @@ function TebligDuzenleModal({ initialText, client, firmaAdi, onClose }) {
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={14}
-          style={{ width: "100%", background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px 14px", color: T.text, fontSize: 14, fontFamily: "Inter, sans-serif", outline: "none", resize: "vertical", lineHeight: 1.6 }}
+          style={{ width: "100%", background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 10, padding: "12px 15px", color: T.text, fontSize: 15, fontFamily: "Inter, sans-serif", outline: "none", resize: "vertical", lineHeight: 1.6 }}
         />
         <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
           <button style={cancelBtnStyle} onClick={onClose}>İptal</button>
@@ -6456,17 +6462,17 @@ function TebligDuzenleModal({ initialText, client, firmaAdi, onClose }) {
 function SaveBlockedModal({ info, onCancel, onForce }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 110, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div className="marcus-card" style={{ background: T.surface, border: `2px solid ${T.danger}`, borderRadius: 18, width: 420, maxWidth: "100%", padding: "26px 28px" }}>
+      <div className="marcus-card" style={{ background: T.surface, border: `2px solid ${T.danger}`, borderRadius: 18, width: 420, maxWidth: "100%", padding: "18px 28px" }}>
         <div style={{ width: 44, height: 44, borderRadius: 12, background: T.dangerSoft, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
           <Bell size={20} color={T.danger} />
         </div>
-        <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16.5, fontWeight: 600, color: T.text, margin: "0 0 8px", textAlign: "center" }}>Kayıt güvenlik nedeniyle durduruldu</h2>
+        <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 600, color: T.text, margin: "0 0 8px", textAlign: "center" }}>Kayıt güvenlik nedeniyle durduruldu</h2>
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, textAlign: "center", margin: "0 0 18px" }}>
           Kaydetmeye çalıştığın veri, mevcut kayıtlı veriden çok daha az {info.alan === "personel" ? "personel kaydı" : "müşteri"} içeriyor
           (<strong style={{ color: T.text }}>{info.existingCount}</strong> → <strong style={{ color: T.text }}>{info.newCount}</strong>).
           Bu, istenmeyen bir veri kaybı olabilir diye otomatik olarak durduruldu.
         </p>
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 12.5, color: T.textFaint, lineHeight: 1.6, textAlign: "center", margin: "0 0 20px" }}>
+        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textFaint, lineHeight: 1.6, textAlign: "center", margin: "0 0 20px" }}>
           Eğer bilerek birden fazla {info.alan === "personel" ? "personel kaydı" : "müşteri"} sildiysen "Evet, devam et" diyebilirsin. Emin değilsen "İptal" de ve Ayarlar'daki günlük yedeklerden verinin son sağlam halini kontrol et.
         </p>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -8022,7 +8028,7 @@ export default function MarcusOS() {
       <div style={{ background: T.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
         <style>{FONTS}</style>
         <div style={{ textAlign: "center", maxWidth: 340 }}>
-          <div style={{ color: T.warning, fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 600, marginBottom: 10 }}>Hesap Kullanım Dışı</div>
+          <div style={{ color: T.warning, fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, marginBottom: 10 }}>Hesap Kullanım Dışı</div>
           <div style={{ color: T.textDim, fontFamily: "Inter, sans-serif", fontSize: 13, lineHeight: 1.6, marginBottom: 18 }}>{musteriBlockedMsg}</div>
           <button style={saveBtnStyle} onClick={() => { clearMusteriCreds(); setMusteriBlockedMsg(""); setNeedsAuth(true); }}>Giriş Ekranına Dön</button>
         </div>
@@ -8035,7 +8041,7 @@ export default function MarcusOS() {
       <div style={{ background: T.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
         <style>{FONTS}</style>
         <div style={{ textAlign: "center", maxWidth: 340 }}>
-          <div style={{ color: T.danger, fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 600, marginBottom: 10 }}>Verilerine ulaşılamadı</div>
+          <div style={{ color: T.danger, fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, marginBottom: 10 }}>Verilerine ulaşılamadı</div>
           <div style={{ color: T.textDim, fontFamily: "Inter, sans-serif", fontSize: 13, lineHeight: 1.6, marginBottom: 18 }}>
             Sunucuya bağlanırken bir sorun oluştu. Endişelenme — mevcut verilerinin üzerine hiçbir şey yazılmadı. İnternet bağlantını kontrol edip tekrar dene.
           </div>
@@ -8050,7 +8056,7 @@ export default function MarcusOS() {
       <div style={{ background: T.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
         <style>{FONTS}</style>
         <div style={{ textAlign: "center", maxWidth: 380 }}>
-          <div style={{ color: T.warning, fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 600, marginBottom: 10 }}>Veritabanında hiçbir kayıt bulunamadı</div>
+          <div style={{ color: T.warning, fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, marginBottom: 10 }}>Veritabanında hiçbir kayıt bulunamadı</div>
           <div style={{ color: T.textDim, fontFamily: "Inter, sans-serif", fontSize: 13, lineHeight: 1.7, marginBottom: 18 }}>
             Bunun iki sebebi olabilir: (1) bu gerçekten ilk kurulumun, ya da (2) beklenmedik bir sorun. Emin olana kadar hiçbir şey otomatik yazılmadı.
             <strong style={{ color: T.warning }}> Daha önce veri girdiysen aşağıdaki başlatma butonlarına BASMA</strong> — önce "Tekrar Dene"yi,
@@ -8070,7 +8076,7 @@ export default function MarcusOS() {
               Evet, ilk kurulum — Boş Başlat
             </button>
             <button
-              style={{ ...cancelBtnStyle, fontSize: 12, opacity: 0.75 }}
+              style={{ ...cancelBtnStyle, fontSize: 13, opacity: 0.75 }}
               onClick={() => {
                 if (!window.confirm("Bu, SAHTE örnek müşteriler ve sahte finans rakamları oluşturur. Sadece uygulamayı denemek için kullan. Devam edilsin mi?")) return;
                 skipNextSave.current = false;
@@ -8090,7 +8096,7 @@ export default function MarcusOS() {
     return (
       <div style={{ background: T.bg, minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <style>{FONTS}</style>
-        <div style={{ color: T.textDim, fontFamily: "Inter, sans-serif", fontSize: 13.5 }}>Marcus Medya App yükleniyor…</div>
+        <div style={{ color: T.textDim, fontFamily: "Inter, sans-serif", fontSize: 13 }}>Marcus Medya App yükleniyor…</div>
       </div>
     );
   }
@@ -8138,12 +8144,12 @@ export default function MarcusOS() {
           .marcus-kanban { display: flex; gap: 12px; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 4px; }
           .marcus-kanban > div { flex: 0 0 220px; }
         `}</style>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 20px", borderBottom: `1px solid ${T.borderSoft}`, flexWrap: "wrap", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 22px", borderBottom: `1px solid ${T.borderSoft}`, flexWrap: "wrap", gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <UygulamaLogosu gorsel={data.markaKimligiGorseli} boyut={38} />
             <div>
-              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14.5, color: T.text }}>Marcus Medya App</div>
-              <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter" }}>Personel Paneli</div>
+              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 15, color: T.text }}>Marcus Medya App</div>
+              <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>Personel Paneli</div>
             </div>
           </div>
           <button
@@ -8164,7 +8170,7 @@ export default function MarcusOS() {
         {staffNavAll.length > 1 && (
           <div style={{ display: "flex", gap: 8, padding: "16px 20px 0", flexWrap: "wrap" }}>
             {staffNavAll.map(({ key, label }) => (
-              <button key={key} onClick={() => setTab(key)} style={{ padding: "10px 18px", borderRadius: 10, border: "none", background: staffTab === key ? T.accentSoft : "transparent", color: staffTab === key ? T.accentText : T.textDim, fontSize: 13.5, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}>{label}</button>
+              <button key={key} onClick={() => setTab(key)} style={{ padding: "12px 15px", borderRadius: 10, border: "none", background: staffTab === key ? T.accentSoft : "transparent", color: staffTab === key ? T.accentText : T.textDim, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif" }}>{label}</button>
             ))}
           </div>
         )}
@@ -8317,7 +8323,7 @@ export default function MarcusOS() {
         style={{
           width: 220,
           borderRight: `1px solid ${T.borderSoft}`,
-          padding: "22px 14px",
+          padding: "18px 22px",
           display: "flex",
           flexDirection: "column",
           flexShrink: 0,
@@ -8329,8 +8335,8 @@ export default function MarcusOS() {
         <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "0 8px", marginBottom: 30 }}>
           <UygulamaLogosu gorsel={data.markaKimligiGorseli} boyut={38} />
           <div>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14.5, color: T.text, letterSpacing: 0.2 }}>Marcus Medya App</div>
-            <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter" }}>Marcus Medya</div>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 15, color: T.text, letterSpacing: 0.2 }}>Marcus Medya App</div>
+            <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>Marcus Medya</div>
           </div>
         </div>
 
@@ -8349,12 +8355,12 @@ export default function MarcusOS() {
                 <button
                   key={key}
                   onClick={() => { setTab(key); setMobileMenuOpen(false); }}
-                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 9, background: aktif ? T.accentSoft : "transparent", border: "none", cursor: "pointer", textAlign: "left", width: "100%" }}
+                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", borderRadius: 9, background: aktif ? T.accentSoft : "transparent", border: "none", cursor: "pointer", textAlign: "left", width: "100%" }}
                 >
                   <Icon size={16} color={aktif ? T.accentText : T.textDim} />
-                  <span style={{ flex: 1, fontSize: 13.5, fontWeight: aktif ? 600 : 500, color: aktif ? T.text : T.textDim, fontFamily: "Inter, sans-serif" }}>{n.label}</span>
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: aktif ? 600 : 500, color: aktif ? T.text : T.textDim, fontFamily: "Inter, sans-serif" }}>{n.label}</span>
                   {rozet > 0 && (
-                    <span style={{ background: T.warning, color: "#fff", borderRadius: 999, padding: "1px 7px", fontSize: 10.5, fontWeight: 700, fontFamily: "Inter" }}>{rozet}</span>
+                    <span style={{ background: T.warning, color: "#fff", borderRadius: 999, padding: "6px 10px", fontSize: 11, fontWeight: 700, fontFamily: "Inter" }}>{rozet}</span>
                   )}
                 </button>
               );
@@ -8379,18 +8385,18 @@ export default function MarcusOS() {
                           * vurgulanır ve açık sayfanın adı yanında yazar — yerini yine
                           * kaybetmezsin, ama menüyü toplayabilirsin. */
                         onClick={() => setAcikGrup(acik ? "__kapali__" : grup.key)}
-                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 9, background: "transparent", border: "none", cursor: "pointer", textAlign: "left", width: "100%" }}
+                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", borderRadius: 9, background: "transparent", border: "none", cursor: "pointer", textAlign: "left", width: "100%" }}
                       >
                         <GIcon size={16} color={icinde ? T.accentText : T.textFaint} />
                         <span style={{ flex: 1, minWidth: 0 }}>
-                          <span style={{ display: "block", fontSize: 12, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", color: icinde ? T.text : T.textFaint, fontFamily: "Inter, sans-serif" }}>{grup.label}</span>
+                          <span style={{ display: "block", fontSize: 13, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", color: icinde ? T.text : T.textFaint, fontFamily: "Inter, sans-serif" }}>{grup.label}</span>
                           {icinde && !acik && (
-                            <span style={{ display: "block", fontSize: 10.5, color: T.accentText, fontFamily: "Inter, sans-serif", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            <span style={{ display: "block", fontSize: 11, color: T.accentText, fontFamily: "Inter, sans-serif", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {(NAV.find((x) => x.key === tab) || {}).label}
                             </span>
                           )}
                         </span>
-                        <span style={{ fontSize: 10, color: T.textFaint }}>{acik ? "▲" : "▼"}</span>
+                        <span style={{ fontSize: 11, color: T.textFaint }}>{acik ? "▲" : "▼"}</span>
                       </button>
                       {acik && (
                         <div style={{ display: "flex", flexDirection: "column", gap: 2, paddingLeft: 10, marginBottom: 4 }}>
@@ -8408,7 +8414,7 @@ export default function MarcusOS() {
         </div>
 
         <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter", textAlign: "center", lineHeight: 1.6, padding: "8px 6px", background: T.surface, borderRadius: 9, border: `1px solid ${T.borderSoft}` }}>
+          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", textAlign: "center", lineHeight: 1.6, padding: "6px 10px", background: T.surface, borderRadius: 9, border: `1px solid ${T.borderSoft}` }}>
             <div>
               {saveStatus === "saving" ? "Kaydediliyor…" : saveStatus === "saved" ? "✓ Kaydedildi" : saveStatus === "error" ? "⚠ Kaydetme hatası" : "…"}
               {lastSavedAt && saveStatus === "saved" && ` · ${lastSavedAt.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}`}
@@ -8440,7 +8446,7 @@ export default function MarcusOS() {
               clearOturum(); clearStaffCreds(); clearMusteriCreds();
               window.location.reload();
             }}
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "10px 12px", borderRadius: 10, background: T.surface, border: `1px solid ${T.border}`, cursor: "pointer", width: "100%", color: T.textDim, fontSize: 12.5, fontWeight: 600, fontFamily: "Inter, sans-serif" }}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px 15px", borderRadius: 10, background: T.surface, border: `1px solid ${T.border}`, cursor: "pointer", width: "100%", color: T.textDim, fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif" }}
           >
             <LogOut size={14} /> Çıkış Yap
           </button>
@@ -8457,12 +8463,12 @@ export default function MarcusOS() {
             )}
             <div>
               <h1 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: isMobile ? 18 : 21, fontWeight: 600, color: T.text, margin: 0 }}>{titles[tab]}</h1>
-              {!isMobile && <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>{todayLabel}</div>}
+              {!isMobile && <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>{todayLabel}</div>}
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ position: "relative" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, padding: "8px 12px", width: isMobile ? 150 : 220 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, padding: "6px 10px", width: isMobile ? 150 : 220 }}>
                 <Search size={14} color={T.textFaint} />
                 <input
                   value={search}
@@ -8471,15 +8477,15 @@ export default function MarcusOS() {
                   onFocus={() => setSearchOpen(true)}
                   onBlur={() => setTimeout(() => setSearchOpen(false), 150)}
                   placeholder="Müşteri, iş, personel, marka ara…"
-                  style={{ border: "none", outline: "none", background: "transparent", color: T.text, fontSize: 12.5, fontFamily: "Inter, sans-serif", width: "100%" }}
+                  style={{ border: "none", outline: "none", background: "transparent", color: T.text, fontSize: 13, fontFamily: "Inter, sans-serif", width: "100%" }}
                 />
               </div>
               {searchOpen && search.trim() && (
                 <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, width: 280, maxWidth: "85vw", background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 12, boxShadow: "0 12px 32px rgba(0,0,0,0.4)", zIndex: 30, overflow: "hidden" }}>
-                  {searchResults.length === 0 && <div style={{ padding: "12px 14px", fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Sonuç yok.</div>}
+                  {searchResults.length === 0 && <div style={{ padding: "12px 15px", fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>Sonuç yok.</div>}
                   {searchResults.map((r, i) => (
-                    <div key={i} onMouseDown={() => goToSearchResult(r)} style={{ padding: "10px 14px", cursor: "pointer", borderBottom: i < searchResults.length - 1 ? `1px solid ${T.border}` : "none" }}>
-                      <div style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{r.label}</div>
+                    <div key={i} onMouseDown={() => goToSearchResult(r)} style={{ padding: "12px 15px", cursor: "pointer", borderBottom: i < searchResults.length - 1 ? `1px solid ${T.border}` : "none" }}>
+                      <div style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{r.label}</div>
                       <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{r.sub}</div>
                     </div>
                   ))}
@@ -8513,19 +8519,19 @@ export default function MarcusOS() {
               >
                 <Bell size={15} color={T.textDim} />
                 {notifications.length > 0 && (
-                  <span style={{ position: "absolute", top: -4, right: -4, background: T.danger, color: "#fff", fontSize: 10, fontWeight: 700, borderRadius: 999, minWidth: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Inter, sans-serif", padding: "0 3px" }}>
+                  <span style={{ position: "absolute", top: -4, right: -4, background: T.danger, color: "#fff", fontSize: 11, fontWeight: 700, borderRadius: 999, minWidth: 16, height: 16, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Inter, sans-serif", padding: "0 3px" }}>
                     {notifications.length}
                   </span>
                 )}
               </div>
               {notifOpen && (
                 <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, width: 300, maxWidth: "85vw", background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 12, boxShadow: "0 12px 32px rgba(0,0,0,0.4)", zIndex: 30, overflow: "hidden", maxHeight: 360, overflowY: "auto" }}>
-                  <div style={{ padding: "10px 14px", fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, borderBottom: `1px solid ${T.border}` }}>BİLDİRİMLER</div>
-                  {notifications.length === 0 && <div style={{ padding: "16px 14px", fontSize: 12.5, color: T.textFaint, fontFamily: "Inter" }}>Her şey yolunda, bekleyen bir şey yok.</div>}
+                  <div style={{ padding: "12px 15px", fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, borderBottom: `1px solid ${T.border}` }}>BİLDİRİMLER</div>
+                  {notifications.length === 0 && <div style={{ padding: "18px 22px", fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>Her şey yolunda, bekleyen bir şey yok.</div>}
                   {notifications.map((n, i) => (
-                    <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 14px", borderBottom: i < notifications.length - 1 ? `1px solid ${T.border}` : "none" }}>
+                    <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "12px 15px", borderBottom: i < notifications.length - 1 ? `1px solid ${T.border}` : "none" }}>
                       <span style={{ width: 6, height: 6, borderRadius: 999, background: n.level === "danger" ? T.danger : T.warning, marginTop: 5, flexShrink: 0 }} />
-                      <span style={{ fontSize: 12.5, color: T.text, fontFamily: "Inter", lineHeight: 1.5 }}>{n.text}</span>
+                      <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter", lineHeight: 1.5 }}>{n.text}</span>
                     </div>
                   ))}
                 </div>
@@ -8776,7 +8782,7 @@ export default function MarcusOS() {
         * atlayıp girişe izin veriyor (kilitlenmeyi önlemek için bilinçli bir tercih) — ama
         * bunu sessizce yapıyordu, dolayısıyla korumanın çalıştığı sanılabilirdi. */}
       {ikiAdimliUyari && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 200, background: T.warning, color: "#1a1a1a", padding: "10px 16px", fontSize: 13, fontFamily: "Inter, sans-serif", fontWeight: 600, textAlign: "center", lineHeight: 1.5 }}>
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 200, background: T.warning, color: "#1a1a1a", padding: "12px 15px", fontSize: 13, fontFamily: "Inter, sans-serif", fontWeight: 600, textAlign: "center", lineHeight: 1.5 }}>
           ⚠ İki adımlı doğrulama bu girişte ÇALIŞMADI — {ikiAdimliUyari} Ayarlar → Güvenlik'ten kontrol et.
         </div>
       )}
@@ -8790,9 +8796,9 @@ export default function MarcusOS() {
       )}
       {staleConflictMsg && (
         <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 200, maxWidth: 480, width: "90%" }}>
-          <div style={{ background: T.warningSoft, border: `1px solid ${T.warning}`, borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "flex-start", gap: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
-            <span style={{ fontSize: 16 }}>⚠️</span>
-            <div style={{ flex: 1, fontSize: 12.5, color: T.warning, fontFamily: "Inter", lineHeight: 1.6 }}>{staleConflictMsg}</div>
+          <div style={{ background: T.warningSoft, border: `1px solid ${T.warning}`, borderRadius: 12, padding: "12px 15px", display: "flex", alignItems: "flex-start", gap: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
+            <span style={{ fontSize: 15 }}>⚠️</span>
+            <div style={{ flex: 1, fontSize: 13, color: T.warning, fontFamily: "Inter", lineHeight: 1.6 }}>{staleConflictMsg}</div>
             <button onClick={() => setStaleConflictMsg("")} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0 }}><X size={15} color={T.warning} /></button>
           </div>
         </div>

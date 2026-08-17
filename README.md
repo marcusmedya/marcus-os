@@ -3141,3 +3141,37 @@ Elle kapattığın grup, o sekmedeyken bile kapalı kalıyor; tekrar tıklayınc
 12 senaryo: aktif grubun kapanması, tekrar açılması, başka grubun açılıp kapanması, elle
 kapatılmışken davranış, Dashboard'da hiçbir grubun açılmaması, yeni yerleşim. 16 kod denetimi
 + 30 test dosyası temiz.
+
+## Güncelleme 128: Görsel Sadeleştirme (dört adım)
+
+### 1. Yazı ölçeği — 10 boyut → 5
+Öncesi: 9.5 · 10 · 10.5 · 11 · 11.5 · 12 · 12.5 · 13 · 13.5 · 14 · 14.5 · 15 · 16 · 17 · 18 · 20 · 22 · 28
+
+Sonrası: **11** (etiket) · **13** (gövde) · **15** (vurgulu) · **20** (başlık) · **28** (rakam)
+
+Birbirine bu kadar yakın değerler hiyerarşi kurmuyor, sadece göz yoruyordu — 12 ile 12.5
+arasındaki fark okunmuyor ama beyin "bunlar farklı mı?" diye uğraşıyor. 691 yer düzenlendi.
+
+### 2. Kart dolgusu — 8+ değer → 3
+**6×10** (rozet) · **12×15** (liste satırı) · **18×22** (kart). 353 yer düzenlendi.
+Geniş düğmelerin yatay dolgusu korundu, yoksa metin sıkışırdı.
+
+### 3. Genişlik kullanımı
+Ayarlar 560px'e sıkışmıştı, geniş ekranda sağın yarısı boştu. Kartlar artık iki sütuna
+yayılıyor, dar ekranda tek sütuna düşüyor.
+
+### 4. Dashboard hiyerarşisi
+Altı kart eşit ağırlıktaydı — ₺480.000 ciro ile ₺225.000 bekleyen tahsilat aynı önemde
+görünüyordu, oysa biri sonuç biri uyarı.
+
+Artık **Toplam Ciro** ve **Net Kazanç** üstte büyük (40px rakam), diğer dördü altta destek
+satırında.
+
+### Doğrulama
+v127 ile birebir karşılaştırıldı: 28 bölüm başlığı, 221 düğme, 78 kart, 39 KPI kartı —
+hiçbiri değişmedi, kaybolan başlık yok, etiket dengeleri aynı. 16 kod denetimi + 30 test
+dosyası temiz.
+
+### Not
+Bu çalışmaya başlarken çalışma klasöründeki dosyaların benim dışımda değiştirildiği görüldü.
+Kaynağı doğrulanamadığı için v127 paketine dönülüp tüm işlem baştan yapıldı.

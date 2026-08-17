@@ -52,7 +52,7 @@ const MT = {
 
 const ETIKET = {
   fontFamily: "'IBM Plex Mono', monospace",
-  fontSize: 10.5,
+  fontSize: 11,
   letterSpacing: 1.2,
   textTransform: "uppercase",
   color: MT.soluk,
@@ -110,13 +110,13 @@ function LogoKilidi({ ajansLogo, markaLogo, marka, firmaAdi }) {
   /* Açık renkli logo (parlaklık > 170) bu açık zeminli panelde kaybolur; arkasına koyu bir
    * zemin konur. Koyu logolar olduğu gibi bırakılır — zaten görünüyorlar. */
   const zemin = (p) => (p != null && p > 170
-    ? { background: MT.murekkep, borderRadius: 10, padding: "7px 11px" }
+    ? { background: MT.murekkep, borderRadius: 10, padding: "6px 10px" }
     : null);
   const monogram = (metin, dolu) => (
     <div style={{
       width: 52, height: 52, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center",
       background: dolu ? MT.mor : "transparent", border: dolu ? "none" : `1.5px solid ${MT.cizgiKoyu}`,
-      color: dolu ? "#fff" : MT.murekkep, fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 23,
+      color: dolu ? "#fff" : MT.murekkep, fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 28,
     }}>
       {(metin || "M").charAt(0).toLocaleUpperCase("tr")}
     </div>
@@ -162,9 +162,9 @@ function Damga({ durum }) {
 
   return (
     <span style={{
-      display: "inline-block", padding: "4px 11px", borderRadius: 4,
+      display: "inline-block", padding: "6px 10px", borderRadius: 4,
       border: `1.5px solid ${tanim.renk}`, background: tanim.zemin, color: tanim.renk,
-      fontFamily: "'IBM Plex Mono', monospace", fontSize: 10, fontWeight: 600, letterSpacing: 0.8,
+      fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, fontWeight: 600, letterSpacing: 0.8,
       transform: `rotate(${tanim.egim}deg)`, whiteSpace: "nowrap",
     }}>
       {tanim.metin}
@@ -344,7 +344,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
         * ayrılmış kendi bandını hak ediyor. */}
       <div style={{ background: MT.kart, borderBottom: `1px solid ${MT.cizgi}`, boxShadow: "0 1px 0 rgba(0,0,0,0.02)" }}>
         <div style={{ height: 3, background: MT.mor }} />
-        <div style={{ maxWidth: 900, margin: "0 auto", padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+        <div style={{ maxWidth: 900, margin: "0 auto", padding: "18px 22px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
           <LogoKilidi
             ajansLogo={musteriData.ajansLogo}
             markaLogo={musteriData.markaLogo}
@@ -354,9 +354,9 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
           {cikisGoster && <button
             onClick={() => { if (window.confirm("Çıkış yapılsın mı? Tekrar girmek için kullanıcı adı ve şifren gerekecek.")) onCikis(); }}
             style={{
-              display: "flex", alignItems: "center", gap: 7, padding: "8px 14px", borderRadius: 8,
+              display: "flex", alignItems: "center", gap: 7, padding: "6px 10px", borderRadius: 8,
               background: "transparent", border: `1px solid ${MT.cizgi}`, color: MT.soluk,
-              fontFamily: "Inter, sans-serif", fontSize: 12.5, fontWeight: 500, cursor: "pointer",
+              fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer",
             }}
           >
             <LogOut size={14} /> Çıkış
@@ -368,10 +368,10 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
         {/* BAŞLIK — mono etiket + marka adı. "Onay Paneli" ifadesi ne yapılacağını söyler. */}
         <div style={{ marginBottom: 22 }}>
           <div style={{ ...ETIKET, marginBottom: 6 }}>Onay Paneli · {bugunYazi}</div>
-          <h1 style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: 30, fontWeight: 700, letterSpacing: -0.6, lineHeight: 1.15 }}>
+          <h1 style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 700, letterSpacing: -0.6, lineHeight: 1.15 }}>
             {musteriData.marka}
           </h1>
-          <p style={{ margin: "8px 0 0", fontFamily: "Inter, sans-serif", fontSize: 13.5, color: MT.soluk, lineHeight: 1.6, maxWidth: 560 }}>
+          <p style={{ margin: "8px 0 0", fontFamily: "Inter, sans-serif", fontSize: 13, color: MT.soluk, lineHeight: 1.6, maxWidth: 560 }}>
             {musteriData.firmaAdi} tarafından hazırlanan içerikler burada. İnceleyip onaylayabilir
             ya da değişiklik isteyebilirsiniz.
           </p>
@@ -397,7 +397,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
                 {sk.rozet > 0 && (
                   <span style={{
                     background: aktif ? MT.mor : MT.morSoluk, color: aktif ? "#fff" : MT.mor,
-                    borderRadius: 999, padding: "1px 7px", fontSize: 10.5, fontWeight: 700,
+                    borderRadius: 999, padding: "6px 10px", fontSize: 11, fontWeight: 700,
                     fontFamily: "'IBM Plex Mono', monospace",
                   }}>{sk.rozet}</span>
                 )}
@@ -419,10 +419,10 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
                   key={tr}
                   onClick={() => setTurSuzgec(tr)}
                   style={{
-                    padding: "6px 13px", borderRadius: 999, cursor: "pointer",
+                    padding: "6px 10px", borderRadius: 999, cursor: "pointer",
                     border: `1px solid ${aktif ? e.renk : MT.cizgi}`,
                     background: aktif ? e.zemin : MT.kart, color: aktif ? e.renk : MT.soluk,
-                    fontFamily: "Inter, sans-serif", fontSize: 12.5, fontWeight: aktif ? 700 : 500,
+                    fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: aktif ? 700 : 500,
                   }}
                 >
                   {e.ad}
@@ -457,8 +457,8 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
           * içerik dururken altında "bekleyen yok" yazar ve müşteri hangisine inanacağını
           * bilemezdi. */}
         {bekleyenlerSuzulu.length === 0 && hazirlar.length === 0 ? (
-          <div style={{ background: MT.kart, border: `1px solid ${MT.cizgi}`, borderRadius: 12, padding: "34px 24px", textAlign: "center", marginBottom: 30 }}>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 600, marginBottom: 6 }}>Şu an bekleyen bir şey yok</div>
+          <div style={{ background: MT.kart, border: `1px solid ${MT.cizgi}`, borderRadius: 12, padding: "18px 22px", textAlign: "center", marginBottom: 30 }}>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 600, marginBottom: 6 }}>Şu an bekleyen bir şey yok</div>
             <div style={{ color: MT.soluk, fontSize: 13, fontFamily: "Inter" }}>Yeni bir içerik hazırlandığında burada görünecek ve e-posta alacaksınız.</div>
           </div>
         ) : bekleyenlerSuzulu.length === 0 ? null : (
@@ -474,12 +474,12 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
                     * Sol taraftaki numara SÜS DEĞİL: yayın sırasını gösteriyor. */}
                   <button
                     onClick={() => setAcikIcerikId(kartAcik ? null : icerik.id)}
-                    style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", background: "none", border: "none", padding: "14px 16px", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
+                    style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", background: "none", border: "none", padding: "12px 15px", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
                   >
                     <span style={{
-                      fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, fontWeight: 600,
+                      fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, fontWeight: 600,
                       color: MT.soluk, background: MT.kagit, border: `1px solid ${MT.cizgi}`,
-                      borderRadius: 6, padding: "5px 8px", flexShrink: 0, minWidth: 30, textAlign: "center",
+                      borderRadius: 6, padding: "6px 10px", flexShrink: 0, minWidth: 30, textAlign: "center",
                     }}>
                       {String(hazirlar.length + sira + 1).padStart(2, "0")}
                     </span>
@@ -487,7 +487,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
                       <span style={{ display: "block", fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, marginBottom: 3, lineHeight: 1.3 }}>
                         {basligiTemizle(icerik.aciklama) || (icerik.tur === "cekim" ? "Çekim Planı" : icerik.tur)}
                       </span>
-                      <span style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", fontSize: 12, color: MT.soluk, fontFamily: "Inter" }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", fontSize: 13, color: MT.soluk, fontFamily: "Inter" }}>
                         <TurRozet anahtar={icerik.tur} />
                         <span>{icerik.tarih}</span>
                         {icerik.tur === "cekim" && icerik.planlananTarih ? <span>Çekim: {tarihGoster(icerik.planlananTarih)}</span> : null}
@@ -495,7 +495,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
                     </span>
                     <span style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
                       <Damga durum={icerik.durum} />
-                      <span style={{ color: MT.soluk, fontSize: 12, fontFamily: "Inter" }}>{kartAcik ? "▲" : "▼"}</span>
+                      <span style={{ color: MT.soluk, fontSize: 13, fontFamily: "Inter" }}>{kartAcik ? "▲" : "▼"}</span>
                     </span>
                   </button>
 
@@ -505,7 +505,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
                   {icerik.tur === "cekim" && (
                     <div style={{ marginBottom: 12 }}>
                       {icerik.konusmali && (
-                        <div style={{ display: "inline-block", fontSize: 10.5, fontWeight: 700, color: MT.mor, background: MT.morSoluk, padding: "3px 10px", borderRadius: 999, fontFamily: "Inter", marginBottom: 10 }}>
+                        <div style={{ display: "inline-block", fontSize: 11, fontWeight: 700, color: MT.mor, background: MT.morSoluk, padding: "6px 10px", borderRadius: 999, fontFamily: "Inter", marginBottom: 10 }}>
                           {icerik.konusmali === "konusmali" ? "KONUŞMALI" : icerik.konusmali === "seslendirme" ? "DIŞ SES" : "KONUŞMASIZ"}
                         </div>
                       )}
@@ -517,7 +517,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
                         </div>
                       )}
                       {!cekimEmbed && icerik.referansLink && (
-                        <a href={icerik.referansLink} target="_blank" rel="noreferrer" style={{ display: "block", marginBottom: 10, color: MT.mor, fontSize: 12.5, fontFamily: "Inter" }}>
+                        <a href={icerik.referansLink} target="_blank" rel="noreferrer" style={{ display: "block", marginBottom: 10, color: MT.mor, fontSize: 13, fontFamily: "Inter" }}>
                           ▶ Referans videoyu izle ↗
                         </a>
                       )}
@@ -527,7 +527,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
                           <div style={{ fontSize: 11, color: MT.soluk, fontFamily: "Inter", fontWeight: 600, marginBottom: 5 }}>
                             {icerik.konusmali === "seslendirme" ? "DIŞ SES METNİ" : "KONUŞMA METNİ"}
                           </div>
-                          <div style={{ background: MT.kagit, borderRadius: 10, padding: "12px 14px", fontSize: 13.5, color: MT.murekkep, fontFamily: "Inter", lineHeight: 1.75, whiteSpace: "pre-wrap" }}>
+                          <div style={{ background: MT.kagit, borderRadius: 10, padding: "12px 15px", fontSize: 13, color: MT.murekkep, fontFamily: "Inter", lineHeight: 1.75, whiteSpace: "pre-wrap" }}>
                             {icerik.konusmaMetni}
                           </div>
                         </div>
@@ -536,7 +536,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
                       {icerik.cekimNotu && (
                         <div>
                           <div style={{ fontSize: 11, color: MT.soluk, fontFamily: "Inter", fontWeight: 600, marginBottom: 5 }}>ÇEKİM NOTU</div>
-                          <div style={{ fontSize: 12.5, color: MT.soluk, fontFamily: "Inter", lineHeight: 1.65, whiteSpace: "pre-wrap" }}>{icerik.cekimNotu}</div>
+                          <div style={{ fontSize: 13, color: MT.soluk, fontFamily: "Inter", lineHeight: 1.65, whiteSpace: "pre-wrap" }}>{icerik.cekimNotu}</div>
                         </div>
                       )}
                     </div>
@@ -553,11 +553,11 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
                     <div style={{ marginBottom: 12 }}><DriveVideo link={icerik.driveLinki} yon={icerik.videoYonu} baslik={icerik.aciklama || "içerik"} /></div>
                   )}
                   {!icerik.gorselUrl && icerik.tur !== "gorsel" && !embed && icerik.driveLinki && (
-                    <a href={icerik.driveLinki} target="_blank" rel="noreferrer" style={{ display: "block", marginBottom: 12, color: MT.mor, fontSize: 12.5, fontFamily: "Inter" }}>İçeriği Görüntüle ↗</a>
+                    <a href={icerik.driveLinki} target="_blank" rel="noreferrer" style={{ display: "block", marginBottom: 12, color: MT.mor, fontSize: 13, fontFamily: "Inter" }}>İçeriği Görüntüle ↗</a>
                   )}
 
                   {ortakModu ? (
-                    <div style={{ fontSize: 12, color: MT.soluk, fontFamily: "Inter" }}>
+                    <div style={{ fontSize: 13, color: MT.soluk, fontFamily: "Inter" }}>
                       {icerik.durum === "bekliyor" ? "Müşterinin onayı bekleniyor." : icerik.durum === "revize" ? "Müşteri revize istedi." : "Müşteri onayladı."}
                     </div>
                   ) : revizeAcikId === icerik.id ? (
@@ -586,9 +586,9 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
                       <button
                         style={{
                           flex: "1 1 160px", justifyContent: "center", display: "flex", alignItems: "center",
-                          padding: "12px 18px", borderRadius: 9, border: "none", cursor: "pointer",
+                          padding: "12px 15px", borderRadius: 9, border: "none", cursor: "pointer",
                           background: MT.onay, color: "#fff",
-                          fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 600,
+                          fontFamily: "Inter, sans-serif", fontSize: 15, fontWeight: 600,
                           opacity: gonderiliyor === icerik.id ? 0.6 : 1,
                         }}
                         disabled={gonderiliyor === icerik.id}
@@ -599,9 +599,9 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
                       <button
                         style={{
                           flex: "1 1 160px", justifyContent: "center", display: "flex", alignItems: "center",
-                          padding: "12px 18px", borderRadius: 9, cursor: "pointer",
+                          padding: "12px 15px", borderRadius: 9, cursor: "pointer",
                           background: MT.kart, border: `1px solid ${MT.cizgiKoyu}`, color: MT.murekkep,
-                          fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 500,
+                          fontFamily: "Inter, sans-serif", fontSize: 15, fontWeight: 500,
                         }}
                         onClick={() => { setRevizeAcikId(icerik.id); setRevizeMetni(""); }}
                       >
@@ -669,7 +669,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
         <div style={{ marginTop: 40, paddingTop: 20, borderTop: `1px solid ${MT.cizgi}`, textAlign: "center" }}>
           {cikisGoster && <button
             onClick={() => { if (window.confirm("Çıkış yapılsın mı? Tekrar girmek için kullanıcı adı ve şifren gerekecek.")) onCikis(); }}
-            style={{ ...cancelBtnStyle, fontSize: 12.5, padding: "9px 18px", display: "inline-flex", alignItems: "center", gap: 6 }}
+            style={{ ...cancelBtnStyle, fontSize: 13, padding: "6px 18px", display: "inline-flex", alignItems: "center", gap: 6 }}
           >
             <LogOut size={14} /> Çıkış Yap
           </button>}
@@ -691,8 +691,8 @@ function DurumListesi({ liste, hazirListe, acikId, setAcikId, baslik, bosMetin }
   const toplam = (liste || []).length + (hazirListe || []).length;
   if (toplam === 0) {
     return (
-      <div style={{ background: MT.kart, border: `1px solid ${MT.cizgi}`, borderRadius: 12, padding: "34px 24px", textAlign: "center" }}>
-        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 600, marginBottom: 6 }}>{bosMetin}</div>
+      <div style={{ background: MT.kart, border: `1px solid ${MT.cizgi}`, borderRadius: 12, padding: "18px 22px", textAlign: "center" }}>
+        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 600, marginBottom: 6 }}>{bosMetin}</div>
       </div>
     );
   }
@@ -712,7 +712,7 @@ function DurumListesi({ liste, hazirListe, acikId, setAcikId, baslik, bosMetin }
                       * açılan görünüm tam incelemeyi sağlar. */}
                     <button
                       onClick={() => setAcikId(acik ? null : icerik.id)}
-                      style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", background: "none", border: "none", padding: "12px 16px", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
+                      style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", background: "none", border: "none", padding: "12px 15px", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
                     >
                       <span style={{ width: 46, height: 46, borderRadius: 7, overflow: "hidden", flexShrink: 0, background: MT.kagit, border: `1px solid ${MT.cizgi}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                         {icerik.tur === "gorsel" && icerik.driveLinki
@@ -729,13 +729,13 @@ function DurumListesi({ liste, hazirListe, acikId, setAcikId, baslik, bosMetin }
                         </span>
                       </span>
                       <span style={{ display: "flex", alignItems: "center", gap: 9, flexShrink: 0 }}>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: stil.color, background: stil.bg, padding: "3px 10px", borderRadius: 999, fontFamily: "Inter" }}>{stil.label}</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: stil.color, background: stil.bg, padding: "6px 10px", borderRadius: 999, fontFamily: "Inter" }}>{stil.label}</span>
                         <span style={{ color: MT.soluk, fontSize: 11 }}>{acik ? "▲" : "▼"}</span>
                       </span>
                     </button>
 
                     {icerik.revizeNotu && (
-                      <div style={{ padding: "0 16px 12px", fontSize: 12.5, color: MT.revize, fontFamily: "Inter", fontStyle: "italic", lineHeight: 1.6 }}>
+                      <div style={{ padding: "0 16px 12px", fontSize: 13, color: MT.revize, fontFamily: "Inter", fontStyle: "italic", lineHeight: 1.6 }}>
                         "{icerik.revizeNotu}"
                       </div>
                     )}
@@ -755,14 +755,14 @@ function DurumListesi({ liste, hazirListe, acikId, setAcikId, baslik, bosMetin }
                           <>
                             {icerik.referansLink && <div style={{ marginBottom: 10 }}><DriveVideo link={icerik.referansLink} yon={icerik.videoYonu} baslik="Referans video" /></div>}
                             {icerik.konusmaMetni && (
-                              <div style={{ background: MT.kagit, borderRadius: 9, padding: "12px 14px", fontSize: 13, color: MT.murekkep, fontFamily: "Inter", whiteSpace: "pre-wrap", lineHeight: 1.7 }}>
+                              <div style={{ background: MT.kagit, borderRadius: 9, padding: "12px 15px", fontSize: 13, color: MT.murekkep, fontFamily: "Inter", whiteSpace: "pre-wrap", lineHeight: 1.7 }}>
                                 {icerik.konusmaMetni}
                               </div>
                             )}
                           </>
                         )}
                         {!icerik.driveLinki && !icerik.gorselUrl && !icerik.referansLink && !icerik.konusmaMetni && (
-                          <div style={{ fontSize: 12.5, color: MT.soluk, fontFamily: "Inter" }}>Bu kayda ait bir görsel ya da video bulunmuyor.</div>
+                          <div style={{ fontSize: 13, color: MT.soluk, fontFamily: "Inter" }}>Bu kayda ait bir görsel ya da video bulunmuyor.</div>
                         )}
                       </div>
                     )}
@@ -805,11 +805,11 @@ function HazirIcerikler({ liste, gonderiliyor, onIslem, basliksiz = false, saltO
             <div key={h.isId} style={{ background: MT.kart, border: `1px solid ${acik ? MT.cizgiKoyu : MT.cizgi}`, borderRadius: 12, overflow: "hidden" }}>
               <button
                 onClick={() => setAcikId(acik ? null : h.isId)}
-                style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", background: "none", border: "none", padding: "14px 16px", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
+                style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", background: "none", border: "none", padding: "12px 15px", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}
               >
                 <span style={{
-                  fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, fontWeight: 600, color: MT.soluk,
-                  background: MT.kagit, border: `1px solid ${MT.cizgi}`, borderRadius: 6, padding: "5px 8px",
+                  fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, fontWeight: 600, color: MT.soluk,
+                  background: MT.kagit, border: `1px solid ${MT.cizgi}`, borderRadius: 6, padding: "6px 10px",
                   flexShrink: 0, minWidth: 30, textAlign: "center",
                 }}>
                   {String(baslangic + sira + 1).padStart(2, "0")}
@@ -818,7 +818,7 @@ function HazirIcerikler({ liste, gonderiliyor, onIslem, basliksiz = false, saltO
                   <span style={{ display: "block", fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, marginBottom: 3, lineHeight: 1.3 }}>
                     {h.baslik}
                   </span>
-                  <span style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", fontSize: 12, color: MT.soluk, fontFamily: "Inter" }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", fontSize: 13, color: MT.soluk, fontFamily: "Inter" }}>
                     <TurRozet anahtar={h.kategori} />
                     {h.uretilenAdet ? <span>{h.uretilenAdet} parça</span> : null}
                     {h.teslimTarihi ? <span>Teslim: {tarihGoster(h.teslimTarihi)}</span> : null}
@@ -826,7 +826,7 @@ function HazirIcerikler({ liste, gonderiliyor, onIslem, basliksiz = false, saltO
                 </span>
                 <span style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
                   <Damga durum="bekliyor" />
-                  <span style={{ color: MT.soluk, fontSize: 12 }}>{acik ? "▲" : "▼"}</span>
+                  <span style={{ color: MT.soluk, fontSize: 13 }}>{acik ? "▲" : "▼"}</span>
                 </span>
               </button>
 
@@ -839,7 +839,7 @@ function HazirIcerikler({ liste, gonderiliyor, onIslem, basliksiz = false, saltO
                         : <DriveGorsel link={h.dosyaLinki} yukseklik={460} />}
                     </div>
                   ) : (
-                    <div style={{ marginBottom: 14, background: MT.kagit, border: `1px dashed ${MT.cizgiKoyu}`, borderRadius: 9, padding: "14px 16px", fontSize: 12.5, color: MT.soluk, fontFamily: "Inter", lineHeight: 1.6 }}>
+                    <div style={{ marginBottom: 14, background: MT.kagit, border: `1px dashed ${MT.cizgiKoyu}`, borderRadius: 9, padding: "12px 15px", fontSize: 13, color: MT.soluk, fontFamily: "Inter", lineHeight: 1.6 }}>
                       Bu içeriğin dosyası henüz eklenmedi. Ekip dosyayı yükleyince burada görünecek.
                     </div>
                   )}
@@ -849,7 +849,7 @@ function HazirIcerikler({ liste, gonderiliyor, onIslem, basliksiz = false, saltO
                     * önizleme yeterli değil, indirip yüklemesi gerekiyor. */}
                   {ortakModu ? (
                     <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-                      <span style={{ fontSize: 12, color: h.durum === "onaylandi" ? MT.onay : MT.soluk, fontFamily: "Inter", fontWeight: h.durum === "onaylandi" ? 600 : 400 }}>
+                      <span style={{ fontSize: 13, color: h.durum === "onaylandi" ? MT.onay : MT.soluk, fontFamily: "Inter", fontWeight: h.durum === "onaylandi" ? 600 : 400 }}>
                         {h.durum === "onaylandi" ? "✓ Onaylandı — paylaşılabilir" : h.durum === "revize" ? "Müşteri revize istedi." : "Müşterinin onayı bekleniyor."}
                       </span>
                       {h.dosyaLinki && (
@@ -857,7 +857,7 @@ function HazirIcerikler({ liste, gonderiliyor, onIslem, basliksiz = false, saltO
                           href={h.dosyaLinki}
                           target="_blank"
                           rel="noreferrer"
-                          style={{ padding: "8px 15px", borderRadius: 9, background: MT.onay, color: "#fff", fontFamily: "Inter, sans-serif", fontSize: 12.5, fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" }}
+                          style={{ padding: "6px 15px", borderRadius: 9, background: MT.onay, color: "#fff", fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 600, textDecoration: "none", whiteSpace: "nowrap" }}
                         >
                           Dosyayı aç ↗
                         </a>
@@ -871,18 +871,18 @@ function HazirIcerikler({ liste, gonderiliyor, onIslem, basliksiz = false, saltO
                         value={not}
                         onChange={(e) => setNot(e.target.value)}
                         placeholder="Neyin değişmesini istiyorsunuz?"
-                        style={{ width: "100%", background: MT.kart, border: `1px solid ${MT.cizgiKoyu}`, borderRadius: 9, padding: "10px 12px", color: MT.murekkep, fontSize: 14, fontFamily: "Inter, sans-serif", outline: "none", resize: "vertical", marginBottom: 10 }}
+                        style={{ width: "100%", background: MT.kart, border: `1px solid ${MT.cizgiKoyu}`, borderRadius: 9, padding: "12px 15px", color: MT.murekkep, fontSize: 15, fontFamily: "Inter, sans-serif", outline: "none", resize: "vertical", marginBottom: 10 }}
                       />
                       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                         <button
-                          style={{ flex: "1 1 150px", justifyContent: "center", display: "flex", padding: "11px 18px", borderRadius: 9, border: "none", cursor: "pointer", background: MT.revize, color: "#fff", fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 600, opacity: not.trim() ? 1 : 0.5 }}
+                          style={{ flex: "1 1 150px", justifyContent: "center", display: "flex", padding: "12px 15px", borderRadius: 9, border: "none", cursor: "pointer", background: MT.revize, color: "#fff", fontFamily: "Inter, sans-serif", fontSize: 15, fontWeight: 600, opacity: not.trim() ? 1 : 0.5 }}
                           disabled={!not.trim() || gonderiliyor === h.isId}
                           onClick={() => { onIslem(h.isId, "revizeIste", not.trim()); setRevizeAcik(null); setNot(""); }}
                         >
                           Gönder
                         </button>
                         <button
-                          style={{ flex: "1 1 120px", justifyContent: "center", display: "flex", padding: "11px 18px", borderRadius: 9, cursor: "pointer", background: MT.kart, border: `1px solid ${MT.cizgiKoyu}`, color: MT.murekkep, fontFamily: "Inter, sans-serif", fontSize: 14 }}
+                          style={{ flex: "1 1 120px", justifyContent: "center", display: "flex", padding: "12px 15px", borderRadius: 9, cursor: "pointer", background: MT.kart, border: `1px solid ${MT.cizgiKoyu}`, color: MT.murekkep, fontFamily: "Inter, sans-serif", fontSize: 15 }}
                           onClick={() => { setRevizeAcik(null); setNot(""); }}
                         >
                           Vazgeç
@@ -892,14 +892,14 @@ function HazirIcerikler({ liste, gonderiliyor, onIslem, basliksiz = false, saltO
                   ) : (
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                       <button
-                        style={{ flex: "1 1 160px", justifyContent: "center", display: "flex", alignItems: "center", padding: "12px 18px", borderRadius: 9, border: "none", cursor: "pointer", background: MT.onay, color: "#fff", fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 600, opacity: gonderiliyor === h.isId ? 0.6 : 1 }}
+                        style={{ flex: "1 1 160px", justifyContent: "center", display: "flex", alignItems: "center", padding: "12px 15px", borderRadius: 9, border: "none", cursor: "pointer", background: MT.onay, color: "#fff", fontFamily: "Inter, sans-serif", fontSize: 15, fontWeight: 600, opacity: gonderiliyor === h.isId ? 0.6 : 1 }}
                         disabled={gonderiliyor === h.isId}
                         onClick={() => onIslem(h.isId, "onayla")}
                       >
                         {gonderiliyor === h.isId ? "Gönderiliyor…" : "Onayla"}
                       </button>
                       <button
-                        style={{ flex: "1 1 160px", justifyContent: "center", display: "flex", alignItems: "center", padding: "12px 18px", borderRadius: 9, cursor: "pointer", background: MT.kart, border: `1px solid ${MT.cizgiKoyu}`, color: MT.murekkep, fontFamily: "Inter, sans-serif", fontSize: 14, fontWeight: 500 }}
+                        style={{ flex: "1 1 160px", justifyContent: "center", display: "flex", alignItems: "center", padding: "12px 15px", borderRadius: 9, cursor: "pointer", background: MT.kart, border: `1px solid ${MT.cizgiKoyu}`, color: MT.murekkep, fontFamily: "Inter, sans-serif", fontSize: 15, fontWeight: 500 }}
                         onClick={() => { setRevizeAcik(h.isId); setNot(""); }}
                       >
                         Değişiklik iste
@@ -969,7 +969,7 @@ export function MusteriPaylasimPlani({ plan, marka }) {
           <button
             key={g.key}
             onClick={() => { setGorunum(g.key); setSecili(null); }}
-            style={{ padding: "7px 16px", borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 12.5, fontWeight: 600,
+            style={{ padding: "6px 16px", borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 13, fontWeight: 600,
               background: gorunum === g.key ? MT.morSoluk : MT.kagit, color: gorunum === g.key ? MT.mor : MT.soluk }}
           >
             {g.label}
@@ -999,7 +999,7 @@ export function MusteriPaylasimPlani({ plan, marka }) {
       )}
       {siraliHaftalar.map((hk) => (
         <div key={hk} style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 12, color: MT.soluk, fontFamily: "Inter", fontWeight: 700, marginBottom: 12, letterSpacing: 0.3 }}>
+          <div style={{ fontSize: 13, color: MT.soluk, fontFamily: "Inter", fontWeight: 700, marginBottom: 12, letterSpacing: 0.3 }}>
             {haftaBasligi(hk).toLocaleUpperCase("tr")}
           </div>
           <Izgara liste={gruplar[hk]} />
@@ -1007,7 +1007,7 @@ export function MusteriPaylasimPlani({ plan, marka }) {
       ))}
       {gecmis.length > 0 && (
         <div style={{ marginTop: 8 }}>
-          <button onClick={() => setGecmisAcik((v) => !v)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 12.5, color: MT.soluk, fontFamily: "Inter", fontWeight: 600 }}>
+          <button onClick={() => setGecmisAcik((v) => !v)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 13, color: MT.soluk, fontFamily: "Inter", fontWeight: 600 }}>
             {gecmisAcik ? "▾" : "▸"} Geçmiş paylaşımlar ({gecmis.length})
           </button>
           {gecmisAcik && <div style={{ marginTop: 14 }}><Izgara liste={gecmis} /></div>}
@@ -1034,15 +1034,15 @@ export function MusteriReklamlar({ reklamlar }) {
         {reklamlar.map((r) => {
           const st = durumStil[reklamDurumu(r)] || durumStil.aktif;
           return (
-            <div key={r.id} style={{ background: MT.kagit, borderRadius: 10, padding: "10px 13px" }}>
+            <div key={r.id} style={{ background: MT.kagit, borderRadius: 10, padding: "12px 15px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 12.5, color: MT.murekkep, fontFamily: "Inter", fontWeight: 600 }}>{r.reklamAdi}</span>
-                <span style={{ fontSize: 10.5, fontWeight: 600, color: st.color, background: st.bg, padding: "2px 9px", borderRadius: 999, fontFamily: "Inter" }}>{st.label}</span>
+                <span style={{ fontSize: 13, color: MT.murekkep, fontFamily: "Inter", fontWeight: 600 }}>{r.reklamAdi}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: st.color, background: st.bg, padding: "6px 10px", borderRadius: 999, fontFamily: "Inter" }}>{st.label}</span>
               </div>
-              <div style={{ fontSize: 11.5, color: MT.soluk, fontFamily: "Inter", marginTop: 3 }}>
+              <div style={{ fontSize: 11, color: MT.soluk, fontFamily: "Inter", marginTop: 3 }}>
                 {tarihGoster(r.baslangicTarihi)} — {tarihGoster(r.bitisTarihi)}
               </div>
-              {r.not && <div style={{ fontSize: 12, color: MT.soluk, fontFamily: "Inter", marginTop: 5, lineHeight: 1.6 }}>{r.not}</div>}
+              {r.not && <div style={{ fontSize: 13, color: MT.soluk, fontFamily: "Inter", marginTop: 5, lineHeight: 1.6 }}>{r.not}</div>}
               {istatistikVarMi(r) && (
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
                   {[
@@ -1052,9 +1052,9 @@ export function MusteriReklamlar({ reklamlar }) {
                     { l: "Etkileşim", v: r.etkilesim },
                     { l: "Sonuç", v: r.sonuc },
                   ].filter((x) => Number(x.v) > 0).map((x) => (
-                    <div key={x.l} style={{ background: MT.kart, borderRadius: 9, padding: "7px 12px", minWidth: 78 }}>
-                      <div style={{ fontSize: 9.5, color: MT.soluk, fontFamily: "Inter", fontWeight: 600, letterSpacing: 0.3 }}>{x.l.toLocaleUpperCase("tr")}</div>
-                      <div style={{ fontSize: 14, color: MT.murekkep, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", marginTop: 2 }}>{Number(x.v).toLocaleString("tr-TR")}</div>
+                    <div key={x.l} style={{ background: MT.kart, borderRadius: 9, padding: "6px 10px", minWidth: 78 }}>
+                      <div style={{ fontSize: 11, color: MT.soluk, fontFamily: "Inter", fontWeight: 600, letterSpacing: 0.3 }}>{x.l.toLocaleUpperCase("tr")}</div>
+                      <div style={{ fontSize: 15, color: MT.murekkep, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", marginTop: 2 }}>{Number(x.v).toLocaleString("tr-TR")}</div>
                     </div>
                   ))}
                 </div>
@@ -1083,9 +1083,9 @@ export function MusteriOperasyon({ isler }) {
   const gosterilen = hepsiAcik ? bitenler : bitenler.slice(-5);
 
   const Satir = ({ j }) => (
-    <div style={{ background: MT.kagit, borderRadius: 10, padding: "10px 13px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+    <div style={{ background: MT.kagit, borderRadius: 10, padding: "12px 15px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
       <div>
-        <div style={{ fontSize: 12.5, color: MT.murekkep, fontFamily: "Inter", fontWeight: 600 }}>
+        <div style={{ fontSize: 13, color: MT.murekkep, fontFamily: "Inter", fontWeight: 600 }}>
           {j.icerikTuru}{j.kategori ? ` · ${j.kategori}` : ""}{j.uretilenAdet ? ` · ${j.uretilenAdet} parça` : ""}
         </div>
         <div style={{ fontSize: 11, color: MT.soluk, fontFamily: "Inter", marginTop: 2 }}>
@@ -1094,7 +1094,7 @@ export function MusteriOperasyon({ isler }) {
             : j.teslimTarihi ? `Planlanan teslim: ${tarihGoster(j.teslimTarihi)}` : ""}
         </div>
       </div>
-      <span style={{ fontSize: 10.5, fontWeight: 600, fontFamily: "Inter", padding: "3px 10px", borderRadius: 999,
+      <span style={{ fontSize: 11, fontWeight: 600, fontFamily: "Inter", padding: "6px 10px", borderRadius: 999,
         color: j.asama === "Teslim Edildi" ? MT.onay : MT.bekleyen,
         background: j.asama === "Teslim Edildi" ? MT.onayZemin : MT.bekleyenZemin }}>
         {j.asama}
@@ -1111,12 +1111,12 @@ export function MusteriOperasyon({ isler }) {
       )}
       {bitenler.length > 0 && (
         <>
-          <div style={{ fontSize: 11.5, color: MT.soluk, fontFamily: "Inter", fontWeight: 600, marginBottom: 6 }}>Tamamlananlar</div>
+          <div style={{ fontSize: 11, color: MT.soluk, fontFamily: "Inter", fontWeight: 600, marginBottom: 6 }}>Tamamlananlar</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {gosterilen.map((j) => <Satir key={j.id} j={j} />)}
           </div>
           {bitenler.length > 5 && (
-            <button onClick={() => setHepsiAcik((v) => !v)} style={{ background: "none", border: "none", padding: "8px 0 0", cursor: "pointer", fontSize: 12, color: MT.soluk, fontFamily: "Inter", fontWeight: 600 }}>
+            <button onClick={() => setHepsiAcik((v) => !v)} style={{ background: "none", border: "none", padding: "8px 0 0", cursor: "pointer", fontSize: 13, color: MT.soluk, fontFamily: "Inter", fontWeight: 600 }}>
               {hepsiAcik ? "Daha az göster" : `+ ${bitenler.length - 5} tane daha göster`}
             </button>
           )}

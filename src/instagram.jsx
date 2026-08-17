@@ -16,7 +16,7 @@ export function DriveKareGorsel({ link }) {
 
   if (adaylar.length === 0 || sira >= adaylar.length) {
     return (
-      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#777", fontSize: 10.5, fontFamily: "Inter", textAlign: "center", padding: 12, lineHeight: 1.5 }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#777", fontSize: 11, fontFamily: "Inter", textAlign: "center", padding: 12, lineHeight: 1.5 }}>
         Görsel açılamadı —<br />Drive paylaşımı kapalı olabilir
       </div>
     );
@@ -48,17 +48,17 @@ export function InstagramOnizleme({ marka, tur, gun, gorselUrl, altMetin, yapild
   return (
     <div style={{ background: "#000", border: `1px solid ${T.border}`, borderRadius: 14, overflow: "hidden", maxWidth: kompakt ? 320 : 400, width: "100%" }}>
       {/* Üst şerit — profil satırı */}
-      <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 12px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "12px 15px" }}>
         <div style={{ width: 30, height: 30, borderRadius: "50%", background: "linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
           <div style={{ width: 26, height: 26, borderRadius: "50%", background: "#000", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 11, fontWeight: 700, fontFamily: "Inter" }}>
             {(marka || "M").charAt(0).toLocaleUpperCase("tr")}
           </div>
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 12.5, color: "#fff", fontWeight: 600, fontFamily: "Inter", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{marka || "Marka"}</div>
-          <div style={{ fontSize: 10.5, color: "#a8a8a8", fontFamily: "Inter" }}>{tur}{gun ? ` · ${gun}` : ""}</div>
+          <div style={{ fontSize: 13, color: "#fff", fontWeight: 600, fontFamily: "Inter", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{marka || "Marka"}</div>
+          <div style={{ fontSize: 11, color: "#a8a8a8", fontFamily: "Inter" }}>{tur}{gun ? ` · ${gun}` : ""}</div>
         </div>
-        {yapildi && <span style={{ fontSize: 10, color: "#4ade80", fontFamily: "Inter", fontWeight: 600 }}>✓ Paylaşıldı</span>}
+        {yapildi && <span style={{ fontSize: 11, color: "#4ade80", fontFamily: "Inter", fontWeight: 600 }}>✓ Paylaşıldı</span>}
       </div>
 
       {/* Görsel alanı — kare, Instagram gibi */}
@@ -69,31 +69,31 @@ export function InstagramOnizleme({ marka, tur, gun, gorselUrl, altMetin, yapild
         ) : gorselUrl ? (
           <DriveKareGorsel link={gorselUrl} />
         ) : (
-          <div style={{ color: "#555", fontSize: 12, fontFamily: "Inter", textAlign: "center", padding: 20, lineHeight: 1.6 }}>
+          <div style={{ color: "#555", fontSize: 13, fontFamily: "Inter", textAlign: "center", padding: 20, lineHeight: 1.6 }}>
             Görsel henüz eklenmedi
           </div>
         )}
       </div>
 
       {/* Alt ikon şeridi — sadece görsel amaçlı */}
-      <div style={{ display: "flex", gap: 13, padding: "9px 12px 4px", color: "#fff", fontSize: 16 }}>
+      <div style={{ display: "flex", gap: 13, padding: "9px 12px 4px", color: "#fff", fontSize: 15 }}>
         <span>♡</span><span>💬</span><span>➤</span>
       </div>
 
       {/* Alt metin */}
       <div style={{ padding: "2px 12px 12px" }}>
         {altMetin ? (
-          <div style={{ fontSize: 12.5, color: "#fff", fontFamily: "Inter", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
+          <div style={{ fontSize: 13, color: "#fff", fontFamily: "Inter", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
             <strong style={{ fontWeight: 600 }}>{marka} </strong>
             {gosterilenMetin}
             {uzunMetin && (
-              <button onClick={() => setMetinAcik((v) => !v)} style={{ background: "none", border: "none", color: "#a8a8a8", cursor: "pointer", fontSize: 12.5, fontFamily: "Inter", padding: "0 0 0 4px" }}>
+              <button onClick={() => setMetinAcik((v) => !v)} style={{ background: "none", border: "none", color: "#a8a8a8", cursor: "pointer", fontSize: 13, fontFamily: "Inter", padding: "0 0 0 4px" }}>
                 {metinAcik ? "daha az" : "devamı"}
               </button>
             )}
           </div>
         ) : (
-          <div style={{ fontSize: 12, color: "#555", fontFamily: "Inter", fontStyle: "italic" }}>Açıklama metni henüz yazılmadı</div>
+          <div style={{ fontSize: 13, color: "#555", fontFamily: "Inter", fontStyle: "italic" }}>Açıklama metni henüz yazılmadı</div>
         )}
       </div>
     </div>
@@ -111,13 +111,13 @@ export function InstagramIzgara({ marka, gonderiler, onSec }) {
       {/* Profil başlığı */}
       <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "4px 4px 18px" }}>
         <div style={{ width: 66, height: 66, borderRadius: "50%", background: "linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-          <div style={{ width: 58, height: 58, borderRadius: "50%", background: T.bg, display: "flex", alignItems: "center", justifyContent: "center", color: T.text, fontSize: 22, fontWeight: 700, fontFamily: "Inter" }}>
+          <div style={{ width: 58, height: 58, borderRadius: "50%", background: T.bg, display: "flex", alignItems: "center", justifyContent: "center", color: T.text, fontSize: 20, fontWeight: 700, fontFamily: "Inter" }}>
             {(marka || "M").charAt(0).toLocaleUpperCase("tr")}
           </div>
         </div>
         <div>
           <div style={{ fontSize: 15, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{marka}</div>
-          <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginTop: 3 }}>
+          <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginTop: 3 }}>
             <strong style={{ color: T.text }}>{gonderiler.length}</strong> planlanan gönderi
           </div>
         </div>
@@ -136,13 +136,13 @@ export function InstagramIzgara({ marka, gonderiler, onSec }) {
             ) : p.gorselUrl ? (
               <DriveKareGorsel link={p.gorselUrl} />
             ) : (
-              <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#555", fontSize: 10, fontFamily: "Inter", textAlign: "center", padding: 6, lineHeight: 1.4 }}>
+              <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#555", fontSize: 11, fontFamily: "Inter", textAlign: "center", padding: 6, lineHeight: 1.4 }}>
                 {p.tur}
               </div>
             )}
             {/* Sol üstte gün etiketi, sağ altta paylaşıldı işareti */}
-            <span style={{ position: "absolute", top: 4, left: 4, background: "rgba(0,0,0,.62)", color: "#fff", fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 5, fontFamily: "Inter" }}>{p.gun}</span>
-            {p.yapildi && <span style={{ position: "absolute", bottom: 4, right: 5, color: "#4ade80", fontSize: 12 }}>✓</span>}
+            <span style={{ position: "absolute", top: 4, left: 4, background: "rgba(0,0,0,.62)", color: "#fff", fontSize: 11, fontWeight: 700, padding: "6px 10px", borderRadius: 5, fontFamily: "Inter" }}>{p.gun}</span>
+            {p.yapildi && <span style={{ position: "absolute", bottom: 4, right: 5, color: "#4ade80", fontSize: 13 }}>✓</span>}
           </button>
         ))}
       </div>

@@ -598,29 +598,31 @@ export function Card({ children, style, className, ...rest }) {
 
 export function Pill({ color, soft, children }) {
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color, background: soft, padding: "4px 10px", borderRadius: 999, fontFamily: "Inter, sans-serif" }}>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, color, background: soft, padding: "6px 10px", borderRadius: 999, fontFamily: "Inter, sans-serif" }}>
       <span style={{ width: 6, height: 6, borderRadius: 999, background: color }} />
       {children}
     </span>
   );
 }
 
-export function KpiCard({ label, value, mono = true, delta, deltaYoy, accent }) {
+/* buyuk=true: Dashboard'ın iki ana rakamı. Altı kart eşit ağırlıktayken ciro ile bekleyen
+ * tahsilat aynı önemde görünüyordu — biri sonuç, diğeri uyarı. */
+export function KpiCard({ label, value, mono = true, delta, deltaYoy, accent, buyuk = false }) {
   const up = delta >= 0;
   return (
-    <Card style={{ padding: "18px 20px", flex: "1 1 220px", minWidth: 200 }}>
-      <div style={{ fontSize: 12.5, color: T.textDim, fontFamily: "Inter, sans-serif", fontWeight: 600, letterSpacing: 0.2, marginBottom: 10 }}>{label}</div>
-      <div style={{ fontSize: 26, fontWeight: 600, color: accent || T.text, fontFamily: mono ? "'IBM Plex Mono', monospace" : "'Space Grotesk', sans-serif", marginBottom: 10, letterSpacing: -0.5 }}>
+    <Card style={{ padding: buyuk ? "22px 26px" : "18px 22px", minWidth: 0 }}>
+      <div style={{ fontSize: 11, color: T.textDim, fontFamily: "Inter, sans-serif", fontWeight: 600, letterSpacing: 0.4, marginBottom: 10 }}>{label}</div>
+      <div style={{ fontSize: buyuk ? 40 : 28, fontWeight: 600, color: accent || T.text, fontFamily: mono ? "'IBM Plex Mono', monospace" : "'Space Grotesk', sans-serif", marginBottom: 10, letterSpacing: -0.5, lineHeight: 1.1 }}>
         {value}
       </div>
       {delta !== undefined && (
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 12, fontWeight: 600, color: up ? T.success : T.danger, fontFamily: "Inter, sans-serif" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 13, fontWeight: 600, color: up ? T.success : T.danger, fontFamily: "Inter, sans-serif" }}>
             {up ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
             {Math.abs(delta)}% geçen aya göre
           </span>
           {deltaYoy !== undefined && (
-            <span style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter, sans-serif" }}>yıllık {deltaYoy >= 0 ? "+" : ""}{deltaYoy}%</span>
+            <span style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter, sans-serif" }}>yıllık {deltaYoy >= 0 ? "+" : ""}{deltaYoy}%</span>
           )}
         </div>
       )}
@@ -637,11 +639,11 @@ export function SectionTitle({ children, action }) {
   );
 }
 
-export const inputStyle = { width: "100%", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 10px", color: T.text, fontSize: 16, fontFamily: "Inter, sans-serif", outline: "none" };
-export const saveBtnStyle = { background: T.accent, color: "#fff", border: "none", borderRadius: 8, padding: "10px 16px", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, minHeight: 40 };
-export const cancelBtnStyle = { background: "transparent", color: T.textDim, border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 16px", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer", minHeight: 40 };
+export const inputStyle = { width: "100%", background: T.surface, border: `1px solid ${T.border}`, borderRadius: 8, padding: "12px 15px", color: T.text, fontSize: 15, fontFamily: "Inter, sans-serif", outline: "none" };
+export const saveBtnStyle = { background: T.accent, color: "#fff", border: "none", borderRadius: 8, padding: "12px 15px", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, minHeight: 40 };
+export const cancelBtnStyle = { background: "transparent", color: T.textDim, border: `1px solid ${T.border}`, borderRadius: 8, padding: "12px 15px", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer", minHeight: 40 };
 export const iconBtnStyle = { background: "transparent", border: "none", cursor: "pointer", padding: 9, display: "flex", alignItems: "center", justifyContent: "center", minWidth: 36, minHeight: 36 };
-export const addBtnStyle = { display: "flex", alignItems: "center", gap: 6, background: T.accentSoft, color: T.accentText, border: "none", borderRadius: 9, padding: "10px 15px", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer", minHeight: 40 };
+export const addBtnStyle = { display: "flex", alignItems: "center", gap: 6, background: T.accentSoft, color: T.accentText, border: "none", borderRadius: 9, padding: "12px 15px", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer", minHeight: 40 };
 
 /** Generic small form for add/edit, driven by a field-definition list. */
 export const AY_ADLARI = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
@@ -863,7 +865,7 @@ export function useDuzenlemeKilidi(tur, id, aktifMi, benKimim) {
 export function KilitUyarisi({ kisi }) {
   if (!kisi) return null;
   return (
-    <div style={{ background: T.warningSoft, color: T.warning, padding: "10px 14px", borderRadius: 10, fontSize: 12.5, fontFamily: "Inter", marginBottom: 12, display: "flex", alignItems: "flex-start", gap: 8, lineHeight: 1.5 }}>
+    <div style={{ background: T.warningSoft, color: T.warning, padding: "12px 15px", borderRadius: 10, fontSize: 13, fontFamily: "Inter", marginBottom: 12, display: "flex", alignItems: "flex-start", gap: 8, lineHeight: 1.5 }}>
       <span>⚠️</span>
       <span><strong>{kisi}</strong> şu anda bu kaydı düzenliyor olabilir. Aynı anda ikiniz kaydederseniz, son kaydeden diğerinizin değişikliğini fark ettirmeden silebilir — önce onunla konuşman daha güvenli olur.</span>
     </div>
@@ -977,9 +979,9 @@ export function TurRozet({ anahtar }) {
   const e = turEtiketi(anahtar);
   return (
     <span style={{
-      display: "inline-block", padding: "2px 9px", borderRadius: 999,
+      display: "inline-block", padding: "6px 10px", borderRadius: 999,
       background: e.zemin, color: e.renk,
-      fontFamily: "Inter, sans-serif", fontSize: 10.5, fontWeight: 700, whiteSpace: "nowrap",
+      fontFamily: "Inter, sans-serif", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap",
     }}>
       {e.ad}
     </span>

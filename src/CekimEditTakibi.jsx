@@ -245,7 +245,7 @@ function useDuzenlemeKilidi(tur, id, aktifMi, benKimim) {
 function KilitUyarisi({ kisi }) {
   if (!kisi) return null;
   return (
-    <div style={{ background: "#3a2e12", color: "#e8b84b", padding: "10px 14px", borderRadius: 10, fontSize: 12.5, display: "flex", alignItems: "flex-start", gap: 8, lineHeight: 1.5, marginBottom: 12 }}>
+    <div style={{ background: "#3a2e12", color: "#e8b84b", padding: "12px 15px", borderRadius: 10, fontSize: 13, display: "flex", alignItems: "flex-start", gap: 8, lineHeight: 1.5, marginBottom: 12 }}>
       <span>⚠️</span>
       <span><strong>{kisi}</strong> şu anda bu işi düzenliyor olabilir. Aynı anda ikiniz kaydederseniz, son kaydeden diğerinizin değişikliğini fark ettirmeden silebilir.</span>
     </div>
@@ -279,10 +279,10 @@ function duzenleyebilirMi(job, role, staffName) {
   return (job.kameraman || "").trim().toLocaleLowerCase("tr") === n || (job.editor || "").trim().toLocaleLowerCase("tr") === n;
 }
 
-const inputStyle = { width: "100%", background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 9, padding: "9px 11px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none" };
+const inputStyle = { width: "100%", background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 9, padding: "6px 10px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none" };
 const labelStyle = { fontSize: 11, color: C.textFaint, fontWeight: 600, display: "block", marginBottom: 4 };
-const btnPrimary = { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "none", background: C.accent, color: "#fff", fontSize: 12.5, fontWeight: 700, cursor: "pointer" };
-const btnGhost = { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: `1px solid ${C.border}`, background: "transparent", color: C.text, fontSize: 12.5, fontWeight: 600, cursor: "pointer" };
+const btnPrimary = { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 10px", borderRadius: 9, border: "none", background: C.accent, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" };
+const btnGhost = { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 10px", borderRadius: 9, border: `1px solid ${C.border}`, background: "transparent", color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer" };
 
 /* ------------------------------------------------------------------ */
 /* İş Kartı                                                              */
@@ -297,7 +297,7 @@ function IsKarti({ job, onClick, draggable, onDragStart }) {
       onClick={onClick}
       draggable={draggable}
       onDragStart={(e) => onDragStart && onDragStart(e, job)}
-      style={{ background: C.panel, border: `1px solid ${C.border}`, borderLeft: `3px solid ${stil.color}`, borderRadius: 12, padding: "12px 13px", marginBottom: 10, cursor: "pointer" }}
+      style={{ background: C.panel, border: `1px solid ${C.border}`, borderLeft: `3px solid ${stil.color}`, borderRadius: 12, padding: "12px 15px", marginBottom: 10, cursor: "pointer" }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{job.marka}</div>
@@ -306,17 +306,17 @@ function IsKarti({ job, onClick, draggable, onDragStart }) {
       {!ciktiVideoMu(job.kategori) && job.editliDosyaLink && (
         <DriveGorsel link={job.editliDosyaLink} C={C} yukseklik={110} kapak kucuk />
       )}
-      <div style={{ fontSize: 11.5, color: C.textDim, marginBottom: 8, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+      <div style={{ fontSize: 11, color: C.textDim, marginBottom: 8, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
         <span>{job.icerikTuru}{job.kategori ? ` · ${job.kategori}` : ""}</span>
         {/* Kaç kez revize edildiği panodan görünsün — kartı açmadan fark edilsin.
           * İkinci turdan itibaren çıkar; ilk revize normal sayılır. */}
         {Number(job.revizeSayisi) > 1 && (
-          <span style={{ fontSize: 10, fontWeight: 700, color: C.danger, background: C.dangerSoft, borderRadius: 999, padding: "1px 7px", whiteSpace: "nowrap" }} title={`${job.revizeSayisi} kez revize istendi`}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: C.danger, background: C.dangerSoft, borderRadius: 999, padding: "6px 10px", whiteSpace: "nowrap" }} title={`${job.revizeSayisi} kez revize istendi`}>
             ↻ {job.revizeSayisi}
           </span>
         )}
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: C.textFaint, marginBottom: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: C.textFaint, marginBottom: 8 }}>
         <span>{job.kameraman || job.editor || "—"}{cekimVarMi(job.kategori) && job.editor ? ` / ${job.editor}` : ""}</span>
         <span style={{ color: stil.color, fontWeight: 600 }}>{job.teslimTarihi}</span>
       </div>
@@ -343,7 +343,7 @@ function PersonelSecici({ value, onChange, personelRosteri }) {
       <div>
         <input style={inputStyle} value={value} onChange={(e) => onChange(e.target.value)} placeholder="Adı yaz" autoFocus={elleYaz} />
         {roster.length > 0 && (
-          <button type="button" onClick={() => { setElleYaz(false); onChange(""); }} style={{ background: "none", border: "none", color: C.accentText, fontSize: 11.5, cursor: "pointer", padding: "4px 0 0", fontFamily: "inherit" }}>
+          <button type="button" onClick={() => { setElleYaz(false); onChange(""); }} style={{ background: "none", border: "none", color: C.accentText, fontSize: 11, cursor: "pointer", padding: "4px 0 0", fontFamily: "inherit" }}>
             ← Kayıtlı listeden seç
           </button>
         )}
@@ -568,13 +568,13 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 18, width: 620, maxWidth: "100%", maxHeight: "90vh", overflowY: "auto", padding: "22px 24px" }}>
+      <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 18, width: 620, maxWidth: "100%", maxHeight: "90vh", overflowY: "auto", padding: "18px 22px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
           <div>
-            <div style={{ fontSize: 17, fontWeight: 700, color: C.text }}>{job.marka} — {job.icerikTuru}</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: C.text }}>{job.marka} — {job.icerikTuru}</div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-              <span style={{ fontSize: 11.5, padding: "3px 9px", borderRadius: 999, background: C.accentSoft, color: C.accentText, fontWeight: 600 }}>{job.asama}</span>
-              <span style={{ fontSize: 11.5, padding: "3px 9px", borderRadius: 999, background: stil.soft, color: stil.color, fontWeight: 600 }}>{stil.label}</span>
+              <span style={{ fontSize: 11, padding: "6px 10px", borderRadius: 999, background: C.accentSoft, color: C.accentText, fontWeight: 600 }}>{job.asama}</span>
+              <span style={{ fontSize: 11, padding: "6px 10px", borderRadius: 999, background: stil.soft, color: stil.color, fontWeight: 600 }}>{stil.label}</span>
             </div>
           </div>
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer" }}><X size={18} color={C.textFaint} /></button>
@@ -583,19 +583,19 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
         <KilitUyarisi kisi={kilitleyen} />
 
         {markaYoneticisiMi && (
-          <div style={{ background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 14px", marginBottom: 14 }}>
+          <div style={{ background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 15px", marginBottom: 14 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-              <span style={{ fontSize: 12, color: C.textDim }}>Atanan kişiye şu anki durumu ("{job.asama}") e-postayla bildir.</span>
-              <button onClick={durumBildirimiGonder} disabled={durumGonderiliyor} style={{ ...btnGhost, fontSize: 12, padding: "6px 12px" }}>
+              <span style={{ fontSize: 13, color: C.textDim }}>Atanan kişiye şu anki durumu ("{job.asama}") e-postayla bildir.</span>
+              <button onClick={durumBildirimiGonder} disabled={durumGonderiliyor} style={{ ...btnGhost, fontSize: 13, padding: "6px 10px" }}>
                 {durumGonderiliyor ? "Gönderiliyor…" : "📧 Durum Bildirimi Gönder"}
               </button>
             </div>
-            {durumSonuc && <div style={{ fontSize: 11.5, color: C.textFaint, marginTop: 6 }}>{durumSonuc}</div>}
+            {durumSonuc && <div style={{ fontSize: 11, color: C.textFaint, marginTop: 6 }}>{durumSonuc}</div>}
           </div>
         )}
 
         {!yetkili && (
-          <div style={{ fontSize: 12, color: C.textFaint, background: C.panelAlt, borderRadius: 9, padding: "8px 11px", marginBottom: 14 }}>
+          <div style={{ fontSize: 13, color: C.textFaint, background: C.panelAlt, borderRadius: 9, padding: "6px 10px", marginBottom: 14 }}>
             Bu iş sana atanmadığı için sadece görüntüleyebiliyorsun.
           </div>
         )}
@@ -605,7 +605,7 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
             <label style={labelStyle}>Kategori</label>
             <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
               {KATEGORILER.map((k) => (
-                <button key={k} onClick={() => setTaslak((s) => ({ ...s, kategori: k }))} style={{ flex: 1, padding: "8px 0", borderRadius: 9, border: `1.5px solid ${taslak.kategori === k ? C.accent : C.border}`, background: taslak.kategori === k ? C.accentSoft : "transparent", color: taslak.kategori === k ? C.accentText : C.textDim, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>{k}</button>
+                <button key={k} onClick={() => setTaslak((s) => ({ ...s, kategori: k }))} style={{ flex: 1, padding: "8px 0", borderRadius: 9, border: `1.5px solid ${taslak.kategori === k ? C.accent : C.border}`, background: taslak.kategori === k ? C.accentSoft : "transparent", color: taslak.kategori === k ? C.accentText : C.textDim, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{k}</button>
               ))}
             </div>
             <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
@@ -637,7 +637,7 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
           </div>
         ) : (
           <>
-            <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16, fontSize: 12.5 }}>
+            <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16, fontSize: 13 }}>
               <div><span style={{ color: C.textFaint }}>Çekim Tarihi:</span> <span style={{ color: C.text }}>{job.cekimTarihi}</span></div>
               <div><span style={{ color: C.textFaint }}>Teslim Tarihi:</span> <span style={{ color: C.text }}>{job.teslimTarihi}</span></div>
               <div><span style={{ color: C.textFaint }}>Kameraman:</span> <span style={{ color: C.text }}>{job.kameraman || "—"}</span></div>
@@ -656,11 +656,11 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
               * isteneceğini ancak işlem geçmişini okuyarak bulabiliyordu. En çok ihtiyaç
               * duyulan bilgi en görünür yerde olmalı. */}
             {job.musteriRevizeNotu && (
-              <div style={{ marginBottom: 14, background: C.dangerSoft, border: `1px solid ${C.danger}`, borderRadius: 10, padding: "12px 14px" }}>
+              <div style={{ marginBottom: 14, background: C.dangerSoft, border: `1px solid ${C.danger}`, borderRadius: 10, padding: "12px 15px" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
                   <span style={{ fontSize: 11, color: C.danger, fontWeight: 700, letterSpacing: 0.3 }}>MÜŞTERİ NE İSTEDİ</span>
                   {Number(job.revizeSayisi) > 1 && (
-                    <span style={{ fontSize: 10.5, fontWeight: 700, color: C.danger, background: C.panel, borderRadius: 999, padding: "2px 9px" }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: C.danger, background: C.panel, borderRadius: 999, padding: "6px 10px" }}>
                       {job.revizeSayisi}. revize turu
                     </span>
                   )}
@@ -672,14 +672,14 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
             {job.brief && (
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 11, color: C.textFaint, fontWeight: 600, marginBottom: 4 }}>BRIEF / NOTLAR</div>
-                <div style={{ fontSize: 12.5, color: C.textDim, background: C.panelAlt, borderRadius: 9, padding: "9px 11px", lineHeight: 1.6 }}>{job.brief}</div>
+                <div style={{ fontSize: 13, color: C.textDim, background: C.panelAlt, borderRadius: 9, padding: "6px 10px", lineHeight: 1.6 }}>{job.brief}</div>
               </div>
             )}
 
             {job.revizeAciklamasi && job.asama === "Revize İstendi" && (
-              <div style={{ marginBottom: 14, background: C.dangerSoft, borderRadius: 9, padding: "9px 11px" }}>
+              <div style={{ marginBottom: 14, background: C.dangerSoft, borderRadius: 9, padding: "6px 10px" }}>
                 <div style={{ fontSize: 11, color: C.danger, fontWeight: 700, marginBottom: 3 }}>REVİZE AÇIKLAMASI</div>
-                <div style={{ fontSize: 12.5, color: C.text }}>{job.revizeAciklamasi}</div>
+                <div style={{ fontSize: 13, color: C.text }}>{job.revizeAciklamasi}</div>
               </div>
             )}
 
@@ -698,10 +698,10 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
               ) : (
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", marginBottom: job.editliDosyaLink ? 10 : 0 }}>
-                    {job.hamDosyaLink && <a href={job.hamDosyaLink} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: C.accentText, textDecoration: "none" }}><Link2 size={13} /> Ham Dosyalar</a>}
-                    {job.editliDosyaLink && <a href={job.editliDosyaLink} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: C.accentText, textDecoration: "none" }}><Link2 size={13} /> Editlenmiş Dosyalar</a>}
+                    {job.hamDosyaLink && <a href={job.hamDosyaLink} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, color: C.accentText, textDecoration: "none" }}><Link2 size={13} /> Ham Dosyalar</a>}
+                    {job.editliDosyaLink && <a href={job.editliDosyaLink} target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13, color: C.accentText, textDecoration: "none" }}><Link2 size={13} /> Editlenmiş Dosyalar</a>}
                     {yetkili && (
-                      <button style={{ background: "none", border: "none", color: C.textFaint, fontSize: 11.5, cursor: "pointer", padding: 0, textDecoration: "underline", fontFamily: "inherit" }} onClick={() => setDosyaDuzenle(true)}>
+                      <button style={{ background: "none", border: "none", color: C.textFaint, fontSize: 11, cursor: "pointer", padding: 0, textDecoration: "underline", fontFamily: "inherit" }} onClick={() => setDosyaDuzenle(true)}>
                         {job.hamDosyaLink || job.editliDosyaLink ? "Dosya bağlantılarını düzenle" : "+ Dosya bağlantısı ekle"}
                       </button>
                     )}
@@ -714,7 +714,7 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
                     <DriveGorsel link={job.editliDosyaLink} C={C} yukseklik={420} />
                   )}
                   {job.editliDosyaLink && ciktiVideoMu(kategori) && !driveEmbedUrl(job.editliDosyaLink) && (
-                    <div style={{ width: "100%", borderRadius: 10, background: C.panelAlt, border: `1px dashed ${C.border}`, padding: "14px 16px", fontSize: 12, color: C.textFaint, lineHeight: 1.6 }}>
+                    <div style={{ width: "100%", borderRadius: 10, background: C.panelAlt, border: `1px dashed ${C.border}`, padding: "12px 15px", fontSize: 13, color: C.textFaint, lineHeight: 1.6 }}>
                       {driveKlasorMu(job.editliDosyaLink)
                         ? "Bu bir Drive klasör bağlantısı — klasörler oynatıcı olarak gösterilemez. Tek bir video dosyasının bağlantısını yapıştır."
                         : "Bu bağlantıdan bir Drive dosyası tanınamadı — oynatıcı gösterilemiyor. Bağlantının drive.google.com/file/d/... biçiminde olduğundan emin ol."}
@@ -740,7 +740,7 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
                           <button
                             key={y.k}
                             onClick={() => onUpdate(job.id, { videoYonu: y.k })}
-                            style={{ padding: "4px 12px", borderRadius: 7, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 600,
+                            style={{ padding: "6px 10px", borderRadius: 7, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 600,
                               background: (job.videoYonu || "dikey") === y.k ? C.accentSoft : C.panelAlt,
                               color: (job.videoYonu || "dikey") === y.k ? C.accentText : C.textFaint }}
                           >
@@ -748,7 +748,7 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
                           </button>
                         ))}
                       </div>
-                      <div style={{ fontSize: 10.5, color: C.textFaint, marginTop: 6, textAlign: "center" }}>Tarayıcılar videoyu otomatik başlatmaya izin vermiyor — oynatmak için oynatıcının üzerine bir kez tıklaman gerekiyor.</div>
+                      <div style={{ fontSize: 11, color: C.textFaint, marginTop: 6, textAlign: "center" }}>Tarayıcılar videoyu otomatik başlatmaya izin vermiyor — oynatmak için oynatıcının üzerine bir kez tıklaman gerekiyor.</div>
                     </>
                   )}
                 </div>
@@ -785,15 +785,15 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
             )}
 
             <div style={{ marginBottom: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.textFaint, fontWeight: 700, marginBottom: 8 }}><MessageSquare size={13} /> YORUMLAR</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: C.textFaint, fontWeight: 700, marginBottom: 8 }}><MessageSquare size={13} /> YORUMLAR</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 8 }}>
                 {(job.yorumlar || []).map((y) => (
-                  <div key={y.id} style={{ background: C.panelAlt, borderRadius: 9, padding: "8px 10px" }}>
+                  <div key={y.id} style={{ background: C.panelAlt, borderRadius: 9, padding: "6px 10px" }}>
                     <div style={{ fontSize: 11, color: C.textFaint, marginBottom: 2 }}>{y.yazan} · {y.tarih}</div>
-                    <div style={{ fontSize: 12.5, color: C.text }}>{y.metin}</div>
+                    <div style={{ fontSize: 13, color: C.text }}>{y.metin}</div>
                   </div>
                 ))}
-                {(!job.yorumlar || job.yorumlar.length === 0) && <div style={{ fontSize: 12, color: C.textFaint }}>Henüz yorum yok.</div>}
+                {(!job.yorumlar || job.yorumlar.length === 0) && <div style={{ fontSize: 13, color: C.textFaint }}>Henüz yorum yok.</div>}
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <input style={inputStyle} placeholder="Yorum yaz…" value={yorum} onChange={(e) => setYorum(e.target.value)} onKeyDown={(e) => e.key === "Enter" && yorumEkle()} />
@@ -802,12 +802,12 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
             </div>
 
             <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: C.textFaint, fontWeight: 700, marginBottom: 8 }}><History size={13} /> İŞLEM GEÇMİŞİ</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: C.textFaint, fontWeight: 700, marginBottom: 8 }}><History size={13} /> İŞLEM GEÇMİŞİ</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 5, maxHeight: 140, overflowY: "auto" }}>
                 {[...(job.gecmis || [])].reverse().map((g) => (
-                  <div key={g.id} style={{ fontSize: 11.5, color: C.textDim }}><span style={{ color: C.textFaint }}>{g.tarih}</span> — {g.yazan}: {g.aciklama}</div>
+                  <div key={g.id} style={{ fontSize: 11, color: C.textDim }}><span style={{ color: C.textFaint }}>{g.tarih}</span> — {g.yazan}: {g.aciklama}</div>
                 ))}
-                {(!job.gecmis || job.gecmis.length === 0) && <div style={{ fontSize: 12, color: C.textFaint }}>Henüz kayıt yok.</div>}
+                {(!job.gecmis || job.gecmis.length === 0) && <div style={{ fontSize: 13, color: C.textFaint }}>Henüz kayıt yok.</div>}
               </div>
             </div>
           </>
@@ -834,9 +834,9 @@ function PersonelPaneli({ jobs, staffName, onOpen }) {
 
   const Grup = ({ baslik, liste, renk }) => (
     <div style={{ marginBottom: 18 }}>
-      <div style={{ fontSize: 12.5, fontWeight: 700, color: renk, marginBottom: 8 }}>{baslik} ({liste.length})</div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: renk, marginBottom: 8 }}>{baslik} ({liste.length})</div>
       {liste.length === 0 ? (
-        <div style={{ fontSize: 12, color: C.textFaint }}>Yok.</div>
+        <div style={{ fontSize: 13, color: C.textFaint }}>Yok.</div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 8 }}>
           {liste.map((j) => <IsKarti key={j.id} job={j} onClick={() => onOpen(j)} />)}
@@ -879,8 +879,8 @@ function YoneticiIstatistik({ jobs }) {
     : null;
 
   const Kutu = ({ label, value, renk }) => (
-    <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", flex: "1 1 140px" }}>
-      <div style={{ fontSize: 10.5, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>{label}</div>
+    <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 15px", flex: "1 1 140px" }}>
+      <div style={{ fontSize: 11, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>{label}</div>
       <div style={{ fontSize: 20, fontWeight: 700, color: renk || C.text, fontFamily: "monospace" }}>{value}</div>
     </div>
   );
@@ -896,16 +896,16 @@ function YoneticiIstatistik({ jobs }) {
         <Kutu label="ORT. TAMAMLANMA SÜRESİ" value={ortSure !== null ? `${ortSure} gün` : "—"} />
       </div>
 
-      <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px" }}>
+      <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 15px" }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 10 }}>Personel Bazında</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {kisiler.length === 0 && <div style={{ fontSize: 12.5, color: C.textFaint }}>Henüz kameraman/editör ataması yok.</div>}
+          {kisiler.length === 0 && <div style={{ fontSize: 13, color: C.textFaint }}>Henüz kameraman/editör ataması yok.</div>}
           {kisiler.map((k) => {
             const kisininIsleri = jobs.filter((j) => j.kameraman === k || j.editor === k);
             const aktif = kisininIsleri.filter((j) => j.asama !== "Teslim Edildi").length;
             const geciken = kisininIsleri.filter((j) => aciliyetDurumu(j) === "gecikti").length;
             return (
-              <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${C.borderSoft}`, fontSize: 12.5 }}>
+              <div key={k} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${C.borderSoft}`, fontSize: 13 }}>
                 <span style={{ color: C.text, fontWeight: 600 }}>{k}</span>
                 <span style={{ color: C.textDim }}>{aktif} aktif iş {geciken > 0 && <span style={{ color: C.danger }}>· {geciken} gecikmiş</span>}</span>
               </div>
@@ -1067,10 +1067,10 @@ function IsUcretPaneli({ job, detay, onKaydet }) {
   };
 
   return (
-    <div style={{ background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "11px 13px", marginBottom: 14 }}>
+    <div style={{ background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 15px", marginBottom: 14 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
         <Wallet size={13} color={C.textFaint} />
-        <span style={{ fontSize: 11.5, color: C.textFaint, fontWeight: 700 }}>ÜCRETLENDİRME (sadece sen görüyorsun)</span>
+        <span style={{ fontSize: 11, color: C.textFaint, fontWeight: 700 }}>ÜCRETLENDİRME (sadece sen görüyorsun)</span>
         {kaydedildi && <span style={{ fontSize: 11, color: C.success }}>✓ kaydedildi</span>}
       </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
@@ -1105,7 +1105,7 @@ function IsUcretPaneli({ job, detay, onKaydet }) {
           </select>
         )}
       </div>
-      <div style={{ fontSize: 10.5, color: C.textFaint, marginTop: 7, lineHeight: 1.6 }}>
+      <div style={{ fontSize: 11, color: C.textFaint, marginTop: 7, lineHeight: 1.6 }}>
         {mod === "sabit" && "Bu iş kaç parça içerirse içersin, ay sonu raporunda tek bu tutar sayılır."}
         {mod === "ucretsiz" && "Bu iş raporda görünür ve iş sayısına dahil olur, ama ödemeye 0 ₺ yazılır."}
         {mod === "varsayilan" && "Aylık İş Raporu'nda o kişi için girdiğin iş başı ücret kullanılır."}
@@ -1173,8 +1173,8 @@ function AvansMiniForm({ kisiAd, hesaplar, ay, onKaydet, onKapat }) {
   };
 
   return (
-    <div style={{ background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px" }}>
-      <div style={{ fontSize: 11.5, color: C.textFaint, fontWeight: 700, marginBottom: 8 }}>{kisiAd} — AVANS VER</div>
+    <div style={{ background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 15px" }}>
+      <div style={{ fontSize: 11, color: C.textFaint, fontWeight: 700, marginBottom: 8 }}>{kisiAd} — AVANS VER</div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         <input autoFocus type="number" value={tutar} onChange={(e) => setTutar(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") kaydet(); }} placeholder="Tutar (₺)" style={{ ...inputStyle, marginBottom: 0, width: 130 }} />
         <select value={hesapId} onChange={(e) => setHesapId(e.target.value)} style={{ ...inputStyle, marginBottom: 0, width: "auto", minWidth: 150 }}>
@@ -1185,7 +1185,7 @@ function AvansMiniForm({ kisiAd, hesaplar, ay, onKaydet, onKapat }) {
         <button style={btnPrimary} onClick={kaydet}>Kaydet</button>
         <button style={btnGhost} onClick={onKapat}>İptal</button>
       </div>
-      <div style={{ fontSize: 10.5, color: C.textFaint, marginTop: 7, lineHeight: 1.6 }}>
+      <div style={{ fontSize: 11, color: C.textFaint, marginTop: 7, lineHeight: 1.6 }}>
         Seçili ayın ({ay}) hak edişinden düşülür ve seçtiğin hesabın bakiyesinden çıkar.
       </div>
     </div>
@@ -1285,7 +1285,7 @@ export function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onS
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <button style={btnGhost} onClick={() => setAy(ayEkle(ay, -1))}><ChevronLeft size={14} /></button>
-          <div style={{ fontSize: 14, fontWeight: 700, color: C.text, minWidth: 130, textAlign: "center", textTransform: "capitalize" }}>{ayAdi(ay)}</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.text, minWidth: 130, textAlign: "center", textTransform: "capitalize" }}>{ayAdi(ay)}</div>
           <button style={btnGhost} onClick={() => setAy(ayEkle(ay, 1))}><ChevronRight size={14} /></button>
           {ay !== ayKeyi() && <button style={btnGhost} onClick={() => setAy(ayKeyi())}>Bu aya dön</button>}
         </div>
@@ -1294,42 +1294,42 @@ export function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onS
 
       {/* Ay özeti */}
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 18 }}>
-        <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", flex: "1 1 150px" }}>
-          <div style={{ fontSize: 10.5, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>TAMAMLANAN İŞ</div>
+        <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 15px", flex: "1 1 150px" }}>
+          <div style={{ fontSize: 11, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>TAMAMLANAN İŞ</div>
           <div style={{ fontSize: 20, fontWeight: 700, color: C.success, fontFamily: "monospace" }}>{oAyinIsleri.length}</div>
         </div>
         {genelParca > 0 && (
-          <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", flex: "1 1 150px" }}>
-            <div style={{ fontSize: 10.5, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>ÜRETİLEN PARÇA</div>
+          <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 15px", flex: "1 1 150px" }}>
+            <div style={{ fontSize: 11, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>ÜRETİLEN PARÇA</div>
             <div style={{ fontSize: 20, fontWeight: 700, color: C.text, fontFamily: "monospace" }}>{genelParca}</div>
           </div>
         )}
-        <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", flex: "1 1 150px" }}>
-          <div style={{ fontSize: 10.5, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>ÇALIŞAN KİŞİ</div>
+        <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 15px", flex: "1 1 150px" }}>
+          <div style={{ fontSize: 11, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>ÇALIŞAN KİŞİ</div>
           <div style={{ fontSize: 20, fontWeight: 700, color: C.text, fontFamily: "monospace" }}>{kisiler.length}</div>
         </div>
         {genelToplam > 0 && (
-          <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", flex: "1 1 150px" }}>
-            <div style={{ fontSize: 10.5, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>TOPLAM HAK EDİŞ</div>
+          <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 15px", flex: "1 1 150px" }}>
+            <div style={{ fontSize: 11, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>TOPLAM HAK EDİŞ</div>
             <div style={{ fontSize: 20, fontWeight: 700, color: C.accentText, fontFamily: "monospace" }}>{paraYaz(genelToplam)}</div>
           </div>
         )}
         {genelAvans > 0 && (
-          <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", flex: "1 1 150px" }}>
-            <div style={{ fontSize: 10.5, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>VERİLEN AVANS</div>
+          <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 15px", flex: "1 1 150px" }}>
+            <div style={{ fontSize: 11, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>VERİLEN AVANS</div>
             <div style={{ fontSize: 20, fontWeight: 700, color: C.warning, fontFamily: "monospace" }}>{paraYaz(genelAvans)}</div>
           </div>
         )}
         {genelAvans > 0 && (
-          <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", flex: "1 1 150px" }}>
-            <div style={{ fontSize: 10.5, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>ÖDENECEK KALAN</div>
+          <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 15px", flex: "1 1 150px" }}>
+            <div style={{ fontSize: 11, color: C.textFaint, fontWeight: 600, marginBottom: 6 }}>ÖDENECEK KALAN</div>
             <div style={{ fontSize: 20, fontWeight: 700, color: C.success, fontFamily: "monospace" }}>{paraYaz(genelToplam - genelAvans)}</div>
           </div>
         )}
       </div>
 
       {/* Kişi listesi */}
-      <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px" }}>
+      <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "12px 15px" }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 4 }}>Kim Ne Kadar İş Yaptı</div>
         <div style={{ fontSize: 11, color: C.textFaint, marginBottom: 12, lineHeight: 1.6 }}>
           Bir iş, "Teslim Edildi"ye geçtiği tarihe göre sayılır. Hem kameraman hem editör varsa iş ikisinin de hanesine yazılır,
@@ -1339,7 +1339,7 @@ export function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onS
         </div>
 
         {kisiler.length === 0 && (
-          <div style={{ fontSize: 12.5, color: C.textFaint, lineHeight: 1.7 }}>
+          <div style={{ fontSize: 13, color: C.textFaint, lineHeight: 1.7 }}>
             Bu ay teslim edilmiş iş yok. (Bir işin sayılabilmesi için "Teslim Edildi" aşamasına geçmiş olması gerekiyor —
             "Onaylandı"da bekleyen {bekleyenler.length} iş var.)
           </div>
@@ -1356,9 +1356,9 @@ export function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onS
                   style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontFamily: "inherit", textAlign: "left" }}
                 >
                   <ChevronRight size={13} color={C.textFaint} style={{ transform: acik ? "rotate(90deg)" : "none", transition: "transform .15s" }} />
-                  <span style={{ fontSize: 13.5, fontWeight: 700, color: C.text }}>{k.ad}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{k.ad}</span>
                 </button>
-                <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", fontSize: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", fontSize: 13 }}>
                   <span style={{ color: C.success, fontWeight: 700, fontFamily: "monospace", fontSize: 15 }}>{k.isler.length} iş</span>
                   <span style={{ color: C.textDim }}>
                     {k.video > 0 && `${k.video} video`}{k.video > 0 && k.grafik > 0 && " · "}{k.grafik > 0 && `${k.grafik} grafik`}
@@ -1369,9 +1369,9 @@ export function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onS
                   {kisiToplami(k) > 0 && (
                     kisiAvansi(k.ad) > 0 ? (
                       <span style={{ fontFamily: "monospace", fontWeight: 700 }}>
-                        <span style={{ color: C.textFaint, textDecoration: "line-through", fontWeight: 400, fontSize: 11.5 }}>{paraYaz(kisiToplami(k))}</span>
+                        <span style={{ color: C.textFaint, textDecoration: "line-through", fontWeight: 400, fontSize: 11 }}>{paraYaz(kisiToplami(k))}</span>
                         {" "}
-                        <span style={{ color: C.warning, fontSize: 11.5, fontWeight: 400 }}>−{paraYaz(kisiAvansi(k.ad))}</span>
+                        <span style={{ color: C.warning, fontSize: 11, fontWeight: 400 }}>−{paraYaz(kisiAvansi(k.ad))}</span>
                         {" = "}
                         <span style={{ color: C.success }}>{paraYaz(kisiOdenecek(k))}</span>
                       </span>
@@ -1404,7 +1404,7 @@ export function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onS
                     ) : (
                       <button
                         onClick={() => { setUcretDuzenle(k.ad); setUcretTaslak(String(ucretAl(k.ad) || "")); }}
-                        style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 11.5, color: C.textFaint, textDecoration: "underline", fontFamily: "inherit" }}
+                        style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 11, color: C.textFaint, textDecoration: "underline", fontFamily: "inherit" }}
                       >
                         {ucretAl(k.ad) > 0
                           ? `Varsayılan iş başı ${paraYaz(ucretAl(k.ad))} · ay toplamı ${paraYaz(kisiToplami(k))} · değiştir`
@@ -1427,7 +1427,7 @@ export function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onS
                       ) : (
                         <button
                           onClick={() => setAvansFormAcik(k.ad)}
-                          style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 11.5, color: C.textFaint, textDecoration: "underline", fontFamily: "inherit" }}
+                          style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontSize: 11, color: C.textFaint, textDecoration: "underline", fontFamily: "inherit" }}
                         >
                           + Avans ver
                         </button>
@@ -1451,7 +1451,7 @@ export function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onS
                   {/* Yaptığı işler */}
                   <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                     {k.isler.map((j) => (
-                      <div key={j.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 11.5, color: C.textDim, background: C.panelAlt, borderRadius: 8, padding: "7px 10px", flexWrap: "wrap" }}>
+                      <div key={j.id} style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 11, color: C.textDim, background: C.panelAlt, borderRadius: 8, padding: "6px 10px", flexWrap: "wrap" }}>
                         <span>
                           <strong style={{ color: C.text }}>{j.marka}</strong> · {j.icerikTuru}{j.kategori ? ` · ${j.kategori}` : ""}
                           {Number(j.uretilenAdet) > 0 && <span style={{ color: C.textFaint }}> · {j.uretilenAdet} parça</span>}
@@ -1497,8 +1497,8 @@ export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, 
   if (role === "staff" && !staffName) {
     return (
       <div style={{ maxWidth: 360, margin: "40px auto", textAlign: "center" }}>
-        <div style={{ fontSize: 14, color: C.text, fontWeight: 600, marginBottom: 10 }}>Önce adını gir</div>
-        <div style={{ fontSize: 12.5, color: C.textFaint, marginBottom: 14 }}>Kendi işlerini görebilmen ve işlem geçmişinde görünmen için adını bir kere girmen yeterli.</div>
+        <div style={{ fontSize: 15, color: C.text, fontWeight: 600, marginBottom: 10 }}>Önce adını gir</div>
+        <div style={{ fontSize: 13, color: C.textFaint, marginBottom: 14 }}>Kendi işlerini görebilmen ve işlem geçmişinde görünmen için adını bir kere girmen yeterli.</div>
         <input
           style={inputStyle}
           placeholder="Adın Soyadın"
@@ -1516,12 +1516,12 @@ export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", gap: 8 }}>
           {role === "staff" && (
-            <button onClick={() => setView("panom")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "none", background: view === "panom" ? C.accentSoft : "transparent", color: view === "panom" ? C.accentText : C.textDim, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><ListTodo size={14} /> Panom</button>
+            <button onClick={() => setView("panom")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 9, border: "none", background: view === "panom" ? C.accentSoft : "transparent", color: view === "panom" ? C.accentText : C.textDim, fontSize: 13, fontWeight: 600, cursor: "pointer" }}><ListTodo size={14} /> Panom</button>
           )}
-          <button onClick={() => setView("pano")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "none", background: view === "pano" ? C.accentSoft : "transparent", color: view === "pano" ? C.accentText : C.textDim, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><LayoutGrid size={14} /> Tüm İşler</button>
-          <button onClick={() => setView("markalasma")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "none", background: view === "markalasma" ? C.accentSoft : "transparent", color: view === "markalasma" ? C.accentText : C.textDim, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><Rocket size={14} /> Markalaşma</button>
+          <button onClick={() => setView("pano")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 9, border: "none", background: view === "pano" ? C.accentSoft : "transparent", color: view === "pano" ? C.accentText : C.textDim, fontSize: 13, fontWeight: 600, cursor: "pointer" }}><LayoutGrid size={14} /> Tüm İşler</button>
+          <button onClick={() => setView("markalasma")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 9, border: "none", background: view === "markalasma" ? C.accentSoft : "transparent", color: view === "markalasma" ? C.accentText : C.textDim, fontSize: 13, fontWeight: 600, cursor: "pointer" }}><Rocket size={14} /> Markalaşma</button>
           {role === "owner" && (
-            <button onClick={() => setView("istatistik")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 9, border: "none", background: view === "istatistik" ? C.accentSoft : "transparent", color: view === "istatistik" ? C.accentText : C.textDim, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}><BarChart3 size={14} /> İstatistikler</button>
+            <button onClick={() => setView("istatistik")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 9, border: "none", background: view === "istatistik" ? C.accentSoft : "transparent", color: view === "istatistik" ? C.accentText : C.textDim, fontSize: 13, fontWeight: 600, cursor: "pointer" }}><BarChart3 size={14} /> İstatistikler</button>
           )}
         </div>
         {view !== "markalasma" && <button style={btnPrimary} onClick={() => { setAdding((v) => !v); if (onRefreshRoster) onRefreshRoster(); }}><Plus size={14} /> Yeni İş</button>}
@@ -1530,7 +1530,7 @@ export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, 
       {view === "pano" && (
         <div style={{ display: "flex", gap: 6, marginBottom: 16, background: C.panelAlt, borderRadius: 10, padding: 3, width: "fit-content" }}>
           {KATEGORILER.map((k) => (
-            <button key={k} onClick={() => setPanoKategori(k)} style={{ padding: "7px 16px", borderRadius: 8, border: "none", background: panoKategori === k ? C.accent : "transparent", color: panoKategori === k ? "#fff" : C.textDim, fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>{k}</button>
+            <button key={k} onClick={() => setPanoKategori(k)} style={{ padding: "6px 16px", borderRadius: 8, border: "none", background: panoKategori === k ? C.accent : "transparent", color: panoKategori === k ? "#fff" : C.textDim, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{k}</button>
           ))}
         </div>
       )}
@@ -1571,15 +1571,15 @@ export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, 
             return (
               <div key={asama} style={{ flex: "0 0 240px", minWidth: 240 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, padding: "0 2px" }}>
-                  <span style={{ fontSize: 11.5, fontWeight: 700, color: C.textDim }}>{asama}</span>
-                  <span style={{ fontSize: 10.5, color: C.textFaint, background: C.panelAlt, padding: "1px 7px", borderRadius: 999 }}>{asamaIsleri.length}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: C.textDim }}>{asama}</span>
+                  <span style={{ fontSize: 11, color: C.textFaint, background: C.panelAlt, padding: "6px 10px", borderRadius: 999 }}>{asamaIsleri.length}</span>
                 </div>
                 <div style={{ minHeight: 40 }}>
                   {buAsamadakiler.map((j) => <IsKarti key={j.id} job={j} onClick={() => setAcikIs(j)} />)}
                   {sinirliMi && (
                     <button
                       onClick={() => setGenisletilmisSutunlar((s) => ({ ...s, [asama]: true }))}
-                      style={{ width: "100%", background: "none", border: `1px dashed ${C.border}`, borderRadius: 10, padding: "8px 0", color: C.textFaint, fontSize: 11.5, cursor: "pointer", marginTop: 4 }}
+                      style={{ width: "100%", background: "none", border: `1px dashed ${C.border}`, borderRadius: 10, padding: "8px 0", color: C.textFaint, fontSize: 11, cursor: "pointer", marginTop: 4 }}
                     >
                       + {asamaIsleri.length - 10} tane daha göster
                     </button>
@@ -1647,23 +1647,23 @@ function MarkalasmaKart({ s, personelRosteri, role, onToggleGorev, onSetYonetici
     <div style={{ background: C.panel, border: `1px solid ${hepsiBitti ? C.success : C.border}`, borderRadius: 14, padding: 16 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{s.marka}</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>{s.marka}</div>
           <div style={{ fontSize: 11, color: C.textFaint }}>Açıldı: {s.olusturmaTarihi}</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: hepsiBitti ? C.success : C.accentText, fontFamily: "monospace" }}>%{oran}</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: hepsiBitti ? C.success : C.accentText, fontFamily: "monospace" }}>%{oran}</span>
           {role === "owner" ? (
             <div style={{ width: 180 }}>
               <PersonelSecici value={s.yonetici} onChange={yoneticiDegisti} personelRosteri={personelRosteri} />
             </div>
           ) : (
-            <span style={{ fontSize: 11.5, color: C.textDim }}>{s.yonetici ? `Yönetici: ${s.yonetici}` : "Yönetici atanmadı"}</span>
+            <span style={{ fontSize: 11, color: C.textDim }}>{s.yonetici ? `Yönetici: ${s.yonetici}` : "Yönetici atanmadı"}</span>
           )}
         </div>
       </div>
 
       {mailDurumu && (
-        <div style={{ fontSize: 11.5, color: mailDurumu.mailGitti ? C.success : C.warning, background: mailDurumu.mailGitti ? C.successSoft : C.warningSoft, borderRadius: 8, padding: "6px 10px", marginBottom: 10 }}>
+        <div style={{ fontSize: 11, color: mailDurumu.mailGitti ? C.success : C.warning, background: mailDurumu.mailGitti ? C.successSoft : C.warningSoft, borderRadius: 8, padding: "6px 10px", marginBottom: 10 }}>
           {mailDurumu.mailGitti ? "✅ " : "⚠️ "}{mailDurumu.mesaj}
         </div>
       )}
@@ -1682,20 +1682,20 @@ function MarkalasmaKart({ s, personelRosteri, role, onToggleGorev, onSetYonetici
             <span style={{ width: 18, height: 18, borderRadius: 5, border: `1.5px solid ${g.tamamlandi ? C.success : C.border}`, background: g.tamamlandi ? C.success : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               {g.tamamlandi && <CheckCircle2 size={12} color="#fff" />}
             </span>
-            <span style={{ fontSize: 12.5, color: g.tamamlandi ? C.textFaint : C.text, textDecoration: g.tamamlandi ? "line-through" : "none" }}>{g.ad}</span>
-            {g.tamamlandi && g.tamamlanmaTarihi && <span style={{ fontSize: 10.5, color: C.textFaint, marginLeft: "auto" }}>{g.tamamlanmaTarihi}</span>}
+            <span style={{ fontSize: 13, color: g.tamamlandi ? C.textFaint : C.text, textDecoration: g.tamamlandi ? "line-through" : "none" }}>{g.ad}</span>
+            {g.tamamlandi && g.tamamlanmaTarihi && <span style={{ fontSize: 11, color: C.textFaint, marginLeft: "auto" }}>{g.tamamlanmaTarihi}</span>}
           </button>
         ))}
       </div>
 
       {yeniGorevAcik ? (
         <div style={{ display: "flex", gap: 6, marginBottom: hepsiBitti ? 10 : 0 }}>
-          <input autoFocus value={yeniGorevAdi} onChange={(e) => setYeniGorevAdi(e.target.value)} onKeyDown={(e) => e.key === "Enter" && gorevEkle()} placeholder="örn. TikTok hesabı açıldı" style={{ ...inputStyle, flex: 1, fontSize: 12.5, padding: "7px 10px" }} />
-          <button style={{ ...btnPrimary, padding: "7px 12px", fontSize: 12 }} onClick={gorevEkle}>Ekle</button>
-          <button style={{ ...btnGhost, padding: "7px 12px", fontSize: 12 }} onClick={() => setYeniGorevAcik(false)}>İptal</button>
+          <input autoFocus value={yeniGorevAdi} onChange={(e) => setYeniGorevAdi(e.target.value)} onKeyDown={(e) => e.key === "Enter" && gorevEkle()} placeholder="örn. TikTok hesabı açıldı" style={{ ...inputStyle, flex: 1, fontSize: 13, padding: "6px 10px" }} />
+          <button style={{ ...btnPrimary, padding: "6px 10px", fontSize: 13 }} onClick={gorevEkle}>Ekle</button>
+          <button style={{ ...btnGhost, padding: "6px 10px", fontSize: 13 }} onClick={() => setYeniGorevAcik(false)}>İptal</button>
         </div>
       ) : (
-        <button onClick={() => setYeniGorevAcik(true)} style={{ background: "none", border: "none", color: C.accentText, fontSize: 11.5, cursor: "pointer", padding: 0, fontFamily: "inherit", marginBottom: hepsiBitti ? 10 : 0 }}>+ Manuel Görev Ekle</button>
+        <button onClick={() => setYeniGorevAcik(true)} style={{ background: "none", border: "none", color: C.accentText, fontSize: 11, cursor: "pointer", padding: 0, fontFamily: "inherit", marginBottom: hepsiBitti ? 10 : 0 }}>+ Manuel Görev Ekle</button>
       )}
 
       {hepsiBitti && (
@@ -1720,14 +1720,14 @@ function MarkalasmaGorunumu({ surecler, clients, personelRosteri, role, onToggle
   return (
     <div>
       {liste.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "40px 20px", color: C.textFaint, fontSize: 13 }}>
+        <div style={{ textAlign: "center", padding: "18px 22px", color: C.textFaint, fontSize: 13 }}>
           Henüz markalaşma süreci yok. Müşteriler'e yeni bir marka eklediğinde burada otomatik açılır.
         </div>
       ) : (
         <>
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: tamamlananlar.length > 0 ? 24 : 0 }}>
             {devamEdenler.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "20px", color: C.textFaint, fontSize: 12.5 }}>Devam eden markalaşma süreci yok.</div>
+              <div style={{ textAlign: "center", padding: "20px", color: C.textFaint, fontSize: 13 }}>Devam eden markalaşma süreci yok.</div>
             ) : devamEdenler.map((s) => (
               <MarkalasmaKart key={s.id} s={s} personelRosteri={personelRosteri} role={role} onToggleGorev={onToggleGorev} onSetYonetici={onSetYonetici} onAddGorev={onAddGorev} onComplete={onComplete} />
             ))}
@@ -1735,15 +1735,15 @@ function MarkalasmaGorunumu({ surecler, clients, personelRosteri, role, onToggle
 
           {tamamlananlar.length > 0 && (
             <div>
-              <div style={{ fontSize: 12, color: C.textFaint, fontWeight: 700, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.3 }}>Tamamlanan Markalaşma</div>
+              <div style={{ fontSize: 13, color: C.textFaint, fontWeight: 700, marginBottom: 10, textTransform: "uppercase", letterSpacing: 0.3 }}>Tamamlanan Markalaşma</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {tamamlananlar.map((s) => (
-                  <div key={s.id} style={{ background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                  <div key={s.id} style={{ background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 15px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <CheckCircle2 size={16} color={C.success} />
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{s.marka}</div>
-                        <div style={{ fontSize: 10.5, color: C.textFaint }}>Tamamlandı: {s.tamamlanmaTarihi}{s.yonetici ? ` · Yönetici: ${s.yonetici}` : ""}</div>
+                        <div style={{ fontSize: 11, color: C.textFaint }}>Tamamlandı: {s.tamamlanmaTarihi}{s.yonetici ? ` · Yönetici: ${s.yonetici}` : ""}</div>
                       </div>
                     </div>
                     {role === "owner" && onDelete && (

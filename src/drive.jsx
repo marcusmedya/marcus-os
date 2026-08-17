@@ -51,8 +51,8 @@ export function DriveGorsel({ link, yukseklik = 420, kapak = false, radius = 10 
 
   const kutu = {
     width: "100%", borderRadius: radius, background: T.surfaceRaised,
-    border: `1px dashed ${T.border}`, padding: "14px 16px",
-    fontSize: 12, color: T.textFaint, lineHeight: 1.6, fontFamily: "Inter",
+    border: `1px dashed ${T.border}`, padding: "12px 15px",
+    fontSize: 13, color: T.textFaint, lineHeight: 1.6, fontFamily: "Inter",
   };
 
   if (driveKlasorMu(link)) return <div style={kutu}>Bu bir Drive <strong>klasör</strong> bağlantısı — klasörler önizlenemez. Tek bir dosyanın bağlantısını yapıştır.</div>;

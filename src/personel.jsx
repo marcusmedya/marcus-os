@@ -76,8 +76,8 @@ export function AvansVerFormu({ kisiAd, hesaplar, varsayilanAy, onKaydet, onKapa
   };
 
   return (
-    <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 14px", marginTop: 8 }}>
-      <div style={{ fontSize: 12.5, color: T.text, fontWeight: 600, fontFamily: "Inter", marginBottom: 10 }}>{kisiAd} — Avans Ver</div>
+    <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 15px", marginTop: 8 }}>
+      <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter", marginBottom: 10 }}>{kisiAd} — Avans Ver</div>
       <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
         <div>
           <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Tutar (₺)</label>
@@ -102,7 +102,7 @@ export function AvansVerFormu({ kisiAd, hesaplar, varsayilanAy, onKaydet, onKapa
           <input value={not} onChange={(e) => setNot(e.target.value)} placeholder="örn. acil ihtiyaç" style={{ ...inputStyle, marginBottom: 0 }} />
         </div>
       </div>
-      <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter", lineHeight: 1.6, marginBottom: 10 }}>
+      <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", lineHeight: 1.6, marginBottom: 10 }}>
         Bu tutar Toplam Gider'e ayrıca eklenmez (maaş zaten sayılıyor) — seçtiğin ayın ödemesinden düşülür
         ve seçtiğin hesabın bakiyesinden çıkar.
       </div>
@@ -121,7 +121,7 @@ export function AvansListesi({ kayitlar, hesaplar, onDelete }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 8 }}>
       {kayitlar.map((a) => (
-        <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: T.surfaceRaised, borderRadius: 8, padding: "7px 10px", fontSize: 11.5, fontFamily: "Inter", flexWrap: "wrap" }}>
+        <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: T.surfaceRaised, borderRadius: 8, padding: "6px 10px", fontSize: 11, fontFamily: "Inter", flexWrap: "wrap" }}>
           <span style={{ color: T.textDim }}>
             <span style={{ color: T.textFaint }}>{tarihGoster(a.tarih)}</span>{" · "}
             {hesapAdi(a.hesapId)} hesabından{a.not ? ` · ${a.not}` : ""}
@@ -192,8 +192,8 @@ export function OdemeKaydetFormu({ kisiAd, kalan, hesaplar, ay, onKaydet, onKapa
   };
 
   return (
-    <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 14px", marginTop: 8 }}>
-      <div style={{ fontSize: 12.5, color: T.text, fontWeight: 600, fontFamily: "Inter", marginBottom: 10 }}>{kisiAd} — Ödeme Kaydet</div>
+    <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 15px", marginTop: 8 }}>
+      <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter", marginBottom: 10 }}>{kisiAd} — Ödeme Kaydet</div>
       <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
         <div>
           <label style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", display: "block", marginBottom: 4 }}>Tutar (₺)</label>
@@ -229,7 +229,7 @@ export function OdemeListesi({ kayitlar, hesaplar, onDelete }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 8 }}>
       {kayitlar.map((o) => (
-        <div key={o.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: T.surfaceRaised, borderRadius: 8, padding: "7px 10px", fontSize: 11.5, fontFamily: "Inter", flexWrap: "wrap" }}>
+        <div key={o.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: T.surfaceRaised, borderRadius: 8, padding: "6px 10px", fontSize: 11, fontFamily: "Inter", flexWrap: "wrap" }}>
           <span style={{ color: T.textDim }}>
             <span style={{ color: T.textFaint }}>{tarihGoster(o.tarih)}</span>{" · "}{o.ay}{" · "}{hesapAdi(o.hesapId)} hesabından{o.not ? ` · ${o.not}` : ""}
           </span>
@@ -303,17 +303,17 @@ export function FreelancerBolumu({ freelancerlar, clients, jobs, isUcretleri, is
         <KpiCard label="BU AY ÖDENECEK KALAN" value={fmt(toplamKalan)} accent={T.warning} />
       </div>
 
-      <Card style={{ padding: "10px 12px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <Card style={{ padding: "12px 15px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter" }}>Ay:</span>
+          <span style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>Ay:</span>
           <div style={{ minWidth: 150 }}><AySeciciAlan value={ay} onChange={onAy} /></div>
         </div>
         <button style={addBtnStyle} onClick={() => { setAdding(true); setEditingId(null); }}><Plus size={14} /> Freelancer ekle</button>
       </Card>
 
       {onerilenler.length > 0 && (
-        <Card style={{ padding: "12px 16px", marginBottom: 16 }}>
-          <div style={{ fontSize: 12, color: T.textDim, fontFamily: "Inter", marginBottom: 8, lineHeight: 1.6 }}>
+        <Card style={{ padding: "12px 15px", marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter", marginBottom: 8, lineHeight: 1.6 }}>
             Operasyon'da bu isimlere iş atanmış ama henüz freelancer olarak kayıtlı değiller. Ekleyince işleri ve hak edişleri
             otomatik buraya bağlanır:
           </div>
@@ -334,7 +334,7 @@ export function FreelancerBolumu({ freelancerlar, clients, jobs, isUcretleri, is
       )}
 
       {liste.length === 0 && !adding && (
-        <Card style={{ padding: "24px 16px", textAlign: "center" }}>
+        <Card style={{ padding: "18px 22px", textAlign: "center" }}>
           <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", lineHeight: 1.7 }}>
             Henüz freelancer eklenmedi. Ekledikten sonra müşteri detayındaki <strong>Maliyetler</strong> kalemlerini o kişiye
             bağlayabilir, Operasyon'daki işlerini ve ödemelerini tek yerden takip edebilirsin.
@@ -355,11 +355,11 @@ export function FreelancerBolumu({ freelancerlar, clients, jobs, isUcretleri, is
             );
           }
           return (
-            <Card key={f.id} style={{ padding: "14px 16px" }}>
+            <Card key={f.id} style={{ padding: "12px 15px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
                 <button onClick={() => setAcikId(acik ? null : f.id)} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
-                  <div style={{ fontSize: 14, color: T.text, fontWeight: 700, fontFamily: "Inter" }}>{f.ad}</div>
-                  <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>
+                  <div style={{ fontSize: 15, color: T.text, fontWeight: 700, fontFamily: "Inter" }}>{f.ad}</div>
+                  <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>
                     {f.rol || "Rol belirtilmemiş"}
                     {op.isSayisi > 0 && ` · ${op.isSayisi} iş`}
                     {musteriKalemleri(f).length > 0 && ` · ${musteriKalemleri(f).length} müşteri kalemi`}
@@ -367,8 +367,8 @@ export function FreelancerBolumu({ freelancerlar, clients, jobs, isUcretleri, is
                 </button>
                 <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                   <div style={{ textAlign: "right" }}>
-                    <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter" }}>KALAN ÖDENECEK</div>
-                    <div style={{ fontSize: 16, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", color: kalanTutar > 0 ? T.warning : T.success }}>{fmt(kalanTutar)}</div>
+                    <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>KALAN ÖDENECEK</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace", color: kalanTutar > 0 ? T.warning : T.success }}>{fmt(kalanTutar)}</div>
                   </div>
                   <button style={iconBtnStyle} title="Avans ver" onClick={() => { setAvansAcikId(avansAcikId === f.id ? null : f.id); setOdemeAcikId(null); setAcikId(f.id); }}><Wallet size={14} color={T.textFaint} /></button>
                   <button style={saveBtnStyle} onClick={() => { setOdemeAcikId(odemeAcikId === f.id ? null : f.id); setAvansAcikId(null); setAcikId(f.id); }}>Ödeme Kaydet</button>
@@ -380,7 +380,7 @@ export function FreelancerBolumu({ freelancerlar, clients, jobs, isUcretleri, is
               {(acik || avansAcikId === f.id || odemeAcikId === f.id) && (
                 <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.borderSoft}` }}>
                   {/* Hak ediş dökümü */}
-                  <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 12.5, fontFamily: "Inter", marginBottom: 10 }}>
+                  <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 13, fontFamily: "Inter", marginBottom: 10 }}>
                     <span style={{ color: T.textDim }}>Müşteri kalemleri: <strong style={{ color: T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(musteriHakEdis(f))}</strong></span>
                     <span style={{ color: T.textDim }}>Operasyon işleri: <strong style={{ color: T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(op.tutar)}</strong></span>
                     <span style={{ color: T.textDim }}>Toplam hak ediş: <strong style={{ color: T.accentText, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(hakEdis(f))}</strong></span>
@@ -391,7 +391,7 @@ export function FreelancerBolumu({ freelancerlar, clients, jobs, isUcretleri, is
                   {musteriKalemleri(f).length > 0 && (
                     <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 10 }}>
                       {musteriKalemleri(f).map((m) => (
-                        <div key={`${m.marka}-${m.id}`} style={{ display: "flex", justifyContent: "space-between", background: T.surfaceRaised, borderRadius: 8, padding: "6px 10px", fontSize: 11.5, fontFamily: "Inter" }}>
+                        <div key={`${m.marka}-${m.id}`} style={{ display: "flex", justifyContent: "space-between", background: T.surfaceRaised, borderRadius: 8, padding: "6px 10px", fontSize: 11, fontFamily: "Inter" }}>
                           <span style={{ color: T.textDim }}><strong style={{ color: T.text }}>{m.marka}</strong> · {m.kalem}</span>
                           <span style={{ fontFamily: "'IBM Plex Mono', monospace", color: T.text }}>{fmt(m.tutar)}</span>
                         </div>
@@ -434,14 +434,14 @@ export function FreelancerBolumu({ freelancerlar, clients, jobs, isUcretleri, is
       {onAylikRapor && (
         <div style={{ marginTop: 22, paddingTop: 18, borderTop: `1px solid ${T.borderSoft}` }}>
           <div style={{ fontSize: 13, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 4 }}>Aylık İş Raporu</div>
-          <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 12, lineHeight: 1.6 }}>
+          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginBottom: 12, lineHeight: 1.6 }}>
             Operasyon işlerinden gelen ay bazlı döküm: kim kaç iş yaptı, kaç parça üretti, ne kadar hak etti.
           </div>
           {onAylikRapor}
         </div>
       )}
 
-      <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginTop: 12, lineHeight: 1.7 }}>
+      <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginTop: 12, lineHeight: 1.7 }}>
         Müşteri kalemleri ve Operasyon işleri zaten Toplam Gider'e dahil — buradaki ödeme kayıtları gideri tekrar artırmaz,
         sadece "ödendi mi, ne kadar kaldı" takibi yapar ve ödemenin çıktığı hesabın bakiyesini azaltır.
       </div>
@@ -479,10 +479,10 @@ export function KadroluBolumu({ personel, onAdd, onUpdate, onDelete, duzenleyenA
         {avansAktif && <KpiCard label="ÖDENECEK KALAN (SEÇİLİ AY)" value={fmt(toplamOdenecek)} accent={T.warning} />}
       </div>
 
-      <Card style={{ padding: "10px 12px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <Card style={{ padding: "12px 15px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         {avansAktif ? (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter" }}>Avans ayı:</span>
+            <span style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>Avans ayı:</span>
             <div style={{ minWidth: 150 }}><AySeciciAlan value={avansAy} onChange={setAvansAy} /></div>
           </div>
         ) : <span />}
@@ -504,7 +504,7 @@ export function KadroluBolumu({ personel, onAdd, onUpdate, onDelete, duzenleyenA
                 ? ["Ad Soyad", "Pozisyon", "Maaş", "SGK/Sigorta", "Yemek", "Tazminat Birikimi", "Aylık Toplam", "Ödeme Günü", "Avans", "Ödenen", "Kalan", "Durum", ""]
                 : ["Ad Soyad", "Pozisyon", "Maaş", "SGK/Sigorta", "Yemek", "Tazminat Birikimi", "Aylık Toplam", ""]
               ).map((h, i) => (
-                <th key={i} style={{ textAlign: i >= 2 ? "right" : "left", padding: "12px 16px", fontSize: 11.5, color: T.textFaint, fontWeight: 600, letterSpacing: 0.3, borderBottom: `1px solid ${T.borderSoft}` }}>{h}</th>
+                <th key={i} style={{ textAlign: i >= 2 ? "right" : "left", padding: "12px 15px", fontSize: 11, color: T.textFaint, fontWeight: 600, letterSpacing: 0.3, borderBottom: `1px solid ${T.borderSoft}` }}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -512,30 +512,30 @@ export function KadroluBolumu({ personel, onAdd, onUpdate, onDelete, duzenleyenA
             {personel.map((p) =>
               editingId === p.id ? (
                 <tr key={p.id}>
-                  <td colSpan={8} style={{ padding: "12px 16px" }}>
+                  <td colSpan={8} style={{ padding: "12px 15px" }}>
                     <KilitUyarisi kisi={kilitleyen} />
                     <FieldForm fields={PERSONEL_FIELDS} initial={p} onSubmit={(v) => { onUpdate(p.id, v); setEditingId(null); }} onCancel={() => setEditingId(null)} />
                   </td>
                 </tr>
               ) : (
                 <tr key={p.id} style={{ borderBottom: `1px solid ${T.borderSoft}` }}>
-                  <td style={{ padding: "13px 16px" }}>
-                    <div style={{ color: T.text, fontSize: 13.5, fontWeight: 600 }}>{p.ad}</div>
-                    {p.baslangic && <div style={{ color: T.textFaint, fontSize: 11.5, marginTop: 2 }}>{p.baslangic}'den beri</div>}
+                  <td style={{ padding: "12px 15px" }}>
+                    <div style={{ color: T.text, fontSize: 13, fontWeight: 600 }}>{p.ad}</div>
+                    {p.baslangic && <div style={{ color: T.textFaint, fontSize: 11, marginTop: 2 }}>{p.baslangic}'den beri</div>}
                   </td>
-                  <td style={{ padding: "13px 16px", color: T.textDim, fontSize: 13 }}>{p.pozisyon}</td>
-                  <td style={{ padding: "13px 16px", textAlign: "right", color: T.text, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>{fmt(p.maas)}</td>
-                  <td style={{ padding: "13px 16px", textAlign: "right", color: T.textDim, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>{fmt(p.sigorta)}</td>
-                  <td style={{ padding: "13px 16px", textAlign: "right", color: T.textDim, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>{p.yemek ? fmt(p.yemek) : "—"}</td>
-                  <td style={{ padding: "13px 16px", textAlign: "right", color: T.textDim, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>{p.tazminatBirikimi ? fmt(p.tazminatBirikimi) : "—"}</td>
-                  <td style={{ padding: "13px 16px", textAlign: "right", color: T.warning, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, fontWeight: 600 }}>{fmt(kisiMaliyet(p))}</td>
+                  <td style={{ padding: "12px 15px", color: T.textDim, fontSize: 13 }}>{p.pozisyon}</td>
+                  <td style={{ padding: "12px 15px", textAlign: "right", color: T.text, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>{fmt(p.maas)}</td>
+                  <td style={{ padding: "12px 15px", textAlign: "right", color: T.textDim, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>{fmt(p.sigorta)}</td>
+                  <td style={{ padding: "12px 15px", textAlign: "right", color: T.textDim, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>{p.yemek ? fmt(p.yemek) : "—"}</td>
+                  <td style={{ padding: "12px 15px", textAlign: "right", color: T.textDim, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>{p.tazminatBirikimi ? fmt(p.tazminatBirikimi) : "—"}</td>
+                  <td style={{ padding: "12px 15px", textAlign: "right", color: T.warning, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, fontWeight: 600 }}>{fmt(kisiMaliyet(p))}</td>
                   {avansAktif && (
-                    <td style={{ padding: "13px 16px", textAlign: "right", color: p.odemeGunu ? T.textDim : T.textFaint, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>
+                    <td style={{ padding: "12px 15px", textAlign: "right", color: p.odemeGunu ? T.textDim : T.textFaint, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>
                       {p.odemeGunu ? `Ayın ${p.odemeGunu}'i` : "—"}
                     </td>
                   )}
                   {avansAktif && (
-                    <td style={{ padding: "13px 16px", textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>
+                    <td style={{ padding: "12px 15px", textAlign: "right", fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>
                       <button
                         onClick={() => setAvansListeId(avansListeId === p.id ? null : p.id)}
                         style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", fontSize: 13, color: kisiAvansi(p) > 0 ? T.warning : T.textFaint, fontWeight: kisiAvansi(p) > 0 ? 600 : 400 }}
@@ -546,22 +546,22 @@ export function KadroluBolumu({ personel, onAdd, onUpdate, onDelete, duzenleyenA
                     </td>
                   )}
                   {avansAktif && (
-                    <td style={{ padding: "13px 16px", textAlign: "right", color: kisiOdenen(p) > 0 ? T.success : T.textFaint, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>
+                    <td style={{ padding: "12px 15px", textAlign: "right", color: kisiOdenen(p) > 0 ? T.success : T.textFaint, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13 }}>
                       {kisiOdenen(p) > 0 ? fmt(kisiOdenen(p)) : "—"}
                     </td>
                   )}
                   {avansAktif && (
-                    <td style={{ padding: "13px 16px", textAlign: "right", color: odenecek(p) > 0 ? T.warning : T.success, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, fontWeight: 600 }}>
+                    <td style={{ padding: "12px 15px", textAlign: "right", color: odenecek(p) > 0 ? T.warning : T.success, fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, fontWeight: 600 }}>
                       {fmt(odenecek(p))}
                     </td>
                   )}
                   {avansAktif && (() => {
                     const durum = maasOdemeDurumu(p.odemeGunu, odenecek(p), avansAy);
                     return (
-                      <td style={{ padding: "13px 16px", textAlign: "right", fontSize: 11.5, fontFamily: "Inter", color: durum.renk, fontWeight: 600 }}>{durum.etiket}</td>
+                      <td style={{ padding: "12px 15px", textAlign: "right", fontSize: 11, fontFamily: "Inter", color: durum.renk, fontWeight: 600 }}>{durum.etiket}</td>
                     );
                   })()}
-                  <td style={{ padding: "13px 16px", textAlign: "right", whiteSpace: "nowrap" }}>
+                  <td style={{ padding: "12px 15px", textAlign: "right", whiteSpace: "nowrap" }}>
                     {avansAktif && (
                       <>
                         <button style={iconBtnStyle} title="Avans ver" onClick={() => { setAvansAcikId(avansAcikId === p.id ? null : p.id); setAvansListeId(null); setOdemeAcikId(null); }}><Wallet size={14} color={T.textFaint} /></button>
@@ -604,7 +604,7 @@ export function KadroluBolumu({ personel, onAdd, onUpdate, onDelete, duzenleyenA
                     {listeAcik && (
                       <>
                         {kisiAvansKayitlari(p).length === 0 && kisiOdemeKayitlari(p).length === 0 && (
-                          <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginTop: 8 }}>{p.ad} için henüz avans veya ödeme kaydı yok.</div>
+                          <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginTop: 8 }}>{p.ad} için henüz avans veya ödeme kaydı yok.</div>
                         )}
                         <AvansListesi kayitlar={kisiAvansKayitlari(p)} hesaplar={hesaplar} onDelete={onDeleteAvans} />
                         <OdemeListesi kayitlar={kisiOdemeKayitlari(p)} hesaplar={hesaplar} onDelete={onDeleteOdeme} />
@@ -615,13 +615,13 @@ export function KadroluBolumu({ personel, onAdd, onUpdate, onDelete, duzenleyenA
               );
             })}
             {personel.length === 0 && (
-              <tr><td colSpan={avansAktif ? 13 : 8} style={{ padding: "24px 16px", textAlign: "center", color: T.textFaint, fontSize: 13 }}>Henüz personel eklenmedi.</td></tr>
+              <tr><td colSpan={avansAktif ? 13 : 8} style={{ padding: "18px 22px", textAlign: "center", color: T.textFaint, fontSize: 13 }}>Henüz personel eklenmedi.</td></tr>
             )}
           </tbody>
         </table>
         </div>
       </Card>
-      <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginTop: 10, lineHeight: 1.7 }}>
+      <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginTop: 10, lineHeight: 1.7 }}>
         Buradaki toplam, Dashboard ve Finans'taki Toplam Gider'e otomatik olarak eklenir.
         {avansAktif && " Avanslar ve ödeme kayıtları Toplam Gider'i DEĞİŞTİRMEZ — maaş zaten sayıldığı için eklenseydi aynı para iki kez sayılırdı. Etkileri iki yerde: \"Kalan\" sütununda ve paranın çıktığı hesabın bakiyesinde."}
       </div>
@@ -658,8 +658,8 @@ export function Personel(props) {
             key={sk.key}
             onClick={() => setAltSekme(sk.key)}
             style={{
-              padding: "10px 18px", borderRadius: 10, border: "none", cursor: "pointer", fontFamily: "Inter, sans-serif",
-              fontSize: 13.5, fontWeight: 600,
+              padding: "12px 15px", borderRadius: 10, border: "none", cursor: "pointer", fontFamily: "Inter, sans-serif",
+              fontSize: 13, fontWeight: 600,
               background: altSekme === sk.key ? T.accentSoft : "transparent",
               color: altSekme === sk.key ? T.accentText : T.textDim,
             }}
