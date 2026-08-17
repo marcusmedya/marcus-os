@@ -357,6 +357,10 @@ export default async function handler(req, res) {
                   aciklama: String(t.aciklama).trim().slice(0, 2000),
                   neZaman: String(t.neZaman || "").slice(0, 20),
                   referans: String(t.referans || "").trim().slice(0, 500),
+                  dosyalar: Array.isArray(t.dosyalar) ? t.dosyalar.slice(0, 5).map((d) => ({
+                    ad: String(d.ad || "").slice(0, 200),
+                    baglanti: String(d.baglanti || "").slice(0, 400),
+                  })) : [],
                   acil: t.acil === true,
                   durum: "bekliyor",
                   tarih: new Date().toLocaleString("tr-TR"),

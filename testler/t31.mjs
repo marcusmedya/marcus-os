@@ -62,3 +62,20 @@ t("clientId tarayıcıdan alınmıyor", String(benim.clientId) === "1");
 r = await cagir(h, { method: "GET", headers: M, query: {}, body: {} });
 t("müşteri kendi talebini görüyor", (r.govde.talepler || []).length === 1 && r.govde.talepler[0].aciklama === "benim");
 console.log(`\nSONUÇ: ${g} geçti, ${k} kaldı`);
+
+console.log("\nBAĞLANTILI TALEP");
+await KUR();
+r = await talepAt({ tur: "Reels", aciklama: "video ekli", dosyalar: [
+  { ad: "tanitim.mp4", baglanti: "https://drive.google.com/file/d/abc/view" },
+  { ad: "logo.png", baglanti: "https://drive.google.com/file/d/def/view" },
+]});
+d = await kv.get("marcus-os-data");
+const kayitD = d.musteriTalepleri[0];
+t("dosyalar kaydedildi", (kayitD.dosyalar || []).length === 2, `HTTP ${r.kod}`);
+t("dosya adı ve bağlantı korundu", kayitD.dosyalar[0].ad === "tanitim.mp4" && kayitD.dosyalar[0].baglanti.includes("abc"));
+r = await talepAt({ tur: "Görsel", aciklama: "çok dosya", dosyalar: Array.from({length: 9}, (_, i) => ({ ad: `d${i}.png`, baglanti: `https://x/${i}` })) });
+d = await kv.get("marcus-os-data");
+t("en fazla 5 dosya alınıyor", d.musteriTalepleri[1].dosyalar.length === 5);
+r = await cagir(h, { method: "GET", headers: M, query: {}, body: {} });
+t("müşteri kendi dosyalarını görüyor", ((r.govde.talepler || [])[0].dosyalar || []).length === 2);
+console.log(`\nTOPLAM: ${g} geçti, ${k} kaldı`);

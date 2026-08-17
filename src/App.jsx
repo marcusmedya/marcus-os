@@ -4460,6 +4460,13 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, reklamla
               </span>
             </div>
             <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{t.aciklama}</div>
+            {(t.dosyalar || []).length > 0 && (
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+                {t.dosyalar.map((d) => (
+                  <a key={d.baglanti} href={d.baglanti} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: T.accentText, fontFamily: "Inter" }}>{d.ad} ↗</a>
+                ))}
+              </div>
+            )}
             {(t.neZaman || t.referans) && (
               <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 4 }}>
                 {t.neZaman ? `İstenen tarih: ${t.neZaman}` : ""}{t.neZaman && t.referans ? " · " : ""}
@@ -7215,7 +7222,10 @@ export default function MarcusOS() {
         kategori,
         asama: "Talep Alındı",
         icerikTuru: t.tur,
-        brief: `MÜŞTERİ İSTEĞİ:\n${t.aciklama}${t.referans ? `\n\nReferans: ${t.referans}` : ""}`,
+        brief: `MÜŞTERİ İSTEĞİ:\n${t.aciklama}${t.referans ? `\n\nReferans: ${t.referans}` : ""}${(t.dosyalar || []).length ? `\n\nMüşterinin yüklediği dosyalar:\n${t.dosyalar.map((d) => `${d.ad} — ${d.baglanti}`).join("\n")}` : ""}`,
+        /* İlk dosya ham dosya bağlantısı olarak da kartın üstüne konur; ekip Drive'da
+         * aramak zorunda kalmasın. */
+        hamDosyaLink: (t.dosyalar || [])[0] ? t.dosyalar[0].baglanti : "",
         teslimTarihi: t.neZaman || "",
         oncelik: t.acil ? "yuksek" : "normal",
         gecmis: [{ id: 1, tarih: new Date().toLocaleString("tr-TR"), yazan: "Müşteri talebi", aciklama: "Müşteri panelinden gelen istek onaylandı." }],

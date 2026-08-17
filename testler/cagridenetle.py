@@ -32,6 +32,8 @@ GLOBALLER = {
 
 # React SINIF BİLEŞENİ metotları — hataYakalayici.jsx projedeki ilk sınıf bileşen.
 # Bunlar React tarafından çağrılır; kodda "tanımsız çağrı" gibi görünürler.
+TARAYICI_NODE = {"XMLHttpRequest", "URLSearchParams", "FormData", "Blob", "FileReader", "AbortController"}
+
 SINIF_METOTLARI = {"constructor", "render", "componentDidCatch", "componentDidMount",
                    "componentDidUpdate", "componentWillUnmount", "getDerivedStateFromError",
                    "getDerivedStateFromProps", "shouldComponentUpdate", "super", "setState"}
@@ -68,7 +70,7 @@ if __name__ == "__main__":
     for yol in sys.argv[1:]:
         ham = open(yol, encoding="utf-8").read()
         kod = sadece_kod(ham)
-        mevcut = yerel_adlar(kod) | importlar(ham) | GLOBALLER | SINIF_METOTLARI
+        mevcut = yerel_adlar(kod) | importlar(ham) | GLOBALLER | SINIF_METOTLARI | TARAYICI_NODE
         # "ad(" biçimindeki çağrılar; nokta ile erişilenler (a.b()) hariç
         # JSX metnini ayıkla: > ile { arasındaki düz metin kod değildir.
         # "Onayını Bekleyenler ({sayi})" gibi ifadelerde 'Bekleyenler' çağrı sanılıyordu.

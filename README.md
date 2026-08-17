@@ -3731,3 +3731,70 @@ sınırdan düşer.
 
 ### Doğrulama
 `t31.mjs` 13 sunucu kontrolü + 14 onay akışı kontrolü. 17 kod denetimi + 31 test dosyası temiz.
+
+## Güncelleme 149: Gerçek Google Drive Yüklemesi
+
+Müşteri talebe görsel ve **video** ekleyebiliyor. Dosya doğrudan Drive'a gidiyor.
+
+### Neden dosya sunucudan geçmiyor
+Video yüzlerce MB olabilir. Vercel'in istek sınırı ~4.5 MB, veri deposu da toplam ~4.5 MB.
+Dosya bizim sunucumuzdan geçemez.
+
+Akış: sunucu Google'dan bir **yükleme oturumu adresi** alır ve tarayıcıya verir → tarayıcı
+dosyayı doğrudan Google'a yükler → sunucu dosyayı görüntülenebilir yapar. Baytlar bize hiç
+uğramaz.
+
+Yükleme **yeniden başlatılabilir**: bağlantı koparsa büyük video baştan yüklenmez.
+
+### Slot harcanmadı
+Yeni api dosyası açılmadı — `musteriAction: "driveOturum"` ve `"drivePaylas"` olarak mevcut
+uç noktaya eklendi. **11/12** olarak kaldı.
+
+### Klasör düzeni
+Her müşterinin dosyası kendi marka klasörüne düşer (yoksa oluşturulur). Klasör adı
+**sunucuda** belirlenir — tarayıcıdan gelseydi başka markanın klasörüne yazılabilirdi.
+
+### Kurulu değilken
+Drive ortam değişkenleri yoksa yükleme alanı anlaşılır bir hata verir, **talep sistemi
+normal çalışmaya devam eder**. Test edildi.
+
+### Kurulum (kullanıcının yapacağı)
+Google Cloud'da proje → Drive API → servis hesabı → anahtar → hedef klasörü paylaş.
+Sonra Vercel'e üç değişken: `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY`,
+`DRIVE_KLASOR_ID`.
+
+### Onaylanınca
+Dosya bağlantıları **brief'e** yazılır, ilki `hamDosyaLink` olarak kartın üstüne konur —
+ekip Drive'da aramak zorunda kalmaz.
+
+### Doğrulama
+`t31.mjs` 19 kontrol: dosyalı/dosyasız talep, en fazla 5 dosya, Drive kurulu değilken sistemin
+çalışmaya devam etmesi, müşterinin kendi dosyalarını görmesi. 17 kod denetimi + 31 test
+dosyası temiz.
+
+## Güncelleme 150: Dosya Yükleme Yerine Bağlantı
+
+v149'daki Google Drive yükleme kodu **kaldırıldı**, yerine bağlantı alanı kondu.
+
+### Neden vazgeçildi
+Kurulum öncesi araştırıldı: servis hesaplarının depolama kotası yok. Kişisel bir Google
+hesabına ait klasöre yükleme yapıldığında Google "Service Accounts do not have storage quota"
+hatası veriyor. Çalışması için ya Google Workspace + Ortak Drive (aylık ücretli) ya da OAuth
+yetkilendirmesi gerekiyordu.
+
+Kullanıcı WeTransfer bağlantısını tercih etti: **ücretsiz, kurulumsuz, boyut sınırı yok.**
+
+### Ne değişti
+Müşteri panelindeki yükleme alanı → **"Görsel / video bağlantısı"** alanı.
+WeTransfer, Drive ya da benzeri bir bağlantı yapıştırılıyor.
+
+### Zincir aynen korundu
+Bağlantı, `dosyalar` listesine tek kayıt olarak giriyor — yani onaylanınca **brief'e yazılıyor**
+ve kartın `hamDosyaLink` alanına geçiyor. Yükleme için yazılan alt yapı boşa gitmedi.
+
+### Silinen dosya
+`lib/drive-yukleme.js` — **GitHub'dan elle silinmeli.**
+
+### Doğrulama
+17 sunucu kontrolü + 3 bağlantı zinciri kontrolü. 17 kod denetimi + 31 test dosyası temiz.
+Serverless slot 11/12 (hiç değişmedi).

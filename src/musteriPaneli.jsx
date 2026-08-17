@@ -7,7 +7,7 @@
  * Drive tarafı ayrı durmayı hak ediyor çünkü Google'ın adres davranışı zamanla değişiyor;
  * hangi adreslerin denendiği ve hatanın nasıl gösterildiği tek yerde toplu olmalı.
  */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   tarihGoster, cancelBtnStyle, haftaBaslangici, reklamDurumu, musteriHatirlaniyorMu, FONTS, basligiTemizle, istatistikVarMi, authHeaders,
   turEtiketi, TurRozet, inputStyle, saveBtnStyle,
@@ -191,14 +191,21 @@ function TalepFormu({ talepler, gonderiliyor, onGonder }) {
   const [neZaman, setNeZaman] = useState("");
   const [referans, setReferans] = useState("");
   const [acil, setAcil] = useState(false);
+  const [dosyaBaglantisi, setDosyaBaglantisi] = useState("");
 
   const acikSayi = (talepler || []).filter((t) => t.durum === "bekliyor").length;
   const sinirDoldu = acikSayi >= 3;
 
   const gonder = () => {
     if (!aciklama.trim()) return;
-    onGonder({ tur, aciklama, neZaman, referans, acil });
-    setAciklama(""); setNeZaman(""); setReferans(""); setAcil(false);
+    /* Bağlantı, dosya listesine tek kayıt olarak konur. Böylece onay akışı, brief'e
+     * yazılması ve karta hamDosyaLink olarak geçmesi aynen çalışır — yükleme yerine
+     * bağlantı kullanmak bu zinciri değiştirmiyor. */
+    const dosyalar = dosyaBaglantisi.trim()
+      ? [{ ad: "Müşterinin gönderdiği dosya", baglanti: dosyaBaglantisi.trim() }]
+      : [];
+    onGonder({ tur, aciklama, neZaman, referans, acil, dosyalar });
+    setAciklama(""); setNeZaman(""); setReferans(""); setAcil(false); setDosyaBaglantisi("");
   };
 
   const DURUM = {
@@ -263,6 +270,23 @@ function TalepFormu({ talepler, gonderiliyor, onGonder }) {
               </span>
             </div>
 
+            {/* DOSYA BAĞLANTISI — dosya yüklemek yerine bağlantı isteniyor.
+              * Gerçek yükleme Google Drive servis hesabı gerektiriyordu; servis hesaplarının
+              * depolama kotası olmadığı için kişisel Google hesabında çalışmıyor. Bağlantı
+              * yöntemi ücretsiz, kurulumsuz ve boyut sınırı yok. */}
+            <div style={{ fontSize: 13, color: MT.soluk, fontFamily: "Inter, sans-serif", fontWeight: 600, marginBottom: 6 }}>
+              Görsel / video bağlantısı (opsiyonel)
+            </div>
+            <input
+              value={dosyaBaglantisi}
+              onChange={(e) => setDosyaBaglantisi(e.target.value)}
+              placeholder="WeTransfer, Drive ya da benzeri bir bağlantı yapıştır"
+              style={{ width: "100%", background: MT.kagit, border: `1px solid ${MT.cizgi}`, borderRadius: 10, padding: "12px 15px", fontSize: 13, fontFamily: "Inter, sans-serif", color: MT.murekkep, marginBottom: 6, boxSizing: "border-box" }}
+            />
+            <div style={{ fontSize: 13, color: MT.soluk, fontFamily: "Inter, sans-serif", marginBottom: 14, lineHeight: 1.6 }}>
+              Dosyanı wetransfer.com'a yükleyip oluşan bağlantıyı buraya yapıştırabilirsin.
+            </div>
+
             <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, cursor: "pointer" }}>
               <input type="checkbox" checked={acil} onChange={(e) => setAcil(e.target.checked)} style={{ width: 16, height: 16, cursor: "pointer" }} />
               <span style={{ fontSize: 13, color: MT.murekkep, fontFamily: "Inter, sans-serif" }}>Acil</span>
@@ -296,6 +320,13 @@ function TalepFormu({ talepler, gonderiliyor, onGonder }) {
                     <span style={{ fontSize: 11, fontWeight: 700, color: d.renk, background: d.zemin, borderRadius: 999, padding: "2px 9px", whiteSpace: "nowrap" }}>{d.etiket}</span>
                   </div>
                   <div style={{ fontSize: 13, color: MT.murekkep, fontFamily: "Inter, sans-serif", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{t.aciklama}</div>
+                  {(t.dosyalar || []).length > 0 && (
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 6 }}>
+                      {t.dosyalar.map((d) => (
+                        <a key={d.baglanti} href={d.baglanti} target="_blank" rel="noreferrer" style={{ fontSize: 13, color: MT.mor, fontFamily: "Inter, sans-serif" }}>{d.ad} ↗</a>
+                      ))}
+                    </div>
+                  )}
                   {(t.neZaman || t.referans) && (
                     <div style={{ fontSize: 13, color: MT.soluk, fontFamily: "Inter, sans-serif", marginTop: 6 }}>
                       {t.neZaman ? `İstenen tarih: ${t.neZaman}` : ""}{t.neZaman && t.referans ? " · " : ""}
