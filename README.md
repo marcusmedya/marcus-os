@@ -2768,3 +2768,36 @@ Eski notlar işlem geçmişinde duruyor; sayaç onayla sıfırlanmıyor, müşte
 ### Doğrulama
 `t27.mjs` — 11 kontrol: anahtar yokken/bozukken/atanmamışken kayıt geçerli, sayaç birikiyor,
 onay sayacı artırmıyor, eski not geçmişte duruyor, sayaç müşteriye sızmıyor.
+
+## Güncelleme 116: Sol Menü Gruplandı
+
+18 satırlık düz liste 7 satıra indi.
+
+### Gruplama
+Günlük ritme göre yapıldı — hangi işi yaparken hangi ekranlara **birlikte** ihtiyaç
+duyulduğuna göre, alfabetik ya da teknik benzerliğe göre değil.
+
+```
+Dashboard · Planım · Takvim          ← grupsuz, her gün açılanlar
+📹 ÜRETİM      Operasyon · Çekim · Günlük Kontrol · Paylaşımlar
+👥 MÜŞTERİ     Müşteriler · Müşteri Paneli · Teklif & Sözleşme · Reklamlar
+💰 PARA        Finans · Ödeme Takvimi · Birikim · Üyelikler
+⚙️ EKİP & SİSTEM  Personel · Şifre Kasası · Ayarlar
+```
+
+### Davranış
+- **Bulunduğun grup her zaman açık** ve kapatılamaz — açık sayfayı menüde göremezsen nerede
+  olduğunu kaybedersin
+- Diğer gruplar tıklamayla açılıp kapanır
+- Dashboard/Planım/Takvim'deyken hiçbir grup açık değil
+
+### Değişmeyenler
+Sayfa içerikleri, izinler, veri — hiçbirine dokunulmadı. Bu tamamen menünün çizildiği yerdeki
+bir değişiklik.
+
+**Personel menüsü değiştirilmedi.** Orası yan menü değil, yatay düğme sırası ve zaten izinlere
+göre süzülüyor; ortak 2-4 düğme görüyor. Gruplamak fayda değil, fazladan tık getirirdi.
+
+### Doğrulama
+18 maddenin hepsi menüde, tekrar eden yok, açılma mantığı 7 senaryoda doğrulandı.
+15 kod denetimi + 27 sunucu test dosyası temiz.

@@ -6595,6 +6595,25 @@ function SaveBlockedModal({ info, onCancel, onForce }) {
 /* ------------------------------------------------------------------ */
 /* APP SHELL                                                            */
 /* ------------------------------------------------------------------ */
+/* MENÜ GRUPLARI
+ *
+ * 18 satırlık düz liste uzundu. Gruplama günlük ritme göre yapıldı: hangi işi yaparken hangi
+ * ekranlara BİRLİKTE ihtiyaç duyulduğuna göre, alfabetik ya da teknik benzerliğe göre değil.
+ *
+ * Üstteki üç madde grupsuz: her gün açılıyorlar, bir tık daha eklemenin anlamı yok.
+ *
+ * ÖNEMLİ: Gruplama yalnızca GÖRÜNÜM. Her maddenin izni kendi başına geçerli; izinsiz madde
+ * çizilmez ve tüm maddeleri izinsiz olan grubun BAŞLIĞI da çizilmez — aksi halde personel
+ * boş bir "Para" başlığı görür ve orada bir şey olduğunu sanırdı.
+ */
+const NAV_UST = ["dashboard", "planim", "takvim"];
+const NAV_GRUPLARI = [
+  { key: "uretim",  label: "Üretim",         icon: Camera,     maddeler: ["cekim-edit", "cekim-listesi", "gunluk-kontrol", "paylasimlar"] },
+  { key: "musteri", label: "Müşteri",        icon: Users,      maddeler: ["musteriler", "musteri-paneli", "teklif", "reklamlar"] },
+  { key: "para",    label: "Para",           icon: Wallet,     maddeler: ["finans", "odeme-takvimi", "birikim", "uyelikler"] },
+  { key: "sistem",  label: "Ekip & Sistem",  icon: Briefcase,  maddeler: ["personel", "musteri-girisleri", "ayarlar"] },
+];
+
 const NAV = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { key: "planim", label: "Planım", icon: NotebookPen },
@@ -6647,6 +6666,7 @@ export default function MarcusOS() {
   /* Planım → Onay Kutusu'ndan "Planı Düzenle"ye basınca yalnızca sekme değişiyordu; marka
    * seçili gelmediği için boş bir sayfaya düşülüyor, doğru içeriği elle bulmak gerekiyordu.
    * Bu hedef, hem markayı seçtirir hem de o içeriğin düzenleme formunu açar. */
+  const [acikGrup, setAcikGrup] = useState(null); // menüde elle açılan grup
   const [panelHedef, setPanelHedef] = useState(null);
   const [guvenlikDurumu, setGuvenlikDurumu] = useState(null);
   const [gizlilikModu, setGizlilikModuState] = useState(gizlilikModuOku());
@@ -8429,19 +8449,62 @@ export default function MarcusOS() {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-          {NAV.map(({ key, label, icon: Icon }) => {
-            // Planım'da bekleyen iş varsa menüde sayaç görünsün — sekmeye girmeden fark edilsin.
-            const rozet = key === "planim" ? onayBekleyenSayisi : 0;
+          {/* Menü maddesi — grup içinde ve dışında aynı görünüm. */}
+          {(() => {
+            const madde = (key) => {
+              const n = NAV.find((x) => x.key === key);
+              if (!n) return null;
+              const Icon = n.icon;
+              const rozet = key === "planim" ? onayBekleyenSayisi : 0;
+              const aktif = tab === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => { setTab(key); setMobileMenuOpen(false); }}
+                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 9, background: aktif ? T.accentSoft : "transparent", border: "none", cursor: "pointer", textAlign: "left", width: "100%" }}
+                >
+                  <Icon size={16} color={aktif ? T.accentText : T.textDim} />
+                  <span style={{ flex: 1, fontSize: 13.5, fontWeight: aktif ? 600 : 500, color: aktif ? T.text : T.textDim, fontFamily: "Inter, sans-serif" }}>{n.label}</span>
+                  {rozet > 0 && (
+                    <span style={{ background: T.warning, color: "#fff", borderRadius: 999, padding: "1px 7px", fontSize: 10.5, fontWeight: 700, fontFamily: "Inter" }}>{rozet}</span>
+                  )}
+                </button>
+              );
+            };
             return (
-              <button key={key} onClick={() => { setTab(key); setMobileMenuOpen(false); }} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 9, background: tab === key ? T.accentSoft : "transparent", border: "none", cursor: "pointer", textAlign: "left" }}>
-                <Icon size={16} color={tab === key ? T.accentText : T.textDim} />
-                <span style={{ flex: 1, fontSize: 13.5, fontWeight: tab === key ? 600 : 500, color: tab === key ? T.text : T.textDim, fontFamily: "Inter, sans-serif" }}>{label}</span>
-                {rozet > 0 && (
-                  <span style={{ background: T.warning, color: "#fff", borderRadius: 999, padding: "1px 7px", fontSize: 10.5, fontWeight: 700, fontFamily: "Inter" }}>{rozet}</span>
-                )}
-              </button>
+              <>
+                {NAV_UST.map((k) => madde(k))}
+
+                {NAV_GRUPLARI.map((grup) => {
+                  const GIcon = grup.icon;
+                  // Bulunduğun grup kendiliğinden açık gelir — açtığın sayfayı menüde
+                  // göremezsen nerede olduğunu kaybedersin.
+                  const icinde = grup.maddeler.includes(tab);
+                  const acik = acikGrup === grup.key || icinde;
+                  return (
+                    <div key={grup.key}>
+                      <button
+                        /* Bulunduğun grup her zaman açık kalır (kapatılamaz): açık sayfayı
+                          * menüde göremezsen nerede olduğunu kaybedersin. Diğer gruplar
+                          * tıklamayla açılıp kapanır. */
+                        onClick={() => { if (!icinde) setAcikGrup(acikGrup === grup.key ? null : grup.key); }}
+                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 12px", borderRadius: 9, background: "transparent", border: "none", cursor: "pointer", textAlign: "left", width: "100%" }}
+                      >
+                        <GIcon size={16} color={icinde ? T.accentText : T.textFaint} />
+                        <span style={{ flex: 1, fontSize: 12, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", color: icinde ? T.text : T.textFaint, fontFamily: "Inter, sans-serif" }}>{grup.label}</span>
+                        <span style={{ fontSize: 10, color: T.textFaint }}>{acik ? "▲" : "▼"}</span>
+                      </button>
+                      {acik && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 2, paddingLeft: 10, marginBottom: 4 }}>
+                          {grup.maddeler.map((k) => madde(k))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </>
             );
-          })}
+          })()}
         </div>
 
         <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
