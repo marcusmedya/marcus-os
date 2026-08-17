@@ -60,7 +60,7 @@ function Dashboard({ data }) {
         <KpiCard label="TOPLAM CİRO (BU AY)" value={fmt(live.ciro)} delta={ciroDelta} buyuk />
         <KpiCard label="NET KAZANÇ" value={fmt(live.net)} delta={netDelta} accent={T.success} buyuk />
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 14, marginBottom: 22 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12, marginBottom: 14 }}>
         <KpiCard label="TOPLAM GİDER" value={fmt(live.gider)} delta={giderDelta} />
         <KpiCard label="KÂR MARJI" value={`%${live.karMarji}`} mono />
         <KpiCard label="TAHSİL EDİLEN" value={fmt(live.tahsilEdilen)} />
@@ -102,6 +102,27 @@ function UygulamaLogosu({ gorsel, boyut = 30 }) {
   }
   return (
     <div style={{ width: boyut, height: boyut, borderRadius: 9, background: T.accent, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: "#fff", fontSize: boyut / 2.1, flexShrink: 0 }}>M</div>
+  );
+}
+
+/**
+ * SAYAÇ ROZETLERİ — bir ya da iki küçük rakam için KpiCard fazla geliyor.
+ *
+ * Tek kart koca bir satır kaplayıp sağında boşluk bırakıyordu. Rakam küçükse (3, 1, 9)
+ * kart formatı onu büyütmüyor, sadece yer kaplıyor.
+ */
+function SayacRozetleri({ ogeler }) {
+  const liste = (ogeler || []).filter(Boolean);
+  if (!liste.length) return null;
+  return (
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+      {liste.map((x) => (
+        <span key={x.etiket} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: T.surfaceRaised, borderRadius: 999, padding: "6px 10px", whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: x.renk || T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{x.deger}</span>
+          <span style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif" }}>{x.etiket}</span>
+        </span>
+      ))}
+    </div>
   );
 }
 
@@ -282,7 +303,7 @@ function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, freelancerlar, onA
         * her şeyi aşağı itiyordu. Başlıkta sayı ve toplam tutar durduğu için açmadan da
         * durumu görebiliyorsun. */}
       {odenmeyenler.length > 0 && (
-        <Card style={{ marginBottom: 22, border: `1px solid ${T.danger}` }}>
+        <Card style={{ marginBottom: 14, border: `1px solid ${T.danger}` }}>
           <button
             onClick={() => setOdemeAcik((v) => !v)}
             style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "18px 22px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left" }}
@@ -2881,9 +2902,7 @@ function CekimListesi({ clients, stoklar, subeler, gecmis }) {
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 22 }}>
-        <KpiCard label="ÇEKİM GEREKEN MARKA" value={gruplar.length} mono={false} accent={gruplar.length > 0 ? T.danger : T.success} />
-      </div>
+      <SayacRozetleri ogeler={[{ etiket: "çekim gereken marka", deger: gruplar.length, renk: gruplar.length > 0 ? T.danger : T.success }]} />
 
       {gruplar.length === 0 ? (
         <Card style={{ padding: "24px", textAlign: "center" }}>
@@ -4772,11 +4791,11 @@ function MusteriPaneliYonetimi({ saltOkunur = false, hedef, clients, icerikler, 
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 18 }}>
-        <KpiCard label="MÜŞTERİ ONAYI BEKLEYEN" value={toplamBekleyen} mono={false} accent={toplamBekleyen > 0 ? T.warning : T.success} />
-        {toplamRevize > 0 && <KpiCard label="REVİZE İSTENEN" value={toplamRevize} mono={false} accent={T.danger} />}
-        <KpiCard label="ÇEKİM PLANI" value={toplamPlan} mono={false} />
-      </div>
+      <SayacRozetleri ogeler={[
+        { etiket: "müşteri onayı bekleyen", deger: toplamBekleyen, renk: toplamBekleyen > 0 ? T.warning : T.success },
+        toplamRevize > 0 && { etiket: "revize istenen", deger: toplamRevize, renk: T.danger },
+        { etiket: "çekim planı", deger: toplamPlan },
+      ]} />
 
       <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginBottom: 16, lineHeight: 1.6 }}>
         Markaya tıkla, ona çekim planı ya da içerik gönder. Müşteri kendi panelinden görüp onaylar veya revize ister.
@@ -5360,11 +5379,11 @@ function Planim({ gorevler, onAdd, onUpdate, onDelete, onayKutusu }) {
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 18 }}>
-        <KpiCard label="AÇIK NOT" value={acikGorevler.length} mono={false} />
-        {gecikmisSayisi > 0 && <KpiCard label="TARİHİ GEÇTİ" value={gecikmisSayisi} accent={T.danger} mono={false} />}
-        {bugunSayisi > 0 && <KpiCard label="BUGÜN" value={bugunSayisi} accent={T.warning} mono={false} />}
-      </div>
+      <SayacRozetleri ogeler={[
+        { etiket: "açık not", deger: acikGorevler.length },
+        gecikmisSayisi > 0 && { etiket: "tarihi geçti", deger: gecikmisSayisi, renk: T.danger },
+        bugunSayisi > 0 && { etiket: "bugün", deger: bugunSayisi, renk: T.warning },
+      ]} />
       <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginBottom: 16, lineHeight: 1.6 }}>
         Yapman gerekenleri buraya not al. Sadece sen görürsün — personel paneline hiç gönderilmez.
       </div>
@@ -8341,7 +8360,7 @@ export default function MarcusOS() {
         <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "0 8px", marginBottom: 30 }}>
           <UygulamaLogosu gorsel={data.markaKimligiGorseli} boyut={38} />
           <div>
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 15, color: T.text, letterSpacing: 0.2 }}>Marcus Medya App</div>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 15, color: T.text, letterSpacing: 0.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Marcus Medya</div>
             <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>Marcus Medya</div>
           </div>
         </div>

@@ -3242,3 +3242,31 @@ Artık kendi sekmesinde.
 ### Not
 Katlanabilir başlıkta kullandığım AlertTriangle ikonu import edilmemişti — beşinci denetleyici
 yakaladı. Tam da bunun için var.
+
+## Güncelleme 132: Gereksiz Boşluklar Toplandı
+
+### Tek başına kalan kartlar
+Bir ya da iki küçük rakam için KpiCard fazla geliyordu: tek kart koca bir satır kaplayıp
+sağında bomboş alan bırakıyordu ("AÇIK NOT 3" gibi).
+
+Yeni `SayacRozetleri` bileşeni — rakam + etiket, yan yana küçük rozetler:
+
+```
+ 3 açık not   1 tarihi geçti   2 bugün
+```
+
+Üç ekranda uygulandı: Dashboard (Planım sayaçları), Çekim, Müşteri Paneli. Beş KpiCard rozete
+dönüştü, hiçbir sayı kaybolmadı.
+
+### Yan menü başlığı
+"Marcus Medya App" iki satıra kayıyordu → tek satır, "Marcus Medya".
+
+### Dikey boşluklar
+Bölümler arası 22px → 14px, kart araları 14px → 12px.
+
+### Doğrulama
+7 sayacın hepsi yerinde, 16 kod denetimi + 30 test dosyası temiz.
+
+### İlke
+Sayfayı doldurmak amaç değil. Küçük bir rakam küçük bir yer kaplamalı; kart formatı onu
+büyütmüyor, sadece etrafında boşluk yaratıyor.
