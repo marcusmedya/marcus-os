@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import TeklifSozlesme from "./TeklifSozlesme.jsx";
-import CekimEditTakibi, { operasyonAylikHakEdis, operasyonKisiIsimleri, ASAMALAR_VIDEO, ASAMALAR_TASARIM, AylikIsRaporu, KATEGORILER, asamaListesi, ILK_ASAMA, ciktiVideoMu } from "./CekimEditTakibi.jsx";
+import CekimEditTakibi, { operasyonAylikHakEdis, markaAylikIsMaliyeti, operasyonKisiIsimleri, ASAMALAR_VIDEO, ASAMALAR_TASARIM, AylikIsRaporu, KATEGORILER, asamaListesi, ILK_ASAMA, ciktiVideoMu } from "./CekimEditTakibi.jsx";
 import {
   LayoutDashboard, Users, Wallet, Settings, Sparkles,
   ArrowUpRight, ArrowDownRight, X, Send, Plus, Pencil, Trash2, Check,
@@ -32,7 +32,7 @@ import {
   AY_ADLARI, AySeciciAlan, gizlilikModuOku, gizlilikModuYaz,
   reklamDurumu, reklamMetrikleri, istatistikVarMi, OLCUM_ALANLARI, olcumKarsilastir,
   basligiTemizle, haftaBaslangici, tarihGoster, bugunISOTarih, parseTrTarih, tarihIso,
-  TR_AYLAR_KISA, MUSTERI_DURUM_ETIKET, markaAnahtari, DURUM_GRUBU, GRUP_BASLIK,
+  TR_AYLAR_KISA, MUSTERI_DURUM_ETIKET, markaAnahtari, DURUM_GRUBU, GRUP_BASLIK, musteriKarlilik,
   useDuzenlemeKilidi, KilitUyarisi, MarkaSecici, FieldForm, temaOku, temaUygula, TurRozet, turEtiketi,
 } from "./tema.jsx";
 import { DriveGorsel, DriveVideo, driveEmbedUrl, VIDEO_YONLERI, DriveKucukGorsel } from "./drive.jsx";
@@ -40,42 +40,7 @@ import { InstagramOnizleme, InstagramIzgara, aylikRaporAc } from "./instagram.js
 import { MusteriPaneli } from "./musteriPaneli.jsx";
 import { Personel, avansToplami, avansKisiyeAitMi, odemeToplami, odemeKisiyeAitMi, AvansVerFormu, AvansListesi } from "./personel.jsx";
 
-/* ------------------------------------------------------------------ */
-/* KARAR ŞERİDİ                                                          */
-/* ------------------------------------------------------------------ */
-function KararSeridi({ data, onAsk }) {
-  const insight = useMemo(() => {
-    const active = data.clients.filter((c) => c.durum !== "ayrildi" && c.durum !== "donduruldu");
-    if (!active.length) return null;
-    const live = computeLive(data);
-    const enKarli = [...active].sort((a, b) => clientKarMarji(b) - clientKarMarji(a))[0];
-    const enDusuk = [...active].sort((a, b) => clientKarMarji(a) - clientKarMarji(b))[0];
-    const bagimlilik = live.ciro ? Math.round((enKarli.aylikUcret / live.ciro) * 100) : 0;
-    return { enKarli, enDusuk, bagimlilik, enDusukMarji: clientKarMarji(enDusuk) };
-  }, [data]);
-
-  if (!insight) return null;
-
-  return (
-    <div style={{ background: `linear-gradient(90deg, ${T.accentSoft}, transparent 70%)`, border: `1px solid ${T.border}`, borderRadius: 14, padding: "13px 18px", display: "flex", alignItems: "center", gap: 14, marginBottom: 22, flexWrap: "wrap" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, color: T.accentText, fontFamily: "Inter, sans-serif", fontWeight: 700, fontSize: 12, letterSpacing: 0.4, whiteSpace: "nowrap" }}>
-        <Sparkles size={14} /> BUGÜNÜN KARARI
-      </div>
-      <div style={{ fontFamily: "Inter, sans-serif", fontSize: 13.5, color: T.text, flex: 1, minWidth: 260 }}>
-        <b>{insight.enDusuk.ad}</b> kâr marjın en düşük müşterin (%{insight.enDusukMarji}) — fiyat güncellemesi ya da kapsam gözden geçirmesi gerekebilir.
-        Ciron'un %{insight.bagimlilik}'i tek müşteriye ({insight.enKarli.ad}) bağlı.
-      </div>
-      <button onClick={onAsk} style={{ background: T.accent, color: "#fff", border: "none", borderRadius: 999, padding: "8px 14px", fontSize: 12.5, fontWeight: 600, fontFamily: "Inter, sans-serif", display: "flex", alignItems: "center", gap: 6, cursor: "pointer", whiteSpace: "nowrap" }}>
-        AI CEO'ya sor <ChevronRight size={14} />
-      </button>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* DASHBOARD                                                            */
-/* ------------------------------------------------------------------ */
-function Dashboard({ data, onAsk }) {
+function Dashboard({ data }) {
   const { monthly } = data;
   const live = computeLive(data);
   const prev = monthly.length ? monthly[monthly.length - 1] : null;
@@ -87,7 +52,7 @@ function Dashboard({ data, onAsk }) {
 
   return (
     <div>
-      <KararSeridi data={data} onAsk={onAsk} />
+      <KararSeridi data={data} />
 
       <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 22 }}>
         <KpiCard label="TOPLAM CİRO (BU AY)" value={fmt(live.ciro)} delta={ciroDelta} />
@@ -98,124 +63,130 @@ function Dashboard({ data, onAsk }) {
         <KpiCard label="BEKLEYEN TAHSİLAT" value={fmt(live.bekleyenToplam)} mono accent={T.warning} />
       </div>
 
-      <Card style={{ padding: "20px 22px", marginBottom: 22 }}>
-        <SectionTitle>Ciro & Net Kazanç — Son Aylar + Bu Ay</SectionTitle>
-        <ResponsiveContainer width="100%" height={220}>
-          <AreaChart data={chartData} margin={{ left: -18, right: 8 }}>
-            <defs>
-              <linearGradient id="ciroGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={T.accent} stopOpacity={0.35} />
-                <stop offset="100%" stopColor={T.accent} stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="netGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor={T.success} stopOpacity={0.3} />
-                <stop offset="100%" stopColor={T.success} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid stroke={T.borderSoft} vertical={false} />
-            <XAxis dataKey="ay" tick={{ fill: T.textFaint, fontSize: 11.5, fontFamily: "Inter" }} axisLine={{ stroke: T.border }} tickLine={false} />
-            <YAxis tick={{ fill: T.textFaint, fontSize: 11, fontFamily: "Inter" }} axisLine={false} tickLine={false} tickFormatter={fmtShort} width={40} />
-            <Tooltip formatter={(v) => fmt(v)} contentStyle={{ background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 10, fontFamily: "Inter", fontSize: 12.5 }} labelStyle={{ color: T.text }} />
-            <Area type="monotone" dataKey="ciro" stroke={T.accent} fill="url(#ciroGrad)" strokeWidth={2} name="Ciro" />
-            <Area type="monotone" dataKey="net" stroke={T.success} fill="url(#netGrad)" strokeWidth={2} name="Net" />
-          </AreaChart>
-        </ResponsiveContainer>
-      </Card>
+      
 
-      <AiOzet data={data} />
     </div>
   );
 }
 
-function AiOzet({ data }) {
-  const [text, setText] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [notConfigured, setNotConfigured] = useState(false);
-  const [failed, setFailed] = useState(false);
+/* ------------------------------------------------------------------ */
+/* BUGÜNÜN KARARI — kural tabanlı, veriye dayalı                        */
+/*                                                                      */
+/* Eskiden yapay zekaya bağlıydı ve kâr sıralaması iki yerde yanlıştı:  */
+/*  - YÜZDEYE göre sıralıyordu, tutara göre değil                       */
+/*  - maliyeti girilmemiş müşteride ELLE YAZILMIŞ orana düşüyordu       */
+/* Bu yüzden gerçekte kârlı olmayan bir marka "En Kârlı" çıkabiliyordu. */
+/*                                                                      */
+/* Yeni hâl model çağırmaz (maliyeti sıfır) ve hesaplayamadığı şey için */
+/* sayı UYDURMAZ — verinin eksik olduğunu söyler.                       */
+/* ------------------------------------------------------------------ */
+function KararSeridi({ data }) {
+  const kararlar = useMemo(() => {
+    const cikti = [];
+    const bugun = bugunISO();
+    const buAy = bugun.slice(0, 7);
+    const aktifler = (data.clients || []).filter((c) => c.durum !== "ayrildi" && c.durum !== "donduruldu");
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setFailed(false);
-    setNotConfigured(false);
-    fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
-      body: JSON.stringify({
-        question:
-          "Bugün için kısa bir CEO özeti hazırla. Bu ayki ciro/net/kâr marjı durumuna, en dikkat çeken 1-2 noktaya (örn. kâr marjı düşük müşteri, tek müşteriye bağımlılık) değin. " +
-          "EĞER bekleyen ya da gecikmiş ödeme varsa (otomatikBekleyenMusteriler ya da manuelBekleyenTahsilatlar içinde), bunları isim isim ve tutarlarıyla MUTLAKA belirt — bu en önemli kısım. " +
-          "3-4 cümle, doğrudan CEO'ya konuşur gibi, gereksiz giriş cümlesi kurmadan.",
-        context: {
-          ...data,
-          buAyinGercekDurumu: computeLive(data),
-          otomatikBekleyenMusteriler: data.clients
-            .filter((c) => c.durum !== "ayrildi" && c.durum !== "donduruldu")
-            .map((c) => ({ ad: c.ad, tutar: c.aylikUcret, odemeDurumu: clientPaymentStatus(c) }))
-            .filter((c) => c.odemeDurumu && (c.odemeDurumu.status === "bekliyor" || c.odemeDurumu.status === "gecikti")),
-          manuelBekleyenTahsilatlar: data.bekleyenTahsilatlar,
-        },
-      }),
-    })
-      .then((r) => r.json())
-      .then((res) => {
-        if (cancelled) return;
-        const block = (res.content || []).find((c) => c.type === "text");
-        if (block) { setText(block.text); return; }
-        if (res.error && res.error.includes("ANTHROPIC_API_KEY")) { setNotConfigured(true); return; }
-        if (res.error && res.error.includes("Yetkisiz")) { setNotConfigured(true); return; }
-        setFailed(true);
-        setText(res.error || "Özet oluşturulamadı.");
-      })
-      .catch(() => { if (!cancelled) { setFailed(true); setText("Bağlantı hatası — özet alınamadı."); } })
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-    // eslint-disable-next-line
-  }, []);
+    const karliliklar = aktifler.map((c) => {
+      const im = markaAylikIsMaliyeti(data.cekimIsleri, c.ad, buAy, data.isUcretleri, data.isUcretDetaylari);
+      const reklam = (data.reklamlar || [])
+        .filter((r) => markaAnahtari(r.marka) === markaAnahtari(c.ad))
+        .reduce((t, r) => t + (Number(r.butce) || 0), 0);
+      return { c, k: musteriKarlilik(c, { isMaliyeti: im.tutar, eksikUcret: im.eksikUcret, reklamButcesi: reklam }) };
+    });
+    const olculebilir = karliliklar.filter((x) => x.k.hesaplanabilir).sort((a, b) => b.k.net - a.k.net);
+    const eksikVeri = karliliklar.filter((x) => !x.k.hesaplanabilir);
+
+    if (olculebilir.length >= 2) {
+      const enIyi = olculebilir[0];
+      const enKotu = olculebilir[olculebilir.length - 1];
+      cikti.push({
+        tip: "iyi",
+        baslik: `En çok kazandıran: ${enIyi.c.ad}`,
+        detay: `Bu ay net ${fmt(enIyi.k.net)} (marj %${enIyi.k.marj}). Gelir ${fmt(enIyi.k.gelir)}, maliyet ${fmt(enIyi.k.toplamMaliyet)}.`,
+      });
+      if (enKotu.k.net < 0) {
+        cikti.push({ tip: "kotu", baslik: `${enKotu.c.ad} zarar ettiriyor`, detay: `Bu ay net ${fmt(enKotu.k.net)}. Fiyat ya da kapsam gözden geçirilmeli.` });
+      } else if (enKotu.k.marj < 30) {
+        cikti.push({ tip: "uyari", baslik: `${enKotu.c.ad} marjı düşük (%${enKotu.k.marj})`, detay: `Net ${fmt(enKotu.k.net)}. Maliyetler gelirin %${100 - enKotu.k.marj}'ini alıyor.` });
+      }
+      const toplamNet = olculebilir.reduce((t, x) => t + x.k.net, 0);
+      if (toplamNet > 0) {
+        const pay = Math.round((enIyi.k.net / toplamNet) * 100);
+        if (pay >= 40) cikti.push({ tip: "uyari", baslik: `Kârın %${pay}'i tek müşteriden`, detay: `${enIyi.c.ad} ayrılırsa aylık ${fmt(enIyi.k.net)} kaybedersin.` });
+      }
+    }
+
+    if (eksikVeri.length > 0) {
+      cikti.push({
+        tip: "veri",
+        baslik: `${eksikVeri.length} müşterinin kârı hesaplanamıyor`,
+        detay: eksikVeri.slice(0, 4).map((x) => `${x.c.ad} (${x.k.eksikler.join(", ")})`).join(" · ") + (eksikVeri.length > 4 ? " …" : ""),
+      });
+    }
+
+    const geciken = (data.haftalikPaylasimlar || []).filter((k) => {
+      if (k.yapildi) return false;
+      const m = String(k.haftaKey || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!m) return false;
+      const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      d.setDate(d.getDate() + (Number(k.gun) || 0));
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` < bugun;
+    });
+    if (geciken.length > 0) {
+      cikti.push({ tip: "kotu", baslik: `${geciken.length} paylaşım gecikti`, detay: "Günlük Kontrol'de kırmızı işaretli — tarihi geçmiş ama hâlâ paylaşılmamış." });
+    }
+
+    const cokRevize = (data.cekimIsleri || []).filter((j) => Number(j.revizeSayisi) >= 3);
+    if (cokRevize.length > 0) {
+      cikti.push({
+        tip: "uyari",
+        baslik: `${cokRevize.length} içerik 3+ kez revize aldı`,
+        detay: cokRevize.slice(0, 3).map((j) => `${j.marka} — ${j.icerikTuru || "içerik"} (${j.revizeSayisi})`).join(" · ") + ". Brief ya da beklenti gözden geçirilmeli.",
+      });
+    }
+
+    const bekleyen = (data.bekleyenTahsilatlar || []).filter((b) => !b.odendi);
+    if (bekleyen.length > 0) {
+      const toplam = bekleyen.reduce((t, b) => t + (Number(b.tutar) || 0), 0);
+      cikti.push({ tip: "uyari", baslik: `${bekleyen.length} tahsilat bekliyor`, detay: `Toplam ${fmt(toplam)}. Ödeme Takvimi'nde listeli.` });
+    }
+
+    return cikti;
+  }, [data]);
+
+  if (kararlar.length === 0) return null;
+
+  const RENK = {
+    iyi:   { c: T.success, s: T.successSoft },
+    kotu:  { c: T.danger,  s: T.dangerSoft },
+    uyari: { c: T.warning, s: T.warningSoft },
+    veri:  { c: T.textDim, s: T.surfaceRaised },
+  };
 
   return (
-    <Card style={{ padding: "20px 22px" }}>
-      <SectionTitle action={<Pill color={T.accentText} soft={T.accentSoft}><Sparkles size={11} /> AI</Pill>}>AI CEO Özeti</SectionTitle>
-      {loading ? (
-        <div style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textFaint }}>Özet hazırlanıyor…</div>
-      ) : notConfigured ? (
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textFaint, lineHeight: 1.7, margin: 0 }}>
-          AI özeti şu an kapalı. Açmak istediğinde Ayarlar sekmesindeki adımları takip edebilirsin.
-        </p>
-      ) : (
-        <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13.5, color: failed ? T.warning : T.textDim, lineHeight: 1.7, margin: 0, whiteSpace: "pre-wrap" }}>{text}</p>
-      )}
+    <Card style={{ padding: "16px 18px", marginBottom: 22 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <ClipboardCheck size={15} color={T.accentText} />
+        <span style={{ fontFamily: "Inter, sans-serif", fontWeight: 700, fontSize: 12, letterSpacing: 0.4, color: T.accentText }}>BUGÜNÜN KARARI</span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {kararlar.map((k, i) => {
+          const r = RENK[k.tip] || RENK.uyari;
+          return (
+            <div key={i} style={{ borderLeft: `3px solid ${r.c}`, background: r.s, borderRadius: 8, padding: "9px 12px" }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.text, fontFamily: "Inter, sans-serif", marginBottom: 2 }}>{k.baslik}</div>
+              <div style={{ fontSize: 12.5, color: T.textDim, fontFamily: "Inter, sans-serif", lineHeight: 1.6 }}>{k.detay}</div>
+            </div>
+          );
+        })}
+      </div>
     </Card>
   );
 }
 
 /* ------------------------------------------------------------------ */
-/* MÜŞTERİLER                                                           */
-/* ------------------------------------------------------------------ */
-const CLIENT_FIELDS = [
-  { key: "ad", label: "Müşteri Adı", type: "text" },
-  { key: "kategori", label: "Kategori", type: "text" },
-  { key: "durum", label: "Durum", type: "select", options: [{ value: "aktif", label: "Aktif" }, { value: "yeni", label: "Yeni" }, { value: "donduruldu", label: "Donduruldu" }, { value: "ayrildi", label: "Ayrıldı" }] },
-  { key: "email", label: "Yetkili E-postası (opsiyonel — ödeme hatırlatması için)", type: "text", placeholder: "yetkili@marka.com" },
-  { key: "telefon", label: "Yetkili Telefonu (opsiyonel — WhatsApp için, ülke koduyla)", type: "text", placeholder: "905XXXXXXXXX" },
-  // Müşteri panelinin üst kısmındaki ortak logo bandında kullanılır (Marcus Medya × Marka).
-  { key: "logoUrl", label: "Marka Logosu (opsiyonel — Drive bağlantısı, müşteri panelinde görünür)", type: "text", placeholder: "https://drive.google.com/file/d/..." },
-  { key: "aylikUcret", label: "Aylık Ücret (₺)", type: "number" },
-  { key: "karMarji", label: "Kâr Marjı (%) — müşteri detayında maliyet eklersen otomatik hesaplanır", type: "number" },
-  { key: "odemeGunu", label: "Ödeme Günü (ayın kaçı — opsiyonel, örn. 5)", type: "number" },
-  { key: "faturaliTutar", label: "Faturalı Tutar (₺/ay) — aylık ücretin ne kadarı faturalı? Kalanı otomatik faturasız sayılır", type: "number" },
-  { key: "baslangic", label: "Başlangıç Ayı (ne zaman çalışmaya başladınız)", type: "month" },
-  { key: "odemeSekli", label: "Ödeme Şekli", type: "select", options: [{ value: "pesin", label: "Peşin (ay başında/önceden)" }, { value: "sonra", label: "Sonra (ay sonunda/hizmet sonrası)" }] },
-  { key: "not", label: "Not (opsiyonel)", type: "text" },
-];
-
-const CLIENT_DURUM = {
-  aktif: { label: "Aktif", color: T.success, soft: T.successSoft },
-  yeni: { label: "Yeni", color: T.accentText, soft: T.accentSoft },
-  donduruldu: { label: "❄️ Donduruldu", color: T.warning, soft: T.warningSoft },
-  ayrildi: { label: "Ayrıldı", color: T.textFaint, soft: T.borderSoft },
-};
-
+/* DASHBOARD                                                            */
 function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, freelancerlar, onAdd, onUpdate, onDelete, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, openClient, onOpenClientHandled, duzenleyenAdi, musteriIcerikleri, onAddIcerik, onUpdateIcerik, onDeleteIcerik, onOnaylaIcerik, firmaAdi }) {
   const [filter, setFilter] = useState("hepsi");
   const [adding, setAdding] = useState(false);
@@ -5773,7 +5744,6 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Sabah E-postasıyla AI Özeti</SectionTitle>
         
-        <EmailYedekTest endpoint="/api/daily-summary" />
       </Card>
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Operasyon & Günlük Kontrol Hatırlatmaları</SectionTitle>
@@ -6275,86 +6245,6 @@ function MarkaKimligiYukleyici({ value, onChange }) {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* AI CEO CHAT PANEL                                                    */
-/* ------------------------------------------------------------------ */
-const PRESET_QUESTIONS = ["Bu ay neden kâr düştü?", "En kârlı müşteriler hangileri?", "Gelecek ay tahmini nedir?", "Hangi müşteriye bağımlıyım?"];
-
-function AiPanel({ open, onClose, initialQuestion, data }) {
-  const [messages, setMessages] = useState([{ role: "assistant", text: "Merhaba, ben Marcus Medya App'ın AI CEO asistanıyım. İşletmenin güncel verilerine bakarak sorularını cevaplayabilirim." }]);
-  const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const scrollRef = useRef(null);
-  const firedInitial = useRef(false);
-
-  useEffect(() => {
-    if (open && initialQuestion && !firedInitial.current) { firedInitial.current = true; send(initialQuestion); }
-    if (!open) firedInitial.current = false;
-    // eslint-disable-next-line
-  }, [open, initialQuestion]);
-
-  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight; }, [messages, loading]);
-
-  async function send(text) {
-    const q = (text ?? input).trim();
-    if (!q || loading) return;
-    setMessages((m) => [...m, { role: "user", text: q }]);
-    setInput("");
-    setLoading(true);
-    try {
-      const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
-        body: JSON.stringify({ question: q, context: data }),
-      });
-      const resData = await res.json();
-      const textBlock = (resData.content || []).find((c) => c.type === "text");
-      setMessages((m) => [...m, { role: "assistant", text: textBlock ? textBlock.text : (resData.error || "Bir cevap alınamadı, tekrar dener misin?") }]);
-    } catch (e) {
-      setMessages((m) => [...m, { role: "assistant", text: "Bağlantı hatası oluştu. Lütfen tekrar dene." }]);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div style={{ position: "fixed", top: 0, right: 0, height: "100%", width: 400, maxWidth: "92vw", background: T.surface, borderLeft: `1px solid ${T.border}`, zIndex: 50, display: "flex", flexDirection: "column", transform: open ? "translateX(0)" : "translateX(100%)", transition: "transform 0.28s cubic-bezier(.4,0,.2,1)", boxShadow: open ? "-24px 0 48px rgba(0,0,0,0.35)" : "none" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 18px", borderBottom: `1px solid ${T.borderSoft}` }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ width: 26, height: 26, borderRadius: 8, background: T.accentSoft, display: "flex", alignItems: "center", justifyContent: "center" }}><Sparkles size={14} color={T.accentText} /></div>
-          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: 14.5, color: T.text }}>AI CEO</span>
-        </div>
-        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 6 }}><X size={17} color={T.textFaint} /></button>
-      </div>
-
-      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", padding: "16px 18px", display: "flex", flexDirection: "column", gap: 12 }}>
-        {messages.map((m, i) => (
-          <div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", maxWidth: "88%", background: m.role === "user" ? T.accent : T.surfaceRaised, color: m.role === "user" ? "#fff" : T.text, padding: "10px 13px", borderRadius: m.role === "user" ? "14px 14px 3px 14px" : "14px 14px 14px 3px", fontSize: 13.5, fontFamily: "Inter, sans-serif", lineHeight: 1.55, whiteSpace: "pre-wrap" }}>
-            {m.text}
-          </div>
-        ))}
-        {loading && <div style={{ alignSelf: "flex-start", color: T.textFaint, fontSize: 12.5, fontFamily: "Inter", padding: "4px 4px" }}>AI CEO yazıyor…</div>}
-      </div>
-
-      {messages.length <= 1 && (
-        <div style={{ padding: "0 18px 12px", display: "flex", flexDirection: "column", gap: 6 }}>
-          {PRESET_QUESTIONS.map((q) => (
-            <button key={q} onClick={() => send(q)} style={{ textAlign: "left", background: T.surfaceRaised, border: `1px solid ${T.border}`, color: T.textDim, borderRadius: 10, padding: "9px 12px", fontSize: 12.5, fontFamily: "Inter, sans-serif", cursor: "pointer" }}>{q}</button>
-          ))}
-        </div>
-      )}
-
-      <div style={{ padding: 14, borderTop: `1px solid ${T.borderSoft}`, display: "flex", gap: 8 }}>
-        <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()} placeholder="Bir soru sor…" style={{ flex: 1, background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 10, padding: "10px 12px", color: T.text, fontSize: 13, fontFamily: "Inter, sans-serif", outline: "none" }} />
-        <button onClick={() => send()} disabled={loading} style={{ background: T.accent, border: "none", borderRadius: 10, width: 40, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", opacity: loading ? 0.6 : 1 }}><Send size={15} color="#fff" /></button>
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* ŞİFRE EKRANI                                                          */
-/* ------------------------------------------------------------------ */
 function LockScreen({ onSubmit, onKodSubmit, onKodIptal, kodAdimi, onStaffSubmit, onMusteriSubmit, error, checking }) {
   const [mode, setMode] = useState("sifre"); // "sifre" | "personel" | "musteri"
   const [value, setValue] = useState("");
@@ -6674,8 +6564,6 @@ export default function MarcusOS() {
     gizlilikModuYaz(deger);
     setGizlilikModuState(deger);
   };
-  const [aiOpen, setAiOpen] = useState(false);
-  const [aiQuestion, setAiQuestion] = useState(null);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saveStatus, setSaveStatus] = useState("idle");
@@ -6993,7 +6881,6 @@ export default function MarcusOS() {
     return () => window.removeEventListener("beforeunload", uyar);
   }, []);
 
-  const openAi = (q) => { setAiQuestion(q || null); setAiOpen(true); };
 
   const openTeblig = (client, months, toplam) => {
     const bugun = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
@@ -8283,7 +8170,7 @@ export default function MarcusOS() {
         )}
         <div style={{ padding: "20px 20px 40px" }}>
           {!staffTab && <div style={{ color: T.textFaint, fontFamily: "Inter", fontSize: 13 }}>Henüz erişimin olan bir bölüm yok. Yöneticine sor.</div>}
-          {staffTab === "dashboard" && <Dashboard data={data} onAsk={() => openAi()} />}
+          {staffTab === "dashboard" && <Dashboard data={data} />}
           {staffTab === "musteriler" && (
             <Musteriler
               clients={data.clients || []}
@@ -8522,11 +8409,7 @@ export default function MarcusOS() {
               })()}
             </div>
           </div>
-          <button onClick={() => openAi()} style={{ display: "flex", alignItems: "center", gap: 9, padding: "11px 12px", borderRadius: 10, background: `linear-gradient(135deg, ${T.accent}, #7C6BFA)`, border: "none", cursor: "pointer", width: "100%", color: "#fff" }}>
-            <Sparkles size={15} />
-            <span style={{ fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif" }}>AI CEO'ya Sor</span>
-          </button>
-
+          
           {/* CEO panelinde de çıkış butonu — personel ve müşteri panellerinde vardı, burada yoktu.
             * Kaydedilmemiş bir değişiklik varsa önce onu uyarır: 500ms gecikmeli kayıt henüz
             * sunucuya gitmemiş olabilir ve çıkışta sayfa yenilendiği için kaybolurdu. */}
@@ -8639,7 +8522,7 @@ export default function MarcusOS() {
         </div>
 
         <div style={{ padding: isMobile ? "16px 16px 32px" : "20px 30px 40px" }}>
-          {tab === "dashboard" && <Dashboard data={data} onAsk={() => openAi()} />}
+          {tab === "dashboard" && <Dashboard data={data} />}
           {tab === "planim" && (
             <Planim
               gorevler={data.kisiselGorevler || []}
@@ -8865,8 +8748,6 @@ export default function MarcusOS() {
         </div>
       </div>
 
-      {aiOpen && <div onClick={() => setAiOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 40 }} />}
-      <AiPanel open={aiOpen} onClose={() => setAiOpen(false)} initialQuestion={aiQuestion} data={{ ...data, buAyinGercekDurumu: computeLive(data) }} />
       {showBackupReminder && (
         <BackupReminder
           onBackupNow={() => { exportJson(); setShowBackupReminder(false); }}

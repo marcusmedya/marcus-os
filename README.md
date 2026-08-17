@@ -2801,3 +2801,75 @@ göre süzülüyor; ortak 2-4 düğme görüyor. Gruplamak fayda değil, fazlada
 ### Doğrulama
 18 maddenin hepsi menüde, tekrar eden yok, açılma mantığı 7 senaryoda doğrulandı.
 15 kod denetimi + 27 sunucu test dosyası temiz.
+
+## Güncelleme 117: Yapay Zeka Kaldırıldı, "Bugünün Kararı" Veriye Bağlandı
+
+### Neden
+"En kârlı VİOLLA" yanlıştı — ve sebebi yapay zeka değil, **kendi hesabımızdı**. İki hata:
+
+1. **Elle yazılmış sayıya güveniyordu.** Maliyeti girilmemiş bir müşteride `karMarji`
+   alanındaki elle yazılmış yüzdeye düşüyordu. Bir kez "%90" yazılmış marka, hiçbir doğrulama
+   olmadan birinci çıkıyordu.
+2. **Yüzdeye göre sıralıyordu, tutara göre değil.** ₺5.000 alıp ₺500 harcanan müşteri (%90),
+   ₺50.000 alıp ₺15.000 harcanandan (%70) önce geliyordu — oysa ikincisi ₺35.000 kazandırıyor,
+   birincisi ₺4.500.
+
+### Yeni kârlılık hesabı
+`musteriKarlilik()` artık **tutar** üretiyor: gelir − elle girilen maliyet − o markaya ait
+freelancer iş ücretleri − reklam bütçesi.
+
+Freelancer ücretleri `markaAylikIsMaliyeti()` ile hesaplanıyor ve personel raporuyla **aynı
+ücret fonksiyonunu** kullanıyor — ayrı yazılsaydı iki ekrandaki rakam birbirini tutmazdı.
+
+### Kendi kendini denetliyor
+Veri yetersizse **sayı uydurmuyor**. "VİOLLA — maliyet girilmemiş" diyor ve o müşteriyi
+sıralamaya hiç almıyor. Ücreti tanımsız kişi varsa onu da bildiriyor.
+
+### Bugünün Kararı — kural tabanlı
+Dashboard'da tek kart, model çağırmıyor, maliyeti sıfır:
+- En çok kazandıran müşteri (tutarla)
+- Zarar ettiren ya da marjı %30 altındaki müşteri
+- Kârın %40+'ı tek müşteriden geliyorsa bağımlılık uyarısı
+- Kârı hesaplanamayan müşteriler ve eksiğin ne olduğu
+- Geciken paylaşımlar · 3+ revize alan içerikler · bekleyen tahsilatlar
+
+### Kaldırılanlar
+AI CEO sohbet paneli, AI özet kartı, sabah AI özeti e-postası, `api/chat.js`,
+`api/daily-summary.js` ve cron kaydı.
+
+**Serverless slot 12/12 → 10/12.** İki slot açıldı; artık yeni bir uç nokta eklenebilir.
+
+### Doğrulama
+7 kârlılık mantığı kontrolü (yüzde-tutar çelişkisi, eksik veri, birleşik maliyetler),
+Dashboard'ın 6 KPI kartı korundu, 15 kod denetimi ve 27 sunucu test dosyası temiz.
+
+## Güncelleme 118: Veri Bütünlüğü Kontrolü
+
+v117'de büyük bir silme yapıldı (AI kodu, iki uç nokta). Verinin etkilenip etkilenmediği
+baştan sona test edildi.
+
+### Sonuç: veri güvende
+| Kontrol | Sonuç |
+|---|---|
+| 31 veri alanının hepsi okunuyor | ✓ |
+| Kayıt sonrası alan kaybı yok | ✓ |
+| Boş veri yazımı engelleniyor (409) | ✓ |
+| Günlük yedek alınıyor | ✓ |
+| Yedek 31 alanın hepsini içeriyor | ✓ |
+| Geri dönüşüm kutusu duruyor | ✓ |
+| 28 test dosyası, düşen yok | ✓ |
+
+### Silinen kod veriye dokunmuyordu
+`api/chat.js` ve `api/daily-summary.js` yalnızca **okuyup** e-posta gönderiyordu; hiçbir veri
+yazmıyorlardı. Yeni kârlılık hesabı da salt okunur — hesaplar ekranda yapılıyor, kayda
+yazılmıyor.
+
+Gece yedeği (03:00) ve hatırlatma cron'u yerinde; yalnızca AI özeti cron'u kaldırıldı.
+
+### Test hatam (üçüncü kez)
+"Yedek tüm alanları kapsamıyor" alarmı verdim. `api/backup.js` GET isteği veriyi değil
+**mevcut yedeklerin listesini** döndürüyor; anlık görüntüyü `daily-backup` üretiyor. Testim
+yanlış uç noktaya bakıyordu. Gerçek akış (yedek al → listele → içeriği doğrula) test edildi
+ve sorunsuz.
+
+Yeni kalıcı test: `t28.mjs` — 9 kontrol.

@@ -993,6 +993,42 @@ export function operasyonAylikHakEdis(jobs, kisiAd, ay, ucretler, ucretDetaylari
   return { isSayisi: oAyinIsleri.length, tutar, parca };
 }
 
+/**
+ * MARKA BAZLI FREELANCER MALİYETİ — bir markaya o ay harcanan iş başı ücretlerin toplamı.
+ *
+ * Kâr hesabı eskiden yalnızca elle girilen maliyetlere bakıyordu; Operasyon'da o marka için
+ * ödenen freelancer ücretleri hiç girmiyordu. Bu yüzden çok iş üretilen bir marka olduğundan
+ * kârlı görünüyordu.
+ *
+ * operasyonAylikHakEdis ile AYNI ücret fonksiyonunu (isUcretiHesapla) kullanır — iki hesap
+ * ayrı yazılsaydı personel raporundaki tutarla müşteri kârındaki tutar birbirini tutmazdı.
+ *
+ * eksikUcret: ücreti tanımlanmamış kişi sayısı. Sıfırdan büyükse maliyet OLDUĞUNDAN DÜŞÜK
+ * demektir; çağıran taraf bunu "veri eksik" olarak işaretlemeli.
+ */
+export function markaAylikIsMaliyeti(jobs, marka, ay, ucretler, ucretDetaylari) {
+  const anahtar = String(marka || "").trim().toLocaleLowerCase("tr");
+  if (!anahtar) return { tutar: 0, isSayisi: 0, eksikUcret: 0 };
+  const oAyinIsleri = (jobs || []).filter((j) => {
+    const t = isTeslimTarihi(j);
+    if (!t || t.slice(0, 7) !== ay) return false;
+    return String(j.marka || "").trim().toLocaleLowerCase("tr") === anahtar;
+  });
+  let tutar = 0;
+  let eksikUcret = 0;
+  oAyinIsleri.forEach((j) => {
+    // Bir işte hem kameraman hem editör olabilir; ikisi de ayrı ücret alır.
+    [j.kameraman, j.editor].filter(Boolean).forEach((kisi) => {
+      const varsayilan = Number((ucretler || {})[kisi]) || 0;
+      const detay = (ucretDetaylari || {})[j.id] || null;
+      const k = isUcretiHesapla(j, kisi, detay, varsayilan);
+      if (!varsayilan && !detay) eksikUcret += 1;
+      tutar += k;
+    });
+  });
+  return { tutar, isSayisi: oAyinIsleri.length, eksikUcret };
+}
+
 /** Operasyon'da atanmış ama kayıtlı olmayan kişileri bulur — Freelancer sekmesi bunları
  * "eklemek ister misin?" diye önerir, böylece isimler elle kopyalanmaz. */
 export function operasyonKisiIsimleri(jobs) {

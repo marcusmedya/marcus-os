@@ -381,6 +381,47 @@ export function clientFaturaliTutar(c) {
 
 /** Bir müşterinin kâr marjı: eğer o müşteriye maliyet eklenmişse (aylikUcret - maliyet)/aylikUcret
  * üzerinden otomatik hesaplanır; hiç maliyet eklenmemişse elle girilmiş karMarji alanı kullanılır. */
+/**
+ * MÜŞTERİ KÂRLILIĞI — gerçek veriden, denetimli.
+ *
+ * ESKİ HESAP İKİ YERDE YANILIYORDU:
+ *  1) Maliyeti hiç girilmemiş müşteride ELLE YAZILMIŞ karMarji alanına düşüyordu. Bir kez
+ *     "%90" yazılmış bir marka, hiçbir doğrulama olmadan "En Kârlı" çıkıyordu.
+ *  2) YÜZDEYE göre sıralıyordu. ₺5.000 alıp ₺500 harcanan müşteri (%90), ₺50.000 alıp
+ *     ₺15.000 harcanandan (%70) önce geliyordu — oysa ikincisi ₺35.000 kazandırıyor,
+ *     birincisi ₺4.500.
+ *
+ * Yeni hesap TUTAR üretir ve verinin yeterli olup olmadığını da söyler. Yetersizse
+ * `hesaplanabilir: false` döner; çağıran taraf uydurma bir sayı göstermek yerine
+ * "veri eksik" demelidir.
+ *
+ * isMaliyeti: markaAylikIsMaliyeti'nden gelen o ayki freelancer ücretleri (çağıran verir,
+ * bu dosya CekimEditTakibi'ye bağımlı olmasın diye).
+ */
+export function musteriKarlilik(c, { isMaliyeti = 0, eksikUcret = 0, reklamButcesi = 0 } = {}) {
+  const gelir = Number(c.aylikUcret) || 0;
+  const elleMaliyet = (c.maliyetler || []).reduce((s, m) => s + (Number(m.tutar) || 0), 0);
+  const maliyetGirilmis = (c.maliyetler || []).length > 0;
+  const toplamMaliyet = elleMaliyet + isMaliyeti + reklamButcesi;
+  const net = gelir - toplamMaliyet;
+
+  /* Hesaplanabilir sayılmasının şartı: gelir tanımlı OLMALI ve maliyet tarafında en az bir
+   * gerçek veri bulunmalı (elle girilmiş maliyet ya da o ay yapılmış ücretli iş).
+   * Hiçbiri yoksa net = gelirin tamamı çıkar ve müşteri sahte biçimde "çok kârlı" görünür. */
+  const hesaplanabilir = gelir > 0 && (maliyetGirilmis || isMaliyeti > 0);
+
+  const eksikler = [];
+  if (gelir <= 0) eksikler.push("aylık ücret girilmemiş");
+  if (!maliyetGirilmis) eksikler.push("maliyet girilmemiş");
+  if (eksikUcret > 0) eksikler.push(`${eksikUcret} işte kişi ücreti tanımsız`);
+
+  return {
+    gelir, elleMaliyet, isMaliyeti, reklamButcesi, toplamMaliyet, net,
+    marj: gelir > 0 ? Math.round((net / gelir) * 100) : 0,
+    hesaplanabilir, eksikler,
+  };
+}
+
 export function clientKarMarji(c) {
   const maliyetToplam = (c.maliyetler || []).reduce((s, m) => s + (Number(m.tutar) || 0), 0);
   if ((c.maliyetler || []).length > 0) {

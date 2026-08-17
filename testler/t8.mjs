@@ -14,10 +14,8 @@ const uclar = [
   ["manage-staff",    { method: "GET",  body: {} }],
   ["devir-teslim",    { method: "POST", body: { email: "a@b.c", marka: "Şişçi İbo" } }],
   ["notify-job",      { method: "POST", body: { email: "a@b.c", marka: "Şişçi İbo" } }],
-  ["chat",            { method: "POST", body: { soru: "test" } }],
   ["daily-backup",    { method: "GET",  body: {} }],
   ["daily-reminders", { method: "GET",  body: {} }],
-  ["daily-summary",   { method: "GET",  body: {} }],
 ];
 for (const [ad, cfg] of uclar) {
   await kv.set("marcus-os-data", TEMIZ_VERI());
