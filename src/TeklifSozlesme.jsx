@@ -177,7 +177,7 @@ function Panel({ C, children, style }) {
 
 function Stepper({ C, value, onChange }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "6px 10px" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 6, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 15px" }}>
       <button onClick={() => onChange(Math.max(1, Number(value) - 1))} style={{ width: 24, height: 24, borderRadius: 7, border: "none", background: "transparent", color: C.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}><Minus size={13} /></button>
       <input
         type="number" value={value}
@@ -284,7 +284,7 @@ function SonHaliDuzenleModal({ C, baslik, initialText, logoKendi, logoMusteri, k
         {isSozlesme && (
           <div style={{ display: "flex", gap: 8, marginBottom: 12, position: "relative" }}>
             <div style={{ position: "relative", flex: 1 }}>
-              <button onClick={() => setSablonMenuAcik((v) => !v)} style={{ width: "100%", padding: "6px 10px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.panelAlt, color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
+              <button onClick={() => setSablonMenuAcik((v) => !v)} style={{ width: "100%", padding: "12px 15px", borderRadius: 9, border: `1px solid ${C.border}`, background: C.panelAlt, color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
                 Kayıtlı Sözleşme Şablonların ({sablonlar.length})
               </button>
               {sablonMenuAcik && (
@@ -292,8 +292,8 @@ function SonHaliDuzenleModal({ C, baslik, initialText, logoKendi, logoMusteri, k
                   {sablonlar.length === 0 && <div style={{ padding: 12, fontSize: 13, color: C.textFaint }}>Henüz kayıtlı sözleşme şablonu yok.</div>}
                   {sablonlar.map((s) => (
                     <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.borderSoft}` }}>
-                      <button onClick={() => { setText(s.metin); setSablonMenuAcik(false); }} style={{ flex: 1, textAlign: "left", padding: "6px 10px", background: "transparent", border: "none", color: C.text, fontSize: 13, cursor: "pointer" }}>{s.ad}</button>
-                      <button onClick={() => onDeleteSablon && onDeleteSablon(s.id)} style={{ padding: "6px 10px", background: "transparent", border: "none", cursor: "pointer" }}><Trash2 size={12} color={C.danger} /></button>
+                      <button onClick={() => { setText(s.metin); setSablonMenuAcik(false); }} style={{ flex: 1, textAlign: "left", padding: "12px 15px", background: "transparent", border: "none", color: C.text, fontSize: 13, cursor: "pointer" }}>{s.ad}</button>
+                      <button onClick={() => onDeleteSablon && onDeleteSablon(s.id)} style={{ padding: "12px 15px", background: "transparent", border: "none", cursor: "pointer" }}><Trash2 size={12} color={C.danger} /></button>
                     </div>
                   ))}
                 </div>
@@ -302,10 +302,10 @@ function SonHaliDuzenleModal({ C, baslik, initialText, logoKendi, logoMusteri, k
             {sablonKaydetAcik ? (
               <div style={{ display: "flex", gap: 6, flex: 1 }}>
                 <input autoFocus value={sablonAdi} onChange={(e) => setSablonAdi(e.target.value)} placeholder="Şablon adı" style={{ flex: 1, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 9, padding: "6px 10px", fontSize: 13, color: C.text, outline: "none" }} />
-                <button onClick={kaydetSablon} style={{ padding: "6px 10px", borderRadius: 9, border: "none", background: C.accent, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Kaydet</button>
+                <button onClick={kaydetSablon} style={{ padding: "12px 15px", borderRadius: 9, border: "none", background: C.accent, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Kaydet</button>
               </div>
             ) : (
-              <button onClick={() => setSablonKaydetAcik(true)} style={{ padding: "6px 10px", borderRadius: 9, border: `1px dashed ${C.border}`, background: "transparent", color: C.accentText, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>+ Bu Metni Şablon Kaydet</button>
+              <button onClick={() => setSablonKaydetAcik(true)} style={{ padding: "12px 15px", borderRadius: 9, border: `1px dashed ${C.border}`, background: "transparent", color: C.accentText, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>+ Bu Metni Şablon Kaydet</button>
             )}
           </div>
         )}
@@ -430,7 +430,7 @@ export default function TeklifSozlesme({ firmaAdi = "Marcus Medya", onSaveTeklif
           <div style={{ position: "relative" }}>
             <button
               onClick={() => setSablonMenuOpen((v) => !v)}
-              style={{ display: "flex", alignItems: "center", gap: 7, background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, padding: "6px 10px", color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+              style={{ display: "flex", alignItems: "center", gap: 7, background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, padding: "12px 15px", color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer" }}
             >
               <BookmarkPlus size={14} /> Şablonlarım <ChevronDown size={13} />
             </button>
@@ -440,14 +440,14 @@ export default function TeklifSozlesme({ firmaAdi = "Marcus Medya", onSaveTeklif
                 {sablonlar.map((s) => (
                   <div key={s.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${C.borderSoft}` }}>
                     <button onClick={() => uygulaSablon(s)} style={{ flex: 1, textAlign: "left", padding: "12px 15px", background: "transparent", border: "none", color: C.text, fontSize: 13, cursor: "pointer" }}>{s.ad}</button>
-                    <button onClick={() => onDeleteSablon && onDeleteSablon(s.id)} style={{ padding: "6px 10px", background: "transparent", border: "none", cursor: "pointer" }}><Trash2 size={13} color={C.danger} /></button>
+                    <button onClick={() => onDeleteSablon && onDeleteSablon(s.id)} style={{ padding: "12px 15px", background: "transparent", border: "none", cursor: "pointer" }}><Trash2 size={13} color={C.danger} /></button>
                   </div>
                 ))}
                 <div style={{ padding: 10 }}>
                   {sablonKaydetAcik ? (
                     <div style={{ display: "flex", gap: 6 }}>
                       <input autoFocus value={sablonAdi} onChange={(e) => setSablonAdi(e.target.value)} placeholder="Şablon adı" style={{ flex: 1, background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 8, padding: "6px 10px", fontSize: 13, color: C.text, outline: "none" }} />
-                      <button onClick={kaydetSablonOlarak} style={{ padding: "6px 10px", borderRadius: 8, border: "none", background: C.accent, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Kaydet</button>
+                      <button onClick={kaydetSablonOlarak} style={{ padding: "12px 15px", borderRadius: 8, border: "none", background: C.accent, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Kaydet</button>
                     </div>
                   ) : (
                     <button onClick={() => setSablonKaydetAcik(true)} style={{ width: "100%", padding: "8px", borderRadius: 8, border: `1px dashed ${C.border}`, background: "transparent", color: C.accentText, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>+ Mevcut seçimi şablon olarak kaydet</button>

@@ -354,7 +354,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
           {cikisGoster && <button
             onClick={() => { if (window.confirm("Çıkış yapılsın mı? Tekrar girmek için kullanıcı adı ve şifren gerekecek.")) onCikis(); }}
             style={{
-              display: "flex", alignItems: "center", gap: 7, padding: "6px 10px", borderRadius: 8,
+              display: "flex", alignItems: "center", gap: 7, padding: "12px 15px", borderRadius: 8,
               background: "transparent", border: `1px solid ${MT.cizgi}`, color: MT.soluk,
               fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 500, cursor: "pointer",
             }}
@@ -419,7 +419,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
                   key={tr}
                   onClick={() => setTurSuzgec(tr)}
                   style={{
-                    padding: "6px 10px", borderRadius: 999, cursor: "pointer",
+                    padding: "12px 15px", borderRadius: 999, cursor: "pointer",
                     border: `1px solid ${aktif ? e.renk : MT.cizgi}`,
                     background: aktif ? e.zemin : MT.kart, color: aktif ? e.renk : MT.soluk,
                     fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: aktif ? 700 : 500,
@@ -969,7 +969,7 @@ export function MusteriPaylasimPlani({ plan, marka }) {
           <button
             key={g.key}
             onClick={() => { setGorunum(g.key); setSecili(null); }}
-            style={{ padding: "6px 16px", borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 13, fontWeight: 600,
+            style={{ padding: "12px 16px", borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 13, fontWeight: 600,
               background: gorunum === g.key ? MT.morSoluk : MT.kagit, color: gorunum === g.key ? MT.mor : MT.soluk }}
           >
             {g.label}

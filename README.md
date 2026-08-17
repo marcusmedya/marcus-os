@@ -3175,3 +3175,70 @@ dosyası temiz.
 ### Not
 Bu çalışmaya başlarken çalışma klasöründeki dosyaların benim dışımda değiştirildiği görüldü.
 Kaynağı doğrulanamadığı için v127 paketine dönülüp tüm işlem baştan yapıldı.
+
+## Güncelleme 129: Maliyet Uyarısı Kaldırıldı
+
+"14 markada doğrudan maliyet girilmemiş — %100 marjla hesaplandı" satırı kaldırıldı. En çok
+kazandıran markanın yanındaki **\*** işareti de.
+
+**Gerekçe:** Maliyet girilmemiş olması eksik veri değil, bilgidir. O iş maaşlı ekiple yapılmış
+demektir ve marjı gerçekten %100'dür. Kullanıcıyı maliyet girmeye zorlamak yanlıştı.
+
+Bu markalar sıralamaya normal şekilde giriyor, sadece artık uyarı üretmiyorlar.
+
+### Kaldırılmayanlar
+- **"X marjı düşük (%0)"** — bu uyarı doğru: o markada gerçek bir freelancer iş maliyeti var
+  ve gelirin tamamını yiyor. Kontrol edildi, yerinde duruyor.
+- **"Aylık ücreti girilmemiş"** — bu gerçekten eksik veri; o müşteride hesaplanacak gelir yok.
+
+## Güncelleme 130: Menü ve Düğmeler Yeniden Nefes Aldı
+
+v128'de dolgular üç basamağa indirilirken **tıklanabilir öğeler dar basamağa düştü** ve
+sıkıştı. Kullanıcı bunu menüde fark etti: "bu yazı büyüklüğü ve tıkladığında beyaz gözükmesi
+ile çok daha güzeldi".
+
+### Menü
+| | v128 | Şimdi |
+|---|---|---|
+| Yazı | 13 px | **15 px** |
+| Dolgu | 6×10 | **12×15** |
+| İkon | 16 px | 18 px |
+| Aktif madde | 600 ağırlık | **700 ağırlık, beyaz** |
+
+Menü kalabalık bir liste değil, az sayıda büyük hedef — ölçeğin üst basamağında olmalı.
+
+### Aynı sorun 36 yerde daha vardı
+Düğmeler ve sekmeler de 6px'e düşmüştü. Kural eklendi: içinde `cursor: pointer` olan bir öğe
+dar basamakta kalamaz, orta basamağa (12×15) çıkar. Salt görsel rozetler 6×10'da kalır.
+
+Dolgu ölçeği hâlâ üç basamak, yazı ölçeği hâlâ beş basamak — sadeleştirme bozulmadı.
+
+### Ders
+Ölçek kurarken "ne kadar küçülebilir" değil, **öğenin ne işe yaradığı** belirleyici olmalı.
+Rozet küçülebilir, tıklanan şey küçülemez.
+
+## Güncelleme 131: Müşteriler Ekranı Yeniden Düzenlendi
+
+### Sıra değişti
+Önce: dokuz satırlık ödenmeyen listesi → sonra KPI'lar → sonra müşteri listesi.
+Ekranın tamamını uyarı kaplıyor, asıl sayılar aşağıda kalıyordu.
+
+Şimdi: **KPI'lar en üstte** → ödenmeyen ödemeler (katlanmış) → müşteri listesi.
+
+### Ödenmeyen ödemeler katlanabilir
+Kapalı başlıkta **sayı ve toplam tutar** duruyor, yani açmadan da durumu görüyorsun.
+Varsayılan kapalı; tıklayınca liste açılıyor.
+
+### Müşteri Hesapları ayrı sekme
+`MÜŞTERİ → Müşteriler → Müşteri Hesapları`
+
+Panel giriş hesapları müşteri listesinin altındaydı; sayfa uzuyor ve iki ayrı iş karışıyordu.
+Artık kendi sekmesinde.
+
+### Doğrulama
+9 "Tebliğ Oluştur" düğmesi, 5 KPI kartı, 9 ödenmemiş satır — hepsi korundu. 16 kod denetimi +
+30 test dosyası temiz.
+
+### Not
+Katlanabilir başlıkta kullandığım AlertTriangle ikonu import edilmemişti — beşinci denetleyici
+yakaladı. Tam da bunun için var.

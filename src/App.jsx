@@ -6,7 +6,7 @@ import {
   ArrowUpRight, ArrowDownRight, X, Send, Plus, Pencil, Trash2, Check,
   ChevronRight,
   CircleDollarSign, Receipt, Landmark, CalendarClock, Search, Bell, Briefcase, PiggyBank, TrendingUp, Menu, Calendar, ChevronLeft, ListChecks, FileText, Megaphone, Share2, Lock, Camera, Shield, ClipboardCheck, Video, Copy, KeyRound, Eye, EyeOff, RefreshCw, CreditCard, NotebookPen, MonitorSmartphone, LogOut, Sun, Moon
-} from "lucide-react";
+, AlertTriangle} from "lucide-react";
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis,
   Tooltip, ResponsiveContainer, CartesianGrid
@@ -122,20 +122,17 @@ function KararSeridi({ data }) {
     });
     const olculebilir = karliliklar.filter((x) => x.k.hesaplanabilir).sort((a, b) => b.k.net - a.k.net);
     const eksikVeri = karliliklar.filter((x) => !x.k.hesaplanabilir);
-    /* Doğrudan maliyeti hiç girilmemişler sıralamaya GİRER (marjları gerçekten %100'dür,
-     * çünkü maaşlı ekip zamanı hiçbir müşteriye dağıtılmıyor) — ama işaretlenirler.
-     * İşaretlenmeseydi kendi ekiple çalışılan markalar, freelancer'la çalışılanlardan
-     * yapay biçimde kârlı görünür ve fark edilmezdi. */
-    const dogrulanmamis = olculebilir.filter((x) => !x.k.maliyetDogrulanmis);
+    /* Doğrudan maliyeti girilmemiş markalar sıralamaya normal girer ve UYARI ÜRETİLMEZ:
+     * maliyet girilmemiş olması eksik veri değil, bilgidir — o iş maaşlı ekiple yapılmış
+     * demektir ve marjı gerçekten %100'dür. Kullanıcı maliyet girmeye zorlanmamalı. */
 
     if (olculebilir.length >= 2) {
       const enIyi = olculebilir[0];
       const enKotu = olculebilir[olculebilir.length - 1];
       cikti.push({
         tip: "iyi",
-        baslik: `En çok kazandıran: ${enIyi.c.ad}${enIyi.k.maliyetDogrulanmis ? "" : " *"}`,
-        detay: `Bu ay net ${fmt(enIyi.k.net)} (marj %${enIyi.k.marj}). Gelir ${fmt(enIyi.k.gelir)}, maliyet ${fmt(enIyi.k.toplamMaliyet)}.`
-          + (enIyi.k.maliyetDogrulanmis ? "" : " * Bu markaya doğrudan maliyet girilmemiş — maaşlı ekiple yapılmış varsayıldı."),
+        baslik: `En çok kazandıran: ${enIyi.c.ad}`,
+        detay: `Bu ay net ${fmt(enIyi.k.net)} (marj %${enIyi.k.marj}). Gelir ${fmt(enIyi.k.gelir)}, maliyet ${fmt(enIyi.k.toplamMaliyet)}.`,
       });
       if (enKotu.k.net < 0) {
         cikti.push({ tip: "kotu", baslik: `${enKotu.c.ad} zarar ettiriyor`, detay: `Bu ay net ${fmt(enKotu.k.net)}. Fiyat ya da kapsam gözden geçirilmeli.` });
@@ -147,16 +144,6 @@ function KararSeridi({ data }) {
         const pay = Math.round((enIyi.k.net / toplamNet) * 100);
         if (pay >= 40) cikti.push({ tip: "uyari", baslik: `Kârın %${pay}'i tek müşteriden`, detay: `${enIyi.c.ad} ayrılırsa aylık ${fmt(enIyi.k.net)} kaybedersin.` });
       }
-    }
-
-    if (dogrulanmamis.length > 0) {
-      cikti.push({
-        tip: "veri",
-        baslik: `${dogrulanmamis.length} markada doğrudan maliyet girilmemiş — %100 marjla hesaplandı`,
-        detay: dogrulanmamis.slice(0, 5).map((x) => `${x.c.ad} (${fmt(x.k.net)})`).join(" · ")
-          + (dogrulanmamis.length > 5 ? " …" : "")
-          + ". Bunlar maaşlı ekiple yapılmış sayıldı; freelancer'la çalıştığın markalar yanlarında daha az kârlı görünür.",
-      });
     }
 
     if (eksikVeri.length > 0) {
@@ -274,6 +261,7 @@ function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, freelancerlar, onA
   const ortalamaGelir = active.length ? Math.round(active.reduce((s, c) => s + c.aylikUcret, 0) / active.length) : 0;
   const filtered = clients.filter((c) => (filter === "hepsi" ? true : c.durum === filter));
 
+  const [odemeAcik, setOdemeAcik] = useState(false);
   const odenmeyenler = active
     .map((c) => ({ client: c, ay: clientOverdueMonths(c) }))
     .filter((x) => x.ay > 0)
@@ -281,10 +269,38 @@ function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, freelancerlar, onA
 
   return (
     <div>
+
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 22 }}>
+        <KpiCard label="AKTİF MÜŞTERİ" value={clients.filter((c) => c.durum === "aktif").length} mono={false} />
+        <KpiCard label="YENİ MÜŞTERİ" value={clients.filter((c) => c.durum === "yeni").length} mono={false} accent={T.success} />
+        <KpiCard label="MÜŞTERİ BAŞI ORT. GELİR" value={fmt(ortalamaGelir)} />
+        <KpiCard label="EN KÂRLI" value={enKarli ? enKarli.ad : "—"} mono={false} accent={T.success} />
+        <KpiCard label="EN DÜŞÜK KÂRLI" value={enDusuk ? enDusuk.ad : "—"} mono={false} accent={T.warning} />
+      </div>
+
+      {/* Ödenmeyen ödemeler KATLANABİLİR: dokuz satır ekranın tamamını kaplıyor ve altındaki
+        * her şeyi aşağı itiyordu. Başlıkta sayı ve toplam tutar durduğu için açmadan da
+        * durumu görebiliyorsun. */}
       {odenmeyenler.length > 0 && (
-        <Card style={{ padding: "18px 22px", marginBottom: 16, border: `1px solid ${T.danger}` }}>
-          <SectionTitle>⚠️ Ödenmeyen Ödemeler ({odenmeyenler.length})</SectionTitle>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <Card style={{ marginBottom: 22, border: `1px solid ${T.danger}` }}>
+          <button
+            onClick={() => setOdemeAcik((v) => !v)}
+            style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "18px 22px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left" }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0 }}>
+              <AlertTriangle size={16} color={T.warning} />
+              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: T.text }}>
+                Ödenmeyen Ödemeler ({odenmeyenler.length})
+              </span>
+              <span style={{ fontSize: 13, color: T.danger, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600, whiteSpace: "nowrap" }}>
+                {fmt(odenmeyenler.reduce((t, x) => t + (Number(x.client.aylikUcret) || 0) * x.ay, 0))}
+              </span>
+            </span>
+            <span style={{ fontSize: 11, color: T.textFaint, flexShrink: 0 }}>{odemeAcik ? "▲ gizle" : "▼ göster"}</span>
+          </button>
+          {odemeAcik && (
+            <div style={{ padding: "0 22px 18px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {odenmeyenler.map(({ client: c, ay }) => {
               const toplam = (Number(c.aylikUcret) || 0) * ay;
               return (
@@ -300,22 +316,15 @@ function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, freelancerlar, onA
               );
             })}
           </div>
-          
+            </div>
+          )}
         </Card>
       )}
-
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 22 }}>
-        <KpiCard label="AKTİF MÜŞTERİ" value={clients.filter((c) => c.durum === "aktif").length} mono={false} />
-        <KpiCard label="YENİ MÜŞTERİ" value={clients.filter((c) => c.durum === "yeni").length} mono={false} accent={T.success} />
-        <KpiCard label="MÜŞTERİ BAŞI ORT. GELİR" value={fmt(ortalamaGelir)} />
-        <KpiCard label="EN KÂRLI" value={enKarli ? enKarli.ad : "—"} mono={false} accent={T.success} />
-        <KpiCard label="EN DÜŞÜK KÂRLI" value={enDusuk ? enDusuk.ad : "—"} mono={false} accent={T.warning} />
-      </div>
 
       <Card style={{ padding: "12px 15px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", gap: 8 }}>
           {[["hepsi", "Hepsi"], ["aktif", "Aktif"], ["yeni", "Yeni"], ["donduruldu", "Donduruldu"], ["ayrildi", "Ayrılan"]].map(([k, l]) => (
-            <button key={k} onClick={() => setFilter(k)} style={{ background: filter === k ? T.accentSoft : "transparent", color: filter === k ? T.accentText : T.textDim, border: "none", borderRadius: 8, padding: "6px 10px", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer" }}>
+            <button key={k} onClick={() => setFilter(k)} style={{ background: filter === k ? T.accentSoft : "transparent", color: filter === k ? T.accentText : T.textDim, border: "none", borderRadius: 8, padding: "12px 15px", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer" }}>
               {l}
             </button>
           ))}
@@ -444,10 +453,6 @@ function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, freelancerlar, onA
         />
       )}
 
-      {/* MÜŞTERİ PANELİ GİRİŞ HESAPLARI — Müşteri Paneli sekmesinden buraya taşındı.
-        * Kullanıcı adı ve şifre müşterinin kendi kaydına ait bir bilgi; içerik yönetimiyle
-        * aynı ekranda durunca iki ayrı iş karışıyordu. */}
-      <MusteriHesaplariKart clients={clients} />
     </div>
   );
 }
@@ -793,7 +798,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                     key={tr}
                     onClick={() => setTurSuzgec(tr)}
                     style={{
-                      padding: "6px 10px", borderRadius: 999, cursor: "pointer",
+                      padding: "12px 15px", borderRadius: 999, cursor: "pointer",
                       border: `1px solid ${aktif ? e.renk : T.border}`,
                       background: aktif ? e.zemin : "transparent",
                       color: aktif ? e.renk : T.textDim,
@@ -1106,7 +1111,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                       <button
                         key={k}
                         onClick={() => { setIsKategori(k); setIsAsama(asamaListesi(k).includes(isAsama) ? isAsama : "Kontrol Bekliyor"); }}
-                        style={{ padding: "6px 10px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "Inter", background: isKategori === k ? T.accent : T.surfaceRaised, color: isKategori === k ? "#fff" : T.textDim }}
+                        style={{ padding: "12px 15px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600, fontFamily: "Inter", background: isKategori === k ? T.accent : T.surfaceRaised, color: isKategori === k ? "#fff" : T.textDim }}
                       >
                         {k}
                       </button>
@@ -1799,7 +1804,7 @@ function OdemeGunuHucre({ client, onUpdateClient }) {
   return (
     <button
       onClick={() => setEditing(true)}
-      style={{ background: "transparent", border: `1px dashed ${client.odemeGunu ? T.border : T.warning}`, borderRadius: 7, padding: "6px 10px", color: client.odemeGunu ? T.text : T.warning, fontSize: 13, fontFamily: "Inter, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}
+      style={{ background: "transparent", border: `1px dashed ${client.odemeGunu ? T.border : T.warning}`, borderRadius: 7, padding: "12px 15px", color: client.odemeGunu ? T.text : T.warning, fontSize: 13, fontFamily: "Inter, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}
     >
       {client.odemeGunu ? `Ayın ${client.odemeGunu}'i` : "+ Gün gir"}
     </button>
@@ -1946,7 +1951,7 @@ function OdemeTakvimi({ clients, hesaplar, transferler, avanslar, odemeler, duze
           <button
             key={n}
             onClick={() => setAyCount(n)}
-            style={{ background: ayCount === n ? T.accentSoft : "transparent", color: ayCount === n ? T.accentText : T.textDim, border: "none", borderRadius: 8, padding: "6px 10px", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer" }}
+            style={{ background: ayCount === n ? T.accentSoft : "transparent", color: ayCount === n ? T.accentText : T.textDim, border: "none", borderRadius: 8, padding: "12px 15px", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer" }}
           >
             Son {n} ay
           </button>
@@ -2145,7 +2150,7 @@ function HesapGelisimi({ clients, olcumler, onKaydet, onSil }) {
           <button
             key={c.id}
             onClick={() => { setSecili(String(secili) === String(c.id) ? null : c.id); setDuzenle(false); }}
-            style={{ padding: "6px 10px", borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 13, fontWeight: 600,
+            style={{ padding: "12px 15px", borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 13, fontWeight: 600,
               background: String(secili) === String(c.id) ? T.accent : T.surfaceRaised, color: String(secili) === String(c.id) ? "#fff" : T.textDim }}
           >
             {c.ad}
@@ -2227,7 +2232,7 @@ function Reklamlar({ reklamlar, clients, onAdd, onUpdate, onDelete, duzenleyenAd
       <Card style={{ padding: "12px 15px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", gap: 8 }}>
           {[["hepsi", "Hepsi"], ["aktif", "Aktif"], ["yakinda", "Yakında Bitiyor"], ["bitti", "Bitti"]].map(([k, l]) => (
-            <button key={k} onClick={() => setFilter(k)} style={{ background: filter === k ? T.accentSoft : "transparent", color: filter === k ? T.accentText : T.textDim, border: "none", borderRadius: 8, padding: "6px 10px", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer" }}>{l}</button>
+            <button key={k} onClick={() => setFilter(k)} style={{ background: filter === k ? T.accentSoft : "transparent", color: filter === k ? T.accentText : T.textDim, border: "none", borderRadius: 8, padding: "12px 15px", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: "pointer" }}>{l}</button>
           ))}
         </div>
         <button style={addBtnStyle} onClick={() => { setAdding(true); setEditingId(null); }}><Plus size={14} /> Reklam Ekle</button>
@@ -2486,7 +2491,7 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, onAddPlan, onToggleYapi
                 <button
                   key={t}
                   onClick={() => { onAddPlan(secim.clientId, secim.gun, haftaKey, t); setSecim(null); }}
-                  style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.surfaceRaised, color: T.text, fontSize: 13, fontFamily: "Inter", cursor: "pointer", textAlign: "left" }}
+                  style={{ padding: "12px 15px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.surfaceRaised, color: T.text, fontSize: 13, fontFamily: "Inter", cursor: "pointer", textAlign: "left" }}
                 >
                   {t}
                 </button>
@@ -2681,7 +2686,7 @@ function HesapBakiyeleri({ hesaplar, clients, transferler, avanslar, odemeler, d
                         title={h.elleTakip
                           ? "Şu an elle takip: müşteri ödemeleri bu hesaba otomatik eklenmiyor. Otomatiğe çevirmek için tıkla."
                           : "Şu an otomatik: müşteri ödemeleri bu hesaba akıyor. Elle takibe çevirmek için tıkla."}
-                        style={{ background: h.elleTakip ? T.warningSoft : T.surfaceRaised, border: "none", borderRadius: 999, padding: "6px 10px", cursor: "pointer", fontSize: 11, fontFamily: "Inter", color: h.elleTakip ? T.warning : T.textFaint, fontWeight: 600 }}
+                        style={{ background: h.elleTakip ? T.warningSoft : T.surfaceRaised, border: "none", borderRadius: 999, padding: "12px 15px", cursor: "pointer", fontSize: 11, fontFamily: "Inter", color: h.elleTakip ? T.warning : T.textFaint, fontWeight: 600 }}
                       >
                         {h.elleTakip ? "elle takip" : "otomatik"}
                       </button>
@@ -3544,7 +3549,7 @@ function YedekGecmisi() {
           <button
             key={sk.key}
             onClick={() => setGorunum(sk.key)}
-            style={{ padding: "6px 10px", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 13,
+            style={{ padding: "12px 15px", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 13,
               background: gorunum === sk.key ? T.accentSoft : T.surfaceRaised, color: gorunum === sk.key ? T.accentText : T.textDim, fontWeight: 600 }}
           >
             {sk.label}
@@ -4691,7 +4696,7 @@ function OrtakMarkaPaneli({ firmaAdi }) {
                 key={m.id}
                 onClick={() => getir(m.id)}
                 style={{
-                  padding: "6px 15px", borderRadius: 9, border: "none", cursor: "pointer",
+                  padding: "12px 15px", borderRadius: 9, border: "none", cursor: "pointer",
                   fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: 600,
                   background: String(seciliId) === String(m.id) ? T.accent : T.surfaceRaised,
                   color: String(seciliId) === String(m.id) ? "#fff" : T.textDim,
@@ -4807,7 +4812,7 @@ function MusteriPaneliYonetimi({ saltOkunur = false, hedef, clients, icerikler, 
                   {benzer && onMarkaDuzelt && (
                     <button
                       onClick={() => { if (window.confirm(`Bu kartın markası "${benzer.ad}" olarak düzeltilecek. Devam edilsin mi?`)) onMarkaDuzelt(j.id, benzer.ad); }}
-                      style={{ background: T.accentSoft, color: T.accentText, border: "none", borderRadius: 6, padding: "6px 10px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif", whiteSpace: "nowrap" }}
+                      style={{ background: T.accentSoft, color: T.accentText, border: "none", borderRadius: 6, padding: "12px 15px", fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "Inter, sans-serif", whiteSpace: "nowrap" }}
                     >
                       {benzer.ad} olarak düzelt
                     </button>
@@ -4835,7 +4840,7 @@ function MusteriPaneliYonetimi({ saltOkunur = false, hedef, clients, icerikler, 
                   key={c.id}
                   onClick={() => setSecili(aktif ? null : c.id)}
                   style={{
-                    display: "flex", alignItems: "center", gap: 7, padding: "6px 10px", borderRadius: 10, border: "none", cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: 7, padding: "12px 15px", borderRadius: 10, border: "none", cursor: "pointer",
                     background: aktif ? T.accent : T.surfaceRaised, color: aktif ? "#fff" : T.textDim,
                     fontSize: 13, fontWeight: 600, fontFamily: "Inter",
                   }}
@@ -5388,7 +5393,7 @@ function Planim({ gorevler, onAdd, onUpdate, onDelete, onayKutusu }) {
           <button
             onClick={() => setOnemli((v) => !v)}
             title="Önemli olarak işaretle"
-            style={{ padding: "6px 10px", borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 13, fontWeight: 600, background: onemli ? T.warningSoft : T.surfaceRaised, color: onemli ? T.warning : T.textFaint }}
+            style={{ padding: "12px 15px", borderRadius: 9, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 13, fontWeight: 600, background: onemli ? T.warningSoft : T.surfaceRaised, color: onemli ? T.warning : T.textFaint }}
           >
             ● Önemli
           </button>
@@ -6134,7 +6139,7 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
                   <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 8 }}>BU KİŞİYE ÖZEL YETKİLER</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
                     {IZIN_LISTESI.map((m) => (
-                      <label key={m.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", background: T.surface, borderRadius: 8, cursor: "pointer" }}>
+                      <label key={m.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 15px", background: T.surface, borderRadius: 8, cursor: "pointer" }}>
                         <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter" }}>{m.label}</span>
                         <input type="checkbox" checked={taslakIzin[m.key] === true} onChange={(e) => setTaslakIzin((s) => ({ ...s, [m.key]: e.target.checked }))} style={{ width: 16, height: 16, cursor: "pointer" }} />
                       </label>
@@ -6155,7 +6160,7 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
                         <button
                           key={c.id}
                           onClick={() => setTaslakMarkalar((liste) => (secili ? liste.filter((x) => x !== c.ad) : [...liste, c.ad]))}
-                          style={{ padding: "6px 10px", borderRadius: 999, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 13, fontWeight: 600,
+                          style={{ padding: "12px 15px", borderRadius: 999, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 13, fontWeight: 600,
                             background: secili ? T.accent : T.surface, color: secili ? "#fff" : T.textDim }}
                         >
                           {c.ad}
@@ -6506,7 +6511,7 @@ const NAV_UST = ["dashboard"];
  * tek başına bir madde. */
 const NAV_ALT = ["musteri-girisleri", "ayarlar"];
 const NAV_GRUPLARI = [
-  { key: "musteri", label: "Müşteri",        icon: Users,      maddeler: ["musteriler", "teklif", "reklamlar"] },
+  { key: "musteri", label: "Müşteri",        icon: Users,      maddeler: ["musteriler", "musteri-hesaplari", "teklif", "reklamlar"] },
   { key: "para",    label: "Para",           icon: Wallet,     maddeler: ["finans", "odeme-takvimi", "personel", "birikim", "uyelikler"] },
   { key: "uretim",  label: "Üretim",         icon: Camera,     maddeler: ["cekim-edit", "cekim-listesi", "gunluk-kontrol", "paylasimlar", "musteri-paneli"] },
 ];
@@ -6514,6 +6519,7 @@ const NAV_GRUPLARI = [
 const NAV = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { key: "musteriler", label: "Müşteriler", icon: Users },
+  { key: "musteri-hesaplari", label: "Müşteri Hesapları", icon: KeyRound },
   { key: "finans", label: "Finans", icon: Wallet },
   { key: "odeme-takvimi", label: "Ödeme Takvimi", icon: ListChecks },
   { key: "teklif", label: "Teklif & Sözleşme", icon: FileText },
@@ -8355,10 +8361,13 @@ export default function MarcusOS() {
                 <button
                   key={key}
                   onClick={() => { setTab(key); setMobileMenuOpen(false); }}
-                  style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", borderRadius: 9, background: aktif ? T.accentSoft : "transparent", border: "none", cursor: "pointer", textAlign: "left", width: "100%" }}
+                  /* Menü kalabalık bir liste değil, az sayıda büyük hedef — dolgu ve yazı
+                    * ölçeğin üst basamağında tutulur. Aktif madde BEYAZ ve kalın: göz menüye
+                    * dönünce nerede olduğunu okumadan bulur. */
+                  style={{ display: "flex", alignItems: "center", gap: 11, padding: "12px 15px", borderRadius: 10, background: aktif ? T.accentSoft : "transparent", border: "none", cursor: "pointer", textAlign: "left", width: "100%" }}
                 >
-                  <Icon size={16} color={aktif ? T.accentText : T.textDim} />
-                  <span style={{ flex: 1, fontSize: 13, fontWeight: aktif ? 600 : 500, color: aktif ? T.text : T.textDim, fontFamily: "Inter, sans-serif" }}>{n.label}</span>
+                  <Icon size={18} color={aktif ? T.accentText : T.textDim} />
+                  <span style={{ flex: 1, fontSize: 15, fontWeight: aktif ? 700 : 500, color: aktif ? T.text : T.textDim, fontFamily: "Inter, sans-serif" }}>{n.label}</span>
                   {rozet > 0 && (
                     <span style={{ background: T.warning, color: "#fff", borderRadius: 999, padding: "6px 10px", fontSize: 11, fontWeight: 700, fontFamily: "Inter" }}>{rozet}</span>
                   )}
@@ -8385,9 +8394,9 @@ export default function MarcusOS() {
                           * vurgulanır ve açık sayfanın adı yanında yazar — yerini yine
                           * kaybetmezsin, ama menüyü toplayabilirsin. */
                         onClick={() => setAcikGrup(acik ? "__kapali__" : grup.key)}
-                        style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 10px", borderRadius: 9, background: "transparent", border: "none", cursor: "pointer", textAlign: "left", width: "100%" }}
+                        style={{ display: "flex", alignItems: "center", gap: 11, padding: "12px 15px", borderRadius: 10, background: "transparent", border: "none", cursor: "pointer", textAlign: "left", width: "100%" }}
                       >
-                        <GIcon size={16} color={icinde ? T.accentText : T.textFaint} />
+                        <GIcon size={18} color={icinde ? T.accentText : T.textFaint} />
                         <span style={{ flex: 1, minWidth: 0 }}>
                           <span style={{ display: "block", fontSize: 13, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", color: icinde ? T.text : T.textFaint, fontFamily: "Inter, sans-serif" }}>{grup.label}</span>
                           {icinde && !acik && (
@@ -8399,7 +8408,7 @@ export default function MarcusOS() {
                         <span style={{ fontSize: 11, color: T.textFaint }}>{acik ? "▲" : "▼"}</span>
                       </button>
                       {acik && (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 2, paddingLeft: 10, marginBottom: 4 }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 2, paddingLeft: 12, marginBottom: 6 }}>
                           {grup.maddeler.map((k) => madde(k))}
                         </div>
                       )}
@@ -8564,6 +8573,10 @@ export default function MarcusOS() {
               }
             />
           )}
+          {/* Müşteri panel giriş hesapları artık kendi sekmesinde: müşteri listesiyle aynı
+            * ekranda durunca sayfa uzuyor ve iki ayrı iş karışıyordu. */}
+          {tab === "musteri-hesaplari" && <MusteriHesaplariKart clients={data.clients || []} />}
+
           {tab === "musteri-paneli" && (
             <MusteriPaneliYonetimi
               hedef={panelHedef}

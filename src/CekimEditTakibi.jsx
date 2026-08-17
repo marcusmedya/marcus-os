@@ -281,8 +281,8 @@ function duzenleyebilirMi(job, role, staffName) {
 
 const inputStyle = { width: "100%", background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 9, padding: "6px 10px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none" };
 const labelStyle = { fontSize: 11, color: C.textFaint, fontWeight: 600, display: "block", marginBottom: 4 };
-const btnPrimary = { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 10px", borderRadius: 9, border: "none", background: C.accent, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" };
-const btnGhost = { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 10px", borderRadius: 9, border: `1px solid ${C.border}`, background: "transparent", color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer" };
+const btnPrimary = { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px 15px", borderRadius: 9, border: "none", background: C.accent, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" };
+const btnGhost = { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px 15px", borderRadius: 9, border: `1px solid ${C.border}`, background: "transparent", color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer" };
 
 /* ------------------------------------------------------------------ */
 /* İş Kartı                                                              */
@@ -740,7 +740,7 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
                           <button
                             key={y.k}
                             onClick={() => onUpdate(job.id, { videoYonu: y.k })}
-                            style={{ padding: "6px 10px", borderRadius: 7, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 600,
+                            style={{ padding: "12px 15px", borderRadius: 7, border: "none", cursor: "pointer", fontFamily: "inherit", fontSize: 11, fontWeight: 600,
                               background: (job.videoYonu || "dikey") === y.k ? C.accentSoft : C.panelAlt,
                               color: (job.videoYonu || "dikey") === y.k ? C.accentText : C.textFaint }}
                           >
@@ -1516,12 +1516,12 @@ export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", gap: 8 }}>
           {role === "staff" && (
-            <button onClick={() => setView("panom")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 9, border: "none", background: view === "panom" ? C.accentSoft : "transparent", color: view === "panom" ? C.accentText : C.textDim, fontSize: 13, fontWeight: 600, cursor: "pointer" }}><ListTodo size={14} /> Panom</button>
+            <button onClick={() => setView("panom")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "12px 15px", borderRadius: 9, border: "none", background: view === "panom" ? C.accentSoft : "transparent", color: view === "panom" ? C.accentText : C.textDim, fontSize: 13, fontWeight: 600, cursor: "pointer" }}><ListTodo size={14} /> Panom</button>
           )}
-          <button onClick={() => setView("pano")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 9, border: "none", background: view === "pano" ? C.accentSoft : "transparent", color: view === "pano" ? C.accentText : C.textDim, fontSize: 13, fontWeight: 600, cursor: "pointer" }}><LayoutGrid size={14} /> Tüm İşler</button>
-          <button onClick={() => setView("markalasma")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 9, border: "none", background: view === "markalasma" ? C.accentSoft : "transparent", color: view === "markalasma" ? C.accentText : C.textDim, fontSize: 13, fontWeight: 600, cursor: "pointer" }}><Rocket size={14} /> Markalaşma</button>
+          <button onClick={() => setView("pano")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "12px 15px", borderRadius: 9, border: "none", background: view === "pano" ? C.accentSoft : "transparent", color: view === "pano" ? C.accentText : C.textDim, fontSize: 13, fontWeight: 600, cursor: "pointer" }}><LayoutGrid size={14} /> Tüm İşler</button>
+          <button onClick={() => setView("markalasma")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "12px 15px", borderRadius: 9, border: "none", background: view === "markalasma" ? C.accentSoft : "transparent", color: view === "markalasma" ? C.accentText : C.textDim, fontSize: 13, fontWeight: 600, cursor: "pointer" }}><Rocket size={14} /> Markalaşma</button>
           {role === "owner" && (
-            <button onClick={() => setView("istatistik")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 9, border: "none", background: view === "istatistik" ? C.accentSoft : "transparent", color: view === "istatistik" ? C.accentText : C.textDim, fontSize: 13, fontWeight: 600, cursor: "pointer" }}><BarChart3 size={14} /> İstatistikler</button>
+            <button onClick={() => setView("istatistik")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "12px 15px", borderRadius: 9, border: "none", background: view === "istatistik" ? C.accentSoft : "transparent", color: view === "istatistik" ? C.accentText : C.textDim, fontSize: 13, fontWeight: 600, cursor: "pointer" }}><BarChart3 size={14} /> İstatistikler</button>
           )}
         </div>
         {view !== "markalasma" && <button style={btnPrimary} onClick={() => { setAdding((v) => !v); if (onRefreshRoster) onRefreshRoster(); }}><Plus size={14} /> Yeni İş</button>}
@@ -1530,7 +1530,7 @@ export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, 
       {view === "pano" && (
         <div style={{ display: "flex", gap: 6, marginBottom: 16, background: C.panelAlt, borderRadius: 10, padding: 3, width: "fit-content" }}>
           {KATEGORILER.map((k) => (
-            <button key={k} onClick={() => setPanoKategori(k)} style={{ padding: "6px 16px", borderRadius: 8, border: "none", background: panoKategori === k ? C.accent : "transparent", color: panoKategori === k ? "#fff" : C.textDim, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{k}</button>
+            <button key={k} onClick={() => setPanoKategori(k)} style={{ padding: "12px 16px", borderRadius: 8, border: "none", background: panoKategori === k ? C.accent : "transparent", color: panoKategori === k ? "#fff" : C.textDim, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{k}</button>
           ))}
         </div>
       )}
