@@ -3014,3 +3014,17 @@ Değiştirmek istersen söyle, tek satırlık iş.
 `t30.mjs` — 10 kontrol: üç görsel ayrı ayrı dönüyor, eksik olanlar kare logoya düşüyor,
 hiçbiri yoksa varsayılan, müşteri paneli açık zemin logosunu alıyor, yeni alanlar personele
 sızmıyor. 16 kod denetimi + 30 test dosyası temiz.
+
+## Güncelleme 123: Önerilen Ölçüler Kalıcı Olarak Görünüyor
+
+Ölçü bilgisi yükleme kutusunun İÇİNDEydi, yani yalnızca kutu boşken görünüyordu. Görsel
+yüklenince kayboluyor ve "bu neydi?" sorusu cevapsız kalıyordu.
+
+Ölçüler artık kutunun **altında**, kalıcı:
+
+- **Kare logo** — 512×512 px · şeffaf PNG · uygulama simgesi, telefon ana ekranı, panel başlığı
+- **Paylaşım görseli** — 1200×630 px · yatay · WhatsApp/Slack'te bağlantı paylaşınca çıkan kart
+- **Açık zemin logosu** — 512×512 px · şeffaf PNG · müşteri paneli açık zeminli, boş bırakırsan
+  kare logo kullanılır
+
+Kutu içindeki metin sadeleşti: "Görsel yüklemek için tıkla".

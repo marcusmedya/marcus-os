@@ -5719,7 +5719,8 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
           value={markaKimligiGorseli}
           onChange={onSaveMarkaKimligi}
           maxKenar={800}
-          ipucu="Kare, şeffaf PNG · uygulama simgesi, telefon ana ekranı, panel başlığı"
+          ipucu="Görsel yüklemek için tıkla"
+          olcu="512×512 px · şeffaf PNG · uygulama simgesi, telefon ana ekranı, panel başlığı"
         />
 
         <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, margin: "16px 0 6px" }}>PAYLAŞIM GÖRSELİ</div>
@@ -5729,7 +5730,8 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
           maxKenar={1200}
           hedefBayt={400 * 1024}
           yukseklik={110}
-          ipucu="Yatay, 1200×630 · WhatsApp/Slack'te bağlantı paylaşınca çıkan kart"
+          ipucu="Görsel yüklemek için tıkla"
+          olcu="1200×630 px · yatay · WhatsApp/Slack'te bağlantı paylaşınca çıkan kart"
         />
 
         <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, margin: "16px 0 6px" }}>AÇIK ZEMİN LOGOSU</div>
@@ -5737,7 +5739,8 @@ function Ayarlar({ guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExpo
           value={acikZeminLogosu}
           onChange={onSaveAcikZeminLogosu}
           maxKenar={800}
-          ipucu="Müşteri paneli açık zeminli · boş bırakırsan kare logo kullanılır"
+          ipucu="Görsel yüklemek için tıkla"
+          olcu="512×512 px · şeffaf PNG · müşteri paneli açık zeminli, boş bırakırsan kare logo kullanılır"
         />
       </Card>
       </>}
@@ -6316,7 +6319,7 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
  *
  * maxKenar ve hedefBayt amaca göre değişir: paylaşım görseli daha geniş ve daha büyük olabilir.
  */
-function MarkaKimligiYukleyici({ value, onChange, maxKenar = 800, hedefBayt = 250 * 1024, yukseklik = 90, ipucu }) {
+function MarkaKimligiYukleyici({ value, onChange, maxKenar = 800, hedefBayt = 250 * 1024, yukseklik = 90, ipucu, olcu }) {
   const inputRef = useRef(null);
   const dosyaSec = (e) => {
     const file = e.target.files && e.target.files[0];
@@ -6341,6 +6344,11 @@ function MarkaKimligiYukleyici({ value, onChange, maxKenar = 800, hedefBayt = 25
           <span style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", textAlign: "center", padding: "0 12px" }}>{ipucu || "Görsel yüklemek için tıkla"}</span>
         )}
       </div>
+      {/* Ölçü satırı KUTUNUN DIŞINDA: kutunun içindeki ipucu yalnızca boşken görünüyor,
+        * görsel yüklenince kayboluyordu. Önerilen ölçü sonradan da lazım oluyor. */}
+      {olcu && (
+        <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 5 }}>{olcu}</div>
+      )}
       <input ref={inputRef} type="file" accept="image/*" onChange={dosyaSec} style={{ display: "none" }} />
     </div>
   );
