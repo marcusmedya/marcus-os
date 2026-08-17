@@ -434,11 +434,6 @@ export function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, o
       ]
     : BEKLEYEN_FIELDS;
 
-  /* Kasada bulunan para: tüm hesapların türetilmiş bakiyesi toplamı. Bakiye saklanmaz,
-   * her seferinde hesaplanır — bu yüzden geri almalar güvenli. */
-  const kasaToplami = (data.hesaplar || []).reduce((t, h) => t + hesapBakiyesi(h.id, data), 0);
-
-
   /* Kasada: her hesabın türetilmiş bakiyesinin toplamı. Hesaplama değiştirilmedi. */
   const kasaToplami = (data.hesaplar || []).reduce((t, h) => t + hesapBakiyesi(h.id, data), 0);
   const ayAdi = `${TR_AYLAR_KISA[new Date().getMonth()]} ${new Date().getFullYear()}`;

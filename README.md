@@ -3420,3 +3420,30 @@ tahsilat, personel gideri, bekleyen toplam dahil.
 
 21 finans işlevinin hepsi bağlı, 9 bölümün hepsi erişilebilir. 16 kod denetimi + 30 test
 dosyası temiz.
+
+## Güncelleme 138: Derleme Hatası Düzeltildi + Denetleyici 3 Yeniden Yazıldı
+
+### Hata
+v137 Vercel'de derlenmedi:
+```
+src/finans.jsx:443:8: ERROR: The symbol "kasaToplami" has already been declared
+```
+
+Finans'ı taşırken `kasaToplami`'yi iki kez tanımlamışım — biri v136'da eklediğim ve taşınan
+blokta zaten var olan, diğeri yeni yazdığım. Fazlalık kaldırıldı.
+
+### Denetleyici 3 neden görmedi
+Eski sürüm yalnızca **"3 satır içindeki"** tekrarlara bakıyordu. İki tanımım 4 satır aralıklıydı.
+
+Yeniden yazıldı: artık **süslü parantez derinliğini takip eden bir kapsam yığını** kullanıyor.
+Bir ad yalnızca içinde bulunduğu blokta tekrar tanımlanmışsa hata veriyor.
+
+**İlk denemem yanlıştı:** fonksiyon bloklarına bölüp mesafe sınırını kaldırdım, 90'dan fazla
+yanlış alarm verdi — çünkü farklı `if`/`for` bloklarında aynı adı kullanmak JavaScript'te
+tamamen geçerlidir. Doğru kural blok kapsamı; öyle uygulandı.
+
+Doğrulandı: 24 dosyada sessiz, v137'nin bozuk hâlini satır numarasıyla yakalıyor.
+
+### Ders
+Bir denetleyiciyi genişletirken dilin gerçek kuralına bakmak gerekiyor. "Daha geniş ara"
+demek yeterli değil — neyin gerçekten hata olduğunu bilmek gerekiyor.
