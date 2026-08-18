@@ -22,7 +22,7 @@ trap geri_koy EXIT INT TERM
 mkdir -p "$KV" && cp "$KOK/testler/taklit-kv/"* "$KV/"
 
 GECEN=0; KALAN=0; SORUNLU=""
-for i in $(seq 1 32); do
+for i in $(seq 1 60); do
   DOSYA="$KOK/testler/t$i.mjs"
   [ -f "$DOSYA" ] || continue
   CIKTI="$(cd "$KOK" && node "$DOSYA" 2>&1)"
