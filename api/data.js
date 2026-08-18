@@ -8,6 +8,7 @@ import { epostaGonder, revizeBildirimHtml } from "../lib/eposta.js";
 import { onaylananiTasi, DURUM_KLASORLERI, klasorDurumu } from "../lib/drive-tasima.js";
 import { dosyasizKontroleGirenleriGeriAl, medyaVarMi, asamalariDuzelt } from "../lib/asamalar.js";
 import { epostaGonderAyrintili, gonderenAdres } from "../lib/eposta.js";
+import { onaylananlaraGoreStok } from "../lib/stok.js";
 import { yuklemeOturumuAc, yuklemeyiTamamla, yuklenenDosyayiSil, yuklemeHazirMi } from "../lib/drive-yukleme.js";
 
 /** Bir kayıt (eski veri, yeni veri) arasındaki ÖNEMLİ değişiklikleri (müşteri/personel/üyelik
@@ -1093,6 +1094,12 @@ export default async function handler(req, res) {
             existing.cekimIsleri, merged.cekimIsleri, new Date().toLocaleString("tr-TR"));
           if (duzeltilmis) merged.cekimIsleri = duzeltilmis;
 
+          /* ONAYLANAN İŞ STOĞA GİRER. Aşama düzeltmesinden SONRA çalışıyor — düzeltilmemiş
+           * bir aşamayı saymak yanlış türde stok üretirdi. */
+          const stokSonuc = onaylananlaraGoreStok(
+            existing.cekimIsleri, merged.cekimIsleri, merged.stoklar || existing.stoklar, merged.clients || existing.clients);
+          if (stokSonuc) { merged.stoklar = stokSonuc.stoklar; merged.cekimIsleri = stokSonuc.cekimIsleri; }
+
           const yeniKayitlar = degisiklikleriTespitEt(existing, merged, staffName || "Personel");
           if (yeniKayitlar.length > 0) {
             merged.islemGecmisi = [...(existing.islemGecmisi || []), ...yeniKayitlar].slice(-200);
@@ -1202,6 +1209,13 @@ export default async function handler(req, res) {
       const duzeltilmisIsler = dosyasizKontroleGirenleriGeriAl(
         existingFull && existingFull.cekimIsleri, finalData.cekimIsleri, new Date().toLocaleString("tr-TR"));
       if (duzeltilmisIsler) finalData.cekimIsleri = duzeltilmisIsler;
+
+      /* Onaylanan iş stoğa girer — kural kime ait olduğuna göre değişmiyor. */
+      const stokSonucu = onaylananlaraGoreStok(
+        existingFull && existingFull.cekimIsleri, finalData.cekimIsleri,
+        finalData.stoklar !== undefined ? finalData.stoklar : (existingFull && existingFull.stoklar),
+        finalData.clients || (existingFull && existingFull.clients));
+      if (stokSonucu) { finalData.stoklar = stokSonucu.stoklar; finalData.cekimIsleri = stokSonucu.cekimIsleri; }
 
       // Bu kayıtta ne değişti (müşteri/personel/üyelik eklendi-silindi, durum değişti) —
       // İşlem Geçmişi defterine otomatik not düşülür. Son 200 kayıtla sınırlı tutulur.

@@ -3,6 +3,7 @@ import { KEY, guvenliYaz, kilitAl, kilitBirak, bugunISO } from "../lib/kv-yaz.js
 import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
 import { markaErisimiVarMi } from "../lib/marka-kilidi.js";
 import { onaylananiTasi, DURUM_KLASORLERI } from "../lib/drive-tasima.js";
+import { onaylananlaraGoreStok, paylasimTuru } from "../lib/stok.js";
 
 const nid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const stokAnahtari = (clientId, tur) => `${clientId}_${tur}`;
@@ -318,8 +319,32 @@ export default async function handler(req, res) {
       if (!plan) return res.status(404).json({ error: "Plan bulunamadı — sayfayı yenileyip tekrar dene." });
       const yeniYapildi = !plan.yapildi;
       data.haftalikPaylasimlar = liste.map((p) => (p.id === planId ? { ...p, yapildi: yeniYapildi, yapildigiTarih: yeniYapildi ? bugunTR() : null } : p));
-      stokDegistirDahili(data, plan.clientId, plan.tur, yeniYapildi ? -1 : 1);
-      gecmiseEkle(data, plan.clientId, markaAdi(plan.clientId), plan.tur, yeniYapildi ? "paylasim" : "cekim");
+
+      /* BAĞLI KART DA İLERLESİN. Marka yöneticisi paylaşımı işaretlediği anda Operasyon
+       * kartı "Teslim Edildi"ye geçiyor; ayrıca panoya girip aynı işi ikinci kez yapması
+       * gerekmiyor. Karışıklığın kaynağı buydu: editör hazırlıyor, yönetici paylaşıyor ve
+       * iki panel birbirinden habersiz kalıyordu. */
+      const isleriOnce = data.cekimIsleri || [];
+      let tasinacakIs = null;
+      if (plan.isId) {
+        tasinacakIs = bagliKartiIsaretle(data, plan.isId, yeniYapildi,
+          kimlik.markalar.length ? "Marka Yöneticisi" : "Yönetici (CEO)");
+      }
+
+      /* STOĞUN TEK SAHİBİ VAR.
+       *
+       * Kart bağlıysa stoğu KARTIN AŞAMASI yönetir (onaya girince artar, onaydan çıkınca
+       * azalır). Plan da ayrıca düşseydi aynı içerik iki kez düşerdi — üstelik planın türü
+       * kartınkinden farklı olabildiği için (plan "Görsel" derken kart Reels olabilir) yanlış
+       * stoktan düşerdi. Bağsız planda böyle bir kart yok; orada sayıyı plan tutar. */
+      const stokTuru = tasinacakIs ? paylasimTuru(tasinacakIs) : plan.tur;
+      if (tasinacakIs) {
+        const stokSonuc = onaylananlaraGoreStok(isleriOnce, data.cekimIsleri, data.stoklar, data.clients);
+        if (stokSonuc) { data.stoklar = stokSonuc.stoklar; data.cekimIsleri = stokSonuc.cekimIsleri; }
+      } else {
+        stokDegistirDahili(data, plan.clientId, plan.tur, yeniYapildi ? -1 : 1);
+      }
+      gecmiseEkle(data, plan.clientId, markaAdi(plan.clientId), stokTuru, yeniYapildi ? "paylasim" : "cekim");
       // Haftalık Plan'dan bir paylaşım "yapıldı" işaretlenince/geri alınınca, Günlük Kontrol
       // paneli de bunu otomatik yansıtır. (Önceden "sadece bugüne aitse" diye ek bir kontrol
       // vardı ama saat dilimi hesaplamasına bağımlı olduğu için kırılgandı ve bazen hiç
@@ -341,16 +366,6 @@ export default async function handler(req, res) {
           data.gunlukKontrol = { tarih: bugun, yapilanlar: kontrol.yapilanlar.filter((k) => k !== itemKey) };
         }
       }
-      /* BAĞLI KART DA İLERLESİN. Marka yöneticisi paylaşımı işaretlediği anda Operasyon
-       * kartı "Teslim Edildi"ye geçiyor; ayrıca panoya girip aynı işi ikinci kez yapması
-       * gerekmiyor. Karışıklığın kaynağı buydu: editör hazırlıyor, yönetici paylaşıyor ve
-       * iki panel birbirinden habersiz kalıyordu. */
-      let tasinacakIs = null;
-      if (plan.isId) {
-        tasinacakIs = bagliKartiIsaretle(data, plan.isId, yeniYapildi,
-          kimlik.markalar.length ? "Marka Yöneticisi" : "Yönetici (CEO)");
-      }
-
       const _v = await kaydetVeYedekle(data);
 
       /* DRIVE TAŞIMASI KİLİT DIŞINDA. Google çağrıları saniyeler sürebiliyor; kilidi elde

@@ -1948,6 +1948,68 @@ function Reklamlar({ reklamlar, clients, onAdd, onUpdate, onDelete, duzenleyenAd
 /* PAYLAŞIMLAR                                                           */
 /* ------------------------------------------------------------------ */
 const PAYLASIM_TURLERI = ["Görsel", "Video", "Reels", "Story", "Carousel"];
+
+/* KART SEÇİCİDE KÜÇÜK RESİM.
+ *
+ * Marka yöneticisi "Görsel 4" / "Reels 3" gibi adlardan hangi içerik olduğunu çıkaramıyor —
+ * adlar sistemin ürettiği sıra numaraları. Doğru içeriği seçtiğini GÖZÜYLE doğrulaması için
+ * Drive'ın küçük resmi gösteriliyor. Video dosyalarında Drive bir kare veriyor, o da yeter.
+ *
+ * Küçük resim yüklenmezse (erişim yok, dosya silinmiş, Drive yavaş) tür harfi gösteriliyor —
+ * seçim yine yapılabiliyor, sadece görsel ipucu olmuyor. */
+const driveDosyaIdCikar = (link) => {
+  const m = String(link || "").match(/\/file\/d\/([a-zA-Z0-9_-]{10,})|[?&]id=([a-zA-Z0-9_-]{10,})/);
+  return m ? (m[1] || m[2]) : null;
+};
+
+const kartinDosyaIdsi = (is) => {
+  const medya = Array.isArray(is && is.medya) ? is.medya : [];
+  const sonuncu = medya.length ? medya[medya.length - 1] : null;
+  if (sonuncu && sonuncu.dosyaId) return sonuncu.dosyaId;
+  return driveDosyaIdCikar(is && (is.editliDosyaLink || is.dosyaLinki || is.hamDosyaLink));
+};
+
+const kucukResimUrl = (dosyaId) => `https://drive.google.com/thumbnail?id=${dosyaId}&sz=w160`;
+
+/** Kartın paylaşım türü — stok tarafıyla aynı kural (bkz. lib/stok.js). */
+const kartTuru = (is) => {
+  const ad = String((is && is.icerikTuru) || "").toLocaleLowerCase("tr");
+  if (/\breels?\b/.test(ad)) return "Reels";
+  if (/\bstory\b|hikaye/.test(ad)) return "Story";
+  if (/carousel|karusel/.test(ad)) return "Carousel";
+  if (/\bvideo\b/.test(ad)) return "Video";
+  if (/görsel|gorsel|post|tasarım|tasarim/.test(ad)) return "Görsel";
+  return String((is && is.kategori) || "").toLocaleLowerCase("tr") === "video" ? "Video" : "Görsel";
+};
+
+function KartOnizleme({ is, boyut = 52 }) {
+  const [hata, setHata] = useState(false);
+  const dosyaId = kartinDosyaIdsi(is);
+  const ortak = {
+    width: boyut, height: boyut, flex: `0 0 ${boyut}px`, borderRadius: 8,
+    background: T.surfaceRaised, border: `1px solid ${T.border}`,
+    display: "grid", placeItems: "center", overflow: "hidden",
+  };
+  if (!dosyaId || hata) {
+    return (
+      <div style={ortak}>
+        <span style={{ fontSize: 15, fontWeight: 700, color: T.textFaint }}>
+          {TUR_HARFI[kartTuru(is)] || "?"}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div style={ortak}>
+      <img
+        src={kucukResimUrl(dosyaId)}
+        alt=""
+        onError={() => setHata(true)}
+        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+      />
+    </div>
+  );
+}
 const TUR_HARFI = { "Görsel": "G", "Video": "V", "Reels": "R", "Story": "S", "Carousel": "C" };
 const stokAnahtari = (clientId, tur) => `${clientId}_${tur}`;
 
@@ -2208,18 +2270,26 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, onAddPlan, onTog
                         </div>
                       );
                     }
-                    return hazir.map((j) => (
-                      <button
-                        key={j.id}
-                        onClick={() => { onAddPlan(secim.clientId, secim.gun, haftaKey, secim.tur, j.id); setSecim(null); }}
-                        style={{ padding: "12px 15px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.surfaceRaised, color: T.text, fontSize: 13, fontFamily: "Inter", cursor: "pointer", textAlign: "left" }}
-                      >
-                        <div style={{ fontWeight: 600 }}>{j.icerikTuru || "İsimsiz içerik"}</div>
-                        <div style={{ fontSize: 11.5, color: T.textFaint, marginTop: 2 }}>
-                          {j.kategori || "Video"}{j.editor ? ` · ${j.editor}` : ""}
-                        </div>
-                      </button>
-                    ));
+                    return hazir.map((j) => {
+                      const versiyon = Array.isArray(j.medya) && j.medya.length ? j.medya[j.medya.length - 1].versiyon : null;
+                      return (
+                        <button
+                          key={j.id}
+                          onClick={() => { onAddPlan(secim.clientId, secim.gun, haftaKey, secim.tur, j.id); setSecim(null); }}
+                          style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.surfaceRaised, color: T.text, fontSize: 13, fontFamily: "Inter", cursor: "pointer", textAlign: "left" }}
+                        >
+                          <KartOnizleme is={j} />
+                          <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                            <span style={{ fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {j.icerikTuru || "İsimsiz içerik"}
+                            </span>
+                            <span style={{ fontSize: 11.5, color: T.textFaint }}>
+                              {kartTuru(j)}{j.editor ? ` · ${j.editor}` : ""}{versiyon ? ` · V${versiyon}` : ""}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    });
                   })()}
                   <button
                     onClick={() => { onAddPlan(secim.clientId, secim.gun, haftaKey, secim.tur); setSecim(null); }}

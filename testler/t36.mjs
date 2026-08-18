@@ -38,7 +38,7 @@ const VERI = () => ({
   paylasimGecmisi: [],
   haftalikPaylasimlar: [],
   cekimIsleri: [
-    { id: 10, marka: "VIZZ", kategori: "Video", icerikTuru: "Sivrisinek", asama: "Onaylandı",
+    { id: 10, marka: "VIZZ", kategori: "Video", icerikTuru: "Sivrisinek Reels", asama: "Onaylandı",
       editliDosyaLink: "https://drive.google.com/file/d/DOSYA1/view", gecmis: [] },
     { id: 11, marka: "VIZZ", kategori: "Video", icerikTuru: "Yeni İş", asama: "Edit Yapılıyor", gecmis: [] },
     { id: 12, marka: "GİZLİ Marka", kategori: "Video", icerikTuru: "Gizli", asama: "Onaylandı", gecmis: [] },
@@ -70,7 +70,7 @@ r = await cagri(OWNER, { action: "haftalikEkle", clientId: 1, gun: 1, haftaKey: 
 d = await oku();
 let plan = (d.haftalikPaylasimlar || [])[0] || {};
 t("plan karta bağlandı", plan.isId === 10, String(plan.isId));
-t("kartın adı da saklandı", plan.isAdi === "Sivrisinek", String(plan.isAdi));
+t("kartın adı da saklandı", plan.isAdi === "Sivrisinek Reels", String(plan.isAdi));
 t("kartın aşaması HENÜZ değişmedi", kart(d, 10).asama === "Onaylandı", kart(d, 10).asama);
 
 r = await cagri(OWNER, { action: "haftalikEkle", clientId: 1, gun: 2, haftaKey: "2026-08-17", tur: "Reels", isId: 11 });
@@ -105,7 +105,7 @@ t("kartın geçmişine not düştü",
   (kart(d, 10).gecmis || []).some((x) => /PAYLAŞILDI/i.test(x.aciklama || "")),
   JSON.stringify((kart(d, 10).gecmis || []).map((x) => x.aciklama)));
 t("plan da işaretlendi", d.haftalikPaylasimlar[0].yapildi === true);
-t("stok düştü", d.stoklar["1_Reels"] === 2, String(d.stoklar["1_Reels"]));
+t("stok düştü — KARTIN türünden", d.stoklar["1_Reels"] === 2, JSON.stringify(d.stoklar));
 t("yanıt güncel kartları taşıyor", Array.isArray(r.govde.cekimIsleri)
   && (r.govde.cekimIsleri.find((j) => j.id === 10) || {}).asama === "Teslim Edildi");
 t("Drive kurulu değilken çökmüyor", r.kod === 200, `HTTP ${r.kod}`);
