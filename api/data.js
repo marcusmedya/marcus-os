@@ -500,6 +500,10 @@ export default async function handler(req, res) {
       const sonuc = await yuklemeOturumuAc({
         markaKlasoru: marka.driveOnayKlasoru || "", markaAdi: is.marka,
         icerikAdi: is.icerikTuru || "", versiyon, orijinalAd: dosyaAdi, mimeTur, boyut,
+        /* Tarayıcının kökeni Google'a iletilmeli. İletilmezse Google, yükleme yanıtına
+         * izin başlığı koymuyor; dosya yükleniyor ama tarayıcı yanıtı okuyamayıp hata
+         * veriyor. Safari buna sadece "Load failed" diyor. */
+        origin: req.headers.origin || "",
       });
       if (!sonuc.ok) return res.status(400).json({ error: sonuc.sebep });
       return res.status(200).json({ ok: true, ...sonuc, versiyon });
