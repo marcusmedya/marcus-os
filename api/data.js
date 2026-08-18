@@ -5,6 +5,7 @@ import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, t
 import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, trKucult, markaEslestirici } from "../lib/marka-kilidi.js";
 import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
 import { epostaGonder, revizeBildirimHtml } from "../lib/eposta.js";
+import { onaylananiTasi } from "../lib/drive-tasima.js";
 
 /** Bir kayıt (eski veri, yeni veri) arasındaki ÖNEMLİ değişiklikleri (müşteri/personel/üyelik
  * ekleme-silme, müşteri durum değişikliği) otomatik tespit edip okunabilir işlem geçmişi
@@ -174,6 +175,38 @@ async function resolveRole(req) {
     }
   }
   return null;
+}
+
+
+/**
+ * AŞAMA DEĞİŞİMİNDE DRIVE TAŞIMA.
+ *
+ * Kayıt öncesi ve sonrası iş listeleri karşılaştırılır; bir iş "Teslim Edildi" aşamasına
+ * YENİ geçtiyse dosyası PAYLAŞILANLAR/<AY> klasörüne taşınır.
+ *
+ * Neden aşama üzerinden: paylaşım planı kaydında dosya bağlantısı yok, iş kartında var.
+ * "Teslim Edildi" zaten "paylaşıldı" anlamına gelen son aşama.
+ *
+ * ASLA HATA FIRLATMAZ — kaydın kendisi her koşulda geçerli kalır.
+ */
+async function teslimEdilenleriTasi(oncekiVeri, sonrakiVeri) {
+  const onceki = new Map(((oncekiVeri && oncekiVeri.cekimIsleri) || []).map((j) => [String(j.id), j.asama]));
+  const yeniler = ((sonrakiVeri && sonrakiVeri.cekimIsleri) || []).filter(
+    (j) => j.asama === "Teslim Edildi" && onceki.get(String(j.id)) !== "Teslim Edildi",
+  );
+  if (yeniler.length === 0) return [];
+  const sonuclar = [];
+  for (const is of yeniler) {
+    const link = is.editliDosyaLink || is.dosyaLinki || is.hamDosyaLink || "";
+    if (!link) continue;
+    const marka = ((sonrakiVeri.clients || []).find((c) => trKucult(c.ad) === trKucult(is.marka)) || {});
+    const sonuc = await onaylananiTasi({
+      dosyaLinki: link, markaAdi: is.marka,
+      markaKlasoru: marka.driveOnayKlasoru || "", hedefAd: "PAYLAŞILANLAR",
+    });
+    sonuclar.push({ isId: is.id, ...sonuc });
+  }
+  return sonuclar;
 }
 
 export default async function handler(req, res) {
@@ -433,6 +466,45 @@ export default async function handler(req, res) {
           });
           if (!sonucIs.ok) {
             return res.status(sonucIs.kod || 409).json({ error: sonucIs.hata || "Kaydedilemedi, sayfayı yenileyip tekrar dene." });
+          }
+
+          /* ONAYLANAN DOSYAYI DRIVE'DA TAŞI.
+           *
+           * Müşteri onayladığında işin dosyası "Onaylananlar" klasörüne (marka alt klasörüne)
+           * taşınır; ekip Drive'da da neyin yayına hazır olduğunu görür.
+           *
+           * TAŞIMA ASLA ONAYI ENGELLEMEZ: Drive kurulu değilse, yetki yoksa ya da bağlantı
+           * koparsa onay yine geçerlidir. Sonuç işin geçmişine not olarak düşülür ki sessizce
+           * kaybolmasın. */
+          if (musteriAction === "onayla" && sonucIs.ek && sonucIs.ek.hedefIs) {
+            const is = sonucIs.ek.hedefIs;
+            const link = is.editliDosyaLink || is.dosyaLinki || is.hamDosyaLink || "";
+            if (link) {
+              const guncelVeri0 = sonucIs.veri || {};
+              const markaKaydi = (guncelVeri0.clients || []).find((c) => trKucult(c.ad) === trKucult(is.marka));
+              const tasima = await onaylananiTasi({
+                dosyaLinki: link,
+                markaAdi: is.marka,
+                markaKlasoru: markaKaydi ? markaKaydi.driveOnayKlasoru : "",
+              });
+              if (tasima.tasindi || tasima.sebep) {
+                await guvenliGuncelle((guncel) => ({
+                  veri: {
+                    ...guncel,
+                    cekimIsleri: (guncel.cekimIsleri || []).map((j) => (String(j.id) === String(isId)
+                      ? { ...j, gecmis: [...(j.gecmis || []), {
+                          id: (j.gecmis || []).length + 1,
+                          tarih: new Date().toLocaleString("tr-TR"),
+                          yazan: "Sistem",
+                          aciklama: tasima.tasindi
+                            ? `Dosya Drive'da "${tasima.klasor}" klasörüne taşındı.`
+                            : `Drive taşıma yapılamadı: ${tasima.sebep}`,
+                        }] }
+                      : j)),
+                  },
+                }));
+              }
+            }
           }
 
           /* ATANAN KİŞİYE OTOMATİK BİLDİRİM.
@@ -768,6 +840,29 @@ export default async function handler(req, res) {
           }
           return { veri: merged };
         });
+
+        /* Kayıt başarılıysa "Teslim Edildi"ye yeni geçen işlerin dosyalarını taşı.
+         * Taşıma sonucu iş geçmişine not düşülür; taşıma başarısız olsa da kayıt geçerli. */
+        if (sonuc.ok) {
+          const tasimalar = await teslimEdilenleriTasi(sonuc.oncekiVeri || {}, sonuc.veri || {});
+          if (tasimalar.length > 0) {
+            await guvenliGuncelle((guncel) => ({
+              veri: {
+                ...guncel,
+                cekimIsleri: (guncel.cekimIsleri || []).map((j) => {
+                  const t = tasimalar.find((x) => String(x.isId) === String(j.id));
+                  if (!t) return j;
+                  return { ...j, gecmis: [...(j.gecmis || []), {
+                    id: (j.gecmis || []).length + 1,
+                    tarih: new Date().toLocaleString("tr-TR"),
+                    yazan: "Sistem",
+                    aciklama: t.tasindi ? `Dosya Drive'da "${t.klasor}" klasörüne taşındı.` : `Drive taşıma yapılamadı: ${t.sebep}`,
+                  }] };
+                }),
+              },
+            }));
+          }
+        }
 
         if (!sonuc.ok) {
           if (sonuc.kod === 409) {

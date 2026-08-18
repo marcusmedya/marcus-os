@@ -268,6 +268,10 @@ const CLIENT_FIELDS = [
   { key: "faturaliTutar", label: "Faturalı Tutar (₺/ay) — aylık ücretin ne kadarı faturalı? Kalanı otomatik faturasız sayılır", type: "number" },
   { key: "baslangic", label: "Başlangıç Ayı (ne zaman çalışmaya başladınız)", type: "month" },
   { key: "odemeSekli", label: "Ödeme Şekli", type: "select", options: [{ value: "pesin", label: "Peşin (ay başında/önceden)" }, { value: "sonra", label: "Sonra (ay sonunda/hizmet sonrası)" }] },
+  /* ONAY KLASÖRÜ — müşteri onayladığında dosyanın taşınacağı Drive klasörü.
+   * Her markanın kendi klasör düzeni olduğu için tek tek girilir. Boş bırakılırsa o marka
+   * için taşıma yapılmaz; onay yine normal çalışır. */
+  { key: "driveOnayKlasoru", label: "Drive Onay Klasörü (opsiyonel — onaylanan dosyalar buraya taşınır)", type: "text", placeholder: "https://drive.google.com/drive/folders/..." },
   { key: "not", label: "Not (opsiyonel)", type: "text" },
 ];
 
@@ -2527,6 +2531,10 @@ function GunlukKontrol({ clients, haftalikPlan, onToggle, onYenile, role }) {
 const FON_FIELDS = [
   { key: "ad", label: "Fon Adı", type: "text", placeholder: "örn. Kıdem Tazminatı Fonu" },
   { key: "hedefTutar", label: "Hedef Tutar (₺, opsiyonel)", type: "number" },
+  /* ONAY KLASÖRÜ — müşteri onayladığında dosyanın taşınacağı Drive klasörü.
+   * Her markanın kendi klasör düzeni olduğu için tek tek girilir. Boş bırakılırsa o marka
+   * için taşıma yapılmaz; onay yine normal çalışır. */
+  { key: "driveOnayKlasoru", label: "Drive Onay Klasörü (opsiyonel — onaylanan dosyalar buraya taşınır)", type: "text", placeholder: "https://drive.google.com/drive/folders/..." },
   { key: "not", label: "Not (opsiyonel)", type: "text" },
 ];
 const HAREKET_FIELDS = [
@@ -2607,6 +2615,10 @@ const UYELIK_FIELDS = [
   { key: "sifre", label: "Şifre (opsiyonel)", type: "text" },
   { key: "baslangicTarihi", label: "Başlangıç Tarihi (opsiyonel)", type: "date" },
   { key: "bitisTarihi", label: "Bitiş Tarihi (opsiyonel)", type: "date" },
+  /* ONAY KLASÖRÜ — müşteri onayladığında dosyanın taşınacağı Drive klasörü.
+   * Her markanın kendi klasör düzeni olduğu için tek tek girilir. Boş bırakılırsa o marka
+   * için taşıma yapılmaz; onay yine normal çalışır. */
+  { key: "driveOnayKlasoru", label: "Drive Onay Klasörü (opsiyonel — onaylanan dosyalar buraya taşınır)", type: "text", placeholder: "https://drive.google.com/drive/folders/..." },
   { key: "not", label: "Not (opsiyonel)", type: "text" },
 ];
 
