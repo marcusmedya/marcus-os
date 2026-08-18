@@ -672,6 +672,35 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
   /** Bir kaydı listede yukarı/aşağı taşır.
    * Taşıma sırasında TÜM listeye sıra numarası yazılır — yalnızca iki kaydı değiştirmek,
    * numarası olmayan diğer kayıtlarla karışık bir sıra bırakırdı. */
+  /**
+   * Mevcut bir içeriği Operasyon kartına dönüştürür.
+   *
+   * İçerik SİLİNMEZ — kaynakIsId ile karta bağlanır. Böylece müşteri panelindeki onay
+   * geçmişi korunur, kayıt iki kere aktarılamaz ve düğme bir daha görünmez.
+   *
+   * Aşama, içeriğin mevcut durumuna göre seçilir: müşteri zaten onayladıysa kart
+   * "Onaylandı"da açılır — geriye alıp tekrar onaya göndermek yanlış olurdu.
+   */
+  const operasyonaAktar = (icerik) => {
+    const kategori = icerik.tur === "video" ? "Video" : "Fotoğraf";
+    const asama = icerik.durum === "onaylandi" ? "Onaylandı"
+      : icerik.durum === "revize" ? "Revize İstendi"
+      : "Kontrol Bekliyor";
+    if (!window.confirm(`"${icerik.aciklama || "İçerik"}" için ${kategori} kategorisinde bir Operasyon kartı açılacak (${asama}). Devam edilsin mi?`)) return;
+    onIsOlustur({
+      clientId,
+      kategori,
+      asama,
+      icerikTuru: icerik.aciklama || (icerik.tur === "video" ? "Video" : "Görsel"),
+      kameraman: "",
+      editor: "",
+      teslimTarihi: bugunISOTarih(),
+      dosyaLinki: icerik.driveLinki || icerik.gorselUrl || "",
+      videoYonu: icerik.tur === "video" ? (icerik.videoYonu || null) : null,
+      bagliIcerikId: icerik.id,        // içerik kayda bağlanır, tekrar aktarılamaz
+    });
+  };
+
   const tasi = (icerikId, yon) => {
     const idx = kendiListesi.findIndex((i) => String(i.id) === String(icerikId));
     const hedef = idx + yon;
@@ -924,6 +953,19 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                               ▼
                             </button>
                           </>
+                        )}
+                        {/* OPERASYONA AKTAR — yalnızca Operasyon kartı OLMAYAN içeriklerde çıkar.
+                          * Yeni eklenenler zaten kart olarak açılıyor; bu düğme o değişiklikten
+                          * ÖNCE eklenmiş, üretim takibi olmayan eski kayıtlar için. Aktarılan
+                          * içerik kaynakIsId ile karta bağlanır, böylece iki kere aktarılamaz. */}
+                        {onIsOlustur && i.tur !== "cekim" && !i.kaynakIsId && (
+                          <button
+                            title="Bu içerik için Operasyon kartı aç"
+                            onClick={() => operasyonaAktar(i)}
+                            style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 6px", color: T.accentText, fontSize: 11, fontWeight: 600, fontFamily: "Inter, sans-serif", whiteSpace: "nowrap" }}
+                          >
+                            → Operasyona
+                          </button>
                         )}
                         {onUpdate && (
                           <button title="Düzenle" onClick={() => duzenlemeyeAl(i)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}><Pencil size={12} color={T.textFaint} /></button>
@@ -6954,13 +6996,18 @@ export default function MarcusOS() {
    * Kart hangi aşamada açıldıysa oradan devam eder — "Kontrol Bekliyor" seçilirse müşteri
    * onu hemen görür.
    */
-  const icerikIsiOlustur = ({ clientId, kategori, asama, icerikTuru, kameraman, editor, teslimTarihi, dosyaLinki, videoYonu }) => setData((d) => {
+  const icerikIsiOlustur = ({ clientId, kategori, asama, icerikTuru, kameraman, editor, teslimTarihi, dosyaLinki, videoYonu, bagliIcerikId }) => setData((d) => {
     const marka = ((d.clients || []).find((c) => String(c.id) === String(clientId)) || {}).ad || "";
     const isler = d.cekimIsleri || [];
     const yeniId = isler.reduce((m, j) => Math.max(m, Number(j.id) || 0), 0) + 1;
     const zaman = new Date().toLocaleString("tr-TR");
     return {
       ...d,
+      /* AKTARILAN İÇERİK karta bağlanır (kaynakIsId). Bağlanmazsa aynı içerik defalarca
+       * aktarılabilir ve müşteri panelinde kopya kayıtlar oluşurdu. */
+      musteriIcerikleri: bagliIcerikId
+        ? (d.musteriIcerikleri || []).map((x) => (String(x.id) === String(bagliIcerikId) ? { ...x, kaynakIsId: yeniId } : x))
+        : (d.musteriIcerikleri || []),
       cekimIsleri: [...isler, {
         id: yeniId,
         marka,

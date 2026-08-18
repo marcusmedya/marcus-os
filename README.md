@@ -3826,3 +3826,40 @@ yazılmışlar).
 Aynı işi yapan ikinci bir kopya, güncellenmediğinde sessizce bozulur. Bu projede üçüncü kez:
 e-posta göndericisi (v115'te birleştirildi), müşteri görünümü (v110'da birleştirildi), şimdi
 kimlik başlıkları.
+
+## Güncelleme 152: Eski İçerikleri Operasyona Aktarma
+
+### Durum tespiti
+Müşteri panelindeki onaylı içerikler Operasyon'da görünmüyordu. Sebep: müşteri paneli **iki
+kaynaktan** besleniyor —
+
+1. Operasyon kartlarının canlı aynası (`hazirIcerikler`)
+2. Müşteri Paneli'nden elle eklenen kayıtlar (`musteriIcerikleri`)
+
+İkincisinin Operasyon'da karşılığı yok. **Yeni eklenenler zaten kart olarak açılıyor** (v93);
+sorun o değişiklikten önce eklenmiş eski kayıtlardaydı.
+
+### Çözüm
+İçerik satırlarına **"→ Operasyona"** düğmesi eklendi. Yalnızca kartı olmayan içeriklerde
+görünür — yeni eklenenlerde zaten kart var, bir daha çıkmaz.
+
+Aşama içeriğin durumuna göre seçilir:
+- onaylı → **Onaylandı**
+- revize istenmiş → **Revize İstendi**
+- bekliyor → **Kontrol Bekliyor**
+
+Müşteri zaten onayladıysa kartı geriye alıp tekrar onaya göndermek yanlış olurdu.
+
+Dosya bağlantısı da (Drive linki ya da yüklenmiş görsel) karta taşınır.
+
+### İçerik silinmez, bağlanır
+Kayıt `kaynakIsId` ile karta bağlanır. Böylece:
+- Müşteri panelindeki onay geçmişi korunur
+- Aynı içerik iki kere aktarılamaz (düğme kaybolur)
+- Kopya kayıt oluşmaz — içerik artık kart üzerinden görünür
+- Kart silinirse içerik müşteri paneline geri döner (v107 kuralı)
+
+### Doğrulama
+12 kontrol: üç durum için doğru aşama, kategori eşlemesi, dosya taşınması, içeriğin
+silinmemesi, diğer kayıtların etkilenmemesi, tekrar aktarılamaması.
+17 kod denetimi + 31 test dosyası temiz.
