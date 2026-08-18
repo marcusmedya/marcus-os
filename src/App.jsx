@@ -5066,6 +5066,86 @@ function Planim({ gorevler, onAdd, onUpdate, onDelete, onayKutusu, isler, onGit 
  * Bu yüzden klasör Drive'da gerçekten açılıp ADI gösteriliyor: kullanıcı doğru klasörü
  * seçtiğini gözüyle doğrulasın.
  */
+/**
+ * E-POSTA AYARI TESTİ.
+ *
+ * Güvenlik kartı yalnızca "RESEND_API_KEY tanımlı mı" diye bakıyordu; değişkene yanlış bir
+ * değer yapıştırıldığında kart yeşil kalıyor ama e-postaların hiçbiri gitmiyordu — giriş
+ * kodu, gece yedeği, iş bildirimi, hepsi birden susuyor ve sebep hiçbir ekranda yazmıyordu.
+ *
+ * Bu kart gerçekten bir e-posta göndermeyi dener ve Resend'in cevabını olduğu gibi gösterir.
+ * "Tanımlı mı" değil, "ÇALIŞIYOR mu" sorusunu cevaplar.
+ */
+function EpostaAyariTesti() {
+  const [durum, setDurum] = useState("bos");     // bos | gonderiliyor | sonuc
+  const [sonuc, setSonuc] = useState(null);
+  const [hedef, setHedef] = useState("");
+
+  const NE_YAPMALI = {
+    "anahtar-yok": "Vercel → Settings → Environment Variables → RESEND_API_KEY ekle, sonra Redeploy et.",
+    "anahtar-gecersiz": "Anahtar geçersiz. resend.com/api-keys adresinden YENİ bir anahtar oluştur (re_ ile başlar) ve Vercel'deki MEVCUT RESEND_API_KEY değişkeninin değerini onunla değiştir, sonra Redeploy et.",
+    "alan-adi-dogrulanmamis": "Anahtar çalışıyor ama gönderen adresin alan adı Resend'de doğrulanmamış. Ya resend.com/domains adresinden alan adını doğrula, ya da geçici olarak RESEND_FROM değişkenini \"Marcus Medya App <onboarding@resend.dev>\" yap (o adres yalnızca Resend hesabının sahibine gönderir).",
+    "ag-hatasi": "Resend'e ulaşılamadı. Birkaç dakika sonra tekrar dene.",
+    "alici-yok": "Test için bir adres yaz ya da OWNER_EMAIL değişkenini tanımla.",
+  };
+
+  const testEt = async () => {
+    setDurum("gonderiliyor"); setSonuc(null);
+    try {
+      const r = await fetch("/api/data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ epostaTest: true, hedef: hedef.trim() || undefined }),
+      }).then((x) => x.json());
+      setSonuc(r); setDurum("sonuc");
+    } catch (e) {
+      setSonuc({ ok: false, sebep: String(e.message || e), kod: "ag-hatasi" }); setDurum("sonuc");
+    }
+  };
+
+  return (
+    <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+      <SectionTitle>E-posta Ayarı</SectionTitle>
+      <div style={{ fontSize: 13, color: T.textDim, lineHeight: 1.6, marginBottom: 12 }}>
+        Gerçekten bir e-posta göndermeyi dener. Giriş kodu, gece yedeği ve iş bildirimleri
+        aynı ayarı kullanıyor — burada çalışıyorsa hepsi çalışır.
+      </div>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: sonuc ? 12 : 0 }}>
+        <input
+          value={hedef}
+          onChange={(e) => setHedef(e.target.value)}
+          placeholder="Boş bırakırsan OWNER_EMAIL adresine gider"
+          style={{ ...inputStyle, maxWidth: 320 }}
+        />
+        <button style={cancelBtnStyle} onClick={testEt} disabled={durum === "gonderiliyor"}>
+          {durum === "gonderiliyor" ? "Gönderiliyor…" : "Test E-postası Gönder"}
+        </button>
+      </div>
+
+      {sonuc && (
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 9,
+                      background: sonuc.ok ? T.successSoft : T.dangerSoft, borderRadius: 10, padding: "12px 15px" }}>
+          <span style={{ fontSize: 15, lineHeight: 1 }}>{sonuc.ok ? "✓" : "⚠"}</span>
+          <div style={{ fontSize: 13, color: sonuc.ok ? T.success : T.danger, lineHeight: 1.6 }}>
+            {sonuc.ok ? (
+              <><strong>Gönderildi.</strong> {sonuc.hedef} adresine bak — gelmediyse spam klasörünü de kontrol et.
+              <div style={{ color: T.textFaint, fontSize: 12, marginTop: 4 }}>Gönderen: {sonuc.gonderen}</div></>
+            ) : (
+              <>
+                <strong>Gönderilemedi.</strong>
+                <div style={{ marginTop: 4 }}>{NE_YAPMALI[sonuc.kod] || sonuc.error || "Bilinmeyen hata."}</div>
+                {sonuc.sebep && <div style={{ color: T.textFaint, fontSize: 12, marginTop: 6 }}>Resend'in cevabı: {sonuc.sebep}</div>}
+                {sonuc.gonderen && <div style={{ color: T.textFaint, fontSize: 12, marginTop: 2 }}>Gönderen: {sonuc.gonderen}</div>}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function DriveKlasorDurumu() {
   const [durum, setDurum] = useState("bos");   // bos | yukleniyor | hazir | hata
   const [markalar, setMarkalar] = useState([]);
@@ -5399,6 +5479,7 @@ function Ayarlar({ onGit, guvenlik, silinenler, onGeriAl, onKaliciSil, onExport,
       </Card>
       <GuvenlikDefteri />
       <DriveKlasorDurumu />
+      <EpostaAyariTesti />
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Güvenlik</SectionTitle>
 

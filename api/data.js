@@ -7,6 +7,7 @@ import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
 import { epostaGonder, revizeBildirimHtml } from "../lib/eposta.js";
 import { onaylananiTasi, DURUM_KLASORLERI, klasorDurumu } from "../lib/drive-tasima.js";
 import { dosyasizKontroleGirenleriGeriAl, medyaVarMi, asamalariDuzelt } from "../lib/asamalar.js";
+import { epostaGonderAyrintili, gonderenAdres } from "../lib/eposta.js";
 import { yuklemeOturumuAc, yuklemeyiTamamla, yuklenenDosyayiSil, yuklemeHazirMi } from "../lib/drive-yukleme.js";
 
 /** Bir kayıt (eski veri, yeni veri) arasındaki ÖNEMLİ değişiklikleri (müşteri/personel/üyelik
@@ -464,6 +465,42 @@ export default async function handler(req, res) {
    * tarayıcıya verir; baytlar tarayıcıdan doğrudan Google'a gider. Vercel'in ~4.5 MB istek
    * sınırı bu yüzden devrede değil.
    * --------------------------------------------------------------------------------- */
+  /* ---------------------------------------------------------------------------------
+   * E-POSTA AYARI TESTİ — yalnızca YÖNETİCİ.
+   *
+   * NEDEN VAR: Güvenlik kartı yalnızca "RESEND_API_KEY tanımlı mı" diye bakıyordu. Değişkene
+   * yanlış bir değer yapıştırıldığında kart yeşil kalıyor, e-postalar sessizce kesiliyor ve
+   * sebep hiçbir ekranda yazmıyordu — giriş kodu, gece yedeği, iş bildirimi, hepsi birden
+   * susuyor ama panel "kurulu" diyor. Bu uç nokta gerçekten bir e-posta göndermeyi deniyor
+   * ve Resend'in söylediğini olduğu gibi geri veriyor.
+   *
+   * YENİ FONKSİYON AÇILMADI: Vercel Hobby planında 12 fonksiyon sınırı var (11 kullanılıyor).
+   * --------------------------------------------------------------------------------- */
+  if (req.method === "POST" && req.body && req.body.epostaTest) {
+    if (role !== "owner") return res.status(403).json({ error: "Bu testi yalnızca yönetici yapabilir." });
+    const hedef = String(req.body.hedef || process.env.OWNER_EMAIL || "").trim();
+    if (!hedef) {
+      return res.status(400).json({
+        error: "Test için bir adres gerekiyor. OWNER_EMAIL tanımlı değil — ya onu tanımla ya da bir adres yaz.",
+      });
+    }
+    const sonuc = await epostaGonderAyrintili(
+      hedef,
+      "Marcus Medya App — e-posta ayarı testi",
+      `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;">
+        <h2 style="color:#1a1a1a;">E-posta ayarı çalışıyor</h2>
+        <p style="color:#333;line-height:1.6;">Bu mesajı okuyorsan giriş kodu, gece yedeği ve
+        iş bildirimleri de gönderilebiliyor demektir.</p>
+        <p style="font-size:12px;color:#999;margin-top:20px;">Ayarlar → Güvenlik ekranından gönderildi.</p>
+      </div>`,
+    );
+    /* Anahtarın kendisi ASLA yanıta konmaz; yalnızca gönderen adresi ve Resend'in mesajı. */
+    return res.status(200).json({
+      ok: sonuc.ok, hedef, gonderen: gonderenAdres(),
+      sebep: sonuc.ok ? "" : sonuc.sebep, kod: sonuc.ok ? "" : sonuc.kod,
+    });
+  }
+
   if (req.method === "POST" && req.body && req.body.driveAction) {
     /* Yükleme, iş kartı üzerinde çalışmayı gerektirir — müşteri hesapları buraya giremez.
      * Personelde ayrıca cekimEdit izni aranır; marka kilidi olan hesap yalnızca kendi
