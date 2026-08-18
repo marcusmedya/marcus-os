@@ -232,7 +232,9 @@ console.log("\n Klasör adı eşleştirme");
   await hedefKlasoruHazirla({ markaKlasoru: "https://drive.google.com/drive/folders/1AbCdefGHIjklMNOpqrs",
     markaAdi: "VIZZ", durumAdi: DURUM_KLASORLERI.onayBekleyen });
   t("eksik klasörler numaralı adla açılıyor",
-    acilanKlasorler.some((a) => /^\d\d .+ \d{4}$/.test(a)) && acilanKlasorler.includes("1 ONAY BEKLEYENLER"),
+    acilanKlasorler.some((a) => /^\d\d [A-ZÇĞİÖŞÜ]+$/.test(a)) && acilanKlasorler.includes("1 ONAY BEKLEYENLER"),
+    acilanKlasorler.join(", "));
+  t("yıl klasörü de açılıyor", acilanKlasorler.some((a) => /^(19|20)\d{2}$/.test(a)),
     acilanKlasorler.join(", "));
 
   globalThis.fetch = gercekFetch;
@@ -346,10 +348,10 @@ console.log("\n SOSYAL MEDYA klasörüne inme");
   kur({ [MARKA_KOK]: [{ id: "sos", name: "1 SOSYAL MEDYA" }, { id: "logo", name: "LOGO" }], sos: [] });
   let s = await hedefKlasoruHazirla({ markaKlasoru: LINK, markaAdi: "BİNPARK AVM",
     durumAdi: DURUM_KLASORLERI.onayBekleyen });
-  const ayKaydi = acilan.find((a) => /^\d\d .+ \d{4}$/.test(a.ad));
-  t("ay klasörü SOSYAL MEDYA'nın içine açılıyor", Boolean(ayKaydi) && ayKaydi.ust === "sos",
-    ayKaydi ? `üst: ${ayKaydi.ust}` : "ay klasörü hiç açılmadı");
-  t("ay klasörü marka KÖKÜNE açılmıyor", !acilan.some((a) => a.ust === MARKA_KOK),
+  const yilKaydi = acilan.find((a) => /^(19|20)\d{2}$/.test(a.ad));
+  t("yıl klasörü SOSYAL MEDYA'nın içine açılıyor", Boolean(yilKaydi) && yilKaydi.ust === "sos",
+    yilKaydi ? `üst: ${yilKaydi.ust}` : "yıl klasörü hiç açılmadı");
+  t("hiçbir klasör marka KÖKÜNE açılmıyor", !acilan.some((a) => a.ust === MARKA_KOK),
     acilan.map((a) => `${a.ad}@${a.ust}`).join(", "));
   t("yükleme hedefi hazırlandı", s.ok === true, s.sebep || "");
 
@@ -362,9 +364,9 @@ console.log("\n SOSYAL MEDYA klasörüne inme");
   // (c) Marka klasöründe SOSYAL MEDYA hiç yoksa sistem onu açar; ay klasörü yine kökte kalmaz
   kur({ [MARKA_KOK]: [{ id: "ay0", name: "07 TEMMUZ 2026" }] });
   await hedefKlasoruHazirla({ markaKlasoru: LINK, markaAdi: "X", durumAdi: DURUM_KLASORLERI.onayBekleyen });
-  const ayB = acilan.find((a) => /^\d\d .+ \d{4}$/.test(a.ad));
-  t("SOSYAL MEDYA yokken de ay klasörü marka köküne açılmıyor", Boolean(ayB) && ayB.ust !== MARKA_KOK,
-    ayB ? `üst: ${ayB.ust}` : "ay klasörü açılmadı");
+  const yilB = acilan.find((a) => /^(19|20)\d{2}$/.test(a.ad));
+  t("SOSYAL MEDYA yokken de yıl klasörü marka köküne açılmıyor", Boolean(yilB) && yilB.ust !== MARKA_KOK,
+    yilB ? `üst: ${yilB.ust}` : "yıl klasörü açılmadı");
 
   // (d) Taşıma da aynı yere inmeli — yükleme ve taşıma ayrışırsa dosya kaybolur
   kur({ [MARKA_KOK]: [{ id: "sos", name: "1 SOSYAL MEDYA" }], sos: [] });
@@ -388,13 +390,16 @@ console.log("\n SOSYAL MEDYA klasörüne inme");
   globalThis.fetch = gercekFetch;
 }
 
-/* ---- 10. AY VE YIL DÖNÜMÜ ----
+/* ---- 10. AY / YIL DÜZENİ ----
  *
- * Eylül'de yükleme yapılınca ayrı bir klasör açılmalı; 2027'nin ağustosu 2026'nın ağustos
- * klasörüne DÜŞMEMELİ. Bu ikincisi gerçek bir hataydı: ad sadeleştirmesi yılı da atıyordu,
- * "08 AĞUSTOS 2026" ile "08 AĞUSTOS 2027" aynı ada iniyordu. Yıl dönümünde, yani en geç
- * fark edilecek anda ortaya çıkardı. */
-console.log("\n Ay ve yıl dönümü");
+ * Düzen:  <marka>/1 SOSYAL MEDYA/<yıl>/<AY>/<AŞAMA>
+ *
+ * Sınanan üç şey:
+ *   - ay geçişinde ayrı klasör açılıyor, var olan yeniden kullanılıyor
+ *   - YIL DÖNÜMÜ: 2027'nin ağustosu 2026'nınkine düşmüyor (bu gerçek bir hataydı)
+ *   - ESKİ DÜZEN terk edilmiyor: Drive'da zaten "08 AĞUSTOS 2026" varsa yanına
+ *     "2026/08 AĞUSTOS" kurulmuyor. Yoksa aynı ayın dosyaları ikiye bölünür. */
+console.log("\n Ay / yıl düzeni");
 {
   const { hedefKlasoruHazirla, DURUM_KLASORLERI } = await import("../lib/drive-tasima.js");
   const { generateKeyPairSync } = await import("crypto");
@@ -419,73 +424,88 @@ console.log("\n Ay ve yıl dönümü");
     globalThis.Date = SahteDate;
   };
 
-  const kur = (mevcutAylar) => {
+  /* agac: klasör kimliği -> alt klasörleri. Marka kökünde SOSYAL MEDYA var. */
+  const kur = (agac) => {
     acilan = [];
     globalThis.fetch = async (url, opt = {}) => {
       const u = String(url);
       if (u.includes("oauth2.googleapis.com")) return { ok: true, json: async () => ({ access_token: "j" }) };
       if (u.includes("files?q=")) {
         const ust = (u.match(/'([^']+)'/) || [])[1] || "";
-        // Marka kökünde SOSYAL MEDYA var; ay klasörleri onun altında
         if (ust === KOK) return { ok: true, json: async () => ({ files: [{ id: "sos", name: "1 SOSYAL MEDYA" }] }) };
-        if (ust === "sos") return { ok: true, json: async () => ({ files: mevcutAylar }) };
-        return { ok: true, json: async () => ({ files: [] }) };
+        return { ok: true, json: async () => ({ files: agac[ust] || [] }) };
       }
       if (u.includes("drive/v3/files?fields=id") && opt.method === "POST") {
         const govde = JSON.parse(opt.body || "{}");
-        acilan.push(govde.name);
+        acilan.push({ ad: govde.name, ust: (govde.parents || [])[0] });
         return { ok: true, json: async () => ({ id: `yeni:${govde.name}` }) };
       }
       return { ok: true, json: async () => ({}) };
     };
   };
 
-  const yukle = async () => hedefKlasoruHazirla({ markaKlasoru: LINK, markaAdi: "VIZZ",
+  const yukle = () => hedefKlasoruHazirla({ markaKlasoru: LINK, markaAdi: "VIZZ",
     durumAdi: DURUM_KLASORLERI.onayBekleyen });
+  const adlar = () => acilan.map((a) => a.ad).join(", ") || "hiçbir şey açılmadı";
 
   try {
-    // (a) EYLÜL: ağustos klasörü dururken eylül için AYRI klasör açılmalı
-    saatiKur("2026-09-15T10:00:00Z");
-    kur([{ id: "a8", name: "08 AĞUSTOS 2026", createdTime: "2026-08-01T00:00:00Z" }]);
+    // (a) SIFIRDAN: yıl ve ay klasörü açılmalı, aşama ayın içine girmeli
+    saatiKur("2026-08-18T10:00:00Z");
+    kur({ sos: [] });
     let s = await yukle();
-    t("eylülde ayrı klasör açılıyor", acilan.includes("09 EYLÜL 2026"), acilan.join(", "));
-    t("ağustos klasörü eylül için kullanılmıyor", s.ayAdi === "09 EYLÜL 2026", s.ayAdi);
+    t("yıl klasörü açılıyor", acilan.some((a) => a.ad === "2026" && a.ust === "sos"), adlar());
+    t("ay klasörü yılın içine açılıyor",
+      acilan.some((a) => a.ad === "08 AĞUSTOS" && a.ust === "yeni:2026"), adlar());
+    t("aşama klasörü ayın içine açılıyor",
+      acilan.some((a) => a.ad === "1 ONAY BEKLEYENLER" && a.ust === "yeni:08 AĞUSTOS"), adlar());
+    t("yol tam", s.yol === "2026/08 AĞUSTOS/1 ONAY BEKLEYENLER", s.yol);
 
-    // (b) Aynı ay tekrar yüklenirse yeni klasör AÇILMAMALI
-    kur([{ id: "a9", name: "09 EYLÜL 2026", createdTime: "2026-09-01T00:00:00Z" }]);
-    await yukle();
-    t("var olan ay klasörü yeniden kullanılıyor", !acilan.some((a) => /EYLÜL/.test(a)), acilan.join(", "));
-
-    // (c) YIL DÖNÜMÜ — asıl hata buydu
-    saatiKur("2027-08-10T10:00:00Z");
-    kur([{ id: "a8", name: "08 AĞUSTOS 2026", createdTime: "2026-08-01T00:00:00Z" }]);
+    // (b) AY GEÇİŞİ: eylülde ağustosun yanına ayrı klasör
+    saatiKur("2026-09-15T10:00:00Z");
+    kur({ sos: [{ id: "y26", name: "2026" }], y26: [{ id: "a08", name: "08 AĞUSTOS" }] });
     s = await yukle();
-    t("2027 ağustosu 2026 klasörüne DÜŞMÜYOR", acilan.includes("08 AĞUSTOS 2027"), acilan.join(", "));
-    t("yeni yılın yolu doğru", s.yol === "08 AĞUSTOS 2027/1 ONAY BEKLEYENLER", s.yol);
+    t("eylülde ayrı ay klasörü açılıyor",
+      acilan.some((a) => a.ad === "09 EYLÜL" && a.ust === "y26"), adlar());
+    t("var olan yıl klasörü yeniden kullanılıyor", !acilan.some((a) => a.ad === "2026"), adlar());
+    t("ağustos klasörü eylül için kullanılmıyor", s.yol.startsWith("2026/09 EYLÜL"), s.yol);
 
-    // (d) 2027 klasörü zaten varsa ikinci kez açılmamalı
-    kur([{ id: "a8", name: "08 AĞUSTOS 2026", createdTime: "2026-08-01T00:00:00Z" },
-         { id: "a9", name: "08 AĞUSTOS 2027", createdTime: "2027-08-01T00:00:00Z" }]);
+    // (c) AYNI AY TEKRAR: hiçbir şey açılmamalı
+    kur({ sos: [{ id: "y26", name: "2026" }], y26: [{ id: "a09", name: "09 EYLÜL" }],
+          a09: [{ id: "ob", name: "1 ONAY BEKLEYENLER" }] });
     await yukle();
-    t("var olan 2027 klasörü yeniden kullanılıyor", !acilan.some((a) => /AĞUSTOS/.test(a)), acilan.join(", "));
+    t("aynı ay ikinci kez klasör açmıyor", acilan.length === 0, adlar());
 
-    // (e) OCAK 2027 — ay adı ve numarası yıl atlayınca da doğru
+    // (d) YIL DÖNÜMÜ — asıl hata buydu
+    saatiKur("2027-08-10T10:00:00Z");
+    kur({ sos: [{ id: "y26", name: "2026" }], y26: [{ id: "a08", name: "08 AĞUSTOS" }] });
+    s = await yukle();
+    t("2027 için ayrı yıl klasörü açılıyor",
+      acilan.some((a) => a.ad === "2027" && a.ust === "sos"), adlar());
+    t("2027 ağustosu 2026'nın klasörüne DÜŞMÜYOR", s.yol === "2027/08 AĞUSTOS/1 ONAY BEKLEYENLER", s.yol);
+
+    // (e) OCAK 2027 — ay numarası ve yıl birlikte doğru
     saatiKur("2027-01-05T10:00:00Z");
-    kur([]);
+    kur({ sos: [] });
     s = await yukle();
-    t("ocak klasörü '01 OCAK 2027' adıyla açılıyor", acilan.includes("01 OCAK 2027"), acilan.join(", "));
+    t("ocak '01 OCAK' adıyla, 2027'nin içine açılıyor",
+      s.yol === "2027/01 OCAK/1 ONAY BEKLEYENLER", s.yol);
 
-    // (f) YILSIZ ESKİ KLASÖR: açıldığı yılda kullanılır, sonraki yılda kullanılmaz
-    saatiKur("2026-08-10T10:00:00Z");
-    kur([{ id: "e", name: "AĞUSTOS", createdTime: "2026-03-01T00:00:00Z" }]);
-    await yukle();
-    t("yılsız eski klasör kendi yılında yeniden kullanılıyor", !acilan.some((a) => /AĞUSTOS/.test(a)),
-      acilan.join(", "));
+    // (f) ESKİ DÜZEN KORUNUYOR: "08 AĞUSTOS 2026" duruyorsa yeni yapı kurulmamalı
+    saatiKur("2026-08-18T10:00:00Z");
+    kur({ sos: [{ id: "duz", name: "08 AĞUSTOS 2026", createdTime: "2026-08-01T00:00:00Z" }] });
+    s = await yukle();
+    t("var olan düz ay klasörü kullanılıyor, yanına yıl yapısı kurulmuyor",
+      !acilan.some((a) => a.ad === "2026") && s.yol === "08 AĞUSTOS 2026/1 ONAY BEKLEYENLER", `${s.yol} | ${adlar()}`);
+
+    // (g) Yılsız eski klasör: kendi yılında kullanılır, sonraki yılda kullanılmaz
+    kur({ sos: [{ id: "duz", name: "AĞUSTOS", createdTime: "2026-03-01T00:00:00Z" }] });
+    s = await yukle();
+    t("yılsız eski klasör kendi yılında kullanılıyor", s.yol === "AĞUSTOS/1 ONAY BEKLEYENLER", s.yol);
 
     saatiKur("2027-08-10T10:00:00Z");
-    kur([{ id: "e", name: "AĞUSTOS", createdTime: "2026-03-01T00:00:00Z" }]);
-    await yukle();
-    t("yılsız eski klasör SONRAKİ yılda kullanılmıyor", acilan.includes("08 AĞUSTOS 2027"), acilan.join(", "));
+    kur({ sos: [{ id: "duz", name: "AĞUSTOS", createdTime: "2026-03-01T00:00:00Z" }] });
+    s = await yukle();
+    t("yılsız eski klasör SONRAKİ yılda kullanılmıyor", s.yol === "2027/08 AĞUSTOS/1 ONAY BEKLEYENLER", s.yol);
   } finally {
     globalThis.Date = gercekDate;
     globalThis.fetch = gercekFetch;
@@ -535,8 +555,11 @@ console.log("\n SOSYAL MEDYA klasörünü kendi açma");
     await hedefKlasoruHazirla({ markaKlasoru: LINK, markaAdi: "YENİ MARKA", durumAdi: DURUM_KLASORLERI.onayBekleyen });
     const sm = acilan.find((a) => /SOSYAL MEDYA/.test(a.ad));
     t("SOSYAL MEDYA klasörü kendiliğinden açılıyor", Boolean(sm) && sm.ust === KOK, acilan.map((a) => a.ad).join(", "));
-    const ay = acilan.find((a) => /^\d\d .+ \d{4}$/.test(a.ad));
-    t("ay klasörü YENİ açılan SOSYAL MEDYA'nın içine giriyor", Boolean(ay) && ay.ust === `yeni:${sm && sm.ad}`,
+    const yil = acilan.find((a) => /^(19|20)\d{2}$/.test(a.ad));
+    t("yıl klasörü YENİ açılan SOSYAL MEDYA'nın içine giriyor", Boolean(yil) && yil.ust === `yeni:${sm && sm.ad}`,
+      yil ? `üst: ${yil.ust}` : "yıl klasörü açılmadı");
+    const ay = acilan.find((a) => /^\d\d [A-ZÇĞİÖŞÜ]+$/.test(a.ad));
+    t("ay klasörü yılın içine giriyor", Boolean(ay) && ay.ust === `yeni:${yil && yil.ad}`,
       ay ? `üst: ${ay.ust}` : "ay klasörü açılmadı");
 
     // (b) Bağlantı ZATEN sosyal medyayı gösteriyor → içine ikinci bir tane açılmamalı
@@ -563,6 +586,116 @@ console.log("\n SOSYAL MEDYA klasörünü kendi açma");
     t("yanlış klasörü gösteren bağlantı raporda uyarılıyor",
       rapor2.sosyalMedya === "beklenmedik" && /yanlış/.test(rapor2.hedefNot || ""), rapor2.hedefNot);
   } finally {
+    globalThis.fetch = gercekFetch;
+  }
+}
+
+/* ---- 12. TAŞIMA DOSYANIN AYINDA KALIR ----
+ *
+ * 30 Ağustos'ta yüklenip 1 Eylül'de onaylanan dosya EYLÜL'e sıçramamalı; yoksa aynı işin
+ * parçaları iki aya bölünür. Yıl dönümünde aynısı daha da kötü: aralıkta yüklenen bir dosya
+ * ocakta onaylanınca yıl bile değişirdi.
+ *
+ * Bu yüzden taşıma "bugün hangi ay" diye sormaz, DOSYANIN NEREDE OLDUĞUNA bakar. */
+console.log("\n Taşıma dosyanın ayında kalıyor");
+{
+  const { onaylananiTasi, DURUM_KLASORLERI } = await import("../lib/drive-tasima.js");
+  const KOK = "1AbCdefGHIjklMNOpqrs";
+  const LINK = `https://drive.google.com/drive/folders/${KOK}`;
+  const gercekFetch = globalThis.fetch;
+  const gercekDate = globalThis.Date;
+  const saatiKur = (iso) => {
+    class SahteDate extends gercekDate {
+      constructor(...a) { super(...(a.length ? a : [iso])); }
+      static now() { return new gercekDate(iso).getTime(); }
+    }
+    globalThis.Date = SahteDate;
+  };
+
+  let acilan = [];
+  let hedefKlasor = null;
+
+  /* klasorler: id -> { name, parents }.  agac: id -> alt klasörler. */
+  const kur = (klasorler, agac, dosyaUstleri) => {
+    acilan = []; hedefKlasor = null;
+    globalThis.fetch = async (url, opt = {}) => {
+      const u = String(url);
+      if (u.includes("oauth2.googleapis.com")) return { ok: true, json: async () => ({ access_token: "j" }) };
+      if (u.includes("files?q=")) {
+        const ust = (u.match(/'([^']+)'/) || [])[1] || "";
+        return { ok: true, json: async () => ({ files: agac[ust] || [] }) };
+      }
+      if (u.includes("drive/v3/files?fields=id") && opt.method === "POST") {
+        const govde = JSON.parse(opt.body || "{}");
+        acilan.push({ ad: govde.name, ust: (govde.parents || [])[0] });
+        return { ok: true, json: async () => ({ id: `yeni:${govde.name}` }) };
+      }
+      if (/drive\/v3\/files\/[^?]+\?fields=parents/.test(u)) {
+        return { ok: true, json: async () => ({ parents: dosyaUstleri, name: "V1.mp4" }) };
+      }
+      const km = u.match(/drive\/v3\/files\/([^?]+)\?fields=/);
+      if (km && opt.method === undefined) {
+        const id = km[1];
+        const k = klasorler[id] || { name: id, parents: [] };
+        return { ok: true, json: async () => ({ id, name: k.name, parents: k.parents,
+          mimeType: "application/vnd.google-apps.folder" }) };
+      }
+      if (opt.method === "PATCH") {
+        hedefKlasor = (u.match(/addParents=([^&]+)/) || [])[1] || null;
+        return { ok: true, json: async () => ({ id: "d", parents: [] }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    };
+  };
+
+  const tasi = () => onaylananiTasi({ dosyaLinki: "https://drive.google.com/file/d/DOSYA123456/view",
+    markaKlasoru: LINK, markaAdi: "VIZZ", hedefAd: DURUM_KLASORLERI.onaylanan });
+
+  try {
+    /* Dosya 2026/08 AĞUSTOS/1 ONAY BEKLEYENLER içinde. Bugün 2027 OCAK. */
+    saatiKur("2027-01-04T10:00:00Z");
+    const klasorler = {
+      [KOK]: { name: "VIZZ", parents: [] },
+      sos:   { name: "1 SOSYAL MEDYA", parents: [KOK] },
+      y26:   { name: "2026", parents: ["sos"] },
+      a08:   { name: "08 AĞUSTOS", parents: ["y26"] },
+      ob:    { name: "1 ONAY BEKLEYENLER", parents: ["a08"] },
+    };
+    kur(klasorler, { [KOK]: [{ id: "sos", name: "1 SOSYAL MEDYA" }], sos: [{ id: "y26", name: "2026" }],
+                     y26: [{ id: "a08", name: "08 AĞUSTOS" }], a08: [{ id: "ob", name: "1 ONAY BEKLEYENLER" }] },
+        ["ob"]);
+    let r = await tasi();
+    t("dosya kendi ayında kalıyor, bugünkü aya sıçramıyor", r.klasor === "2026/08 AĞUSTOS/2 ONAYLANANLAR", r.klasor);
+    t("yeni yıl klasörü AÇILMIYOR", !acilan.some((a) => a.ad === "2027"),
+      acilan.map((a) => a.ad).join(", ") || "hiçbir şey açılmadı");
+    t("aşama klasörü dosyanın ayının içine açıldı",
+      acilan.some((a) => a.ad === "2 ONAYLANANLAR" && a.ust === "a08"),
+      acilan.map((a) => `${a.ad}@${a.ust}`).join(", "));
+    t("dosya gerçekten taşındı", hedefKlasor === "yeni:2 ONAYLANANLAR", String(hedefKlasor));
+
+    /* Dosya ESKİ düz düzende: SOSYAL MEDYA/08 AĞUSTOS 2026/1 ONAY BEKLEYENLER */
+    const eskiKlasorler = {
+      [KOK]: { name: "VIZZ", parents: [] },
+      sos:   { name: "1 SOSYAL MEDYA", parents: [KOK] },
+      duz:   { name: "08 AĞUSTOS 2026", parents: ["sos"] },
+      ob:    { name: "1 ONAY BEKLEYENLER", parents: ["duz"] },
+    };
+    kur(eskiKlasorler, { [KOK]: [{ id: "sos", name: "1 SOSYAL MEDYA" }],
+                         sos: [{ id: "duz", name: "08 AĞUSTOS 2026", createdTime: "2026-08-01T00:00:00Z" }],
+                         duz: [{ id: "ob", name: "1 ONAY BEKLEYENLER" }] }, ["ob"]);
+    r = await tasi();
+    t("eski düzendeki dosya kendi klasöründe kalıyor", r.klasor === "08 AĞUSTOS 2026/2 ONAYLANANLAR", r.klasor);
+    t("eski düzendeki dosya için yıl klasörü açılmıyor", !acilan.some((a) => /^\d{4}$/.test(a.ad)),
+      acilan.map((a) => a.ad).join(", ") || "hiçbir şey açılmadı");
+
+    /* Dosya hiçbir ay klasörünün altında değil (elle atılmış) -> bugünün ayı kurulur */
+    kur({ [KOK]: { name: "VIZZ", parents: [] }, sos: { name: "1 SOSYAL MEDYA", parents: [KOK] },
+          baska: { name: "ÇALIŞMA DOSYALARI", parents: ["sos"] } },
+        { [KOK]: [{ id: "sos", name: "1 SOSYAL MEDYA" }], sos: [] }, ["baska"]);
+    r = await tasi();
+    t("ayı belirsiz dosya bugünün ayına yerleşiyor", r.klasor === "2027/01 OCAK/2 ONAYLANANLAR", r.klasor);
+  } finally {
+    globalThis.Date = gercekDate;
     globalThis.fetch = gercekFetch;
   }
 }
