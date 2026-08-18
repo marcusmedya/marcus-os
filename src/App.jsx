@@ -4993,6 +4993,101 @@ function Planim({ gorevler, onAdd, onUpdate, onDelete, onayKutusu, isler, onGit 
  * Ana verinin içindeki İşlem Geçmişi'nden farkı: burası veriyle birlikte geri yüklenmez.
  * Yani bir yedek geri alınsa bile "kim ne zaman ne yaptı" kaydı yerinde kalır.
  */
+/**
+ * DRIVE KLASÖR DURUMU — hangi markanın klasörü hazır, hangisi eksik ya da yanlış.
+ *
+ * NEDEN SADECE "DOLU MU" BAKMIYORUZ: bağlantı dolu ama BAŞKA bir klasörü gösteriyor
+ * olabilir. Bu gerçekten yaşandı — bağlantı marka kökü yerine içeride elle açılmış bir alt
+ * klasörü gösteriyordu, dosyalar bir kat derine gömülüyordu ve hiçbir yerde uyarı yoktu.
+ *
+ * Bu yüzden klasör Drive'da gerçekten açılıp ADI gösteriliyor: kullanıcı doğru klasörü
+ * seçtiğini gözüyle doğrulasın.
+ */
+function DriveKlasorDurumu() {
+  const [durum, setDurum] = useState("bos");   // bos | yukleniyor | hazir | hata
+  const [markalar, setMarkalar] = useState([]);
+  const [hata, setHata] = useState("");
+
+  const kontrolEt = async () => {
+    setDurum("yukleniyor"); setHata("");
+    try {
+      const r = await fetch("/api/data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ driveAction: "klasorDurumu" }),
+      }).then((x) => x.json());
+      if (!r.ok) throw new Error(r.error || "Kontrol yapılamadı.");
+      setMarkalar(r.markalar || []); setDurum("hazir");
+    } catch (e) {
+      setHata(String(e.message || e)); setDurum("hata");
+    }
+  };
+
+  const DURUM_RENK = {
+    tamam:        { c: T.success, s: T.successSoft, im: "✓" },
+    yok:          { c: T.warning, s: T.warningSoft, im: "—" },
+    gecersiz:     { c: T.danger,  s: T.dangerSoft,  im: "!" },
+    erisilemiyor: { c: T.danger,  s: T.dangerSoft,  im: "!" },
+    kurulusuz:    { c: T.warning, s: T.warningSoft, im: "—" },
+  };
+  const tamamSayi = markalar.filter((m) => m.durum === "tamam").length;
+  const sorunlu = markalar.filter((m) => m.durum !== "tamam");
+
+  return (
+    <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+      <SectionTitle>Drive Klasörleri</SectionTitle>
+      <div style={{ fontSize: 13, color: T.textDim, lineHeight: 1.6, marginBottom: 12 }}>
+        Her markanın Drive klasörü tanımlı mı ve doğru klasörü mü gösteriyor — Drive'a bağlanıp
+        klasörün adını getirir. Klasörü tanımsız markada dosya yükleme ve taşıma çalışmaz.
+      </div>
+
+      <button style={{ ...cancelBtnStyle, marginBottom: markalar.length ? 14 : 0 }}
+              onClick={kontrolEt} disabled={durum === "yukleniyor"}>
+        {durum === "yukleniyor" ? "Kontrol ediliyor…" : "Klasörleri Kontrol Et"}
+      </button>
+
+      {durum === "hata" && (
+        <div style={{ background: T.dangerSoft, color: T.danger, borderRadius: 10, padding: "12px 15px", fontSize: 13 }}>{hata}</div>
+      )}
+
+      {durum === "hazir" && (
+        <>
+          <div style={{ display: "flex", alignItems: "center", gap: 9, background: sorunlu.length ? T.warningSoft : T.successSoft,
+                        borderRadius: 10, padding: "12px 15px", marginBottom: 10 }}>
+            <span style={{ fontSize: 15, lineHeight: 1 }}>{sorunlu.length ? "⚠" : "✓"}</span>
+            <div style={{ fontSize: 13, color: sorunlu.length ? T.warning : T.success, lineHeight: 1.6 }}>
+              {sorunlu.length
+                ? <><strong>{sorunlu.length} markada klasör eksik ya da hatalı.</strong> {tamamSayi} marka hazır.</>
+                : <><strong>{tamamSayi} markanın hepsi hazır.</strong> Yükleme ve taşıma her markada çalışır.</>}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {markalar.map((m) => {
+              const r = DURUM_RENK[m.durum] || DURUM_RENK.gecersiz;
+              return (
+                <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+                                         background: r.s, borderRadius: 9, padding: "9px 13px" }}>
+                  <span style={{ color: r.c, fontWeight: 700, fontSize: 13, width: 12, textAlign: "center" }}>{r.im}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: T.text, minWidth: 150 }}>{m.ad}</span>
+                  <span style={{ fontSize: 12.5, color: m.durum === "tamam" ? T.textDim : r.c }}>
+                    {m.durum === "tamam" ? m.yol : m.mesaj}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ fontSize: 12, color: T.textFaint, lineHeight: 1.6, marginTop: 12 }}>
+            Yeşil satırdaki yol <strong>&lt;marka&gt; / 1 SOSYAL MEDYA</strong> biçiminde olmalı.
+            Başka bir klasör görünüyorsa bağlantı yanlış — Müşteriler ekranından düzelt.
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
+
 function GuvenlikDefteri() {
   const [kayitlar, setKayitlar] = useState(null);
   const [acik, setAcik] = useState(false);
@@ -5233,6 +5328,7 @@ function Ayarlar({ onGit, guvenlik, silinenler, onGeriAl, onKaliciSil, onExport,
         
       </Card>
       <GuvenlikDefteri />
+      <DriveKlasorDurumu />
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Güvenlik</SectionTitle>
 
