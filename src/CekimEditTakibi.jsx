@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { medyaVarMi, asamalariDuzelt } from "../lib/asamalar.js";
-import { useSunucuOnizleme } from "./drive.jsx";
+import { useSunucuOnizleme, gomuluEngelliMi, GOMULU_ACIKLAMA } from "./drive.jsx";
 // Para gösterimleri Gizlilik Modu'na uymalı — aksi halde ücretler gizliyken de görünür kalırdı.
 import { fmt, T, authHeaders } from "./tema.jsx";
 import {
@@ -550,8 +550,7 @@ function SunucuOnizleme({ isId, versiyon, video, drivedeAc, gomuluUrl }) {
           style={{ width: "100%", height: video ? 380 : 300, border: "none", borderRadius: 8, background: "#000" }}
         />
         <div style={{ fontSize: 11, color: C.textDim, marginTop: 6, lineHeight: 1.5 }}>
-          Gömülü oynatıcı siyah kalıyorsa tarayıcın Google'ın çerezlerini engelliyordur
-          (Safari'de varsayılan). O zaman <strong>Drive'da Aç</strong> ile izle.
+          {GOMULU_ACIKLAMA}
           <button onClick={() => setGomulu(false)}
                   style={{ ...btnGhost, padding: "4px 8px", fontSize: 11, marginLeft: 8, display: "inline-flex" }}>
             Görsel önizlemeye dön
@@ -580,9 +579,12 @@ function SunucuOnizleme({ isId, versiyon, video, drivedeAc, gomuluUrl }) {
           <span style={{ fontSize: 11, color: C.textFaint }}>
             {video ? "İlk kare gösteriliyor — izlemek için Drive'da aç." : "Görsel Drive'dan getirildi."}
           </span>
+          {/* Düğme gizlenmiyor ama NE OLACAĞI önceden söyleniyor — Safari'de bu yol ölü.
+              Sessiz bırakmak, kullanıcıyı aynı siyah kutuyu tekrar tekrar açmaya iter. */}
           <button onClick={() => setGomulu(true)}
+                  title={gomuluEngelliMi() ? GOMULU_ACIKLAMA : ""}
                   style={{ ...btnGhost, padding: "4px 8px", fontSize: 11 }}>
-            Gömülü oynatıcıyı dene
+            {gomuluEngelliMi() ? "Gömülü oynatıcıyı dene (bu tarayıcıda çalışmaz)" : "Gömülü oynatıcıyı dene"}
           </button>
         </div>
       </div>
@@ -597,8 +599,9 @@ function SunucuOnizleme({ isId, versiyon, video, drivedeAc, gomuluUrl }) {
           : <>Önizleme getirilemedi. Dosya Drive'da duruyor — <a href={drivedeAc} target="_blank" rel="noreferrer" style={{ color: C.accentText }}>Drive'da Aç</a> ile bakabilirsin.</>}
       </div>
       {durum !== "yukleniyor" && (
-        <button onClick={() => setGomulu(true)} style={{ ...btnGhost, marginTop: 10, display: "inline-flex", fontSize: 12 }}>
-          Gömülü oynatıcıyı dene
+        <button onClick={() => setGomulu(true)} title={gomuluEngelliMi() ? GOMULU_ACIKLAMA : ""}
+                style={{ ...btnGhost, marginTop: 10, display: "inline-flex", fontSize: 12 }}>
+          {gomuluEngelliMi() ? "Gömülü oynatıcıyı dene (bu tarayıcıda çalışmaz)" : "Gömülü oynatıcıyı dene"}
         </button>
       )}
     </div>
