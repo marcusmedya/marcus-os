@@ -28,6 +28,30 @@ import { T, authHeaders } from "./tema.jsx";
  */
 const onizlemeBellegi = new Map();
 
+/* SIRAYA SOKMA — AYNI ANDA EN FAZLA ÜÇ ÖNİZLEME.
+ *
+ * Pano otuz kart gösterebiliyor. Hepsi aynı anda önizleme isteseydi (ve istedi) tek sayfa
+ * açılışı otuz istek üretir; her biri sunucuda iki Google çağrısı yapar. Bu hem yavaş hem
+ * de tehlikeli: uygulamanın kaba kuvvet koruması "kısa sürede çok istek" görüp KENDİ
+ * kullanıcısını kilitledi. Sıra, yükü tabana yayıyor. */
+const ONIZLEME_SIRASI = { calisan: 0, bekleyen: [] };
+const SIRA_SINIRI = 3;
+
+function siradaCalistir(is) {
+  return new Promise((coz) => {
+    const baslat = () => {
+      ONIZLEME_SIRASI.calisan += 1;
+      is().finally(() => {
+        ONIZLEME_SIRASI.calisan -= 1;
+        const sonraki = ONIZLEME_SIRASI.bekleyen.shift();
+        if (sonraki) sonraki();
+      }).then(coz, coz);
+    };
+    if (ONIZLEME_SIRASI.calisan < SIRA_SINIRI) baslat();
+    else ONIZLEME_SIRASI.bekleyen.push(baslat);
+  });
+}
+
 /**
  * GÖMÜLÜ DRIVE OYNATICISI BU TARAYICIDA ENGELLİ Mİ?
  *
@@ -112,7 +136,7 @@ export function useSunucuOnizleme({ isId, icerikId, boyut = 800 }) {
     if (bellekte) { setVeri(bellekte); setDurum("hazir"); return undefined; }
     let iptal = false;
     setDurum("yukleniyor");
-    fetch("/api/data", {
+    siradaCalistir(() => fetch("/api/data", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ onizlemeAction: "gorsel", isId, icerikId, boyut }),
@@ -123,7 +147,7 @@ export function useSunucuOnizleme({ isId, icerikId, boyut = 800 }) {
         if (r.ok && r.veri) { onizlemeBellegi.set(anahtar, r.veri); setVeri(r.veri); setDurum("hazir"); }
         else setDurum("olmadi");
       })
-      .catch(() => { if (!iptal) setDurum("olmadi"); });
+      .catch(() => { if (!iptal) setDurum("olmadi"); }));
     return () => { iptal = true; };
   }, [anahtar, isId, icerikId, boyut]);
 
