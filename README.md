@@ -3863,3 +3863,93 @@ Kayıt `kaynakIsId` ile karta bağlanır. Böylece:
 12 kontrol: üç durum için doğru aşama, kategori eşlemesi, dosya taşınması, içeriğin
 silinmemesi, diğer kayıtların etkilenmemesi, tekrar aktarılamaması.
 17 kod denetimi + 31 test dosyası temiz.
+
+## Güncelleme 153: Onaylanan Dosya Drive'da Taşınıyor
+
+Müşteri bir içeriği onayladığında, o işin Drive dosyası **"Onaylananlar" klasörüne** (marka
+alt klasörüne) otomatik taşınıyor.
+
+### Neden bu sefer çalışıyor
+v149'da Drive YÜKLEME denenmiş, servis hesaplarının depolama kotası olmadığı için kişisel
+Google hesabında çalışmayacağı anlaşılıp vazgeçilmişti.
+
+**Taşıma farklı bir iş:** yeni dosya oluşturulmuyor, var olan dosyanın klasörü değiştiriliyor
+(`files.update` + `addParents`/`removeParents`). Servis hesabının dosyaya düzenleme yetkisi
+olması yeterli, sahip olması gerekmiyor. Kota sorunu doğmuyor.
+
+### Taşıma ONAYI ASLA ENGELLEMEZ
+Drive kurulu değilse, yetki yoksa, bağlantı koparsa ya da iş Drive bağlantısı taşımıyorsa
+onay yine geçerli. Sonuç işin geçmişine not olarak düşülür — sessizce kaybolmaz.
+
+Test edildi: kurulu değilken onay tamamlanıyor, bağlantısız işte gereksiz not düşülmüyor,
+revize isteği taşıma tetiklemiyor.
+
+### Kurulum (kullanıcının yapacağı)
+Google Cloud projesi → Drive API → servis hesabı → anahtar → **kaynak ve hedef klasörleri
+servis hesabına DÜZENLEYİCİ olarak paylaş**.
+
+Vercel'e üç değişken: `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY`,
+`DRIVE_ONAY_KLASOR_ID`.
+
+Slot harcanmadı — taşıma mevcut onay akışının içinde, 11/12 sabit.
+
+### Doğrulama
+`t32.mjs` 12 kontrol: üç bağlantı biçiminden kimlik çıkarma, Drive olmayan bağlantı, kurulu
+değilken çökmeme, onayın her koşulda tamamlanması. 17 kod denetimi + 32 test dosyası temiz.
+
+## Güncelleme 154: Her Müşterinin Kendi Onay Klasörü
+
+Ajansın Drive düzeninde her müşterinin zaten kendi klasörü var; tek bir "ONAYLANANLAR" üst
+klasörü mantığı bu yapıya uymuyordu.
+
+### Müşteri kaydına yeni alan
+**"Drive Onay Klasörü"** — o markanın onaylanan dosyalarının taşınacağı klasörün bağlantısı.
+
+Bağlantının tamamı yapıştırılabilir (`https://drive.google.com/drive/folders/1AbC...`) ya da
+doğrudan klasör kimliği. İkisi de tanınıyor.
+
+### Hedef klasör sırası
+1. Müşteri kaydındaki **Drive Onay Klasörü** — asıl yol
+2. Yoksa `DRIVE_ONAY_KLASOR_ID` altında marka adıyla alt klasör
+3. İkisi de yoksa taşıma yapılmaz, **onay normal tamamlanır**
+
+Boş bırakılan müşteride hiçbir şey bozulmaz.
+
+### Doğrulama
+6 kontrol: klasör bağlantısı, `?usp=sharing` ekli hâli, doğrudan kimlik, boş değer, alakasız
+metin, dosya bağlantısının klasör sanılmaması. 17 kod denetimi + 32 test dosyası temiz.
+
+## Güncelleme 155: Drive Klasör Akışı — Onaylananlar / Paylaşılanlar, Ay Ay
+
+Ajansın Drive düzenine göre iki aşamalı taşıma:
+
+```
+İBO BURGER/                        ← müşteri kaydına GİRİLEN tek klasör
+   ONAY BEKLEYENLER/
+   ONAYLANANLAR/
+      AĞUSTOS/                     ← müşteri onaylayınca
+   PAYLAŞILANLAR/
+      AĞUSTOS/                     ← "Teslim Edildi" olunca
+```
+
+Üst klasörler (ONAYLANANLAR / PAYLAŞILANLAR) ve **ay klasörleri sistem tarafından
+oluşturulur**; varsa yeniden kullanılır. Kullanıcı yalnızca markanın ana klasörünü girer.
+
+Ay ayrımı sonradan aramayı kolaylaştırır — bir markanın klasöründe yüzlerce dosya birikmez.
+
+### İki tetikleyici
+| Olay | Hedef |
+|---|---|
+| Müşteri onayladı | `ONAYLANANLAR/<AY>` |
+| Kart "Teslim Edildi" oldu | `PAYLAŞILANLAR/<AY>` |
+
+**Neden aşama üzerinden:** paylaşım planı kaydında dosya bağlantısı yok, iş kartında var.
+"Teslim Edildi" zaten "paylaşıldı" anlamına gelen son aşama.
+
+### Tekrar taşıma yok
+Kayıt öncesi ve sonrası karşılaştırılır; yalnızca **yeni** geçen işler taşınır. Zaten "Teslim
+Edildi" olan bir iş her kayıtta tekrar taşınmaz. `kv-yaz.js` artık `oncekiVeri` de döndürüyor.
+
+### Doğrulama
+7 aşama yakalama kontrolü (yeni geçen, zaten öyle olan, başka aşamaya geçen, yeni eklenen,
+değişiklik yok, boş veri) + 6 klasör kimliği kontrolü. 17 kod denetimi + 32 test dosyası temiz.
