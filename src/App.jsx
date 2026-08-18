@@ -5071,7 +5071,8 @@ function DriveKlasorDurumu() {
                   <span style={{ color: r.c, fontWeight: 700, fontSize: 13, width: 12, textAlign: "center" }}>{r.im}</span>
                   <span style={{ fontSize: 13, fontWeight: 600, color: T.text, minWidth: 150 }}>{m.ad}</span>
                   <span style={{ fontSize: 12.5, color: m.durum === "tamam" ? T.textDim : r.c }}>
-                    {m.durum === "tamam" ? m.yol : m.mesaj}
+                    {m.durum === "tamam" ? (m.hedefYol || m.yol) : m.mesaj}
+                    {m.indi && <span style={{ color: T.textFaint }}> (kendiliğinden inildi)</span>}
                   </span>
                 </div>
               );
@@ -5079,8 +5080,10 @@ function DriveKlasorDurumu() {
           </div>
 
           <div style={{ fontSize: 12, color: T.textFaint, lineHeight: 1.6, marginTop: 12 }}>
-            Yeşil satırdaki yol <strong>&lt;marka&gt; / 1 SOSYAL MEDYA</strong> biçiminde olmalı.
-            Başka bir klasör görünüyorsa bağlantı yanlış — Müşteriler ekranından düzelt.
+            Yeşil satırdaki yol, dosyaların gerçekten yazılacağı klasördür ve
+            <strong> …/ 1 SOSYAL MEDYA</strong> ile bitmelidir. Bağlantı marka klasörünü
+            gösteriyorsa sistem içindeki SOSYAL MEDYA'ya kendiliğinden iner. Başka bir klasör
+            görünüyorsa bağlantı yanlış — Müşteriler ekranından düzelt.
           </div>
         </>
       )}

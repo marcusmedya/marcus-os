@@ -272,5 +272,121 @@ console.log("\n Klasör durum raporu");
   t("müşteri hesabı rapor alamıyor", rm.kod === 403, `HTTP ${rm.kod}`);
 }
 
+/* ---- 9. SOSYAL MEDYA KLASÖRÜNE KENDİLİĞİNDEN İNME ----
+ *
+ * Müşteri kaydına marka klasörü de girilebiliyor, "1 SOSYAL MEDYA" klasörü de; ikisi de
+ * geçerli bir bağlantı gibi görünüyor. Marka klasörü girildiğinde ay klasörleri markanın
+ * köküne, LOGO ve PROFİL'in yanına açılıyordu — BİNPARK AVM'de tam olarak bu yaşandı.
+ *
+ * Bu testler olmadan iniş sessizce bozulabilir: iniş kaybolursa klasörler yine açılır,
+ * sistem hata vermez, sadece YANLIŞ YERE açar. Kimse fark etmez. */
+console.log("\n SOSYAL MEDYA klasörüne inme");
+{
+  const { hedefKlasoruHazirla, onaylananiTasi, klasorDurumu, DURUM_KLASORLERI } =
+    await import("../lib/drive-tasima.js");
+  /* Bir önceki bölüm kimlik değişkenlerini siliyor; burada gerçek bir anahtar gerekiyor
+   * çünkü imzalama adımı sahte metinle çalışmaz. */
+  {
+    const { generateKeyPairSync } = await import("crypto");
+    const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048,
+      privateKeyEncoding: { type: "pkcs8", format: "pem" }, publicKeyEncoding: { type: "spki", format: "pem" } });
+    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = "sa@x.iam.gserviceaccount.com";
+    process.env.GOOGLE_PRIVATE_KEY = privateKey;
+  }
+  const MARKA_KOK = "1AbCdefGHIjklMNOpqrs";
+  const LINK = `https://drive.google.com/drive/folders/${MARKA_KOK}`;
+
+  const gercekFetch = globalThis.fetch;
+  let acilan = [];        // { ad, ust }
+  let tasimaHedefi = null;
+
+  /* Üst klasöre GÖRE cevap veren taklit Drive: iniş ancak böyle sınanabilir, tek listeyle
+   * dönen bir taklit "hangi klasörün altına açıldı" sorusunu hiç sormaz. */
+  const kur = (agac, dosyaUstleri = ["baska"]) => {
+    acilan = []; tasimaHedefi = null;
+    globalThis.fetch = async (url, opt = {}) => {
+      const u = String(url);
+      if (u.includes("oauth2.googleapis.com")) return { ok: true, json: async () => ({ access_token: "j" }) };
+
+      if (u.includes("files?q=")) {
+        /* encodeURIComponent tek tırnağı KAÇIRMAZ (' korunur), ama biçim değişirse diye
+         * her iki yazımı da tanıyoruz. */
+        const m = u.match(/'([^']+)'/) || u.match(/%27([^%]+)%27/);
+        const ust = m ? m[1] : "";
+        return { ok: true, json: async () => ({ files: agac[ust] || [] }) };
+      }
+      if (u.includes("drive/v3/files?fields=id") && opt.method === "POST") {
+        const govde = JSON.parse(opt.body || "{}");
+        acilan.push({ ad: govde.name, ust: (govde.parents || [])[0] });
+        return { ok: true, json: async () => ({ id: `yeni:${govde.name}` }) };
+      }
+      // Taşınacak dosyanın bilgisi
+      if (/drive\/v3\/files\/[^?]+\?fields=parents/.test(u)) {
+        return { ok: true, json: async () => ({ parents: dosyaUstleri, name: "V1.mp4" }) };
+      }
+      // Klasör bilgisi (klasorDurumu ve ay tespiti)
+      const km = u.match(/drive\/v3\/files\/([^?]+)\?fields=/);
+      if (km && opt.method === undefined) {
+        const id = km[1];
+        return { ok: true, json: async () => ({
+          id, name: id === MARKA_KOK ? "BİNPARK AVM" : id === "sos" ? "1 SOSYAL MEDYA" : id,
+          mimeType: "application/vnd.google-apps.folder",
+          parents: id === MARKA_KOK ? ["ustkok"] : [],
+        }) };
+      }
+      if (opt.method === "PATCH") {
+        tasimaHedefi = (u.match(/addParents=([^&]+)/) || [])[1] || null;
+        return { ok: true, json: async () => ({ id: "d", parents: [] }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    };
+  };
+
+  // (a) Bağlantı MARKA klasörünü gösteriyor, içinde SOSYAL MEDYA var → inilmeli
+  kur({ [MARKA_KOK]: [{ id: "sos", name: "1 SOSYAL MEDYA" }, { id: "logo", name: "LOGO" }], sos: [] });
+  let s = await hedefKlasoruHazirla({ markaKlasoru: LINK, markaAdi: "BİNPARK AVM",
+    durumAdi: DURUM_KLASORLERI.onayBekleyen });
+  const ayKaydi = acilan.find((a) => /^\d\d .+ \d{4}$/.test(a.ad));
+  t("ay klasörü SOSYAL MEDYA'nın içine açılıyor", Boolean(ayKaydi) && ayKaydi.ust === "sos",
+    ayKaydi ? `üst: ${ayKaydi.ust}` : "ay klasörü hiç açılmadı");
+  t("ay klasörü marka KÖKÜNE açılmıyor", !acilan.some((a) => a.ust === MARKA_KOK),
+    acilan.map((a) => `${a.ad}@${a.ust}`).join(", "));
+  t("yükleme hedefi hazırlandı", s.ok === true, s.sebep || "");
+
+  // (b) "1 " öneki olmadan da tanınmalı — Drive'da yazımlar tutarsız
+  kur({ [MARKA_KOK]: [{ id: "sos", name: "SOSYAL MEDYA" }], sos: [] });
+  await hedefKlasoruHazirla({ markaKlasoru: LINK, markaAdi: "X", durumAdi: DURUM_KLASORLERI.onayBekleyen });
+  t("numarasız 'SOSYAL MEDYA' da tanınıyor", acilan.every((a) => a.ust !== MARKA_KOK),
+    acilan.map((a) => `${a.ad}@${a.ust}`).join(", "));
+
+  // (c) Bağlantı ZATEN SOSYAL MEDYA'yı gösteriyor → olduğu yerde kalmalı, bir kat daha inmemeli
+  kur({ [MARKA_KOK]: [{ id: "ay0", name: "07 TEMMUZ 2026" }] });
+  await hedefKlasoruHazirla({ markaKlasoru: LINK, markaAdi: "X", durumAdi: DURUM_KLASORLERI.onayBekleyen });
+  const ayB = acilan.find((a) => /^\d\d .+ \d{4}$/.test(a.ad));
+  t("SOSYAL MEDYA yoksa gösterilen klasörde kalınıyor", Boolean(ayB) && ayB.ust === MARKA_KOK,
+    ayB ? `üst: ${ayB.ust}` : "ay klasörü açılmadı");
+
+  // (d) Taşıma da aynı yere inmeli — yükleme ve taşıma ayrışırsa dosya kaybolur
+  kur({ [MARKA_KOK]: [{ id: "sos", name: "1 SOSYAL MEDYA" }], sos: [] });
+  await onaylananiTasi({ dosyaLinki: "https://drive.google.com/file/d/DOSYA123456/view",
+    markaKlasoru: LINK, markaAdi: "BİNPARK AVM", hedefAd: DURUM_KLASORLERI.onaylanan });
+  t("taşıma da SOSYAL MEDYA'nın içine yapılıyor", acilan.length > 0 && acilan.every((a) => a.ust !== MARKA_KOK),
+    acilan.map((a) => `${a.ad}@${a.ust}`).join(", "));
+  t("dosya gerçekten taşındı", Boolean(tasimaHedefi), String(tasimaHedefi));
+
+  // (e) Durum raporu inişi SÖYLEMELİ — sessiz kalırsa kullanıcı doğru bağlantıyı yanlış sanır
+  kur({ [MARKA_KOK]: [{ id: "sos", name: "1 SOSYAL MEDYA" }], sos: [] });
+  const rapor = await klasorDurumu(LINK);
+  t("rapor inişi bildiriyor", rapor.durum === "tamam" && rapor.indi === true, `${rapor.durum} / indi=${rapor.indi}`);
+  t("rapor GERÇEK hedef yolu gösteriyor", /SOSYAL MEDYA$/.test(rapor.hedefYol || ""), rapor.hedefYol);
+
+  kur({ [MARKA_KOK]: [{ id: "ay0", name: "07 TEMMUZ 2026" }] });
+  const rapor2 = await klasorDurumu(LINK);
+  t("iniş yokken rapor yol değiştirmiyor", rapor2.indi === false && rapor2.hedefYol === rapor2.yol,
+    `${rapor2.hedefYol} / ${rapor2.yol}`);
+
+  globalThis.fetch = gercekFetch;
+}
+
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);
 if (k > 0) process.exitCode = 1;
