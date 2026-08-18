@@ -5072,7 +5072,7 @@ function DriveKlasorDurumu() {
                   <span style={{ fontSize: 13, fontWeight: 600, color: T.text, minWidth: 150 }}>{m.ad}</span>
                   <span style={{ fontSize: 12.5, color: m.durum === "tamam" ? T.textDim : r.c }}>
                     {m.durum === "tamam" ? (m.hedefYol || m.yol) : m.mesaj}
-                    {m.indi && <span style={{ color: T.textFaint }}> (kendiliğinden inildi)</span>}
+                    {m.hedefNot ? <span style={{ color: T.textFaint }}> {m.hedefNot}</span> : null}
                   </span>
                 </div>
               );
