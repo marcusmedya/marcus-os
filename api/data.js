@@ -63,6 +63,36 @@ async function rateLimitAsildiMi(req) {
 async function basariliGirisiSifirla(req) {
   try { await kv.del(`login-fail-${istekIP(req)}`); } catch (e) { /* kritik değil */ }
 }
+/* HANGİ İSTEK "BAŞARISIZ GİRİŞ DENEMESİ" SAYILIR?
+ *
+ * Sayaç kaba kuvvet saldırısına karşı: aynı IP'den 15 dakikada 20 başarısız deneme olursa
+ * kilitleniyor. Ama SAYILAN ŞEY yanlış seçilirse uygulama KENDİ KENDİNİ kilitler — nitekim
+ * kilitledi: panoya kart başına bir önizleme isteği eklenince tek sayfa açılışı 30 istek
+ * üretir hale geldi. Oturum anahtarı bir an geçersizse otuzu birden 401 alır ve eşik anında
+ * aşılır; kullanıcı kendi uygulamasından 15 dakika dışarıda kalır.
+ *
+ * İki kural:
+ *   1. KİMLİK SUNMAYAN istek deneme sayılmaz. Şifre denemek için şifre göndermek gerekir.
+ *   2. ÖNİZLEME / VİDEO istekleri hiç sayılmaz. Bunlar giriş denemesi değil, sayfanın
+ *      kendi kaynakları; onlarca tanesi aynı anda gidiyor ve tek bir aksaklıkta hepsi
+ *      birden düşüyor. */
+const KIMLIK_BASLIKLARI = [
+  "x-site-password", "x-oturum",
+  "x-staff-username", "x-staff-username-b64",
+  "x-musteri-username", "x-musteri-username-b64",
+];
+const kimlikSunulduMu = (req) => KIMLIK_BASLIKLARI.some((b) => req.headers && req.headers[b]);
+
+const kaynakIstegiMi = (req) => Boolean(
+  (req.method === "GET" && req.query && req.query.video) ||
+  (req.method === "POST" && req.body && (
+    req.body.onizlemeAction ||
+    req.body.driveAction === "kucukResim"
+  )),
+);
+
+const denemeSayilirMi = (req) => kimlikSunulduMu(req) && !kaynakIstegiMi(req);
+
 async function basarisizGirisiKaydet(req) {
   try {
     const key = `login-fail-${istekIP(req)}`;
@@ -503,10 +533,12 @@ export default async function handler(req, res) {
   } else if (await rateLimitAsildiMi(req)) {
     // Kimliği doğrulanamayan isteklerde hız sınırı burada devreye girer. Geçerli oturumu
     // olan kullanıcı bu noktaya hiç gelmez, dolayısıyla kilitlenemez.
-    return res.status(429).json({ error: "Çok fazla başarısız giriş denemesi. 15 dakika sonra tekrar dene." });
+    return res.status(429).json({
+      error: "Çok fazla başarısız giriş denemesi. 15 dakika sonra tekrar dene — ya da çıkış yapıp yönetici şifrenle kilidi aç.",
+    });
   }
   if (!auth) {
-    await basarisizGirisiKaydet(req);
+    if (denemeSayilirMi(req)) await basarisizGirisiKaydet(req);
     return res.status(401).json({ error: "Yetkisiz. Şifre gerekli." });
   }
   const { role, staffId, staffName, staffPerms, staffEmail, staffMarkalar, musteriId, musteriClientId, musteriAd } = auth;
