@@ -5073,6 +5073,7 @@ function DriveKlasorDurumu() {
                   <span style={{ fontSize: 12.5, color: m.durum === "tamam" ? T.textDim : r.c }}>
                     {m.durum === "tamam" ? (m.hedefYol || m.yol) : m.mesaj}
                     {m.hedefNot ? <span style={{ color: T.textFaint }}> {m.hedefNot}</span> : null}
+                    {m.buAyYolu ? <span style={{ color: T.textFaint }}> · bu ay → {m.buAyYolu}</span> : null}
                   </span>
                 </div>
               );
@@ -5080,10 +5081,13 @@ function DriveKlasorDurumu() {
           </div>
 
           <div style={{ fontSize: 12, color: T.textFaint, lineHeight: 1.6, marginTop: 12 }}>
-            Yeşil satırdaki yol, dosyaların gerçekten yazılacağı klasördür ve
-            <strong> …/ 1 SOSYAL MEDYA</strong> ile bitmelidir. Bağlantı marka klasörünü
-            gösteriyorsa sistem içindeki SOSYAL MEDYA'ya kendiliğinden iner. Başka bir klasör
-            görünüyorsa bağlantı yanlış — Müşteriler ekranından düzelt.
+            Klasör düzeni: <strong>&lt;marka&gt; / 1 SOSYAL MEDYA / 2026 / 08 AĞUSTOS /
+            1 ONAY BEKLEYENLER</strong>. Sistem bu yapıyı kendisi kuruyor — ay ve yıl klasörleri
+            yükleme tarihine göre açılıyor, Drive'da elle klasör açman gerekmiyor. Bağlantı marka
+            klasörünü gösteriyorsa sosyal medya klasörüne kendiliğinden inilir, o klasör yoksa
+            açılır. Drive'da o markanın zaten kullandığı bir ay klasörü varsa yenisi açılmaz,
+            var olan kullanılır. Başka bir klasör görünüyorsa bağlantı yanlış — Müşteriler
+            ekranından düzelt.
           </div>
         </>
       )}

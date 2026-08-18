@@ -100,13 +100,31 @@ bir aşamada açılan yeni kartın dosyası hiç taşınmıyordu.
 Kullanıcı 17 markanın Drive yapısı taranarak sunulan seçenekler arasından şunları seçti:
 
 ```
-VIZZ/                        <- müşteri kaydındaki "Drive Onay Klasörü" MARKA KÖKÜNÜ gösterir
-  AĞUSTOS/
-    ONAY BEKLEYENLER/        <- Kontrol Bekliyor · Revize İstendi
-    ONAYLANANLAR/            <- Onaylandı
-    PAYLAŞILDI/              <- Teslim Edildi
-  LOGO/  ÇALIŞMA DOSYASI/    <- dokunulmaz
+VIZZ/                          <- müşteri kaydındaki "Drive Onay Klasörü" buraya da bakabilir
+  1 SOSYAL MEDYA/              <- ÇALIŞMA KÖKÜ. Bağlantı marka kökünü gösterse bile
+    2026/                         sistem buraya iner; yoksa kendisi açar.
+      08 AĞUSTOS/
+        1 ONAY BEKLEYENLER/    <- Kontrol Bekliyor · Revize İstendi
+        2 ONAYLANANLAR/        <- Onaylandı
+        3 PAYLAŞILDI/          <- Teslim Edildi
+      09 EYLÜL/
+    2027/
+      01 OCAK/
+  LOGO/  PROFİL/  ÖNE ÇIKANLAR/   <- dokunulmaz
 ```
+
+**Bu yapıyı sistem kurar, kimse elle klasör açmaz.** Yıl ve ay klasörleri yükleme tarihine
+göre açılır; aşama klasörleri ilk kullanımda oluşur.
+
+**Neden yıl ayrı bir kat:** düz `08 AĞUSTOS 2026` adlandırmasında Drive alfabetik dizdiği için
+`01 OCAK 2027`, `08 AĞUSTOS 2026`'nın üstünde çıkıyordu — takvim sırası yıl dönümünde bozuluyordu.
+Yıl üst klasör olunca bir yılın içinde en fazla 12 klasör olur ve `01…12` doğru dizilir. Ayrıca
+bir yılın işi tek klasördür: arşivleme ve devir tek harekettir.
+
+**Eski düzen terk edilmez.** Drive'da hâlihazırda `08 AĞUSTOS 2026` ya da yılsız `AĞUSTOS`
+klasörleri var. O ay için böyle bir klasör varsa sistem onu kullanmaya devam eder, yanına ikinci
+bir yapı kurmaz — yoksa aynı ayın dosyaları iki yere bölünür ve kimse fark etmez. Yeni düzen
+yalnızca sıfırdan açılan aylarda uygulanır.
 
 | Karar | Seçim | Gerekçe |
 |---|---|---|
@@ -119,7 +137,13 @@ VIZZ/                        <- müşteri kaydındaki "Drive Onay Klasörü" MAR
 
 - **Ay, dosyanın bulunduğu yerden okunur**, içinde bulunulan aydan değil. 30 Ağustos'ta
   yüklenip 1 Eylül'de onaylanan dosya `EYLÜL`'e sıçramaz. Kullanıcının "hangi ay yüklendiyse
-  o ayın klasörü" isteği bu.
+  o ayın klasörü" isteği bu. Ay klasörü adıyla değil **kimliğiyle** taşınır: iki düzen bir
+  arada yaşadığı için adla yeniden aramak başka bir klasörü bulabilirdi.
+- **Yıl anlamlıdır.** Ad sadeleştirmesi bir ara yılı da atıyordu; `08 AĞUSTOS 2026` ile
+  `08 AĞUSTOS 2027` aynı sayıldığı için 2027'nin dosyaları 2026'ya düşerdi. Yılsız eski
+  klasörler **açıldıkları yılda** kullanılır, sonraki yıl artık uygun hedef sayılmaz.
+- **Durum raporu hiçbir şey açmaz.** "Klasörleri Kontrol Et" 17 markanın Drive'ında klasör
+  açsaydı, duruma bakmak durumu değiştirmiş olurdu.
 - **Klasör eşleşmesi büyük/küçük harfe duyarsız.** Kusurdu: KANATÇI DİREN'de klasör `Ağustos`
   yazarken kod `AĞUSTOS` arayıp ikinci bir klasör açacaktı.
 - **Drive'ı kurulmamış markada sessiz geçilir.** Kurulmamış bir şeyin çalışmadığını her aşama
