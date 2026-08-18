@@ -217,11 +217,21 @@ const ASAMA_KLASORU = {
 async function asamayaGoreTasi(oncekiVeri, sonrakiVeri) {
   const onceki = new Map(((oncekiVeri && oncekiVeri.cekimIsleri) || []).map((j) => [String(j.id), j.asama]));
   const degisenler = ((sonrakiVeri && sonrakiVeri.cekimIsleri) || []).filter((j) => {
-    const eski = onceki.get(String(j.id));
-    /* Yalnızca GERÇEK bir değişimde tetiklenir. Aynı aşama tekrar kaydedilirse hiçbir şey
-     * yapılmaz; yoksa her kayıtta gereksiz Drive çağrısı ve geçmiş notu birikir. */
-    if (eski === undefined || eski === j.asama) return false;
-    return Boolean(ASAMA_KLASORU[j.asama]);
+    /* KARŞILAŞTIRMA AŞAMAYA DEĞİL, HEDEF KLASÖRE BAKAR.
+     *
+     * İki aşama aynı klasöre düşüyor: "Kontrol Bekliyor" ve "Revize İstendi" ikisi de
+     * ONAY BEKLEYENLER. Aşamaya bakılsaydı her revize turunda dosya zaten bulunduğu klasöre
+     * "taşınmaya" çalışılır, Google'a boşuna 7 çağrı gider ve karta "taşıma yapılamadı: dosya
+     * zaten orada" diye SAHTE bir hata notu düşerdi. Onay döngüsündeki en sık geçiş bu
+     * olduğu için kartın geçmişi turlarca sahte notla dolardı.
+     *
+     * Önceki aşamanın olmaması (yeni açılan kart) da bir değişimdir: eskiKlasor undefined
+     * olur, hedef klasörden farklıdır, dosya taşınır. Doğrudan "Kontrol Bekliyor" ya da
+     * "Teslim Edildi" aşamasında açılan kartların dosyası bu yüzden yerinde kalmaz. */
+    const eskiKlasor = ASAMA_KLASORU[onceki.get(String(j.id))];
+    const yeniKlasor = ASAMA_KLASORU[j.asama];
+    if (!yeniKlasor) return false;              // bu aşamanın klasör karşılığı yok — dokunma
+    return eskiKlasor !== yeniKlasor;           // hedef değişmediyse yapacak iş yok
   });
   if (degisenler.length === 0) return [];
 
@@ -296,9 +306,13 @@ async function tasimalariIsleVeNotDus(oncekiVeri, sonrakiVeri) {
             id: (j.gecmis || []).length + 1,
             tarih: new Date().toLocaleString("tr-TR"),
             yazan: "Sistem",
+            /* zatenOrada bir HATA DEĞİL: dosya olması gereken yerde. Bunu "yapılamadı"
+             * diye yazmak kullanıcıyı olmayan bir sorunla uğraştırır. */
             aciklama: t.tasindi
               ? `Dosya Drive'da "${t.klasor}" klasörüne taşındı.`
-              : `Drive taşıma yapılamadı: ${t.sebep}`,
+              : t.zatenOrada
+                ? `Dosya zaten "${t.klasor}" klasöründe.`
+                : `Drive taşıma yapılamadı: ${t.sebep}`,
           }] };
         }),
       },

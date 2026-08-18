@@ -137,5 +137,27 @@ for (const [asama, beklenen] of [["Kontrol Bekliyor", "ONAY BEKLEYENLER"], ["Rev
   t(`${asama} -> taşıma denendi`, notlar(son).includes("Drive"), beklenen);
 }
 
+/* ---- 9. AYNI KLASÖRE DÜŞEN AŞAMALAR ARASINDA SAHTE NOT OLMAMALI ---- */
+console.log("\n Kontrol Bekliyor <-> Revize İstendi (ikisi de ONAY BEKLEYENLER)");
+await kv.set("marcus-os-data", TEMEL("Kontrol Bekliyor", DRIVE_LINK));
+d0 = await kv.get("marcus-os-data");
+r = await cagir(h, { method: "POST", headers: OWNER, query: {},
+  body: { data: { ...d0, cekimIsleri: [{ ...d0.cekimIsleri[0], asama: "Revize İstendi" }] }, _v: d0._v } });
+d = await kv.get("marcus-os-data");
+t("revize turunda SAHTE hata notu yok", !notlar(d).includes("Drive"), notlar(d).slice(0, 70));
+t("yanıt _v'si KV ile aynı", r.govde._v === d._v, `yanıt ${r.govde._v} / KV ${d._v}`);
+
+/* ---- 10. YENİ AÇILAN KART DA TAŞINMALI ---- */
+console.log("\n Doğrudan o aşamada açılan yeni kart");
+for (const asama of ["Kontrol Bekliyor", "Teslim Edildi"]) {
+  await kv.set("marcus-os-data", { ...TEMEL("Onaylandı", DRIVE_LINK), cekimIsleri: [] });
+  const dd = await kv.get("marcus-os-data");
+  await cagir(h, { method: "POST", headers: OWNER, query: {},
+    body: { data: { ...dd, cekimIsleri: [{ id: 7, marka: "VIZZ", kategori: "Video", asama,
+      editliDosyaLink: DRIVE_LINK, gecmis: [] }] }, _v: dd._v } });
+  const son = await kv.get("marcus-os-data");
+  t(`"${asama}" ile açılan kartın dosyası taşınmaya çalışıldı`, notlar(son).includes("Drive"), notlar(son).slice(0, 60));
+}
+
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);
 if (k > 0) process.exitCode = 1;
