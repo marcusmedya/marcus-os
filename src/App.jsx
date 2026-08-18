@@ -5151,6 +5151,126 @@ function Planim({ gorevler, onAdd, onUpdate, onDelete, onayKutusu, isler, onGit 
  * seçtiğini gözüyle doğrulasın.
  */
 /**
+ * ESKİ DOSYALARI YENİ DÜZENE ALMA.
+ *
+ * Yükleme sistemi gelmeden önce açılan kartlarda dosya, karta elle yapıştırılmış bir Drive
+ * bağlantısı olarak duruyor. İki eksiği var: dosya ay/aşama klasörlerinin dışında kalıyor ve
+ * kartta versiyon geçmişi olmuyor — yeni sürüm yüklenince eskisi karttan kayboluyor.
+ *
+ * ÖNCE RAPOR, SONRA UYGULA. Canlı Drive'da toplu dosya taşıyan bir işlemin ne yapacağı
+ * önceden görülebilmeli. "Çalıştır ve gör" burada kabul edilebilir değil.
+ */
+function EskiDosyalariDuzeneAl({ onVersiyon }) {
+  const [durum, setDurum] = useState("bos");   // bos | bakiliyor | rapor | uygulaniyor | bitti
+  const [rapor, setRapor] = useState(null);
+  const [sonuc, setSonuc] = useState(null);
+  const [hata, setHata] = useState("");
+
+  const cagir = async (uygula) => {
+    setHata("");
+    setDurum(uygula ? "uygulaniyor" : "bakiliyor");
+    try {
+      const r = await fetch("/api/data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ driveAction: "duzeneAl", uygula }),
+      }).then((x) => x.json());
+      if (!r.ok) throw new Error(r.error || "İşlem yapılamadı.");
+      if (uygula) {
+        setSonuc(r); setDurum("bitti");
+        /* Sunucu KV'ye yazdı; sürüm sayacı arttı. Tarayıcıya bildirilmezse bir sonraki
+         * kayıt sahte çakışma alır ve kullanıcının o anki düzenlemesi silinir. */
+        if (typeof r._v === "number" && onVersiyon) onVersiyon(r._v);
+      } else {
+        setRapor(r); setDurum("rapor");
+      }
+    } catch (e) {
+      setHata(String(e.message || e)); setDurum("bos");
+    }
+  };
+
+  const mesgul = durum === "bakiliyor" || durum === "uygulaniyor";
+
+  return (
+    <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+      <SectionTitle>Eski Dosyaları Düzene Al</SectionTitle>
+      <div style={{ fontSize: 13, color: T.textDim, lineHeight: 1.6, marginBottom: 12 }}>
+        Yükleme sistemi gelmeden önce açılmış kartlarda dosya, elle yapıştırılmış bir bağlantı
+        olarak duruyor — ay/aşama klasörlerinin dışında ve versiyon geçmişi olmadan. Bu işlem
+        dosyayı kartın aşamasına karşılık gelen klasöre taşır ve karta <strong>V1</strong> olarak
+        işler; sonraki yükleme V2 olur, eskisi Versiyon Geçmişi'nde kalır.
+      </div>
+
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: (rapor || sonuc || hata) ? 12 : 0 }}>
+        <button style={cancelBtnStyle} onClick={() => cagir(false)} disabled={mesgul}>
+          {durum === "bakiliyor" ? "Bakılıyor…" : "Ne Yapılacağını Göster"}
+        </button>
+        {rapor && rapor.toplam > 0 && (
+          <button style={saveBtnStyle} onClick={() => cagir(true)} disabled={mesgul}>
+            {durum === "uygulaniyor" ? "Uygulanıyor…" : "Uygula"}
+          </button>
+        )}
+      </div>
+
+      {hata && <div style={{ background: T.dangerSoft, color: T.danger, borderRadius: 10, padding: "12px 15px", fontSize: 13 }}>{hata}</div>}
+
+      {durum === "rapor" && rapor && (
+        <div>
+          <div style={{ background: rapor.toplam ? T.warningSoft : T.successSoft, borderRadius: 10, padding: "12px 15px",
+                        fontSize: 13, color: rapor.toplam ? T.warning : T.success, lineHeight: 1.6, marginBottom: rapor.toplam ? 10 : 0 }}>
+            {rapor.toplam
+              ? <><strong>{rapor.toplam} kartta eski usul dosya var.</strong> Uygula dersen her seferinde en fazla 8 tanesi işlenir; kalanı için tekrar çalıştır.</>
+              : <><strong>Düzene alınacak kart yok.</strong> Bütün dosyalar zaten yeni düzende.</>}
+          </div>
+          {(rapor.driveSizMarkalar || []).length > 0 && (
+            <div style={{ background: T.dangerSoft, color: T.danger, borderRadius: 10, padding: "12px 15px", fontSize: 12.5, lineHeight: 1.6, marginBottom: 10 }}>
+              Şu markaların Drive klasörü tanımlı değil, dosyaları taşınamaz (versiyon kaydı yine de yazılır):{" "}
+              <strong>{rapor.driveSizMarkalar.join(", ")}</strong>
+            </div>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            {(rapor.liste || []).map((x) => (
+              <div key={x.isId} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center",
+                                         background: T.surfaceRaised, borderRadius: 8, padding: "8px 12px", fontSize: 12.5 }}>
+                <span style={{ fontWeight: 600, color: T.text, minWidth: 120 }}>{x.marka}</span>
+                <span style={{ color: T.textDim, flex: 1, minWidth: 120 }}>{x.icerikTuru}</span>
+                <span style={{ color: T.textFaint }}>{x.asama}</span>
+                <span style={{ color: x.hedefKlasor && x.driveVar ? T.success : T.textFaint }}>
+                  {x.hedefKlasor && x.driveVar ? `→ ${x.hedefKlasor}` : "yerinde kalır"}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {durum === "bitti" && sonuc && (
+        <div>
+          <div style={{ background: T.successSoft, color: T.success, borderRadius: 10, padding: "12px 15px",
+                        fontSize: 13, lineHeight: 1.6, marginBottom: 10 }}>
+            <strong>{(sonuc.sonuclar || []).length} kart işlendi.</strong>{" "}
+            {sonuc.kalan > 0 ? `${sonuc.kalan} kart kaldı — tekrar çalıştır.` : "Hepsi bitti."}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            {(sonuc.sonuclar || []).map((x) => (
+              <div key={x.isId} style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center",
+                                         background: T.surfaceRaised, borderRadius: 8, padding: "8px 12px", fontSize: 12.5 }}>
+                <span style={{ color: x.tasindi || x.zatenOrada ? T.success : T.warning, width: 12, textAlign: "center" }}>
+                  {x.tasindi ? "✓" : x.zatenOrada ? "=" : "—"}
+                </span>
+                <span style={{ fontWeight: 600, color: T.text, minWidth: 110 }}>{x.marka}</span>
+                <span style={{ color: T.textDim, flex: 1, minWidth: 110 }}>{x.icerikTuru}</span>
+                <span style={{ color: T.textFaint }}>{x.klasor || x.sebep}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+/**
  * E-POSTA AYARI TESTİ.
  *
  * Güvenlik kartı yalnızca "RESEND_API_KEY tanımlı mı" diye bakıyordu; değişkene yanlış bir
@@ -5421,7 +5541,7 @@ const AYAR_SEKMELERI = [
   { key: "hesap", label: "Hesaplar" },
 ];
 
-function Ayarlar({ onGit, guvenlik, silinenler, onGeriAl, onKaliciSil, onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu, onSaveTeblig, staffPermissions, onUpdatePermissions, markaKimligiGorseli, onSaveMarkaKimligi, paylasimGorseli, onSavePaylasimGorseli, acikZeminLogosu, onSaveAcikZeminLogosu, onRosterChange, clients, gizlilikModu, onToggleGizlilik, islemGecmisi }) {
+function Ayarlar({ onGit, guvenlik, silinenler, onSurumGuncelle, onGeriAl, onKaliciSil, onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu, onSaveTeblig, staffPermissions, onUpdatePermissions, markaKimligiGorseli, onSaveMarkaKimligi, paylasimGorseli, onSavePaylasimGorseli, acikZeminLogosu, onSaveAcikZeminLogosu, onRosterChange, clients, gizlilikModu, onToggleGizlilik, islemGecmisi }) {
   const [ayarSekme, setAyarSekme] = useState("gorunum");
   const fileInputRef = useRef(null);
   const rows = [
@@ -5563,6 +5683,7 @@ function Ayarlar({ onGit, guvenlik, silinenler, onGeriAl, onKaliciSil, onExport,
       </Card>
       <GuvenlikDefteri />
       <DriveKlasorDurumu />
+      <EskiDosyalariDuzeneAl onVersiyon={onSurumGuncelle} />
       <EpostaAyariTesti />
       <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
         <SectionTitle>Güvenlik</SectionTitle>
@@ -8769,6 +8890,10 @@ export default function MarcusOS() {
             <Ayarlar
               onGit={(hedef) => setTab(hedef)}
               guvenlik={guvenlikDurumu}
+              /* Sunucu KV'ye yazan bir işlem yaptıysa sürüm sayacı artar. Tarayıcıya
+               * bildirilmezse bir sonraki kayıt sahte çakışma alır ve kullanıcının o anki
+               * düzenlemesi sunucu verisiyle ezilir — bu projede bir kez yaşandı. */
+              onSurumGuncelle={(v) => { skipNextSave.current = true; setData((d) => ({ ...d, _v: v })); }}
               silinenler={data.silinenler || []}
               onGeriAl={silinmisiGeriAl}
               onKaliciSil={silinmisiKaliciSil}

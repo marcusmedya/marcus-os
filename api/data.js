@@ -594,6 +594,115 @@ export default async function handler(req, res) {
       if (!yeter) return res.status(403).json({ error: "Yetkin yok." });
       izinli = Array.isArray(staffMarkalar) ? staffMarkalar : [];
     }
+    /* ESKİ KARTLARI YENİ DÜZENE ALMA — iş kartı gerektirmez, kart aramasından ÖNCE.
+     *
+     * NEDEN GEREKLİ: yükleme sistemi gelmeden önce açılan kartlarda dosya, karta elle
+     * yapıştırılmış bir Drive bağlantısı olarak duruyor. İki eksiği var:
+     *   - dosya ay/aşama klasörlerinin dışında, Drive'da rastgele bir yerde
+     *   - kartta versiyon geçmişi yok; yeni sürüm yüklenince eskisi karttan kayboluyor
+     *
+     * Bu işlem ikisini birden düzeltiyor: dosyayı kartın AŞAMASINA karşılık gelen klasöre
+     * taşıyor ve karta V1 olarak işliyor. Böylece sonraki yükleme V2 oluyor ve eski dosya
+     * "Versiyon Geçmişi"nde duruyor — kullanıcının en baştaki isteği buydu.
+     *
+     * ÖNCE RAPOR, SONRA UYGULA. Canlı Drive'da toplu dosya taşıyan bir işlemin ne yapacağı
+     * önceden görülebilmeli; "çalıştır ve gör" kabul edilebilir değil.
+     *
+     * PARTİ PARTİ: her taşıma birkaç Google çağrısı demek. Hepsini tek istekte yapmak
+     * sunucu zaman sınırına takılır ve iş yarıda kalır — yarıda kalan toplu işlem, hangi
+     * dosyanın taşındığını bilinmez hale getirir. Bu yüzden sınırlı sayıda işlenip
+     * "kaç tane kaldı" bildiriliyor. */
+    if (driveAction === "duzeneAl") {
+      if (role !== "owner") return res.status(403).json({ error: "Bu işlemi yalnızca yönetici yapabilir." });
+
+      const isler = veri.cekimIsleri || [];
+      const markaBul = (ad) => (veri.clients || []).find((c) => trKucult(c.ad) === trKucult(ad)) || {};
+
+      /* Aday: dosyası VAR ama versiyon kaydı YOK olan kart. Versiyon kaydı olanlar zaten
+       * yeni düzende; onlara dokunmak dosyayı gereksiz yere oynatırdı. */
+      const adaylar = isler.filter((j) => {
+        const medya = Array.isArray(j.medya) ? j.medya : [];
+        if (medya.length > 0) return false;
+        return Boolean(driveDosyaIdCikar(j.editliDosyaLink || j.dosyaLinki || j.hamDosyaLink));
+      });
+
+      const ozet = (j) => ({
+        isId: j.id, marka: j.marka, icerikTuru: j.icerikTuru || "", asama: j.asama,
+        hedefKlasor: ASAMA_KLASORU[j.asama] || null,
+        driveVar: Boolean(markaBul(j.marka).driveOnayKlasoru),
+      });
+
+      if (!req.body.uygula) {
+        return res.status(200).json({
+          ok: true, toplam: adaylar.length,
+          liste: adaylar.slice(0, 60).map(ozet),
+          driveSizMarkalar: [...new Set(adaylar.filter((j) => !markaBul(j.marka).driveOnayKlasoru).map((j) => j.marka))],
+        });
+      }
+
+      /* UYGULAMA. Süre bütçesi taşımayı yarıda bırakmamak için: bütçe dolduğunda YENİ bir
+       * taşıma başlatılmıyor, başlamış olan bitiriliyor. */
+      const BITIS = Date.now() + 20000;
+      const PARTI = 8;
+      const sonuclar = [];
+      const islenen = new Map();   // isId -> medya kaydı
+
+      for (const j of adaylar.slice(0, PARTI)) {
+        if (Date.now() > BITIS) break;
+        const link = j.editliDosyaLink || j.dosyaLinki || j.hamDosyaLink;
+        const dosyaId = driveDosyaIdCikar(link);
+        const marka = markaBul(j.marka);
+        const hedefAd = ASAMA_KLASORU[j.asama];
+
+        let tasima = null;
+        if (marka.driveOnayKlasoru && hedefAd) {
+          tasima = await onaylananiTasi({ dosyaLinki: link, markaAdi: j.marka, markaKlasoru: marka.driveOnayKlasoru, hedefAd });
+        }
+
+        /* Taşıma başarısız olsa bile VERSİYON KAYDI yazılıyor: dosya kartta zaten duruyor,
+         * onu V1 olarak işaretlemek Drive'dan bağımsız bir kazanç. Taşıma sonraki aşama
+         * değişiminde kendiliğinden tekrar denenecek. */
+        islenen.set(String(j.id), {
+          versiyon: 1, dosyaId, ad: (tasima && tasima.dosyaAdi) || `${j.icerikTuru || "İçerik"} (eski)`,
+          url: link, tarih: new Date().toISOString(), aktarilan: true,
+        });
+        sonuclar.push({
+          isId: j.id, marka: j.marka, icerikTuru: j.icerikTuru || "",
+          tasindi: Boolean(tasima && tasima.tasindi),
+          zatenOrada: Boolean(tasima && tasima.zatenOrada),
+          klasor: (tasima && tasima.klasor) || null,
+          sebep: tasima ? (tasima.tasindi || tasima.zatenOrada ? "" : tasima.sebep)
+               : (!marka.driveOnayKlasoru ? "Bu markanın Drive klasörü tanımlı değil." : "Bu aşamanın klasör karşılığı yok — dosya yerinde bırakıldı."),
+        });
+      }
+
+      /* TEK YAZMA, SONUNDA. Her kart için ayrı yazmak sürüm sayacını defalarca artırır ve
+       * tarayıcıyı geride bırakır — bu projede o yoldan veri kaybı yaşandı. */
+      const yazma = await guvenliGuncelle((guncel) => ({
+        veri: {
+          ...guncel,
+          cekimIsleri: (guncel.cekimIsleri || []).map((j) => {
+            const kayit = islenen.get(String(j.id));
+            if (!kayit) return j;
+            if (Array.isArray(j.medya) && j.medya.length > 0) return j;   // arada yüklenmişse dokunma
+            return {
+              ...j, medya: [kayit],
+              gecmis: [...(j.gecmis || []), {
+                id: (j.gecmis || []).length + 1, tarih: new Date().toLocaleString("tr-TR"), yazan: "Sistem",
+                aciklama: "Eski dosya yeni düzene alındı ve V1 olarak kaydedildi.",
+              }],
+            };
+          }),
+        },
+      }));
+
+      return res.status(200).json({
+        ok: true, sonuclar,
+        kalan: Math.max(0, adaylar.length - sonuclar.length),
+        _v: yazma && yazma.ok && yazma.veri ? yazma.veri._v : undefined,
+      });
+    }
+
     /* KLASÖR DURUM RAPORU — iş kartı gerektirmez, bu yüzden kart aramasından ÖNCE.
      *
      * Her markanın Drive klasörünü gerçekten açıp ADINI geri getirir. "Bağlantı dolu mu"
