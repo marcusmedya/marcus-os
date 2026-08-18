@@ -987,10 +987,10 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                           <img src={i.gorselUrl} alt="" style={{ width: "100%", maxWidth: 420, borderRadius: 9, display: "block", marginBottom: 8 }} />
                         )}
                         {i.tur === "gorsel" && i.driveLinki && !i.gorselUrl && (
-                          <div style={{ maxWidth: 420, marginBottom: 8 }}><DriveGorsel link={i.driveLinki} yukseklik={320} /></div>
+                          <div style={{ maxWidth: 420, marginBottom: 8 }}><DriveGorsel link={i.driveLinki} yukseklik={320} icerikId={i.id} /></div>
                         )}
                         {i.tur === "video" && i.driveLinki && (
-                          <div style={{ marginBottom: 8 }}><DriveVideo link={i.driveLinki} yon={i.videoYonu} /></div>
+                          <div style={{ marginBottom: 8 }}><DriveVideo link={i.driveLinki} yon={i.videoYonu} icerikId={i.id} /></div>
                         )}
                         {!i.driveLinki && !i.gorselUrl && (
                           <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>Bu kayda ait dosya yok.</div>
@@ -4537,10 +4537,10 @@ function OnayKutusuOnizleme({ i }) {
               <img src={i.gorselUrl} alt="" style={{ width: "100%", maxWidth: 420, borderRadius: 9, display: "block", marginBottom: 8 }} />
             )}
             {gorselMi && link && !i.gorselUrl && (
-              <div style={{ marginBottom: 8, maxWidth: 420 }}><DriveGorsel link={link} yukseklik={300} /></div>
+              <div style={{ marginBottom: 8, maxWidth: 420 }}><DriveGorsel link={link} yukseklik={300} icerikId={i.id} /></div>
             )}
             {(videoMu || cekimMi) && link && (
-              <div style={{ marginBottom: 8 }}><DriveVideo link={link} yon={i.videoYonu} baslik={cekimMi ? "Referans video" : undefined} /></div>
+              <div style={{ marginBottom: 8 }}><DriveVideo link={link} yon={i.videoYonu} baslik={cekimMi ? "Referans video" : undefined} icerikId={i.id} /></div>
             )}
             {cekimMi && i.konusmaMetni && (
               <div style={{ background: T.surface, borderRadius: 9, padding: "12px 15px", fontSize: 13, color: T.text, fontFamily: "Inter", whiteSpace: "pre-wrap", lineHeight: 1.7, maxWidth: 560 }}>

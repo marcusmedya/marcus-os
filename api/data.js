@@ -502,6 +502,72 @@ export default async function handler(req, res) {
     });
   }
 
+  /* ---------------------------------------------------------------------------------
+   * ÖNİZLEME GÖRSELİ — ÜÇ ROL İÇİN DE.
+   *
+   * NEDEN VAR: dosyalar Drive'da bilerek KISITLI (daha önce "bağlantısı olan herkes"
+   * ayarındaydı, 17 müşterinin içeriği açıktaydı). Kısıtlı bir dosyanın görselini tarayıcı
+   * doğrudan drive.google.com'dan çekemiyor — istek 403 dönüyor. Panodaki kartlarda,
+   * kart detayında ve MÜŞTERİ PANELİNDE önizlemeler bu yüzden boş kaldı.
+   *
+   * Müşteri paneli en kritiği: müşteri göremediği bir içeriği onaylayamaz.
+   *
+   * Görsel burada, uygulamanın kendi Drive yetkisiyle alınıp veri olarak veriliyor. Dosya
+   * Drive'da kısıtlı kalmaya devam ediyor — gizlilik geri alınmıyor.
+   *
+   * KAYNAK HER ZAMAN BİR KAYITTAN ÇÖZÜLÜYOR, tarayıcının verdiği bağlantıdan değil. Aksi
+   * halde bu uç, kimliğini bilen herkesin her Drive dosyasını okuyabildiği bir kapı olurdu.
+   * --------------------------------------------------------------------------------- */
+  if (req.method === "POST" && req.body && req.body.onizlemeAction === "gorsel") {
+    const { isId: oIsId, icerikId, boyut } = req.body;
+    const veriO = (await kv.get(KEY)) || {};
+    const markaAdiCoz = (clientId) => ((veriO.clients || []).find((c) => String(c.id) === String(clientId)) || {}).ad || "";
+
+    let link = null;
+    let markaAdi = null;
+
+    if (icerikId !== undefined && icerikId !== null) {
+      const icerik = (veriO.musteriIcerikleri || []).find((x) => String(x.id) === String(icerikId));
+      if (!icerik) return res.status(404).json({ error: "İçerik bulunamadı." });
+      link = icerik.driveLinki || null;
+      markaAdi = markaAdiCoz(icerik.clientId);
+      if (role === "musteri" && String(icerik.clientId) !== String(musteriClientId)) {
+        return res.status(403).json({ error: "Bu içeriğe erişimin yok." });
+      }
+    } else if (oIsId !== undefined && oIsId !== null) {
+      const is = (veriO.cekimIsleri || []).find((j) => String(j.id) === String(oIsId));
+      if (!is) return res.status(404).json({ error: "Kart bulunamadı." });
+      const medya = Array.isArray(is.medya) ? is.medya : [];
+      const sonuncu = medya.length ? medya[medya.length - 1] : null;
+      link = (sonuncu && sonuncu.dosyaId) ? `https://drive.google.com/file/d/${sonuncu.dosyaId}/view`
+           : (is.editliDosyaLink || is.hamDosyaLink || is.dosyaLinki || null);
+      markaAdi = is.marka;
+      if (role === "musteri" && trKucult(is.marka) !== trKucult(markaAdiCoz(musteriClientId))) {
+        return res.status(403).json({ error: "Bu içeriğe erişimin yok." });
+      }
+    } else {
+      return res.status(400).json({ error: "isId ya da icerikId gerekli." });
+    }
+
+    /* Personelde marka kilidi. Yetki alanı DAR tutuldu: önizleme görmek için özel bir izin
+     * aranmıyor — kartı zaten görebilen kişi görselini de görebilmeli — ama kilitli hesap
+     * yalnızca kendi markalarını görüyor. */
+    if (role === "staff") {
+      const kilit = Array.isArray(staffMarkalar) ? staffMarkalar : [];
+      if (kilit.length > 0 && !kilit.some((m) => trKucult(m) === trKucult(markaAdi))) {
+        return res.status(403).json({ error: "Bu markaya erişim yetkin yok." });
+      }
+    } else if (role !== "owner" && role !== "musteri") {
+      return res.status(403).json({ error: "Yetkin yok." });
+    }
+
+    const kimlik = driveDosyaIdCikar(link);
+    if (!kimlik) return res.status(200).json({ ok: false, kod: "dosya-yok", sebep: "Bu kayıtta Drive dosyası yok." });
+    const sonuc = await kucukResimGetir(kimlik, boyut);
+    if (!sonuc.ok) return res.status(200).json({ ok: false, kod: "alinamadi", sebep: sonuc.sebep });
+    return res.status(200).json({ ok: true, veri: sonuc.veri, mimeTur: sonuc.mimeTur });
+  }
+
   if (req.method === "POST" && req.body && req.body.driveAction) {
     /* Yükleme, iş kartı üzerinde çalışmayı gerektirir — müşteri hesapları buraya giremez.
      * Personelde ayrıca cekimEdit izni aranır; marka kilidi olan hesap yalnızca kendi
