@@ -566,14 +566,28 @@ export default async function handler(req, res) {
      * arızayla uğraştırır. */
     if (driveAction === "kucukResim") {
       const medya = Array.isArray(is.medya) ? is.medya : [];
-      const sonuncu = medya.length ? medya[medya.length - 1] : null;
-      const kimlik = (sonuncu && sonuncu.dosyaId) || driveDosyaIdCikar(is.editliDosyaLink || is.dosyaLinki || is.hamDosyaLink);
+      const { versiyon, alan, boyut } = req.body;
+
+      /* KAYNAK HER ZAMAN BU KARTIN İÇİNDEN SEÇİLİR. Tarayıcı bir dosya kimliği gönderemiyor;
+       * yalnızca "bu kartın hangi parçası" diyebiliyor. Aksi halde kart kimliği doğrulaması
+       * anlamsız kalır, istenen her Drive dosyası bu uçtan okunabilirdi. */
+      const IZINLI_ALANLAR = ["editliDosyaLink", "dosyaLinki", "hamDosyaLink"];
+      let kimlik = null;
+      if (versiyon !== undefined && versiyon !== null) {
+        const m = medya.find((x) => Number(x.versiyon) === Number(versiyon));
+        kimlik = m && m.dosyaId;
+      } else if (alan && IZINLI_ALANLAR.includes(alan)) {
+        kimlik = driveDosyaIdCikar(is[alan]);
+      } else {
+        const sonuncu = medya.length ? medya[medya.length - 1] : null;
+        kimlik = (sonuncu && sonuncu.dosyaId) || driveDosyaIdCikar(is.editliDosyaLink || is.dosyaLinki || is.hamDosyaLink);
+      }
       if (!kimlik) {
         return res.status(200).json({ ok: false, kod: "dosya-yok", sebep: "Bu kartta yüklenmiş dosya yok." });
       }
-      const sonuc = await kucukResimGetir(kimlik);
+      const sonuc = await kucukResimGetir(kimlik, boyut);
       if (!sonuc.ok) return res.status(200).json({ ok: false, kod: "alinamadi", sebep: sonuc.sebep });
-      return res.status(200).json({ ok: true, veri: sonuc.veri });
+      return res.status(200).json({ ok: true, veri: sonuc.veri, mimeTur: sonuc.mimeTur });
     }
 
     if (driveAction === "yuklemeBasla") {

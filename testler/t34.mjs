@@ -38,7 +38,10 @@ const VERI = () => ({
     { id: 7, marka: "VIZZ", kategori: "Video", icerikTuru: "Sivrisinek Kampanya", asama: "Edit Yapılıyor",
       medya: [{ versiyon: 1, dosyaId: "aaa", ad: "VIZZ_SIVRISINEK_KAMPANYA_V1.mp4" },
               { versiyon: 2, dosyaId: "bbb", ad: "VIZZ_SIVRISINEK_KAMPANYA_V2.mp4" }], gecmis: [] },
-    { id: 9, marka: "GİZLİ Marka", kategori: "Video", icerikTuru: "X", asama: "Edit Yapılıyor", gecmis: [] },
+    /* notLinki bilerek burada: beyaz listede OLMAYAN ama Drive bağlantısı taşıyan bir alan.
+     * Beyaz liste kaldırılırsa bu alan üzerinden dosya okunabilir hale gelir. */
+    { id: 9, marka: "GİZLİ Marka", kategori: "Video", icerikTuru: "X", asama: "Edit Yapılıyor", gecmis: [],
+      notLinki: "https://drive.google.com/file/d/BASKASININ_DOSYASI/view" },
   ],
   personelHesaplari: [
     { id: "k1", ad: "Kilitli", kullaniciAdi: "k", sifreHash: hash("1234", "s"), sifreSalt: "s",
@@ -732,6 +735,17 @@ console.log("\n Kartın küçük resmi");
 
   r = await cagri(OWNER_H, { driveAction: "kucukResim", isId: 999 });
   t("olmayan kart 404", r.kod === 404, `HTTP ${r.kod}`);
+
+  /* KAYNAK HER ZAMAN KARTIN İÇİNDEN SEÇİLİYOR. Tarayıcı serbest bir dosya kimliği ya da
+   * serbest bir alan adı gönderebilseydi, kart kimliği doğrulaması anlamsız kalır ve bu
+   * uçtan istenen her Drive dosyası okunabilirdi. */
+  r = await cagri(OWNER_H, { driveAction: "kucukResim", isId: 7, dosyaId: "BASKASININ_DOSYASI" });
+  t("gövdeye konan serbest dosyaId dikkate alınmıyor", r.kod === 200 && r.govde.ok === false,
+    "kart 7'nin kendi dosyası üzerinden yanıt verilmeli");
+  r = await cagri(OWNER_H, { driveAction: "kucukResim", isId: 9, alan: "notLinki" });
+  t("beyaz listede olmayan alandan dosya okunamıyor", r.govde.kod === "dosya-yok", r.govde.kod);
+  r = await cagri(OWNER_H, { driveAction: "kucukResim", isId: 7, versiyon: 99 });
+  t("kartta olmayan versiyon istenemiyor", r.govde.kod === "dosya-yok", r.govde.kod);
 
   /* Yalnızca paylasimlar izni olan hesap da isteyebilmeli — marka yöneticisinin cekimEdit
    * izni olmayabilir ama paylaşacağı içeriği görmesi gerekiyor. */
