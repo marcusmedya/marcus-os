@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { medyaVarMi, asamalariDuzelt } from "../lib/asamalar.js";
-import { useSunucuOnizleme, gomuluEngelliMi, GOMULU_ACIKLAMA } from "./drive.jsx";
+import { useSunucuOnizleme, useVideoAdresi, gomuluEngelliMi, GOMULU_ACIKLAMA } from "./drive.jsx";
 // Para gösterimleri Gizlilik Modu'na uymalı — aksi halde ücretler gizliyken de görünür kalırdı.
 import { fmt, T, authHeaders } from "./tema.jsx";
 import {
@@ -532,8 +532,25 @@ function YeniIsFormu({ clients, personelRosteri, varsayilanKategori, onSubmit, o
  */
 function SunucuOnizleme({ isId, versiyon, video, drivedeAc, gomuluUrl }) {
   const { durum, veri } = useSunucuOnizleme({ isId, boyut: 1200 });
+  const akis = useVideoAdresi(video ? { isId } : {});
   const [gomulu, setGomulu] = useState(false);
   useEffect(() => { setGomulu(false); }, [isId, versiyon]);
+
+  /* VİDEO: gerçek <video> etiketi. Gömülü Drive oynatıcısı üçüncü taraf çerezi istiyor ve
+   * Safari'de siyah kalıyordu; kendi sunucumuzdan akıtınca o sorun yok. Ayrıca oynatıcı
+   * videonun KENDİ en-boy oranını alıyor — dikey Reels dikey görünüyor. */
+  if (video && akis.durum === "hazir" && akis.adres && !gomulu) {
+    return (
+      <video
+        src={akis.adres}
+        poster={durum === "hazir" ? veri : undefined}
+        controls
+        playsInline
+        preload="metadata"
+        style={{ width: "100%", maxHeight: "68vh", borderRadius: 8, background: "#000", display: "block" }}
+      />
+    );
+  }
 
   const kutu = {
     width: "100%", borderRadius: 8, background: C.panel,
@@ -577,7 +594,9 @@ function SunucuOnizleme({ isId, versiyon, video, drivedeAc, gomuluUrl }) {
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6, flexWrap: "wrap" }}>
           <span style={{ fontSize: 11, color: C.textFaint }}>
-            {video ? "İlk kare gösteriliyor — izlemek için Drive'da aç." : "Görsel Drive'dan getirildi."}
+            {!video ? "Görsel Drive'dan getirildi."
+              : akis.durum === "yukleniyor" ? "Oynatıcı hazırlanıyor…"
+              : "Oynatıcı kurulamadı — ilk kare gösteriliyor, izlemek için Drive'da aç."}
           </span>
           {/* Düğme gizlenmiyor ama NE OLACAĞI önceden söyleniyor — Safari'de bu yol ölü.
               Sessiz bırakmak, kullanıcıyı aynı siyah kutuyu tekrar tekrar açmaya iter. */}

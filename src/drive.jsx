@@ -58,6 +58,45 @@ export const GOMULU_ACIKLAMA = gomuluEngelliMi()
   ? "Bu tarayıcı Google'ın çerezlerini engellediği için gömülü oynatıcı siyah kalır. İzlemek için Drive'da Aç kullan — ya da Safari → Ayarlar → Gizlilik → “Siteler arası izlemeyi engelle” seçeneğini kapat. (iPhone'da Chrome da aynı kısıtlamaya tabi.)"
   : "Gömülü oynatıcı siyah kalıyorsa tarayıcın Google'ın çerezlerini engelliyordur. O zaman Drive'da Aç ile izle.";
 
+/**
+ * VİDEO ADRESİ — KENDİ SUNUCUMUZDAN.
+ *
+ * Drive'ın gömülü oynatıcısı çerçeve içinden Google'ın çerezlerine erişmek zorunda; Safari
+ * ve iOS'taki bütün tarayıcılar bunu varsayılan olarak engelliyor ve ekranda siyah kutu
+ * kalıyor. Dosyayı "bağlantısı olan herkese" açmak sorunu çözerdi ama kapatılan gizlilik
+ * açığını geri getirirdi.
+ *
+ * Video kendi sunucumuzdan gelince üçüncü taraf çerezi hiç devreye girmiyor ve GERÇEK bir
+ * <video> etiketi kullanılabiliyor: kendi kontrolleri, tam ekranı ve — önemlisi — videonun
+ * kendi en-boy oranı. Dikey bir Reels dikey görünüyor, çerçeveye yön ayarı girmek gerekmiyor.
+ */
+export function useVideoAdresi({ isId, icerikId }) {
+  const anahtar = isId !== undefined && isId !== null ? `is:${isId}`
+                : icerikId !== undefined && icerikId !== null ? `icerik:${icerikId}` : null;
+  const [adres, setAdres] = useState(null);
+  const [durum, setDurum] = useState(anahtar ? "yukleniyor" : "yok");
+
+  useEffect(() => {
+    if (!anahtar) { setDurum("yok"); setAdres(null); return undefined; }
+    let iptal = false;
+    setDurum("yukleniyor"); setAdres(null);
+    fetch("/api/data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ onizlemeAction: "videoJetonu", isId, icerikId }),
+    })
+      .then((r) => r.json())
+      .then((r) => {
+        if (iptal) return;
+        if (r.ok && r.adres) { setAdres(r.adres); setDurum("hazir"); } else setDurum("olmadi");
+      })
+      .catch(() => { if (!iptal) setDurum("olmadi"); });
+    return () => { iptal = true; };
+  }, [anahtar, isId, icerikId]);
+
+  return { durum, adres };
+}
+
 export function useSunucuOnizleme({ isId, icerikId, boyut = 800 }) {
   const anahtar = isId !== undefined && isId !== null ? `is:${isId}:${boyut}`
                 : icerikId !== undefined && icerikId !== null ? `icerik:${icerikId}:${boyut}` : null;
@@ -206,19 +245,35 @@ export const videoYonuBul = (yon) => VIDEO_YONLERI.find((y) => y.key === yon) ||
 export function DriveVideo({ link, yon, baslik, isId, icerikId }) {
   const embed = driveEmbedUrl(link);
   const y = videoYonuBul(yon);
-  const sunucu = useSunucuOnizleme({ isId, icerikId, boyut: 800 });
+  const video = useVideoAdresi({ isId, icerikId });
+  const kapak = useSunucuOnizleme({ isId, icerikId, boyut: 800 });
   const [gomulu, setGomulu] = useState(false);
-  if (!embed) return null;
+  if (!embed && !video.adres) return null;
 
-  /* GÖMÜLÜ OYNATICI VARSAYILAN DEĞİL. Dosyalar Drive'da kısıtlı olduğu için gömülü çerçeve
-   * tarayıcının Google oturumuna ihtiyaç duyuyor; Safari üçüncü taraf çerezleri engellediği
-   * için siyah bir kutu çıkıyor. Bunun yerine ilk kare gösterilip Drive'a yönlendiriliyor —
-   * yeni sekmede Google kendi oturumunu kullanabiliyor. Videoyu sunucudan geçirmek (80 MB)
-   * ne hızlı ne ucuz olurdu. */
+  /* GERÇEK <video> ETİKETİ. Gömülü Drive oynatıcısı yerine bu kullanılıyor: üçüncü taraf
+   * çerezi gerektirmiyor, kendi kontrolleri var ve videonun KENDİ en-boy oranını alıyor —
+   * dikey bir Reels dikey görünüyor, çerçeveye yön ayarı girmek gerekmiyor. */
+  if (video.durum === "hazir" && video.adres && !gomulu) {
+    return (
+      <div style={{ maxWidth: y.maxGenislik, margin: "0 auto", width: "100%" }}>
+        <video
+          src={video.adres}
+          poster={kapak.durum === "hazir" ? kapak.veri : undefined}
+          controls
+          playsInline
+          preload="metadata"
+          style={{ width: "100%", maxHeight: "70vh", borderRadius: 10, background: "#000", display: "block" }}
+        />
+      </div>
+    );
+  }
+
+  /* Akış kurulamadıysa eski yola dönülüyor: kapak + Drive'da aç. Sessiz siyah kutu yerine
+   * en azından bir şey görünüyor. */
   return (
     <div style={{ maxWidth: y.maxGenislik, margin: "0 auto", width: "100%" }}>
       <div style={{ position: "relative", width: "100%", aspectRatio: y.oran, borderRadius: 10, overflow: "hidden", background: "#000" }}>
-        {gomulu ? (
+        {gomulu && embed ? (
           <iframe
             src={embed}
             title={baslik || "Video önizleme"}
@@ -227,34 +282,36 @@ export function DriveVideo({ link, yon, baslik, isId, icerikId }) {
           />
         ) : (
           <>
-            {sunucu.durum === "hazir" && sunucu.veri && (
-              <img src={sunucu.veri} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+            {kapak.durum === "hazir" && kapak.veri && (
+              <img src={kapak.veri} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
             )}
             <a href={link} target="_blank" rel="noreferrer"
                style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", textDecoration: "none" }}>
               <span style={{ background: "rgba(0,0,0,.62)", color: "#fff", borderRadius: 999, padding: "12px 18px",
                              fontSize: 13, fontWeight: 700, fontFamily: "Inter" }}>
-                ▶ Drive'da Aç ve İzle
+                {video.durum === "yukleniyor" ? "Oynatıcı hazırlanıyor…" : "▶ Drive'da Aç ve İzle"}
               </span>
             </a>
           </>
         )}
       </div>
-      <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 3 }}>
-        <button
-          onClick={() => setGomulu((v) => !v)}
-          style={{ background: "none", border: "none", color: T.textFaint, textAlign: "left",
-                   fontSize: 11, fontFamily: "Inter", cursor: "pointer", padding: 0 }}
-        >
-          {gomulu ? "Kapak görüntüsüne dön"
-                  : gomuluEngelliMi() ? "Gömülü oynatıcıyı dene (bu tarayıcıda çalışmaz)" : "Gömülü oynatıcıyı dene"}
-        </button>
-        {gomulu && (
-          <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", lineHeight: 1.5 }}>
-            {GOMULU_ACIKLAMA}
-          </span>
-        )}
-      </div>
+      {video.durum === "olmadi" && (
+        <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 3 }}>
+          <button
+            onClick={() => setGomulu((v) => !v)}
+            style={{ background: "none", border: "none", color: T.textFaint, textAlign: "left",
+                     fontSize: 11, fontFamily: "Inter", cursor: "pointer", padding: 0 }}
+          >
+            {gomulu ? "Kapak görüntüsüne dön"
+                    : gomuluEngelliMi() ? "Gömülü oynatıcıyı dene (bu tarayıcıda çalışmaz)" : "Gömülü oynatıcıyı dene"}
+          </button>
+          {gomulu && (
+            <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", lineHeight: 1.5 }}>
+              {GOMULU_ACIKLAMA}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

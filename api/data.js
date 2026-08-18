@@ -5,7 +5,9 @@ import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, t
 import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, trKucult, markaEslestirici } from "../lib/marka-kilidi.js";
 import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
 import { epostaGonder, revizeBildirimHtml } from "../lib/eposta.js";
-import { onaylananiTasi, DURUM_KLASORLERI, klasorDurumu, driveDosyaIdCikar } from "../lib/drive-tasima.js";
+import { onaylananiTasi, DURUM_KLASORLERI, klasorDurumu, driveDosyaIdCikar, videoAkisi } from "../lib/drive-tasima.js";
+import { jetonUret, jetonCoz } from "../lib/video-jeton.js";
+import { Readable } from "stream";
 import { dosyasizKontroleGirenleriGeriAl, medyaVarMi, asamalariDuzelt } from "../lib/asamalar.js";
 import { epostaGonderAyrintili, gonderenAdres } from "../lib/eposta.js";
 import { onaylananlaraGoreStok } from "../lib/stok.js";
@@ -328,7 +330,63 @@ async function tasimalariIsleVeNotDus(oncekiVeri, sonrakiVeri) {
   }
 }
 
+/* Video akışı dosyanın tamamını aktarıyor; varsayılan 10 saniyelik sınır 40 MB'lık bir
+ * Reels'i yarıda keser ve video bozuk görünür. */
+export const config = { maxDuration: 60 };
+
 export default async function handler(req, res) {
+  /* ---------------------------------------------------------------------------------
+   * VİDEO AKIŞI — EN BAŞTA, KİMLİK BAŞLIKLARINDAN ÖNCE.
+   *
+   * <video src="..."> etiketi özel başlık gönderemez; bu yüzden yetki, adresin içindeki
+   * KISA ÖMÜRLÜ İMZALI JETONDAN geliyor. Jeton yalnızca tek bir kayıt için geçerli ve iki
+   * saatte sönüyor; alınırken kullanıcının yetkisi normal yoldan kontrol ediliyor.
+   *
+   * Dosya Drive'da kısıtlı kalmaya devam ediyor — "bağlantısı olan herkes" ayarına
+   * dönülmüyor.
+   * --------------------------------------------------------------------------------- */
+  if (req.method === "GET" && req.query && req.query.video) {
+    const cozum = jetonCoz(req.query.j);
+    if (!cozum) return res.status(403).json({ error: "Bağlantının süresi dolmuş. Sayfayı yenile." });
+    /* Jeton hangi kayıt için verildiyse YALNIZCA o oynatılabilir — adresteki kimliği
+     * değiştirip başka bir dosya istemek işe yaramaz. */
+    if (String(cozum.kimlik) !== String(req.query.video)) {
+      return res.status(403).json({ error: "Bağlantı bu içerik için geçerli değil." });
+    }
+
+    const veriV = (await kv.get(KEY)) || {};
+    let link = null;
+    if (cozum.tur === "icerik") {
+      const ic = (veriV.musteriIcerikleri || []).find((x) => String(x.id) === String(cozum.kimlik));
+      link = ic && ic.driveLinki;
+    } else {
+      const is = (veriV.cekimIsleri || []).find((j) => String(j.id) === String(cozum.kimlik));
+      const medya = is && Array.isArray(is.medya) ? is.medya : [];
+      const son = medya.length ? medya[medya.length - 1] : null;
+      link = (son && son.dosyaId) ? `https://drive.google.com/file/d/${son.dosyaId}/view`
+           : (is && (is.editliDosyaLink || is.hamDosyaLink || is.dosyaLinki));
+    }
+    const dosyaId = driveDosyaIdCikar(link);
+    if (!dosyaId) return res.status(404).json({ error: "Bu kayıtta dosya yok." });
+
+    const akis = await videoAkisi(dosyaId, req.headers.range);
+    if (!akis.ok) return res.status(502).json({ error: akis.sebep || "Video alınamadı." });
+
+    const g = akis.yanit;
+    res.status(g.status === 206 ? 206 : 200);
+    /* Aralık başlıkları AYNEN geçiyor: bunlar olmadan tarayıcı videoda ileri saramaz ve
+     * her atlamada dosyayı baştan indirir. */
+    for (const ad of ["content-type", "content-length", "content-range", "accept-ranges"]) {
+      const deger = g.headers.get(ad);
+      if (deger) res.setHeader(ad, deger);
+    }
+    if (!g.headers.get("accept-ranges")) res.setHeader("accept-ranges", "bytes");
+    res.setHeader("cache-control", "private, max-age=600");
+    if (!g.body) { res.end(); return; }
+    Readable.fromWeb(g.body).pipe(res);
+    return;
+  }
+
   /* KİLİT AÇMA, hız sınırının ÖNÜNDE çalışır — aksi halde kısır döngü olurdu: kilitliyken
    * kilidi açma isteği de engellenirdi. Erişim vermez, sadece sayacı sıfırlar ve yönetici
    * şifresi ister.
@@ -518,7 +576,7 @@ export default async function handler(req, res) {
    * KAYNAK HER ZAMAN BİR KAYITTAN ÇÖZÜLÜYOR, tarayıcının verdiği bağlantıdan değil. Aksi
    * halde bu uç, kimliğini bilen herkesin her Drive dosyasını okuyabildiği bir kapı olurdu.
    * --------------------------------------------------------------------------------- */
-  if (req.method === "POST" && req.body && req.body.onizlemeAction === "gorsel") {
+  if (req.method === "POST" && req.body && (req.body.onizlemeAction === "gorsel" || req.body.onizlemeAction === "videoJetonu")) {
     const { isId: oIsId, icerikId, boyut } = req.body;
     const veriO = (await kv.get(KEY)) || {};
     const markaAdiCoz = (clientId) => ((veriO.clients || []).find((c) => String(c.id) === String(clientId)) || {}).ad || "";
@@ -563,6 +621,17 @@ export default async function handler(req, res) {
 
     const kimlik = driveDosyaIdCikar(link);
     if (!kimlik) return res.status(200).json({ ok: false, kod: "dosya-yok", sebep: "Bu kayıtta Drive dosyası yok." });
+
+    /* VİDEO JETONU aynı yetki kapısından geçiyor — ayrı bir uç açılsaydı iki kontrol
+     * listesi oluşur, biri güncellenip diğeri unutulurdu. */
+    if (req.body.onizlemeAction === "videoJetonu") {
+      const tur = (icerikId !== undefined && icerikId !== null) ? "icerik" : "is";
+      const kayitId = tur === "icerik" ? icerikId : oIsId;
+      const jeton = jetonUret(tur, kayitId);
+      if (!jeton) return res.status(200).json({ ok: false, sebep: "Video akışı için sunucu sırrı tanımlı değil." });
+      return res.status(200).json({ ok: true, jeton, adres: `/api/data?video=${encodeURIComponent(kayitId)}&j=${encodeURIComponent(jeton)}` });
+    }
+
     const sonuc = await kucukResimGetir(kimlik, boyut);
     if (!sonuc.ok) return res.status(200).json({ ok: false, kod: "alinamadi", sebep: sonuc.sebep });
     return res.status(200).json({ ok: true, veri: sonuc.veri, mimeTur: sonuc.mimeTur });
