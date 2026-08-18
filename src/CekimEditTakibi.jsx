@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { yuklemeAsamasi, medyaVarMi } from "../lib/asamalar.js";
+import { medyaVarMi, asamalariDuzelt } from "../lib/asamalar.js";
 // Para gösterimleri Gizlilik Modu'na uymalı — aksi halde ücretler gizliyken de görünür kalırdı.
 import { fmt, T, authHeaders } from "./tema.jsx";
 import {
@@ -142,19 +142,19 @@ function DriveGorsel({ link, C, yukseklik, kapak, kucuk }) {
   );
 }
 
-/* "… YAPILDI" AŞAMASI — DOSYANIN YÜKLENDİĞİ YER.
+/* DOSYA KONTROLE ÇIKMADAN ÖNCE YÜKLENİR.
  *
- * İş bitince kart doğrudan "Kontrol Bekliyor"a geçiyordu; dosyanın yüklenip yüklenmediğini
- * kimse denetlemiyordu. Sonuç: müşterinin önüne bakacak bir şeyi olmayan kartlar düşüyordu.
+ * Kart, dosyası olmadan "Kontrol Bekliyor"a geçebiliyordu; müşterinin önüne bakacak bir şeyi
+ * olmayan içerik düşüyordu. Kural artık doğrudan kontrole geçişte uygulanıyor.
  *
- * Artık araya bir aşama giriyor: iş biter → "… Yapıldı" → DOSYA YÜKLENİR → kontrole çıkar.
- * Dosya yüklenmeden kontrole geçilemez; kural bu aşamada uygulanıyor. */
+ * Bir ara "… Yapıldı" diye ayrı bir sütun denendi ve kaldırıldı: dosya zaten ilk aşamadan
+ * itibaren yüklenebiliyor, bir sütun uğruna herkesin fazladan tıklaması anlamsızdı. */
 export const ASAMALAR_VIDEO = [
   "Çekim Planlandı", "Çekim Yapıldı", "Dosyalar Aktarıldı", "Edit Bekliyor",
-  "Edit Yapılıyor", "Edit Yapıldı", "Kontrol Bekliyor", "Revize İstendi", "Onaylandı", "Teslim Edildi",
+  "Edit Yapılıyor", "Kontrol Bekliyor", "Revize İstendi", "Onaylandı", "Teslim Edildi",
 ];
 export const ASAMALAR_TASARIM = [
-  "Talep Alındı", "Tasarım Bekliyor", "Tasarım Yapılıyor", "Tasarım Yapıldı",
+  "Talep Alındı", "Tasarım Bekliyor", "Tasarım Yapılıyor",
   "Kontrol Bekliyor", "Revize İstendi", "Onaylandı", "Teslim Edildi",
 ];
 /** Geriye dönük uyumluluk: kategorisiz eski kayıtlar Video akışını kullanır. */
@@ -163,8 +163,7 @@ export const ASAMALAR = ASAMALAR_VIDEO;
  * kontrole çıkar. Video'daki "Dosyalar Aktarıldı / Edit Bekliyor" ayrımı fotoğrafta bir işe
  * yaramıyor — fotoğrafçı çekimi bitirir bitirmez düzenlemeye geçiyor. */
 export const ASAMALAR_FOTOGRAF = [
-  "Çekim Yapıldı", "Düzenleniyor", "Düzenleme Yapıldı",
-  "Kontrol Bekliyor", "Revize İstendi", "Onaylandı", "Teslim Edildi",
+  "Çekim Yapıldı", "Düzenleniyor", "Kontrol Bekliyor", "Revize İstendi", "Onaylandı", "Teslim Edildi",
 ];
 
 const ASAMA_TABLOSU = {
@@ -289,6 +288,9 @@ const inputStyle = { width: "100%", background: C.panelAlt, border: `1px solid $
 const labelStyle = { fontSize: 11, color: C.textFaint, fontWeight: 600, display: "block", marginBottom: 4 };
 const btnPrimary = { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px 15px", borderRadius: 9, border: "none", background: C.accent, color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer" };
 const btnGhost = { display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px 15px", borderRadius: 9, border: `1px solid ${C.border}`, background: "transparent", color: C.text, fontSize: 13, fontWeight: 600, cursor: "pointer" };
+/* Koşul sağlanmadığı için kapalı duran düğme — gizlemek yerine kapatıyoruz ki
+ * kullanıcı düğmenin var olduğunu görsün, sebebini de üstündeki uyarıdan okusun. */
+const kapaliBtn = { ...btnPrimary, background: C.border, color: C.textFaint, cursor: "not-allowed" };
 
 /* ------------------------------------------------------------------ */
 /* İş Kartı                                                              */
@@ -775,20 +777,9 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
 
   const kategori = KATEGORILER.includes(job.kategori) ? job.kategori : "Video";
   const asamalar = asamaListesi(kategori);
-  const yuklemeAsamasindaMi = job.asama === yuklemeAsamasi(kategori);
   const dosyaVar = medyaVarMi(job);
-
-  /* İş bittiğinde kart artık doğrudan kontrole çıkmıyor; önce dosyanın yükleneceği aşamaya
-   * geçiyor. Revize de aynı kapıdan geçiyor — revizenin çıktısı da bir dosyadır. */
-  const editiTamamla = () => asamaGecir(yuklemeAsamasi(kategori), TAMAMLADIM_ETIKETI[kategori]);
-  const revizeyiTamamla = () => asamaGecir(yuklemeAsamasi(kategori), "Revize Tamamlandı");
-  const kontroleGonder = () => {
-    if (!dosyaVar) {
-      window.alert("Kontrole göndermeden önce video ya da görseli yüklemen gerekiyor.");
-      return;
-    }
-    asamaGecir("Kontrol Bekliyor");
-  };
+  const editiTamamla = () => asamaGecir("Kontrol Bekliyor", TAMAMLADIM_ETIKETI[kategori]);
+  const revizeyiTamamla = () => asamaGecir("Kontrol Bekliyor", "Revize Tamamlandı");
   const onayla = () => asamaGecir("Onaylandı");
   const teslimEt = () => { if (window.confirm("Bu iş \"Teslim Edildi\" olarak işaretlenecek. Emin misin?")) asamaGecir("Teslim Edildi"); };
   const revizeGonder = () => {
@@ -845,6 +836,11 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
 
   const suankiIndex = asamalar.indexOf(job.asama);
   const ileriAsama = suankiIndex >= 0 && suankiIndex < asamalar.length - 1 ? asamalar[suankiIndex + 1] : null;
+  /* Kontrole çıkmadan ÖNCEKİ her aşamada dosya bekleniyor — çekim planlandığı andan itibaren.
+   * Revize de dahil: revizenin çıktısı da yüklenmesi gereken yeni bir versiyondur. */
+  const kontrolIndex = asamalar.indexOf("Kontrol Bekliyor");
+  const yuklemeBekleniyor = job.asama === "Revize İstendi"
+    || (suankiIndex >= 0 && kontrolIndex >= 0 && suankiIndex < kontrolIndex);
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", zIndex: 200, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
@@ -967,15 +963,17 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
                 Personel dosyayı buradan yükler, buradan izler, revize gelirse buradan yeni
                 versiyon atar. Aşağıdaki bağlantı alanları ikincil kaldı: Drive dışındaki
                 kaynaklar (WeTransfer) ve eski kartlar için duruyor. */}
-            {yuklemeAsamasindaMi && yetkili && (
+            {/* Uyarı İLK AŞAMADAN İTİBAREN duruyor: dosya bir sütuna özel değil, işin herhangi
+                bir anında yüklenebilir. Beklemek yerine hazır olduğunda yükle. */}
+            {yuklemeBekleniyor && yetkili && (
               <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 10,
                             background: dosyaVar ? C.successSoft : C.warningSoft, borderRadius: 10, padding: "12px 15px" }}>
                 <span style={{ fontSize: 15, lineHeight: 1 }}>{dosyaVar ? "✓" : "⬆"}</span>
                 <div style={{ fontSize: 13, color: dosyaVar ? C.success : C.warning, lineHeight: 1.6 }}>
                   {dosyaVar
                     ? <><strong>Dosya yüklendi.</strong> Kartı kontrole gönderebilirsin.</>
-                    : <><strong>Bu aşamada dosya yüklemek zorunlu.</strong> Video ya da görseli yükle;
-                        yüklemeden kart kontrole gönderilemez.</>}
+                    : <><strong>Video ya da görsel yükle.</strong> Bunu şimdi de yapabilirsin —
+                        ama dosya yüklenmeden kart kontrole gönderilemez.</>}
                 </div>
               </div>
             )}
@@ -1066,19 +1064,19 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
 
             {yetkili && (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
-                {job.asama === YAPILIYOR_ASAMASI[kategori] && <button style={btnPrimary} onClick={editiTamamla}><CheckCircle2 size={14} /> {TAMAMLADIM_ETIKETI[kategori]}</button>}
-                {job.asama === "Revize İstendi" && <button style={btnPrimary} onClick={revizeyiTamamla}><CheckCircle2 size={14} /> Revizeyi Tamamladım</button>}
-                {yuklemeAsamasindaMi && (
-                  <button
-                    style={dosyaVar ? btnPrimary : { ...btnPrimary, background: C.border, color: C.textFaint, cursor: "not-allowed" }}
-                    onClick={kontroleGonder}
-                    disabled={!dosyaVar}
-                    title={dosyaVar ? "" : "Önce video ya da görsel yükle"}
-                  >
-                    <CheckCircle2 size={14} /> Kontrole Gönder
+                {job.asama === YAPILIYOR_ASAMASI[kategori] && (
+                  <button style={dosyaVar ? btnPrimary : kapaliBtn} onClick={editiTamamla} disabled={!dosyaVar}
+                          title={dosyaVar ? "" : "Önce video ya da görsel yükle"}>
+                    <CheckCircle2 size={14} /> {TAMAMLADIM_ETIKETI[kategori]}
                   </button>
                 )}
-                {!yuklemeAsamasindaMi && job.asama !== YAPILIYOR_ASAMASI[kategori] && job.asama !== "Revize İstendi" && ileriAsama && !["Onaylandı", "Teslim Edildi"].includes(ileriAsama) && (
+                {job.asama === "Revize İstendi" && (
+                  <button style={dosyaVar ? btnPrimary : kapaliBtn} onClick={revizeyiTamamla} disabled={!dosyaVar}
+                          title={dosyaVar ? "" : "Önce yeni versiyonu yükle"}>
+                    <CheckCircle2 size={14} /> Revizeyi Tamamladım
+                  </button>
+                )}
+                {job.asama !== YAPILIYOR_ASAMASI[kategori] && job.asama !== "Revize İstendi" && ileriAsama && !["Onaylandı", "Teslim Edildi"].includes(ileriAsama) && (
                   <button style={btnGhost} onClick={() => asamaGecir(ileriAsama)}><ChevronRight size={14} /> Sonraki Aşamaya Geçir: {ileriAsama}</button>
                 )}
                 {suankiIndex > 0 && (
@@ -1811,7 +1809,11 @@ export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, 
 
   useEffect(() => { setStaffNameState(girisYapanAd || getStaffName()); }, [girisYapanAd]);
 
-  const isler = jobs || [];
+  /* Kaldırılan "… Yapıldı" aşamasında kalmış kartlar burada karşılığına çevriliyor.
+   * Çevrilmezse aşama adı hiçbir sütuna denk gelmez ve kart PANODA HİÇ GÖRÜNMEZ —
+   * kullanıcı için "iş kayboldu" demektir. Kayıt sırasında sunucu da aynı düzeltmeyi
+   * yapıyor, böylece veri zamanla kendiliğinden temizleniyor. */
+  const isler = asamalariDuzelt(jobs || []);
 
   if (role === "staff" && !staffName) {
     return (
