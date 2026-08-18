@@ -482,6 +482,115 @@ function YeniIsFormu({ clients, personelRosteri, varsayilanKategori, onSubmit, o
  * doğrudan Google'a gider. Vercel'in ~4.5 MB istek sınırı bu yüzden devrede değil — 80 MB'lık
  * bir Reels videosu sorunsuz yüklenir.
  */
+/**
+ * ÖNİZLEME — DRIVE'IN GÖMÜLÜ OYNATICISI YERİNE SUNUCUDAN GELEN GÖRSEL.
+ *
+ * NEDEN DEĞİŞTİ: dosyalar Drive'da bilerek KISITLI (daha önce "bağlantısı olan herkes"
+ * ayarındaydı, 17 müşterinin içeriği açıktaydı). Kısıtlı bir dosyayı gömülü çerçevede
+ * göstermek, tarayıcının Google oturumuna erişebilmesini gerektiriyor. Safari üçüncü taraf
+ * çerezleri varsayılan olarak engellediği için bu çalışmıyor: çerçevede siyah bir kutu ve
+ * Google logosu çıkıyor, içerik hiç görünmüyor. Gerçek kartta böyle yaşandı.
+ *
+ * Bu yüzden GÖRÜNTÜ sunucudan, uygulamanın kendi yetkisiyle alınıp buraya veri olarak
+ * geliyor — tarayıcının Google oturumuna hiç ihtiyaç kalmıyor, her tarayıcıda çalışıyor.
+ *
+ * VİDEO ayrı bir durum: 80 MB'lık bir dosyayı sunucudan geçirmek ne hızlı ne de ucuz.
+ * Videoda ilk kare gösteriliyor ve izlemek için Drive'a yönlendiriliyor — yeni sekmede
+ * Google kendi oturumunu kullanabildiği için orada sorun çıkmıyor. Gömülü oynatıcı isteyen
+ * için ayrıca bir düğme var; Chrome'da çalışıyor.
+ */
+function SunucuOnizleme({ isId, versiyon, video, drivedeAc, gomuluUrl }) {
+  const [durum, setDurum] = useState("yukleniyor");   // yukleniyor | hazir | yok
+  const [veri, setVeri] = useState(null);
+  const [gomulu, setGomulu] = useState(false);
+
+  useEffect(() => {
+    let iptal = false;
+    setDurum("yukleniyor"); setVeri(null); setGomulu(false);
+    fetch("/api/data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ driveAction: "kucukResim", isId, versiyon, boyut: 1200 }),
+    })
+      .then((r) => r.json())
+      .then((r) => {
+        if (iptal) return;
+        if (r.ok && r.veri) { setVeri(r.veri); setDurum("hazir"); } else setDurum("yok");
+      })
+      .catch(() => { if (!iptal) setDurum("yok"); });
+    return () => { iptal = true; };
+  }, [isId, versiyon]);
+
+  const kutu = {
+    width: "100%", borderRadius: 8, background: C.panel,
+    border: `1px solid ${C.border}`, overflow: "hidden",
+  };
+
+  if (gomulu) {
+    return (
+      <div>
+        <iframe
+          title={`medya-${isId}-${versiyon}`}
+          src={gomuluUrl}
+          allow="autoplay; fullscreen"
+          style={{ width: "100%", height: video ? 380 : 300, border: "none", borderRadius: 8, background: "#000" }}
+        />
+        <div style={{ fontSize: 11, color: C.textDim, marginTop: 6, lineHeight: 1.5 }}>
+          Gömülü oynatıcı siyah kalıyorsa tarayıcın Google'ın çerezlerini engelliyordur
+          (Safari'de varsayılan). O zaman <strong>Drive'da Aç</strong> ile izle.
+          <button onClick={() => setGomulu(false)}
+                  style={{ ...btnGhost, padding: "4px 8px", fontSize: 11, marginLeft: 8, display: "inline-flex" }}>
+            Görsel önizlemeye dön
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (durum === "hazir") {
+    return (
+      <div>
+        <div style={{ ...kutu, position: "relative", display: "grid", placeItems: "center", background: "#000" }}>
+          <img src={veri} alt="" style={{ width: "100%", maxHeight: video ? 380 : 420, objectFit: "contain", display: "block" }} />
+          {video && (
+            <a href={drivedeAc} target="_blank" rel="noreferrer"
+               style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", textDecoration: "none" }}>
+              <span style={{ background: "rgba(0,0,0,.62)", color: "#fff", borderRadius: 999, padding: "12px 18px",
+                             fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 7 }}>
+                <Film size={15} /> Drive'da Aç ve İzle
+              </span>
+            </a>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 11, color: C.textFaint }}>
+            {video ? "İlk kare gösteriliyor — izlemek için Drive'da aç." : "Görsel Drive'dan getirildi."}
+          </span>
+          <button onClick={() => setGomulu(true)}
+                  style={{ ...btnGhost, padding: "4px 8px", fontSize: 11 }}>
+            Gömülü oynatıcıyı dene
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ ...kutu, padding: 16, textAlign: "center" }}>
+      <div style={{ fontSize: 13, color: C.textDim, lineHeight: 1.6 }}>
+        {durum === "yukleniyor"
+          ? "Önizleme getiriliyor…"
+          : <>Önizleme getirilemedi. Dosya Drive'da duruyor — <a href={drivedeAc} target="_blank" rel="noreferrer" style={{ color: C.accentText }}>Drive'da Aç</a> ile bakabilirsin.</>}
+      </div>
+      {durum !== "yukleniyor" && (
+        <button onClick={() => setGomulu(true)} style={{ ...btnGhost, marginTop: 10, display: "inline-flex", fontSize: 12 }}>
+          Gömülü oynatıcıyı dene
+        </button>
+      )}
+    </div>
+  );
+}
+
 function MedyaYukleyici({ job, onYuklendi, duzenlenebilir }) {
   const medya = useMemo(
     () => [...(job.medya || [])].sort((a, b) => (Number(b.versiyon) || 0) - (Number(a.versiyon) || 0)),
@@ -645,16 +754,12 @@ function MedyaYukleyici({ job, onYuklendi, duzenlenebilir }) {
               <ExternalLink size={12} /> Drive'da Aç
             </a>
           </div>
-          {/* Önizleme dosya KİMLİĞİNDEN üretiliyor, klasör yolundan değil — dosya başka
-              klasöre taşınsa bile önizleme bozulmaz. */}
-          <iframe
-            title={`medya-${guncel.dosyaId}`}
-            src={onizlemeUrl(guncel)}
-            allow="autoplay; fullscreen"
-            style={{
-              width: "100%", height: videoMu(guncel) ? 380 : 300,
-              border: "none", borderRadius: 8, background: "#000",
-            }}
+          <SunucuOnizleme
+            isId={job.id}
+            versiyon={guncel.versiyon}
+            video={videoMu(guncel)}
+            drivedeAc={guncel.url}
+            gomuluUrl={onizlemeUrl(guncel)}
           />
         </div>
       ) : (
