@@ -6,6 +6,7 @@ import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, trK
 import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
 import { epostaGonder, revizeBildirimHtml } from "../lib/eposta.js";
 import { onaylananiTasi } from "../lib/drive-tasima.js";
+import { yuklemeOturumuAc, yuklemeyiTamamla, yuklenenDosyayiSil, yuklemeHazirMi } from "../lib/drive-yukleme.js";
 
 /** Bir kayıt (eski veri, yeni veri) arasındaki ÖNEMLİ değişiklikleri (müşteri/personel/üyelik
  * ekleme-silme, müşteri durum değişikliği) otomatik tespit edip okunabilir işlem geçmişi
@@ -451,6 +452,90 @@ export default async function handler(req, res) {
 
   // Müşteri Paneli — tamamen izole bir akış. Owner/personel akışının hiçbir parçasına
   // dokunmaz; müşteri SADECE kendi marka bilgisine ve SADECE kendi içerik onaylarına erişebilir.
+  /* ---------------------------------------------------------------------------------
+   * KART İÇİNDEN DOSYA YÜKLEME
+   *
+   * Üç uç: oturum aç, tamamla, iptal. Yeni bir api/ dosyası AÇILMADI — Vercel Hobby planı
+   * en fazla 12 sunucu fonksiyonuna izin veriyor ve 11'i dolu. Bu sınır bir kez aşıldı ve
+   * derleme kırıldı (v120), tekrarlanmamalı.
+   *
+   * DOSYANIN KENDİSİ BURADAN GEÇMEZ. Sunucu yalnızca Google'dan bir yükleme adresi alıp
+   * tarayıcıya verir; baytlar tarayıcıdan doğrudan Google'a gider. Vercel'in ~4.5 MB istek
+   * sınırı bu yüzden devrede değil.
+   * --------------------------------------------------------------------------------- */
+  if (req.method === "POST" && req.body && req.body.driveAction) {
+    /* Yükleme, iş kartı üzerinde çalışmayı gerektirir — müşteri hesapları buraya giremez.
+     * Personelde ayrıca cekimEdit izni aranır; marka kilidi olan hesap yalnızca kendi
+     * markasına yükleyebilir. */
+    if (role !== "owner" && role !== "staff") return res.status(403).json({ error: "Yetkin yok." });
+
+    const { driveAction, isId, dosyaAdi, mimeTur, boyut, dosyaId } = req.body;
+    const veri = (await kv.get(KEY)) || {};
+
+    /* İzinler BU BLOKTA hesaplanıyor. Diğer bloklardaki perms/izinli kendi kapsamlarında
+     * tanımlı — buradan görünmüyorlar ve referans vermek çalışma anında çöktürüyordu. */
+    let izinli = [];
+    if (role === "staff") {
+      const perms = izinleriDaralt(
+        staffPerms ? { ...DEFAULT_PERMS, ...staffPerms } : { ...DEFAULT_PERMS, ...(veri.staffPermissions || {}) },
+        Array.isArray(staffMarkalar) && staffMarkalar.length > 0,
+      );
+      if (perms.cekimEdit !== true) return res.status(403).json({ error: "Yetkin yok." });
+      izinli = Array.isArray(staffMarkalar) ? staffMarkalar : [];
+    }
+    const is = (veri.cekimIsleri || []).find((j) => String(j.id) === String(isId));
+    if (!is) return res.status(404).json({ error: "İş kartı bulunamadı." });
+    if (role === "staff" && izinli.length > 0 && !izinli.some((m) => trKucult(m) === trKucult(is.marka))) {
+      return res.status(403).json({ error: "Bu markaya erişim yetkin yok." });
+    }
+
+    if (driveAction === "yuklemeBasla") {
+      if (!yuklemeHazirMi()) {
+        return res.status(400).json({ error: "Drive yükleme kurulu değil. Ayarlardaki Google bağlantısını tamamla." });
+      }
+      const marka = (veri.clients || []).find((c) => trKucult(c.ad) === trKucult(is.marka)) || {};
+      /* Sıradaki versiyon numarası SUNUCUDA hesaplanır — tarayıcıdan gelen sayıya güvenilmez,
+       * iki kişi aynı anda yüklerse aynı numarayı gönderirdi. */
+      const versiyon = ((is.medya || []).reduce((e, m) => Math.max(e, Number(m.versiyon) || 0), 0)) + 1;
+      const sonuc = await yuklemeOturumuAc({
+        markaKlasoru: marka.driveOnayKlasoru || "", markaAdi: is.marka,
+        icerikAdi: is.icerikTuru || "", versiyon, orijinalAd: dosyaAdi, mimeTur, boyut,
+      });
+      if (!sonuc.ok) return res.status(400).json({ error: sonuc.sebep });
+      return res.status(200).json({ ok: true, ...sonuc, versiyon });
+    }
+
+    if (driveAction === "yuklemeBitti") {
+      if (!dosyaId) return res.status(400).json({ error: "dosyaId eksik." });
+      const bilgi = await yuklemeyiTamamla({ dosyaId });
+      if (!bilgi.ok) {
+        /* Yetki verilemediyse dosya Drive'da öksüz kalır ve sonraki taşımalar çalışmaz.
+         * Yarım işi bırakmaktansa temizleyip hatayı bildirmek doğru. */
+        await yuklenenDosyayiSil(dosyaId);
+        return res.status(400).json({ error: bilgi.sebep });
+      }
+      /* BURADA KV'YE YAZILMIYOR — bilerek.
+       *
+       * Yazsaydık _v sayacı artardı ama tarayıcı bunu bilmezdi; bir sonraki kaydı sahte
+       * "staleConflict" alır ve ön yüz kullanıcının o anki düzenlemesini sunucu verisiyle
+       * ezerdi. Bu hata bu projede bir kez yaşandı, veri kaybı üretti.
+       *
+       * Bunun yerine dosya bilgisi tarayıcıya döndürülür ve kayıt uygulamanın NORMAL kayıt
+       * akışından geçer — sürüm sayacı orada zaten doğru yönetiliyor.
+       *
+       * Tarayıcı arada kapanırsa dosya Drive'da doğru klasörde durur, sadece karta
+       * işlenmemiş olur; kaybolmaz. */
+      return res.status(200).json({ ok: true, dosya: bilgi });
+    }
+
+    if (driveAction === "yuklemeIptal") {
+      if (dosyaId) await yuklenenDosyayiSil(dosyaId);
+      return res.status(200).json({ ok: true });
+    }
+
+    return res.status(400).json({ error: "Geçersiz işlem." });
+  }
+
   if (role === "musteri") {
     try {
       const data = (await kv.get(KEY)) || {};
