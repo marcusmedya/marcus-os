@@ -1957,20 +1957,6 @@ const PAYLASIM_TURLERI = ["Görsel", "Video", "Reels", "Story", "Carousel"];
  *
  * Küçük resim yüklenmezse (erişim yok, dosya silinmiş, Drive yavaş) tür harfi gösteriliyor —
  * seçim yine yapılabiliyor, sadece görsel ipucu olmuyor. */
-const driveDosyaIdCikar = (link) => {
-  const m = String(link || "").match(/\/file\/d\/([a-zA-Z0-9_-]{10,})|[?&]id=([a-zA-Z0-9_-]{10,})/);
-  return m ? (m[1] || m[2]) : null;
-};
-
-const kartinDosyaIdsi = (is) => {
-  const medya = Array.isArray(is && is.medya) ? is.medya : [];
-  const sonuncu = medya.length ? medya[medya.length - 1] : null;
-  if (sonuncu && sonuncu.dosyaId) return sonuncu.dosyaId;
-  return driveDosyaIdCikar(is && (is.editliDosyaLink || is.dosyaLinki || is.hamDosyaLink));
-};
-
-const kucukResimUrl = (dosyaId) => `https://drive.google.com/thumbnail?id=${dosyaId}&sz=w160`;
-
 /** Kartın paylaşım türü — stok tarafıyla aynı kural (bkz. lib/stok.js). */
 const kartTuru = (is) => {
   const ad = String((is && is.icerikTuru) || "").toLocaleLowerCase("tr");
@@ -1983,30 +1969,58 @@ const kartTuru = (is) => {
 };
 
 function KartOnizleme({ is, boyut = 52 }) {
-  const [hata, setHata] = useState(false);
-  const dosyaId = kartinDosyaIdsi(is);
+  const [durum, setDurum] = useState("yukleniyor");   // yukleniyor | hazir | dosyaYok | alinamadi
+  const [veri, setVeri] = useState(null);
+
+  /* Küçük resim SUNUCUDAN alınıyor, doğrudan Drive'dan değil.
+   *
+   * Dosyalar Drive'da bilerek KISITLI (daha önce "bağlantısı olan herkes" ayarındaydı ve
+   * 17 müşterinin içeriği açıktaydı). Kısıtlı bir dosyanın küçük resmini tarayıcı
+   * drive.google.com üzerinden okuyamıyor — istek 403 dönüyor ve önizleme sessizce boş
+   * kalıyor. Dosyayı herkese açmak o gizlilik sorununu geri getirirdi; onun yerine resim
+   * sunucuda uygulamanın kendi yetkisiyle alınıp buraya veri olarak geliyor. */
+  useEffect(() => {
+    let iptal = false;
+    setDurum("yukleniyor"); setVeri(null);
+    fetch("/api/data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ driveAction: "kucukResim", isId: is.id }),
+    })
+      .then((r) => r.json())
+      .then((r) => {
+        if (iptal) return;
+        if (r.ok && r.veri) { setVeri(r.veri); setDurum("hazir"); }
+        else setDurum(r.kod === "dosya-yok" ? "dosyaYok" : "alinamadi");
+      })
+      .catch(() => { if (!iptal) setDurum("alinamadi"); });
+    return () => { iptal = true; };
+  }, [is.id]);
+
   const ortak = {
     width: boyut, height: boyut, flex: `0 0 ${boyut}px`, borderRadius: 8,
-    background: T.surfaceRaised, border: `1px solid ${T.border}`,
-    display: "grid", placeItems: "center", overflow: "hidden",
+    background: T.surfaceRaised, display: "grid", placeItems: "center", overflow: "hidden",
   };
-  if (!dosyaId || hata) {
+
+  if (durum === "hazir") {
     return (
-      <div style={ortak}>
-        <span style={{ fontSize: 15, fontWeight: 700, color: T.textFaint }}>
-          {TUR_HARFI[kartTuru(is)] || "?"}
-        </span>
+      <div style={{ ...ortak, border: `1px solid ${T.border}` }}>
+        <img src={veri} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
       </div>
     );
   }
+
+  /* Boş kutu SEBEBİNİ söylüyor. "Önizleme çıkmıyor" ile "bu kartta dosya yok" bambaşka iki
+   * durum; ikisini aynı gri kareyle göstermek kullanıcıyı olmayan bir arızayla uğraştırır. */
+  const goster = {
+    yukleniyor: { im: "…", renk: T.textFaint, kenar: T.border, baslik: "Önizleme yükleniyor" },
+    dosyaYok:   { im: "—", renk: T.warning,   kenar: T.warning, baslik: "Bu kartta yüklenmiş dosya yok — önizleme gösterilemiyor" },
+    alinamadi:  { im: TUR_HARFI[kartTuru(is)] || "?", renk: T.textFaint, kenar: T.border, baslik: "Önizleme alınamadı" },
+  }[durum];
+
   return (
-    <div style={ortak}>
-      <img
-        src={kucukResimUrl(dosyaId)}
-        alt=""
-        onError={() => setHata(true)}
-        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-      />
+    <div style={{ ...ortak, border: `1px ${durum === "dosyaYok" ? "dashed" : "solid"} ${goster.kenar}` }} title={goster.baslik}>
+      <span style={{ fontSize: 15, fontWeight: 700, color: goster.renk }}>{goster.im}</span>
     </div>
   );
 }
