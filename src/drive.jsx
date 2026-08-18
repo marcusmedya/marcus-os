@@ -28,6 +28,36 @@ import { T, authHeaders } from "./tema.jsx";
  */
 const onizlemeBellegi = new Map();
 
+/**
+ * GÖMÜLÜ DRIVE OYNATICISI BU TARAYICIDA ENGELLİ Mİ?
+ *
+ * Drive'ın gömülü oynatıcısı, çerçevenin içinden Google'ın kendi çerezlerine erişip
+ * kullanıcıyı tanımak zorunda. WebKit tabanlı tarayıcılar "siteler arası izlemeyi engelle"
+ * ayarını VARSAYILAN olarak açık tutuyor ve o çerezleri kesiyor; Google da içerik yerine
+ * siyah bir kutu ile kendi logosunu gösteriyor.
+ *
+ * ADI "safariMi" DEĞİL, çünkü ölçtüğü şey tarayıcının markası değil DAVRANIŞI. iOS'ta
+ * Chrome ve Firefox da WebKit kullanmak zorunda ve aynı çerez politikasını devralıyor —
+ * yani orada da engelli. "Safari mi" diye sorsaydık iPhone'daki Chrome kullanıcısına
+ * "çalışır" der, o da siyah kutuyla karşılaşırdı.
+ *
+ * Bunu düzeltmenin yolu yok — dosyayı herkese açmak dışında, ki o da kapatılan gizlilik
+ * açığını geri getirirdi. Yapabileceğimiz tek dürüst şey: düğmeyi gizlememek ama NE
+ * OLACAĞINI önceden söylemek, kullanıcı aynı ölü yolu tekrar tekrar denemesin.
+ */
+export function gomuluEngelliMi() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  const iosTarayici = /iPhone|iPad|iPod/.test(ua) || /CriOS|FxiOS|EdgiOS/.test(ua);
+  const masaustuSafari = /Safari/.test(ua) && !/Chrome|Chromium|Edg|OPR/.test(ua);
+  return iosTarayici || masaustuSafari;
+}
+
+/** Gömülü oynatıcı siyah kaldığında ne yapılacağı — tek yerde, iki ekranda kullanılıyor. */
+export const GOMULU_ACIKLAMA = gomuluEngelliMi()
+  ? "Bu tarayıcı Google'ın çerezlerini engellediği için gömülü oynatıcı siyah kalır. İzlemek için Drive'da Aç kullan — ya da Safari → Ayarlar → Gizlilik → “Siteler arası izlemeyi engelle” seçeneğini kapat. (iPhone'da Chrome da aynı kısıtlamaya tabi.)"
+  : "Gömülü oynatıcı siyah kalıyorsa tarayıcın Google'ın çerezlerini engelliyordur. O zaman Drive'da Aç ile izle.";
+
 export function useSunucuOnizleme({ isId, icerikId, boyut = 800 }) {
   const anahtar = isId !== undefined && isId !== null ? `is:${isId}:${boyut}`
                 : icerikId !== undefined && icerikId !== null ? `icerik:${icerikId}:${boyut}` : null;
@@ -210,13 +240,21 @@ export function DriveVideo({ link, yon, baslik, isId, icerikId }) {
           </>
         )}
       </div>
-      <button
-        onClick={() => setGomulu((v) => !v)}
-        style={{ marginTop: 6, background: "none", border: "none", color: T.textFaint,
-                 fontSize: 11, fontFamily: "Inter", cursor: "pointer", padding: 0 }}
-      >
-        {gomulu ? "Kapak görüntüsüne dön" : "Gömülü oynatıcıyı dene"}
-      </button>
+      <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 3 }}>
+        <button
+          onClick={() => setGomulu((v) => !v)}
+          style={{ background: "none", border: "none", color: T.textFaint, textAlign: "left",
+                   fontSize: 11, fontFamily: "Inter", cursor: "pointer", padding: 0 }}
+        >
+          {gomulu ? "Kapak görüntüsüne dön"
+                  : gomuluEngelliMi() ? "Gömülü oynatıcıyı dene (bu tarayıcıda çalışmaz)" : "Gömülü oynatıcıyı dene"}
+        </button>
+        {gomulu && (
+          <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", lineHeight: 1.5 }}>
+            {GOMULU_ACIKLAMA}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
