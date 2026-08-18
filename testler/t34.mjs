@@ -109,5 +109,72 @@ t("boş içerik adında da geçerli ad üretiliyor",
   /^VIZZ_V1\./.test(dosyaAdiUret({ marka: "VIZZ", icerikAdi: "", versiyon: 1, orijinalAd: "a.mp4" })),
   dosyaAdiUret({ marka: "VIZZ", icerikAdi: "", versiyon: 1, orijinalAd: "a.mp4" }));
 
+/* ---- 6. ORIGIN BAŞLIĞI — bu satır olmadan yükleme tarayıcıda ÇALIŞMIYORDU ----
+ *
+ * Google, yükleme oturumu açılırken Origin gönderilmezse ASIL yükleme yanıtına
+ * Access-Control-Allow-Origin koymuyor. Ön kontrol yine de izin verdiği için sorun gizli
+ * kalıyor: dosya Google'a yükleniyor (HTTP 200) ama tarayıcı yanıtı okuyamayıp "Load failed"
+ * diyor. Canlıda tam olarak bu yaşandı ve teşhisi saatler aldı.
+ *
+ * Ölçülen davranış:
+ *   Origin olmadan → PUT 200, ACAO YOK  → tarayıcı reddeder
+ *   Origin ile     → PUT 200, ACAO var  → tarayıcı okur
+ */
+console.log("\n Origin başlığı Google'a iletiliyor mu");
+{
+  const { generateKeyPairSync } = await import("crypto");
+  const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048,
+    privateKeyEncoding: { type: "pkcs8", format: "pem" }, publicKeyEncoding: { type: "spki", format: "pem" } });
+  process.env.GOOGLE_OAUTH_CLIENT_ID = "x";
+  process.env.GOOGLE_OAUTH_CLIENT_SECRET = "y";
+  process.env.GOOGLE_OAUTH_REFRESH_TOKEN = "z";
+  process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = "sa@x.iam.gserviceaccount.com";
+  process.env.GOOGLE_PRIVATE_KEY = privateKey;
+
+  const { yuklemeOturumuAc } = await import("../lib/drive-yukleme.js");
+  const gercekFetch = globalThis.fetch;
+  let yuklemeBasliklari = null;
+
+  globalThis.fetch = async (url, opt = {}) => {
+    const u = String(url);
+    if (u.includes("oauth2.googleapis.com/token")) {
+      return { ok: true, status: 200, json: async () => ({ access_token: "jeton" }) };
+    }
+    if (u.includes("/upload/drive/")) {
+      yuklemeBasliklari = opt.headers || {};
+      return { ok: true, status: 200, headers: new Map([["location", "https://ornek/yukle"]]), json: async () => ({}) };
+    }
+    if (u.includes("drive/v3/files?q=")) {           // klasör arama
+      return { ok: true, status: 200, json: async () => ({ files: [{ id: "klasor1", name: "AĞUSTOS" }] }) };
+    }
+    return { ok: true, status: 200, json: async () => ({ id: "x" }) };
+  };
+
+  const cagir2 = (origin) => yuklemeOturumuAc({
+    markaKlasoru: "https://drive.google.com/drive/folders/1AbCdefGHIjklMNOpqrs",
+    markaAdi: "VIZZ", icerikAdi: "Test", versiyon: 1, orijinalAd: "a.mp4",
+    mimeTur: "video/mp4", boyut: 10, origin,
+  });
+
+  const s1 = await cagir2("https://marcus-os-iota.vercel.app");
+  t("oturum açıldı", s1.ok === true, s1.sebep || "");
+  t("geçerli Origin Google'a İLETİLİYOR",
+    !!yuklemeBasliklari && yuklemeBasliklari.Origin === "https://marcus-os-iota.vercel.app",
+    yuklemeBasliklari ? String(yuklemeBasliklari.Origin) : "istek yapılmadı");
+
+  yuklemeBasliklari = null;
+  await cagir2("javascript:kotu");
+  t("geçersiz Origin başlığa GİRMİYOR",
+    !!yuklemeBasliklari && yuklemeBasliklari.Origin === undefined,
+    yuklemeBasliklari ? String(yuklemeBasliklari.Origin) : "istek yapılmadı");
+
+  yuklemeBasliklari = null;
+  await cagir2("");
+  t("boş Origin başlığa girmiyor",
+    !!yuklemeBasliklari && yuklemeBasliklari.Origin === undefined);
+
+  globalThis.fetch = gercekFetch;
+}
+
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);
 if (k > 0) process.exitCode = 1;
