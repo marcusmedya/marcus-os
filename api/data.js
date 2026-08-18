@@ -6,6 +6,7 @@ import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, trK
 import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
 import { epostaGonder, revizeBildirimHtml } from "../lib/eposta.js";
 import { onaylananiTasi, DURUM_KLASORLERI, klasorDurumu } from "../lib/drive-tasima.js";
+import { dosyasizKontroleGirenleriGeriAl, medyaVarMi } from "../lib/asamalar.js";
 import { yuklemeOturumuAc, yuklemeyiTamamla, yuklenenDosyayiSil, yuklemeHazirMi } from "../lib/drive-yukleme.js";
 
 /** Bir kayıt (eski veri, yeni veri) arasındaki ÖNEMLİ değişiklikleri (müşteri/personel/üyelik
@@ -197,6 +198,12 @@ async function resolveRole(req) {
  * henüz ekibin çalışma alanındadır, sistemin oraya karışmaması gerekir.
  */
 const ASAMA_KLASORU = {
+  /* "… Yapıldı" aşamaları da ONAY BEKLEYENLER'e denk gelir: dosya zaten oraya yükleniyor.
+   * Aynı klasöre denk geldikleri için kart bu aşamalar arasında gezerken Drive'da hiçbir
+   * taşıma tetiklenmez — karşılaştırma aşamayı değil HEDEF KLASÖRÜ kıyaslıyor. */
+  "Edit Yapıldı": DURUM_KLASORLERI.onayBekleyen,
+  "Düzenleme Yapıldı": DURUM_KLASORLERI.onayBekleyen,
+  "Tasarım Yapıldı": DURUM_KLASORLERI.onayBekleyen,
   "Kontrol Bekliyor": DURUM_KLASORLERI.onayBekleyen,
   "Revize İstendi": DURUM_KLASORLERI.onayBekleyen,
   "Onaylandı": DURUM_KLASORLERI.onaylanan,
@@ -946,6 +953,10 @@ export default async function handler(req, res) {
         if (hedef.asama !== "Revize İstendi") {
           return { iptal: true, hata: "Bu kart revize aşamasında değil.", kod: 409 };
         }
+        if (!medyaVarMi(hedef)) {
+          return { iptal: true, kod: 400,
+            hata: "Bu karta dosya yüklenmemiş. Kontrole göndermek için önce video ya da görseli yükle." };
+        }
         const zaman = new Date().toLocaleString("tr-TR");
         return {
           veri: {
@@ -1041,6 +1052,13 @@ export default async function handler(req, res) {
           });
           // Bu kayıtta ne değişti (müşteri/personel/üyelik eklendi-silindi, durum değişti) —
           // İşlem Geçmişi defterine otomatik not düşülür. Son 200 kayıtla sınırlı tutulur.
+          /* DOSYASIZ KONTROLE ÇIKMA ENGELİ. Kaydın tamamını reddetmiyoruz — reddetmek aynı
+           * kayıttaki ilgisiz düzenlemeleri de çöpe atardı. Sadece kuralı delen kartın
+           * aşaması geri alınıyor ve sebebi kartın geçmişine yazılıyor. */
+          const duzeltilmis = dosyasizKontroleGirenleriGeriAl(
+            existing.cekimIsleri, merged.cekimIsleri, new Date().toLocaleString("tr-TR"));
+          if (duzeltilmis) merged.cekimIsleri = duzeltilmis;
+
           const yeniKayitlar = degisiklikleriTespitEt(existing, merged, staffName || "Personel");
           if (yeniKayitlar.length > 0) {
             merged.islemGecmisi = [...(existing.islemGecmisi || []), ...yeniKayitlar].slice(-200);
@@ -1144,6 +1162,12 @@ export default async function handler(req, res) {
         // bir artırma işini guvenliYaz yapıyor, böylece tüm uç noktalarda tek bir kural var.
         _v: (existingFull && typeof existingFull._v === "number" ? existingFull._v : 0),
       };
+      /* Dosyasız kontrole çıkma engeli yöneticide de geçerli — kural kime ait olduğuna göre
+       * değişmiyor. Müşteriye bakacak bir şey olmadan kart düşmesin. */
+      const duzeltilmisIsler = dosyasizKontroleGirenleriGeriAl(
+        existingFull && existingFull.cekimIsleri, finalData.cekimIsleri, new Date().toLocaleString("tr-TR"));
+      if (duzeltilmisIsler) finalData.cekimIsleri = duzeltilmisIsler;
+
       // Bu kayıtta ne değişti (müşteri/personel/üyelik eklendi-silindi, durum değişti) —
       // İşlem Geçmişi defterine otomatik not düşülür. Son 200 kayıtla sınırlı tutulur.
       const yeniKayitlar = degisiklikleriTespitEt(existingFull, finalData, "Yönetici (CEO)");
