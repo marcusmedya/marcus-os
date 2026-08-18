@@ -4,7 +4,7 @@ import { fmt, T, authHeaders } from "./tema.jsx";
 import {
   Camera, Plus, X, Clock, AlertTriangle, CheckCircle2, User, Link2,
   MessageSquare, History, ChevronRight, ChevronLeft, Pencil, Trash2, LayoutGrid, BarChart3, ListTodo, Rocket,
-  Download, Wallet,
+  Download, Wallet, UploadCloud, Film, Image as ImageIcon, ExternalLink, Loader2,
 } from "lucide-react";
 
 /* ------------------------------------------------------------------ */
@@ -458,6 +458,211 @@ function YeniIsFormu({ clients, personelRosteri, varsayilanKategori, onSubmit, o
 /* ------------------------------------------------------------------ */
 /* İş Detay Modalı                                                       */
 /* ------------------------------------------------------------------ */
+/**
+ * KART İÇİ MEDYA: yükleme, önizleme, versiyon geçmişi.
+ *
+ * AMAÇ: personel Drive'a hiç girmesin. Dosyayı buradan yükler, buradan izler, revize gelirse
+ * buradan yeni versiyon atar. Drive arka planda arşiv olarak kalır.
+ *
+ * DOSYA SUNUCUDAN GEÇMEZ: sunucudan yalnızca bir yükleme adresi alınır, baytlar tarayıcıdan
+ * doğrudan Google'a gider. Vercel'in ~4.5 MB istek sınırı bu yüzden devrede değil — 80 MB'lık
+ * bir Reels videosu sorunsuz yüklenir.
+ */
+function MedyaYukleyici({ job, onYuklendi, duzenlenebilir }) {
+  const medya = useMemo(
+    () => [...(job.medya || [])].sort((a, b) => (Number(b.versiyon) || 0) - (Number(a.versiyon) || 0)),
+    [job.medya],
+  );
+  const guncel = medya[0] || null;
+  const eskiler = medya.slice(1);
+
+  const [durum, setDurum] = useState("bos");      // bos | hazirlaniyor | yukleniyor | bitiyor | hata
+  const [yuzde, setYuzde] = useState(0);
+  const [hata, setHata] = useState("");
+  const [gecmisAcik, setGecmisAcik] = useState(false);
+  const girdiRef = React.useRef(null);
+
+  const meshgul = durum === "hazirlaniyor" || durum === "yukleniyor" || durum === "bitiyor";
+
+  async function dosyaSecildi(e) {
+    const dosya = e.target.files && e.target.files[0];
+    e.target.value = "";                            // aynı dosya tekrar seçilebilsin
+    if (!dosya) return;
+    setHata(""); setYuzde(0); setDurum("hazirlaniyor");
+
+    try {
+      // 1) Sunucudan yükleme adresi al (hedef klasörü o hazırlıyor)
+      const basla = await fetch("/api/data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({
+          driveAction: "yuklemeBasla", isId: job.id,
+          dosyaAdi: dosya.name, mimeTur: dosya.type, boyut: dosya.size,
+        }),
+      }).then((r) => r.json());
+      if (!basla.ok) throw new Error(basla.error || "Yükleme başlatılamadı.");
+
+      // 2) Baytları DOĞRUDAN Google'a gönder. XMLHttpRequest kullanılıyor çünkü fetch
+      //    yükleme ilerlemesini bildirmiyor — ilerleme çubuğu olmadan kullanıcı 80 MB'lık
+      //    bir videoda donmuş sanıyor.
+      setDurum("yukleniyor");
+      const dosyaId = await new Promise((coz, red) => {
+        const x = new XMLHttpRequest();
+        x.open("PUT", basla.yuklemeUrl, true);
+        x.setRequestHeader("Content-Type", dosya.type || "application/octet-stream");
+        x.upload.onprogress = (ev) => {
+          if (ev.lengthComputable) setYuzde(Math.round((ev.loaded / ev.total) * 100));
+        };
+        x.onload = () => {
+          if (x.status >= 200 && x.status < 300) {
+            try { coz(JSON.parse(x.responseText).id); }
+            catch (err) { red(new Error("Google beklenmedik bir yanıt döndü.")); }
+          } else {
+            red(new Error(`Yükleme başarısız (HTTP ${x.status}).`));
+          }
+        };
+        x.onerror = () => red(new Error("Bağlantı koptu, yükleme tamamlanamadı."));
+        x.onabort = () => red(new Error("Yükleme iptal edildi."));
+        x.send(dosya);
+      });
+
+      // 3) Sunucuya bildir: servis hesabına yetki verilir, kart güncellenir
+      setDurum("bitiyor"); setYuzde(100);
+      const bitti = await fetch("/api/data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ driveAction: "yuklemeBitti", isId: job.id, dosyaId }),
+      }).then((r) => r.json());
+      if (!bitti.ok) throw new Error(bitti.error || "Kayıt tamamlanamadı.");
+
+      /* Kayıt uygulamanın NORMAL akışından geçiyor (onUpdate), sunucu kendi başına yazmıyor.
+       * Sebebi: sunucu ikinci bir yazma yaparsa sürüm sayacı artar, tarayıcı geride kalır ve
+       * sonraki kayıt sahte çakışmayla kullanıcının düzenlemesini siler. Bu hata bu projede
+       * bir kez yaşandı. */
+      const yeniKayit = {
+        versiyon: basla.versiyon,
+        dosyaId: bitti.dosya.dosyaId,
+        ad: bitti.dosya.ad,
+        mimeTur: bitti.dosya.mimeTur,
+        boyut: bitti.dosya.boyut,
+        url: bitti.dosya.url,
+        tarih: new Date().toISOString(),
+      };
+      setDurum("bos"); setYuzde(0);
+      if (onYuklendi) onYuklendi(yeniKayit);
+    } catch (e) {
+      setDurum("hata");
+      setHata(String(e.message || e));
+    }
+  }
+
+  const videoMu = (m) => String(m && m.mimeTur || "").startsWith("video/");
+  const gorselMi = (m) => String(m && m.mimeTur || "").startsWith("image/");
+  const onizlemeUrl = (m) => `https://drive.google.com/file/d/${m.dosyaId}/preview`;
+
+  const etiket = {
+    hazirlaniyor: "Hazırlanıyor…",
+    yukleniyor: `Yükleniyor… %${yuzde}`,
+    bitiyor: "Tamamlanıyor…",
+  }[durum];
+
+  return (
+    <div style={{ marginBottom: 16 }}>
+      {/* ---- GÜNCEL MEDYA ---- */}
+      {guncel ? (
+        <div style={{ background: C.panelAlt, borderRadius: 10, padding: 12, marginBottom: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+            {videoMu(guncel) ? <Film size={14} color={C.accentText} /> : <ImageIcon size={14} color={C.accentText} />}
+            <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Güncel Versiyon: V{guncel.versiyon}</span>
+            <span style={{ fontSize: 12, color: C.textDim }}>{guncel.ad}</span>
+            <a href={guncel.url} target="_blank" rel="noreferrer"
+               style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: C.textDim, textDecoration: "none" }}>
+              <ExternalLink size={12} /> Drive'da Aç
+            </a>
+          </div>
+          {/* Önizleme dosya KİMLİĞİNDEN üretiliyor, klasör yolundan değil — dosya başka
+              klasöre taşınsa bile önizleme bozulmaz. */}
+          <iframe
+            title={`medya-${guncel.dosyaId}`}
+            src={onizlemeUrl(guncel)}
+            allow="autoplay; fullscreen"
+            style={{
+              width: "100%", height: videoMu(guncel) ? 380 : 300,
+              border: "none", borderRadius: 8, background: "#000",
+            }}
+          />
+        </div>
+      ) : (
+        <div style={{ background: C.panelAlt, borderRadius: 10, padding: 16, marginBottom: 10, textAlign: "center" }}>
+          <span style={{ fontSize: 13, color: C.textDim }}>Henüz medya yüklenmedi.</span>
+        </div>
+      )}
+
+      {/* ---- YÜKLEME ---- */}
+      {duzenlenebilir && (
+        <div>
+          <input ref={girdiRef} type="file" accept="video/*,image/*" onChange={dosyaSecildi} style={{ display: "none" }} />
+          {meshgul ? (
+            <div style={{ background: C.panelAlt, borderRadius: 10, padding: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <Loader2 size={14} color={C.accentText} />
+                <span style={{ fontSize: 13, color: C.text }}>{etiket}</span>
+              </div>
+              <div style={{ height: 6, background: C.border, borderRadius: 3, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${yuzde}%`, background: C.accentText, transition: "width .2s" }} />
+              </div>
+              <div style={{ fontSize: 11, color: C.textDim, marginTop: 6 }}>
+                Sekmeyi kapatma — yükleme tamamlanmadan çıkarsan dosya kaydedilmez.
+              </div>
+            </div>
+          ) : (
+            <button style={{ ...btnPrimary, display: "flex", alignItems: "center", gap: 6 }}
+                    onClick={() => girdiRef.current && girdiRef.current.click()}>
+              <UploadCloud size={14} /> {guncel ? "Yeni Versiyon Yükle" : "Video / Görsel Yükle"}
+            </button>
+          )}
+          {durum === "hata" && (
+            <div style={{ marginTop: 8, background: C.dangerSoft, border: `1px solid ${C.danger}`, borderRadius: 8, padding: 10 }}>
+              <div style={{ fontSize: 12, color: C.danger, fontWeight: 600, marginBottom: 4 }}>Yükleme tamamlanamadı</div>
+              <div style={{ fontSize: 12, color: C.text }}>{hata}</div>
+              <button style={{ ...btnGhost, marginTop: 8 }} onClick={() => { setDurum("bos"); setHata(""); }}>Tekrar dene</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ---- VERSİYON GEÇMİŞİ ---- */}
+      {eskiler.length > 0 && (
+        <div style={{ marginTop: 10 }}>
+          <button style={{ ...btnGhost, fontSize: 12 }} onClick={() => setGecmisAcik((a) => !a)}>
+            Versiyon Geçmişi ({eskiler.length})
+          </button>
+          {gecmisAcik && (
+            <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+              {eskiler.map((m) => (
+                <div key={m.dosyaId}
+                     style={{ display: "flex", alignItems: "center", gap: 8, background: C.panelAlt,
+                              borderRadius: 8, padding: "8px 10px", fontSize: 12, flexWrap: "wrap" }}>
+                  <span style={{ fontWeight: 600, color: C.text }}>V{m.versiyon}</span>
+                  <span style={{ color: C.textDim }}>{m.ad}</span>
+                  <span style={{ color: C.textDim }}>
+                    {m.tarih ? new Date(m.tarih).toLocaleDateString("tr-TR") : ""}
+                    {m.yukleyen ? ` · ${m.yukleyen}` : ""}
+                  </span>
+                  <a href={m.url} target="_blank" rel="noreferrer"
+                     style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, color: C.accentText, textDecoration: "none" }}>
+                    <ExternalLink size={12} /> Aç
+                  </a>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose, onUpdate, onDelete, kilitleyen, markaYoneticisiMi, firmaAdi, ucretDetayi, onSaveUcretDetayi }) {
   const [yorum, setYorum] = useState("");
   const [revizeMetni, setRevizeMetni] = useState("");
@@ -676,6 +881,22 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
                 <div style={{ fontSize: 13, color: C.text }}>{job.revizeAciklamasi}</div>
               </div>
             )}
+
+            {/* KART İÇİ MEDYA — asıl çalışma alanı burası.
+                Personel dosyayı buradan yükler, buradan izler, revize gelirse buradan yeni
+                versiyon atar. Aşağıdaki bağlantı alanları ikincil kaldı: Drive dışındaki
+                kaynaklar (WeTransfer) ve eski kartlar için duruyor. */}
+            <MedyaYukleyici
+              job={job}
+              duzenlenebilir={duzenleyebilirMi(job, role, staffName) && !kilitleyen}
+              onYuklendi={(yeni) => onUpdate(job.id, {
+                medya: [...(job.medya || []), yeni],
+                /* Güncel versiyonun bağlantısı burada da tutuluyor: taşıma, müşteri paneli ve
+                 * eski önizlemeler hâlâ bu alana bakıyor. */
+                editliDosyaLink: yeni.url,
+                gecmis: logKaydet(`V${yeni.versiyon} yüklendi: ${yeni.ad}`),
+              })}
+            />
 
             <div style={{ marginBottom: 16 }}>
               {dosyaDuzenle ? (
