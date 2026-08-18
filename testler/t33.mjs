@@ -49,8 +49,20 @@ let d = await kv.get("marcus-os-data");
 t("kayıt başarılı", r.kod === 200, `HTTP ${r.kod}`);
 t("aşama Teslim Edildi olarak kaydedildi", d.cekimIsleri[0].asama === "Teslim Edildi");
 t("GEÇMİŞE DRIVE NOTU DÜŞTÜ (sessiz kalmadı)", notlar(d).includes("Drive"), notlar(d).slice(0, 90));
+
+/* SÜRÜM SAYACI — BU BİR KEZ VERİ KAYBI ÜRETTİ.
+ * Not düşmek ikinci bir yazmadır ve _v'yi bir daha artırır. Yanıt eski _v'yi döndürürse
+ * tarayıcı bir tur geride kalır, sonraki kayıt sahte staleConflict alır ve ön yüz
+ * kullanıcının o anki düzenlemesini sunucu verisiyle EZER. */
+t("yanıttaki _v, KV'deki _v ile AYNI", r.govde._v === d._v, `yanıt ${r.govde._v} / KV ${d._v}`);
+
+const duzenleme = { ...d, clients: [{ ...d.clients[0], aylikUcret: 42000 }] };
+const r2 = await cagir(h, { method: "POST", headers: OWNER, query: {}, body: { data: duzenleme, _v: r.govde._v } });
+const d2 = await kv.get("marcus-os-data");
+t("sonraki kayıt sahte çakışma ALMADI", r2.kod === 200, `HTTP ${r2.kod}${r2.govde.staleConflict ? " staleConflict" : ""}`);
+t("kullanıcının düzenlemesi KAYBOLMADI", d2.clients[0].aylikUcret === 42000);
 t("kilit serbest kaldı (sonraki kayıt geçiyor)",
-  (await cagir(h, { method: "POST", headers: OWNER, query: {}, body: { data: { ...d }, _v: d._v } })).kod === 200);
+  (await cagir(h, { method: "POST", headers: OWNER, query: {}, body: { data: { ...d2 }, _v: d2._v } })).kod === 200);
 
 /* ---- 2. PERSONEL YOLU: eskiden çalışan taraf bozulmadı mı ---- */
 console.log("\n Personel kaydı");

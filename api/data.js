@@ -196,7 +196,15 @@ async function teslimEdilenleriTasi(oncekiVeri, sonrakiVeri) {
   );
   if (yeniler.length === 0) return [];
   const sonuclar = [];
+  /* TOPLAM SÜRE SINIRI. Taşıma, kaydın yanıtı gönderilmeden önce çalışıyor; tek tek çağrılar
+   * sınırlı olsa da aynı anda 10 iş teslim edilirse toplam süre yine kabul edilemez olur.
+   * Süre dolunca kalanlar taşınmaz ama SESSİZ KALINMAZ — sebep geçmişe yazılır. */
+  const BITIS = Date.now() + 20000;
   for (const is of yeniler) {
+    if (Date.now() > BITIS) {
+      sonuclar.push({ isId: is.id, tasindi: false, sebep: "süre sınırı doldu, bu iş taşınmadı" });
+      continue;
+    }
     const link = is.editliDosyaLink || is.dosyaLinki || is.hamDosyaLink || "";
     /* Bağlantı yokken SESSİZ KALMA. Eskiden burada `continue` vardı: taşıma denenmiyor ve
      * geçmişe hiçbir not düşülmüyordu. Kullanıcı "neden taşınmadı" sorusunun cevabını
@@ -226,13 +234,20 @@ async function teslimEdilenleriTasi(oncekiVeri, sonrakiVeri) {
  * KİLİT UYARISI: guvenliGuncelle kendi yazma kilidini alır. Bu yüzden bu fonksiyon ASLA
  * açık bir kilidin içinden çağrılmamalıdır — çağrılırsa kilit alınamaz ve not düşülemez.
  *
+ * SÜRÜM UYARISI — BURASI VERİ KAYBI ÜRETMİŞTİ: not düşmek İKİNCİ bir yazmadır ve _v sayacını
+ * bir daha artırır. Çağıran taraf yanıtta hâlâ ilk yazmanın _v'sini döndürürse, tarayıcı bir
+ * tur geride kalır; sonraki kayıt sahte "staleConflict" alır ve ön yüz kullanıcının o anki
+ * düzenlemesini sunucu verisiyle ezer. Bu yüzden yazılan SON hâl döndürülür ve yanıtta onun
+ * _v'si kullanılmalıdır.
+ *
  * ASLA HATA FIRLATMAZ: taşıma da not düşme de başarısız olsa asıl kayıt geçerli kalır.
+ * Not düşülmediyse null döner — o zaman çağıranın elindeki _v zaten günceldir.
  */
 async function tasimalariIsleVeNotDus(oncekiVeri, sonrakiVeri) {
   try {
     const tasimalar = await teslimEdilenleriTasi(oncekiVeri || {}, sonrakiVeri || {});
-    if (tasimalar.length === 0) return;
-    await guvenliGuncelle((guncel) => ({
+    if (tasimalar.length === 0) return null;
+    const notSonucu = await guvenliGuncelle((guncel) => ({
       veri: {
         ...guncel,
         cekimIsleri: (guncel.cekimIsleri || []).map((j) => {
@@ -249,8 +264,10 @@ async function tasimalariIsleVeNotDus(oncekiVeri, sonrakiVeri) {
         }),
       },
     }));
+    return notSonucu && notSonucu.ok ? notSonucu.veri : null;
   } catch (e) {
     /* Taşıma ya da not düşme çökerse kaydın kendisi zarar görmemeli. */
+    return null;
   }
 }
 
@@ -888,8 +905,12 @@ export default async function handler(req, res) {
 
         /* Kayıt başarılıysa "Teslim Edildi"ye yeni geçen işlerin dosyalarını taşı.
          * Taşıma sonucu iş geçmişine not düşülür; taşıma başarısız olsa da kayıt geçerli. */
+        /* Not düşme ikinci bir yazmadır ve _v'yi artırır — yanıtta MUTLAKA son _v
+         * dönmeli, yoksa tarayıcı bir tur geride kalır ve sonraki kayıt sahte
+         * çakışmayla kullanıcının düzenlemesini siler. */
+        let staffSonHal = sonuc.veri;
         if (sonuc.ok) {
-          await tasimalariIsleVeNotDus(sonuc.oncekiVeri, sonuc.veri);
+          staffSonHal = (await tasimalariIsleVeNotDus(sonuc.oncekiVeri, sonuc.veri)) || sonuc.veri;
         }
 
         if (!sonuc.ok) {
@@ -902,7 +923,7 @@ export default async function handler(req, res) {
           }
           return res.status(sonuc.kod || 400).json({ error: sonuc.hata || "Kayıt yapılamadı." });
         }
-        return res.status(200).json({ ok: true, _v: sonuc.veri._v });
+        return res.status(200).json({ ok: true, _v: staffSonHal._v });
       }
 
       // Owner kaydı da artık kilit altında: okuma, çakışma kontrolü, güvenlik freni ve
@@ -1012,9 +1033,9 @@ export default async function handler(req, res) {
       /* KİLİT BIRAKILDI — taşıma ve not düşme burada yapılır.
        * Yanıttan ÖNCE çalışır: yanıt gönderildikten sonra sunucu fonksiyonu donabilir ve
        * arkada kalan iş hiç bitmeyebilir. */
-      await tasimalariIsleVeNotDus(ownerOncekiVeri, ownerYazilanVeri);
+      const ownerSonHal = (await tasimalariIsleVeNotDus(ownerOncekiVeri, ownerYazilanVeri)) || ownerYazilanVeri;
 
-      return res.status(200).json({ ok: true, _v: ownerYazilanVeri._v });
+      return res.status(200).json({ ok: true, _v: ownerSonHal._v });
     }
 
     return res.status(405).json({ error: "Sadece GET/POST kabul edilir." });
