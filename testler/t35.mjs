@@ -21,10 +21,11 @@ const PERSONEL = { "x-staff-username-b64": b64("e"), "x-staff-password-b64": b64
 let g = 0, k = 0;
 const t = (ad, ok, d = "") => { console.log(`  ${ok ? "✓" : "✗ !!!"} ${ad}${d ? " — " + d : ""}`); ok ? g++ : k++; };
 const { default: h } = await import("../api/data.js");
-const { medyaVarMi, yuklemeAsamasi, dosyasizKontroleGirenleriGeriAl } = await import("../lib/asamalar.js");
+const { medyaVarMi, yapiliyorAsamasi, asamaKarsiligi, asamalariDuzelt, dosyasizKontroleGirenleriGeriAl } =
+  await import("../lib/asamalar.js");
 
 const IS = (ek = {}) => ({ id: 7, marka: "VIZZ", kategori: "Video", icerikTuru: "Reels",
-  asama: "Edit Yapıldı", editor: "Editör", gecmis: [], ...ek });
+  asama: "Edit Yapılıyor", editor: "Editör", gecmis: [], ...ek });
 
 const VERI = (isler) => ({
   _v: 1,
@@ -45,10 +46,10 @@ t("yüklenmiş medya sayılıyor", medyaVarMi(IS({ medya: [{ versiyon: 1, dosyaI
 t("elle yapıştırılan bağlantı da sayılıyor", medyaVarMi(IS({ editliDosyaLink: "https://x/y" })) === true,
   "WeTransfer ve eski kartlar bu alanı kullanıyor");
 t("boş medya dizisi yetmiyor", medyaVarMi(IS({ medya: [] })) === false);
-t("video yükleme aşaması", yuklemeAsamasi("Video") === "Edit Yapıldı", yuklemeAsamasi("Video"));
-t("fotoğraf yükleme aşaması", yuklemeAsamasi("Fotoğraf") === "Düzenleme Yapıldı", yuklemeAsamasi("Fotoğraf"));
-t("tasarım yükleme aşaması", yuklemeAsamasi("Grafik Tasarım") === "Tasarım Yapıldı", yuklemeAsamasi("Grafik Tasarım"));
-t("kategorisiz eski kayıt video akışını kullanıyor", yuklemeAsamasi(undefined) === "Edit Yapıldı");
+t("video çalışma aşaması", yapiliyorAsamasi("Video") === "Edit Yapılıyor", yapiliyorAsamasi("Video"));
+t("fotoğraf çalışma aşaması", yapiliyorAsamasi("Fotoğraf") === "Düzenleniyor", yapiliyorAsamasi("Fotoğraf"));
+t("tasarım çalışma aşaması", yapiliyorAsamasi("Grafik Tasarım") === "Tasarım Yapılıyor", yapiliyorAsamasi("Grafik Tasarım"));
+t("kategorisiz eski kayıt video akışını kullanıyor", yapiliyorAsamasi(undefined) === "Edit Yapılıyor");
 
 /* ---- 2. YÖNETİCİ KAYDI ---- */
 console.log("\n Yönetici kaydı");
@@ -56,7 +57,7 @@ await kv.set("marcus-os-data", VERI([IS()]));
 let r = await cagri(OWNER, { data: { ...VERI([IS({ asama: "Kontrol Bekliyor" })]), _v: undefined }, _v: 1 });
 let d = await kv.get("marcus-os-data");
 t("kayıt REDDEDİLMİYOR", r.kod === 200, `HTTP ${r.kod}`);
-t("dosyasız kart kontrole geçemiyor", d.cekimIsleri[0].asama === "Edit Yapıldı", d.cekimIsleri[0].asama);
+t("dosyasız kart kontrole geçemiyor", d.cekimIsleri[0].asama === "Edit Yapılıyor", d.cekimIsleri[0].asama);
 t("sebebi kartın geçmişine yazılıyor",
   (d.cekimIsleri[0].gecmis || []).some((x) => /yüklenmediği için/i.test(x.aciklama || "")),
   JSON.stringify(d.cekimIsleri[0].gecmis));
@@ -82,7 +83,7 @@ r = await cagri(OWNER, { data: VERI([
   IS({ id: 8, icerikTuru: "Story", oncelik: "Yüksek" }),   // ilgisiz düzenleme
 ]), _v: 1 });
 d = await kv.get("marcus-os-data");
-t("kuralı delen kart geri alındı", d.cekimIsleri[0].asama === "Edit Yapıldı", d.cekimIsleri[0].asama);
+t("kuralı delen kart geri alındı", d.cekimIsleri[0].asama === "Edit Yapılıyor", d.cekimIsleri[0].asama);
 t("aynı kayıttaki ilgisiz düzenleme KORUNDU", d.cekimIsleri[1].oncelik === "Yüksek", String(d.cekimIsleri[1].oncelik));
 
 /* ---- 4. PERSONEL KAYDI ---- */
@@ -90,7 +91,7 @@ console.log("\n Personel kaydı");
 await kv.set("marcus-os-data", VERI([IS()]));
 r = await cagri(PERSONEL, { data: { cekimIsleri: [IS({ asama: "Kontrol Bekliyor" })] }, _v: 1 });
 d = await kv.get("marcus-os-data");
-t("personel de dosyasız kontrole çıkaramıyor", d.cekimIsleri[0].asama === "Edit Yapıldı", d.cekimIsleri[0].asama);
+t("personel de dosyasız kontrole çıkaramıyor", d.cekimIsleri[0].asama === "Edit Yapılıyor", d.cekimIsleri[0].asama);
 
 await kv.set("marcus-os-data", VERI([IS()]));
 r = await cagri(PERSONEL, { data: { cekimIsleri: [IS({ asama: "Kontrol Bekliyor", editliDosyaLink: "https://x/y" })] }, _v: 1 });
@@ -102,7 +103,7 @@ console.log("\n Yeni kart");
 await kv.set("marcus-os-data", VERI([]));
 r = await cagri(OWNER, { data: VERI([IS({ id: 99, asama: "Kontrol Bekliyor" })]), _v: 1 });
 d = await kv.get("marcus-os-data");
-t("dosyasız yeni kart kontrolde başlayamıyor", d.cekimIsleri[0].asama === "Edit Yapıldı", d.cekimIsleri[0].asama);
+t("dosyasız yeni kart kontrolde başlayamıyor", d.cekimIsleri[0].asama === "Edit Yapılıyor", d.cekimIsleri[0].asama);
 
 /* ---- 6. ÇÖZÜM ORTAĞI UCU ---- */
 console.log("\n Çözüm ortağı 'revizeyi tamamla' ucu");
@@ -135,12 +136,46 @@ console.log("\n Geri alınan kart nereye düşüyor");
 
   const yeni = dosyasizKontroleGirenleriGeriAl(
     [], [{ id: 2, asama: "Kontrol Bekliyor", kategori: "Grafik Tasarım" }], zaman);
-  t("öncesi olmayan kart kategorisinin yükleme aşamasına düşüyor",
-    yeni && yeni[0].asama === "Tasarım Yapıldı", yeni && yeni[0].asama);
+  t("öncesi olmayan kart kategorisinin çalışma aşamasına düşüyor",
+    yeni && yeni[0].asama === "Tasarım Yapılıyor", yeni && yeni[0].asama);
+
+  /* Kaldırılmış aşamadan gelen kart, geri alınırken oraya DÖNMEMELİ — o aşama artık
+   * hiçbir sütuna denk gelmiyor, kart panoda kaybolurdu. */
+  const eskiden = dosyasizKontroleGirenleriGeriAl(
+    [{ id: 4, asama: "Edit Yapıldı" }],
+    [{ id: 4, asama: "Kontrol Bekliyor", kategori: "Video" }], zaman);
+  t("kaldırılmış aşamaya geri dönülmüyor", eskiden && eskiden[0].asama === "Edit Yapılıyor",
+    eskiden && eskiden[0].asama);
 
   t("kural sağlanıyorsa hiç dokunulmuyor",
     dosyasizKontroleGirenleriGeriAl([], [{ id: 3, asama: "Kontrol Bekliyor", medya: [{ dosyaId: "a" }] }], zaman) === null);
 }
+
+/* ---- 8. KALDIRILAN AŞAMADA KALMIŞ KARTLAR ----
+ *
+ * "… Yapıldı" sütunu bir süre yayındaydı; kartlar orada birikmiş olabilir. Aşama adı artık
+ * hiçbir sütuna denk gelmediği için o kartlar PANODA HİÇ GÖRÜNMEZ — kullanıcı için "iş
+ * kayboldu" demektir. Sessiz ve geri dönüşü zor bir hata; testi olmadan fark edilmez. */
+console.log("\n Kaldırılan aşamada kalmış kartlar");
+t("Edit Yapıldı -> Edit Yapılıyor", asamaKarsiligi("Edit Yapıldı") === "Edit Yapılıyor", asamaKarsiligi("Edit Yapıldı"));
+t("Düzenleme Yapıldı -> Düzenleniyor", asamaKarsiligi("Düzenleme Yapıldı") === "Düzenleniyor", asamaKarsiligi("Düzenleme Yapıldı"));
+t("Tasarım Yapıldı -> Tasarım Yapılıyor", asamaKarsiligi("Tasarım Yapıldı") === "Tasarım Yapılıyor", asamaKarsiligi("Tasarım Yapıldı"));
+t("geçerli aşamalara dokunulmuyor", asamaKarsiligi("Kontrol Bekliyor") === "Kontrol Bekliyor");
+t("değişiklik yoksa AYNI dizi dönüyor (gereksiz kayıt olmasın)", (() => {
+  const liste = [{ id: 1, asama: "Kontrol Bekliyor" }];
+  return asamalariDuzelt(liste) === liste;
+})());
+
+await kv.set("marcus-os-data", VERI([IS({ asama: "Edit Yapıldı", medya: [{ versiyon: 1, dosyaId: "a" }] })]));
+r = await cagri(OWNER, { data: VERI([IS({ asama: "Edit Yapıldı", medya: [{ versiyon: 1, dosyaId: "a" }] })]), _v: 1 });
+d = await kv.get("marcus-os-data");
+t("kayıtta aşama kendiliğinden düzeliyor", d.cekimIsleri[0].asama === "Edit Yapılıyor", d.cekimIsleri[0].asama);
+t("kartın dosyası korunuyor", (d.cekimIsleri[0].medya || []).length === 1);
+
+await kv.set("marcus-os-data", VERI([IS({ asama: "Edit Yapıldı" })]));
+r = await cagri(PERSONEL, { data: { cekimIsleri: [IS({ asama: "Edit Yapıldı" })] }, _v: 1 });
+d = await kv.get("marcus-os-data");
+t("personel kaydında da düzeliyor", d.cekimIsleri[0].asama === "Edit Yapılıyor", d.cekimIsleri[0].asama);
 
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);
 if (k > 0) process.exitCode = 1;
