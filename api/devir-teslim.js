@@ -1,6 +1,7 @@
 import { kv } from "@vercel/kv";
 import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
 import { trKucult } from "../lib/marka-kilidi.js";
+import { gonderenAdres } from "../lib/eposta.js";
 
 const KEY = "marcus-os-data";
 
@@ -109,7 +110,7 @@ export default async function handler(req, res) {
       method: "POST",
       headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: "Marcus Medya App <bildirim@marcusmedya.com>",
+        from: gonderenAdres(),
         to: [email],
         subject: `${baslik} — ${marka || ""}`,
         html,

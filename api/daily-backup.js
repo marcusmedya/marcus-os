@@ -1,5 +1,6 @@
 import { kv } from "@vercel/kv";
 import { ownerYetkiliMi } from "../lib/oturum.js";
+import { gonderenAdres } from "../lib/eposta.js";
 const bugunISO = () => {
   const parcalar = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
   const y = parcalar.find((p) => p.type === "year").value;
@@ -62,7 +63,7 @@ export default async function handler(req, res) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: "Marcus Medya App <bildirim@marcusmedya.com>",
+        from: gonderenAdres(),
         to: alicilar,
         subject: `Marcus Medya App Günlük Yedek — ${today}`,
         text: `Merhaba,\n\nEkte ${today} tarihli Marcus Medya App tam veri yedeğin bulunuyor. Bu e-postayı ve ekindeki dosyayı sakla — bir sorun olursa Ayarlar sayfasından bu dosyayı geri yükleyebilirsin.\n\nÖNEMLİ: Bu dosya, verinin veritabanı DIŞINDAKİ tek kopyasıdır. Ayda bir tanesini bilgisayarına ya da buluta indirip saklaman, veritabanı hesabında bir sorun çıkması ihtimaline karşı en güçlü korumadır.\n\nMarcus Medya App`,
@@ -80,7 +81,7 @@ export default async function handler(req, res) {
           method: "POST",
           headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
           body: JSON.stringify({
-            from: "Marcus Medya App <bildirim@marcusmedya.com>",
+            from: gonderenAdres(),
             to: alicilar,
             subject: `📦 HAFTALIK ARŞİV — Marcus Medya App (${today}) — SAKLA`,
             text: `Bu haftalık arşiv kopyasıdır. Bu e-postayı SİLME — ayrı bir klasöre taşıyıp sakla.\n\nGünlük yedekler posta kutusunda birikip kayboluyor; bu kopya bilinçli olarak arşivlenmek için gönderiliyor. Veritabanı hesabında bir sorun çıkarsa geri dönebileceğin nokta budur.\n\nMarcus Medya App`,
