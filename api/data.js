@@ -5,11 +5,11 @@ import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, t
 import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, trKucult, markaEslestirici } from "../lib/marka-kilidi.js";
 import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
 import { epostaGonder, revizeBildirimHtml } from "../lib/eposta.js";
-import { onaylananiTasi, DURUM_KLASORLERI, klasorDurumu } from "../lib/drive-tasima.js";
+import { onaylananiTasi, DURUM_KLASORLERI, klasorDurumu, driveDosyaIdCikar } from "../lib/drive-tasima.js";
 import { dosyasizKontroleGirenleriGeriAl, medyaVarMi, asamalariDuzelt } from "../lib/asamalar.js";
 import { epostaGonderAyrintili, gonderenAdres } from "../lib/eposta.js";
 import { onaylananlaraGoreStok } from "../lib/stok.js";
-import { yuklemeOturumuAc, yuklemeyiTamamla, yuklenenDosyayiSil, yuklemeHazirMi } from "../lib/drive-yukleme.js";
+import { yuklemeOturumuAc, yuklemeyiTamamla, yuklenenDosyayiSil, yuklemeHazirMi, kucukResimGetir } from "../lib/drive-yukleme.js";
 
 /** Bir kayıt (eski veri, yeni veri) arasındaki ÖNEMLİ değişiklikleri (müşteri/personel/üyelik
  * ekleme-silme, müşteri durum değişikliği) otomatik tespit edip okunabilir işlem geçmişi
@@ -519,7 +519,13 @@ export default async function handler(req, res) {
         staffPerms ? { ...DEFAULT_PERMS, ...staffPerms } : { ...DEFAULT_PERMS, ...(veri.staffPermissions || {}) },
         Array.isArray(staffMarkalar) && staffMarkalar.length > 0,
       );
-      if (perms.cekimEdit !== true) return res.status(403).json({ error: "Yetkin yok." });
+      /* Küçük resim PAYLAŞIM panelinden de isteniyor: marka yöneticisinin cekimEdit izni
+       * olmayabilir ama paylaşacağı içeriği görmesi gerekiyor. Diğer tüm Drive işlemleri
+       * (yükleme, iptal) kart üzerinde çalışmayı gerektirdiği için cekimEdit istiyor. */
+      const yeter = driveAction === "kucukResim"
+        ? (perms.cekimEdit === true || perms.paylasimlar === true)
+        : perms.cekimEdit === true;
+      if (!yeter) return res.status(403).json({ error: "Yetkin yok." });
       izinli = Array.isArray(staffMarkalar) ? staffMarkalar : [];
     }
     /* KLASÖR DURUM RAPORU — iş kartı gerektirmez, bu yüzden kart aramasından ÖNCE.
@@ -547,6 +553,27 @@ export default async function handler(req, res) {
     if (!is) return res.status(404).json({ error: "İş kartı bulunamadı." });
     if (role === "staff" && izinli.length > 0 && !izinli.some((m) => trKucult(m) === trKucult(is.marka))) {
       return res.status(403).json({ error: "Bu markaya erişim yetkin yok." });
+    }
+
+    /* KARTIN KÜÇÜK RESMİ.
+     *
+     * Kart kimliğiyle isteniyor, dosya kimliğiyle DEĞİL — böylece istenen her Drive dosyası
+     * değil, yalnızca kullanıcının erişebildiği kartın dosyası getirilebiliyor. Marka kilidi
+     * kontrolü yukarıda zaten yapıldı.
+     *
+     * Kartta dosya yoksa AÇIKÇA söyleniyor. "Önizleme çıkmıyor" ile "bu kartta dosya yok"
+     * bambaşka iki durum; ikisini aynı boş kutuyla göstermek kullanıcıyı olmayan bir
+     * arızayla uğraştırır. */
+    if (driveAction === "kucukResim") {
+      const medya = Array.isArray(is.medya) ? is.medya : [];
+      const sonuncu = medya.length ? medya[medya.length - 1] : null;
+      const kimlik = (sonuncu && sonuncu.dosyaId) || driveDosyaIdCikar(is.editliDosyaLink || is.dosyaLinki || is.hamDosyaLink);
+      if (!kimlik) {
+        return res.status(200).json({ ok: false, kod: "dosya-yok", sebep: "Bu kartta yüklenmiş dosya yok." });
+      }
+      const sonuc = await kucukResimGetir(kimlik);
+      if (!sonuc.ok) return res.status(200).json({ ok: false, kod: "alinamadi", sebep: sonuc.sebep });
+      return res.status(200).json({ ok: true, veri: sonuc.veri });
     }
 
     if (driveAction === "yuklemeBasla") {

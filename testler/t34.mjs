@@ -700,5 +700,51 @@ console.log("\n Taşıma dosyanın ayında kalıyor");
   }
 }
 
+/* ---- 13. KARTIN KÜÇÜK RESMİ ----
+ *
+ * Paylaşım panelinde marka yöneticisi "Görsel 4" gibi bir addan hangi içerik olduğunu
+ * çıkaramıyor; önizleme şart. Ama dosyalar Drive'da BİLEREK kısıtlı — tarayıcı
+ * drive.google.com'dan küçük resmi okuyamıyor. Bu yüzden resim sunucudan geçiyor.
+ *
+ * Sınananlar: yetki kapısı, marka kilidi, dosyası olmayan kartın AYIRT EDİLMESİ. */
+console.log("\n Kartın küçük resmi");
+{
+  await kv.set("marcus-os-data", VERI());
+  const OWNER_H = OWNER;
+
+  // Drive kurulu değilken çökmemeli
+  delete process.env.GOOGLE_OAUTH_CLIENT_ID;
+  let r = await cagri(OWNER_H, { driveAction: "kucukResim", isId: 7 });
+  t("Drive kurulu değilken çökmüyor", r.kod === 200 && r.govde.ok === false, `HTTP ${r.kod}`);
+  t("sebep bildiriliyor", Boolean(r.govde.sebep), r.govde.sebep);
+
+  // Dosyası OLMAYAN kart, alınamayan resimden AYRI bildirilmeli
+  r = await cagri(OWNER_H, { driveAction: "kucukResim", isId: 9 });
+  t("dosyası olmayan kart ayırt ediliyor", r.govde.kod === "dosya-yok", r.govde.kod);
+  t("mesaj ne olduğunu söylüyor", /dosya yok/i.test(r.govde.sebep || ""), r.govde.sebep);
+
+  // Yetki
+  r = await cagri(MUSTERI, { driveAction: "kucukResim", isId: 7 });
+  t("müşteri hesabı küçük resim isteyemiyor", r.kod === 403, `HTTP ${r.kod}`);
+
+  r = await cagri(KILITLI, { driveAction: "kucukResim", isId: 9 });
+  t("marka kilitli personel BAŞKA markanın kartını isteyemiyor", r.kod === 403, `HTTP ${r.kod}`);
+
+  r = await cagri(OWNER_H, { driveAction: "kucukResim", isId: 999 });
+  t("olmayan kart 404", r.kod === 404, `HTTP ${r.kod}`);
+
+  /* Yalnızca paylasimlar izni olan hesap da isteyebilmeli — marka yöneticisinin cekimEdit
+   * izni olmayabilir ama paylaşacağı içeriği görmesi gerekiyor. */
+  const veriPaylasim = VERI();
+  veriPaylasim.personelHesaplari = [{ id: "y1", ad: "Yönetici", kullaniciAdi: "y",
+    sifreHash: hash("1234", "s"), sifreSalt: "s", izinler: { paylasimlar: true, cekimEdit: false } }];
+  await kv.set("marcus-os-data", veriPaylasim);
+  const YONETICI = { "x-staff-username-b64": b64("y"), "x-staff-password-b64": b64("1234"), "content-type": "application/json" };
+  r = await cagri(YONETICI, { driveAction: "kucukResim", isId: 7 });
+  t("yalnızca paylasimlar izni olan hesap isteyebiliyor", r.kod === 200, `HTTP ${r.kod}`);
+  r = await cagri(YONETICI, { driveAction: "yuklemeBasla", isId: 7, dosyaAdi: "a.mp4", mimeTur: "video/mp4" });
+  t("ama YÜKLEME yapamıyor", r.kod === 403, `HTTP ${r.kod}`);
+}
+
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);
 if (k > 0) process.exitCode = 1;
