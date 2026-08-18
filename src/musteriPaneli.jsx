@@ -738,10 +738,10 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
                     <img src={icerik.gorselUrl} alt={icerik.aciklama || ""} style={{ width: "100%", borderRadius: 10, marginBottom: 12, display: "block" }} />
                   )}
                   {!icerik.gorselUrl && icerik.tur === "gorsel" && icerik.driveLinki && (
-                    <div style={{ marginBottom: 12 }}><DriveGorsel link={icerik.driveLinki} yukseklik={460} /></div>
+                    <div style={{ marginBottom: 12 }}><DriveGorsel link={icerik.driveLinki} yukseklik={460} icerikId={icerik.id} /></div>
                   )}
                   {!icerik.gorselUrl && icerik.tur !== "gorsel" && embed && (
-                    <div style={{ marginBottom: 12 }}><DriveVideo link={icerik.driveLinki} yon={icerik.videoYonu} baslik={icerik.aciklama || "içerik"} /></div>
+                    <div style={{ marginBottom: 12 }}><DriveVideo link={icerik.driveLinki} yon={icerik.videoYonu} baslik={icerik.aciklama || "içerik"} icerikId={icerik.id} /></div>
                   )}
                   {!icerik.gorselUrl && icerik.tur !== "gorsel" && !embed && icerik.driveLinki && (
                     <a href={icerik.driveLinki} target="_blank" rel="noreferrer" style={{ display: "block", marginBottom: 12, color: MT.mor, fontSize: 13, fontFamily: "Inter" }}>İçeriği Görüntüle ↗</a>
@@ -940,10 +940,10 @@ function DurumListesi({ liste, hazirListe, acikId, setAcikId, baslik, bosMetin }
                           <img src={icerik.gorselUrl} alt="" style={{ width: "100%", borderRadius: 9, display: "block", marginBottom: 10 }} />
                         )}
                         {!icerik.gorselUrl && icerik.tur === "gorsel" && icerik.driveLinki && (
-                          <div style={{ marginBottom: 10 }}><DriveGorsel link={icerik.driveLinki} yukseklik={420} /></div>
+                          <div style={{ marginBottom: 10 }}><DriveGorsel link={icerik.driveLinki} yukseklik={420} icerikId={icerik.id} /></div>
                         )}
                         {icerik.tur === "video" && icerik.driveLinki && (
-                          <div style={{ marginBottom: 10 }}><DriveVideo link={icerik.driveLinki} yon={icerik.videoYonu} /></div>
+                          <div style={{ marginBottom: 10 }}><DriveVideo link={icerik.driveLinki} yon={icerik.videoYonu} icerikId={icerik.id} /></div>
                         )}
                         {icerik.tur === "cekim" && (
                           <>
@@ -1029,8 +1029,8 @@ function HazirIcerikler({ liste, gonderiliyor, onIslem, basliksiz = false, saltO
                   {h.dosyaLinki ? (
                     <div style={{ marginBottom: 14 }}>
                       {video
-                        ? <DriveVideo link={h.dosyaLinki} yon={h.videoYonu} baslik={h.baslik} />
-                        : <DriveGorsel link={h.dosyaLinki} yukseklik={460} />}
+                        ? <DriveVideo link={h.dosyaLinki} yon={h.videoYonu} baslik={h.baslik} isId={h.id} />
+                        : <DriveGorsel link={h.dosyaLinki} yukseklik={460} isId={h.id} />}
                     </div>
                   ) : (
                     <div style={{ marginBottom: 14, background: MT.kagit, border: `1px dashed ${MT.cizgiKoyu}`, borderRadius: 9, padding: "12px 15px", fontSize: 13, color: MT.soluk, fontFamily: "Inter", lineHeight: 1.6 }}>

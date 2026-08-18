@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { medyaVarMi, asamalariDuzelt } from "../lib/asamalar.js";
+import { useSunucuOnizleme } from "./drive.jsx";
 // Para gösterimleri Gizlilik Modu'na uymalı — aksi halde ücretler gizliyken de görünür kalırdı.
 import { fmt, T, authHeaders } from "./tema.jsx";
 import {
@@ -91,16 +92,44 @@ function driveGorselUrl(link) {
  * Eskiden `onError` ile görsel gizleniyordu — bu yüzden bir sorun olduğunda ekranda hiçbir
  * iz kalmıyor, "neden görünmüyor?" sorusunun cevabı hiçbir yerde yazmıyordu.
  */
-function DriveGorsel({ link, C, yukseklik, kapak, kucuk }) {
+function DriveGorsel({ link, C, yukseklik, kapak, kucuk, isId, icerikId, boyut = 800 }) {
   const adaylar = driveGorselAdaylari(link);
   const [sira, setSira] = useState(0);
   useEffect(() => { setSira(0); }, [link]);
+
+  /* Önizleme sunucudan geliyor — sebebi ve tek kaynağı için bkz. src/drive.jsx.
+   * Kayıt kimliği verilmeyen yerlerde (forma yeni yapıştırılan bağlantı) eski doğrudan
+   * yöntem sürüyor; orada sunucunun çözebileceği bir kayıt yok. */
+  const { durum: sunucuDurum, veri: sunucu } = useSunucuOnizleme({ isId, icerikId, boyut });
 
   const kutuStili = {
     width: "100%", borderRadius: kucuk ? 8 : 10, background: C.panelAlt,
     border: `1px dashed ${C.border}`, padding: kucuk ? "10px 12px" : "14px 16px",
     marginBottom: kucuk ? 8 : 0, fontSize: kucuk ? 10.5 : 12, color: C.textFaint, lineHeight: 1.6,
   };
+
+  if (sunucuDurum === "hazir" && sunucu) {
+    return (
+      <img
+        src={sunucu}
+        alt="Önizleme"
+        style={{
+          width: "100%", height: kapak ? yukseklik : undefined, maxHeight: kapak ? undefined : yukseklik,
+          objectFit: kapak ? "cover" : "contain", borderRadius: kucuk ? 8 : 10,
+          background: C.panelAlt, display: "block", marginBottom: kucuk ? 8 : 0,
+        }}
+      />
+    );
+  }
+  if (sunucuDurum === "yukleniyor") {
+    return (
+      <div style={{ width: "100%", height: kapak ? yukseklik : Math.min(yukseklik || 120, 120),
+                    borderRadius: kucuk ? 8 : 10, background: C.panelAlt, marginBottom: kucuk ? 8 : 0,
+                    display: "grid", placeItems: "center", fontSize: kucuk ? 10.5 : 12, color: C.textFaint }}>
+        Önizleme getiriliyor…
+      </div>
+    );
+  }
 
   if (driveKlasorMu(link)) {
     return (
@@ -312,7 +341,7 @@ function IsKarti({ job, onClick, draggable, onDragStart }) {
         <span style={{ width: 7, height: 7, borderRadius: 999, background: ONCELIK_RENK[job.oncelik], flexShrink: 0, marginTop: 4 }} title={`Öncelik: ${job.oncelik}`} />
       </div>
       {!ciktiVideoMu(job.kategori) && job.editliDosyaLink && (
-        <DriveGorsel link={job.editliDosyaLink} C={C} yukseklik={110} kapak kucuk />
+        <DriveGorsel link={job.editliDosyaLink} C={C} yukseklik={110} kapak kucuk isId={job.id} boyut={400} />
       )}
       <div style={{ fontSize: 11, color: C.textDim, marginBottom: 8, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
         <span>{job.icerikTuru}{job.kategori ? ` · ${job.kategori}` : ""}</span>
@@ -500,26 +529,9 @@ function YeniIsFormu({ clients, personelRosteri, varsayilanKategori, onSubmit, o
  * için ayrıca bir düğme var; Chrome'da çalışıyor.
  */
 function SunucuOnizleme({ isId, versiyon, video, drivedeAc, gomuluUrl }) {
-  const [durum, setDurum] = useState("yukleniyor");   // yukleniyor | hazir | yok
-  const [veri, setVeri] = useState(null);
+  const { durum, veri } = useSunucuOnizleme({ isId, boyut: 1200 });
   const [gomulu, setGomulu] = useState(false);
-
-  useEffect(() => {
-    let iptal = false;
-    setDurum("yukleniyor"); setVeri(null); setGomulu(false);
-    fetch("/api/data", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ driveAction: "kucukResim", isId, versiyon, boyut: 1200 }),
-    })
-      .then((r) => r.json())
-      .then((r) => {
-        if (iptal) return;
-        if (r.ok && r.veri) { setVeri(r.veri); setDurum("hazir"); } else setDurum("yok");
-      })
-      .catch(() => { if (!iptal) setDurum("yok"); });
-    return () => { iptal = true; };
-  }, [isId, versiyon]);
+  useEffect(() => { setGomulu(false); }, [isId, versiyon]);
 
   const kutu = {
     width: "100%", borderRadius: 8, background: C.panel,
@@ -1123,7 +1135,7 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
                    * otomatik oynatma kısıtlaması yüzünden oynatmak için bir tık gerekiyor, bu
                    * platform kısıtı, tamamen kaldırılamıyor. */}
                   {job.editliDosyaLink && !ciktiVideoMu(kategori) && (
-                    <DriveGorsel link={job.editliDosyaLink} C={C} yukseklik={420} />
+                    <DriveGorsel link={job.editliDosyaLink} C={C} yukseklik={420} isId={job.id} boyut={1200} />
                   )}
                   {job.editliDosyaLink && ciktiVideoMu(kategori) && !driveEmbedUrl(job.editliDosyaLink) && (
                     <div style={{ width: "100%", borderRadius: 10, background: C.panelAlt, border: `1px dashed ${C.border}`, padding: "12px 15px", fontSize: 13, color: C.textFaint, lineHeight: 1.6 }}>

@@ -8,7 +8,58 @@
  * denendiği ve hata durumunda kullanıcıya ne yazıldığı tek yerde toplu durmalı.
  */
 import React, { useState, useEffect } from "react";
-import { T } from "./tema.jsx";
+import { T, authHeaders } from "./tema.jsx";
+
+/**
+ * ÖNİZLEME SUNUCUDAN — TEK KAYNAK.
+ *
+ * Dosyalar Drive'da bilerek KISITLI (daha önce "bağlantısı olan herkes" ayarındaydı ve
+ * 17 müşterinin içeriği açıktaydı). Kısıtlı bir dosyanın görselini tarayıcı doğrudan
+ * drive.google.com'dan çekemiyor: istek 403 dönüyor ve ekranda "paylaşım ayarı kapalı"
+ * yazısı kalıyor. Panoda, kart detayında ve MÜŞTERİ PANELİNDE bu yaşandı.
+ *
+ * Müşteri paneli en kritiği — müşteri göremediği bir içeriği onaylayamaz.
+ *
+ * Görsel sunucuda, uygulamanın kendi Drive yetkisiyle alınıp veri olarak geliyor. Dosya
+ * Drive'da kısıtlı kalmaya devam ediyor; gizlilik geri alınmıyor.
+ *
+ * Bu kanca hem burada hem Operasyon ekranında kullanılıyor. İki kopya yazılsaydı biri
+ * düzeltilip diğeri unutulurdu.
+ */
+const onizlemeBellegi = new Map();
+
+export function useSunucuOnizleme({ isId, icerikId, boyut = 800 }) {
+  const anahtar = isId !== undefined && isId !== null ? `is:${isId}:${boyut}`
+                : icerikId !== undefined && icerikId !== null ? `icerik:${icerikId}:${boyut}` : null;
+  const [veri, setVeri] = useState(() => (anahtar ? onizlemeBellegi.get(anahtar) || null : null));
+  const [durum, setDurum] = useState(() => {
+    if (!anahtar) return "yok";
+    return onizlemeBellegi.get(anahtar) ? "hazir" : "yukleniyor";
+  });
+
+  useEffect(() => {
+    if (!anahtar) { setDurum("yok"); setVeri(null); return undefined; }
+    const bellekte = onizlemeBellegi.get(anahtar);
+    if (bellekte) { setVeri(bellekte); setDurum("hazir"); return undefined; }
+    let iptal = false;
+    setDurum("yukleniyor");
+    fetch("/api/data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ onizlemeAction: "gorsel", isId, icerikId, boyut }),
+    })
+      .then((r) => r.json())
+      .then((r) => {
+        if (iptal) return;
+        if (r.ok && r.veri) { onizlemeBellegi.set(anahtar, r.veri); setVeri(r.veri); setDurum("hazir"); }
+        else setDurum("olmadi");
+      })
+      .catch(() => { if (!iptal) setDurum("olmadi"); });
+    return () => { iptal = true; };
+  }, [anahtar, isId, icerikId, boyut]);
+
+  return { durum, veri };
+}
 
 export function driveKlasorMu(link) {
   return !!link && /\/drive\/(u\/\d+\/)?folders\//.test(link);
@@ -44,7 +95,8 @@ export function driveGorselAdaylari(link) {
  * Drive görselini gösterir. Aday adresleri sırayla dener; hiçbiri açılmazsa SESSİZCE
  * KAYBOLMAK YERİNE nedenini yazar (klasör mü, tanınmayan bağlantı mı, paylaşım kapalı mı).
  */
-export function DriveGorsel({ link, yukseklik = 420, kapak = false, radius = 10 }) {
+export function DriveGorsel({ link, yukseklik = 420, kapak = false, radius = 10, isId, icerikId, boyut = 1200 }) {
+  const sunucu = useSunucuOnizleme({ isId, icerikId, boyut });
   const adaylar = driveGorselAdaylari(link);
   const [sira, setSira] = useState(0);
   useEffect(() => { setSira(0); }, [link]);
@@ -54,6 +106,23 @@ export function DriveGorsel({ link, yukseklik = 420, kapak = false, radius = 10 
     border: `1px dashed ${T.border}`, padding: "12px 15px",
     fontSize: 13, color: T.textFaint, lineHeight: 1.6, fontFamily: "Inter",
   };
+
+  const gorselStili = {
+    width: "100%",
+    height: kapak ? yukseklik : undefined,
+    maxHeight: kapak ? undefined : yukseklik,
+    objectFit: kapak ? "cover" : "contain",
+    borderRadius: radius, background: T.surfaceRaised, display: "block",
+  };
+  if (sunucu.durum === "hazir" && sunucu.veri) return <img src={sunucu.veri} alt="Görsel" style={gorselStili} />;
+  if (sunucu.durum === "yukleniyor") {
+    return (
+      <div style={{ ...kutu, textAlign: "center", border: "none", background: T.surfaceRaised,
+                    minHeight: kapak ? yukseklik : 120, display: "grid", placeItems: "center" }}>
+        Önizleme getiriliyor…
+      </div>
+    );
+  }
 
   if (driveKlasorMu(link)) return <div style={kutu}>Bu bir Drive <strong>klasör</strong> bağlantısı — klasörler önizlenemez. Tek bir dosyanın bağlantısını yapıştır.</div>;
   if (adaylar.length === 0) return <div style={kutu}>Bu bağlantıdan bir Drive dosyası tanınamadı. Bağlantının drive.google.com/file/d/... biçiminde olduğundan emin ol.</div>;
@@ -101,20 +170,50 @@ export const VIDEO_YONLERI = [
 ];
 export const videoYonuBul = (yon) => VIDEO_YONLERI.find((y) => y.key === yon) || VIDEO_YONLERI[0];
 
-export function DriveVideo({ link, yon, baslik }) {
+export function DriveVideo({ link, yon, baslik, isId, icerikId }) {
   const embed = driveEmbedUrl(link);
   const y = videoYonuBul(yon);
+  const sunucu = useSunucuOnizleme({ isId, icerikId, boyut: 800 });
+  const [gomulu, setGomulu] = useState(false);
   if (!embed) return null;
+
+  /* GÖMÜLÜ OYNATICI VARSAYILAN DEĞİL. Dosyalar Drive'da kısıtlı olduğu için gömülü çerçeve
+   * tarayıcının Google oturumuna ihtiyaç duyuyor; Safari üçüncü taraf çerezleri engellediği
+   * için siyah bir kutu çıkıyor. Bunun yerine ilk kare gösterilip Drive'a yönlendiriliyor —
+   * yeni sekmede Google kendi oturumunu kullanabiliyor. Videoyu sunucudan geçirmek (80 MB)
+   * ne hızlı ne ucuz olurdu. */
   return (
     <div style={{ maxWidth: y.maxGenislik, margin: "0 auto", width: "100%" }}>
       <div style={{ position: "relative", width: "100%", aspectRatio: y.oran, borderRadius: 10, overflow: "hidden", background: "#000" }}>
-        <iframe
-          src={embed}
-          title={baslik || "Video önizleme"}
-          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" }}
-          allow="autoplay"
-        />
+        {gomulu ? (
+          <iframe
+            src={embed}
+            title={baslik || "Video önizleme"}
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" }}
+            allow="autoplay"
+          />
+        ) : (
+          <>
+            {sunucu.durum === "hazir" && sunucu.veri && (
+              <img src={sunucu.veri} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }} />
+            )}
+            <a href={link} target="_blank" rel="noreferrer"
+               style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", textDecoration: "none" }}>
+              <span style={{ background: "rgba(0,0,0,.62)", color: "#fff", borderRadius: 999, padding: "12px 18px",
+                             fontSize: 13, fontWeight: 700, fontFamily: "Inter" }}>
+                ▶ Drive'da Aç ve İzle
+              </span>
+            </a>
+          </>
+        )}
       </div>
+      <button
+        onClick={() => setGomulu((v) => !v)}
+        style={{ marginTop: 6, background: "none", border: "none", color: T.textFaint,
+                 fontSize: 11, fontFamily: "Inter", cursor: "pointer", padding: 0 }}
+      >
+        {gomulu ? "Kapak görüntüsüne dön" : "Gömülü oynatıcıyı dene"}
+      </button>
     </div>
   );
 }
@@ -125,12 +224,16 @@ export function DriveVideo({ link, yon, baslik }) {
  * bir simge gösterir — küçük bir karede hata metni okunamayacağı için burada sessiz kalmak
  * doğru: kullanıcı satırı açtığında büyük görünümde gerçek sebep zaten yazıyor.
  */
-export function DriveKucukGorsel({ link }) {
+export function DriveKucukGorsel({ link, isId, icerikId }) {
+  const sunucu = useSunucuOnizleme({ isId, icerikId, boyut: 200 });
   const adaylar = driveGorselAdaylari(link);
   const [sira, setSira] = useState(0);
   useEffect(() => { setSira(0); }, [link]);
 
-  if (adaylar.length === 0 || sira >= adaylar.length) {
+  if (sunucu.durum === "hazir" && sunucu.veri) {
+    return <img src={sunucu.veri} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />;
+  }
+  if (adaylar.length === 0 || sira >= adaylar.length || sunucu.durum === "yukleniyor") {
     return <span style={{ fontSize: 15 }}>🖼</span>;
   }
   return (
