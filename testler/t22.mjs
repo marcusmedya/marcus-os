@@ -54,7 +54,10 @@ console.log("\nORTAK İŞ YÜRÜTME");
 await kv.set("marcus-os-data", VERI({ ...KAPALI, musteriAkisi: true }, ["İbo Burger"]));
 let d = await kv.get("marcus-os-data");
 d.cekimIsleri = [
-  { id: 20, marka: "İbo Burger", asama: "Revize İstendi", icerikTuru: "R", musteriRevizeNotu: "Müzik" },
+  /* medya ŞART: dosyası olmayan kart artık kontrole gönderilemiyor (bkz. t35). Revizeden
+   * çıkan kartın yeni versiyonu yüklenmiş olmalı — akış zaten böyle işliyor. */
+  { id: 20, marka: "İbo Burger", asama: "Revize İstendi", icerikTuru: "R", musteriRevizeNotu: "Müzik",
+    medya: [{ versiyon: 2, dosyaId: "yeni-versiyon" }] },
   { id: 21, marka: "İbo Burger", asama: "Kontrol Bekliyor", icerikTuru: "R2" },
   { id: 22, marka: "GİZLİ Marka", asama: "Revize İstendi", icerikTuru: "R3" },
 ];
