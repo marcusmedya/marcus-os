@@ -2,6 +2,7 @@ import { kv } from "@vercel/kv";
 import { KEY, guvenliYaz, kilitAl, kilitBirak, bugunISO } from "../lib/kv-yaz.js";
 import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
 import { markaErisimiVarMi } from "../lib/marka-kilidi.js";
+import { onaylananiTasi, DURUM_KLASORLERI } from "../lib/drive-tasima.js";
 
 const nid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const stokAnahtari = (clientId, tur) => `${clientId}_${tur}`;
@@ -39,6 +40,85 @@ async function yetkiliMi(req) {
   return { yetkili: false, markalar: [] };
 }
 
+const trKucult = (x) => String(x || "").trim().toLocaleLowerCase("tr");
+
+/* PAYLAŞIMA HAZIR KART = müşterinin onayladığı, henüz teslim edilmemiş Operasyon kartı.
+ * Paylaşım planına yalnızca bunlar bağlanabilir; "hazır değil" bir işi paylaşılmış saymak
+ * en baştan önlemek istediğimiz karışıklığın ta kendisi. */
+const PAYLASIMA_HAZIR = "Onaylandı";
+const PAYLASILDI_ASAMASI = "Teslim Edildi";
+
+/** Plana bağlanacak kartı bulur ve markasının doğru olduğunu doğrular. */
+function bagliKartiCoz(data, isId, clientId) {
+  const is = (data.cekimIsleri || []).find((j) => String(j.id) === String(isId));
+  if (!is) return { hata: "Bağlanacak kart bulunamadı — sayfayı yenileyip tekrar dene." };
+  const marka = (data.clients || []).find((c) => c.id === clientId);
+  if (!marka) return { hata: "Marka bulunamadı." };
+  /* Kartın markası ile planın markası tutmalı. Tutmazsa bir markanın içeriği başka bir
+   * markanın planında paylaşılmış görünür — hem yanlış hem de Drive'da yanlış klasöre
+   * dosya taşır. */
+  if (trKucult(is.marka) !== trKucult(marka.ad)) {
+    return { hata: "Bu kart başka bir markaya ait." };
+  }
+  return { is };
+}
+
+/**
+ * Bağlı kartın aşamasını paylaşım durumuna göre değiştirir.
+ *
+ * Paylaşıldı  -> "Teslim Edildi"  (Drive'da 3 PAYLAŞILDI klasörüne taşınır)
+ * Geri alındı -> "Onaylandı"      (dosya da geri gelir — taşıma iki yönlü)
+ *
+ * Aşama değişimini BURADA yapıyoruz ki marka yöneticisi Operasyon panosuna hiç girmesin:
+ * paylaşımı işaretlemek tek hareket olsun. Kartın geçmişine kimin ne zaman paylaştığı
+ * yazılıyor, sonradan "bu ne zaman yayına çıktı" sorusunun cevabı kartın üstünde duruyor.
+ */
+function bagliKartiIsaretle(data, isId, paylasildi, kim) {
+  const zaman = new Date().toLocaleString("tr-TR");
+  let etkilenen = null;
+  data.cekimIsleri = (data.cekimIsleri || []).map((j) => {
+    if (String(j.id) !== String(isId)) return j;
+    const yeniAsama = paylasildi ? PAYLASILDI_ASAMASI : PAYLASIMA_HAZIR;
+    if (j.asama === yeniAsama) { etkilenen = j; return j; }
+    const guncel = {
+      ...j,
+      asama: yeniAsama,
+      teslimEdilmeTarihi: paylasildi ? bugunISO() : null,
+      gecmis: [...(j.gecmis || []), {
+        id: (j.gecmis || []).length + 1, tarih: zaman, yazan: kim,
+        aciklama: paylasildi
+          ? "Paylaşım panelinden PAYLAŞILDI olarak işaretlendi."
+          : "Paylaşım işareti geri alındı; kart tekrar onaylı içeriklere döndü.",
+      }],
+    };
+    etkilenen = guncel;
+    return guncel;
+  });
+  return etkilenen;
+}
+
+/**
+ * Bağlı kartın dosyasını yeni aşamasının klasörüne taşır.
+ *
+ * KİLİT UYARISI: bu fonksiyon YAZMA KİLİDİ BIRAKILDIKTAN SONRA çağrılmalı. Google çağrıları
+ * saniyeler sürebiliyor; kilidi elde tutarak beklemek, o sırada paylaşım işaretlemeye çalışan
+ * herkesi bekletir. Hata fırlatmaz — taşıma başarısız olsa da paylaşım kaydı geçerli kalır.
+ */
+async function bagliKartinDosyasiniTasi(data, is) {
+  if (!is) return null;
+  const marka = (data.clients || []).find((c) => trKucult(c.ad) === trKucult(is.marka)) || {};
+  const markaKlasoru = marka.driveOnayKlasoru || "";
+  if (!markaKlasoru && !process.env.DRIVE_ONAY_KLASOR_ID) return null;   // Drive kurulu değil
+  const link = is.editliDosyaLink || is.dosyaLinki || is.hamDosyaLink || "";
+  if (!link) return { tasindi: false, sebep: "kartta dosya bağlantısı yok" };
+  const hedefAd = is.asama === PAYLASILDI_ASAMASI ? DURUM_KLASORLERI.paylasilan : DURUM_KLASORLERI.onaylanan;
+  try {
+    return await onaylananiTasi({ dosyaLinki: link, markaAdi: is.marka, markaKlasoru, hedefAd });
+  } catch (e) {
+    return { tasindi: false, sebep: String(e.message || e) };
+  }
+}
+
 function stokDegistirDahili(data, clientId, tur, delta) {
   const key = stokAnahtari(clientId, tur);
   const mevcut = (data.stoklar || {})[key] || 0;
@@ -59,7 +139,14 @@ async function kaydetVeYedekle(data) {
   // Ortak yazma katmanı: versiyon sayacını artırır, günlük + saatlik yedeği yazar.
   // Sayacın artması kritik — eskiden bu uç noktadan yapılan stok/plan değişiklikleri
   // sayacı artırmadığı için, açık duran bir yönetici sekmesi bunların üzerine yazabiliyordu.
-  await guvenliYaz(data);
+  //
+  // YAZILAN SÜRÜM GERİ DÖNÜYOR — bu bir hatanın düzeltmesiydi: yazma sayacı artırıyor ama
+  // yanıt _v taşımadığı için tarayıcı bir tur geride kalıyordu. Sonraki yönetici kaydı
+  // sahte bir "başka cihazdan değişmiş" uyarısı alıp kullanıcının o anki düzenlemesini
+  // sunucu verisiyle eziyordu. Paylaşım paneline dokunmak, Operasyon'daki düzenlemeyi
+  // kaybettiriyordu ve arada bir bağ görünmediği için sebebi anlaşılmıyordu.
+  const yazilan = await guvenliYaz(data);
+  return (yazilan && typeof yazilan._v === "number") ? yazilan._v : undefined;
 }
 
 export default async function handler(req, res) {
@@ -69,7 +156,7 @@ export default async function handler(req, res) {
 
   // Tüm işlem (oku → değiştir → yaz) kilit altında yapılır: iki personel aynı anda
   // stok işaretlediğinde birinin değişikliği diğerini silmesin.
-  const kilitAlindi = await kilitAl();
+  let kilitAlindi = await kilitAl();
   try {
     const body = req.body || {};
     const { action } = body;
@@ -118,6 +205,15 @@ export default async function handler(req, res) {
 
     /** Yanıtlarda TÜM markaların listesi dönüyordu — kilitli hesaba yalnızca kendi
      * markalarının kayıtları gönderilir, aksi halde yanıt üzerinden veri sızardı. */
+    /* Operasyon kartlarında clientId yok, marka ADI var — ayrı süzgeç gerekiyor.
+     * Süzülmezse marka kilitli bir hesap, paylaşım işaretlediğinde yanıt üzerinden BÜTÜN
+     * markaların kartlarını görürdü. */
+    const kartlariSuz = (liste) => {
+      if (!Array.isArray(liste)) return liste;
+      if (!Array.isArray(kimlik.markalar) || kimlik.markalar.length === 0) return liste;
+      return liste.filter((j) => markaErisimiVarMi(data, kimlik.markalar, { marka: j && j.marka }));
+    };
+
     const yanitSuz = (liste, alan = "clientId") => {
       if (!Array.isArray(liste)) return liste;
       if (!Array.isArray(kimlik.markalar) || kimlik.markalar.length === 0) return liste;
@@ -140,17 +236,37 @@ export default async function handler(req, res) {
           data.gunlukKontrol = { tarih: bugun, yapilanlar: [...kontrol.yapilanlar, itemKey] };
         }
       }
-      await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, stoklar: data.stoklar, paylasimGecmisi: data.paylasimGecmisi, gunlukKontrol: data.gunlukKontrol });
+      const _v = await kaydetVeYedekle(data);
+      return res.status(200).json({ ok: true, _v, stoklar: data.stoklar, paylasimGecmisi: yanitSuz(data.paylasimGecmisi), gunlukKontrol: data.gunlukKontrol });
     }
 
     if (action === "haftalikEkle") {
-      const { clientId, gun, haftaKey, tur } = body;
+      const { clientId, gun, haftaKey, tur, isId } = body;
       const liste = data.haftalikPaylasimlar || [];
-      const yeni = { id: nid(), clientId, gun, haftaKey, tur, yapildi: false, yapildigiTarih: null };
+      /* OPERASYON KARTI BAĞLAMA (isteğe bağlı).
+       * Bağlanırsa paylaşım işaretlendiğinde kart "Teslim Edildi"ye geçer ve dosyası Drive'da
+       * 3 PAYLAŞILDI klasörüne taşınır — marka yöneticisi Operasyon'a hiç girmez.
+       * Bağlanmazsa plan eskisi gibi çalışır; her paylaşımın bir kartı olmayabilir. */
+      let bagliIs = null;
+      if (isId !== undefined && isId !== null && isId !== "") {
+        const coz = bagliKartiCoz(data, isId, clientId);
+        if (coz.hata) return res.status(400).json({ error: coz.hata });
+        if (coz.is.asama !== PAYLASIMA_HAZIR && coz.is.asama !== PAYLASILDI_ASAMASI) {
+          return res.status(400).json({ error: `Bu kart henüz paylaşıma hazır değil (${coz.is.asama}). Önce müşteri onayı gerekiyor.` });
+        }
+        if (liste.some((p) => String(p.isId) === String(isId))) {
+          return res.status(400).json({ error: "Bu kart zaten bir paylaşım planına bağlı." });
+        }
+        bagliIs = coz.is;
+      }
+      const yeni = { id: nid(), clientId, gun, haftaKey, tur, yapildi: false, yapildigiTarih: null,
+        isId: bagliIs ? bagliIs.id : null,
+        /* Kartın adı plan kaydında da tutuluyor: kart sonradan silinse bile planda neyin
+         * paylaşıldığı okunabilsin. Kimlik kaybolursa geriye ad kalır. */
+        isAdi: bagliIs ? (bagliIs.icerikTuru || "") : null };
       data.haftalikPaylasimlar = [...liste, yeni];
-      await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, haftalikPaylasimlar: yanitSuz(data.haftalikPaylasimlar) });
+      const _v = await kaydetVeYedekle(data);
+      return res.status(200).json({ ok: true, _v, haftalikPaylasimlar: yanitSuz(data.haftalikPaylasimlar) });
     }
 
     /* Planlanan bir paylaşımın ALT METNİ (caption). Müşteri panelinde gösterilir, böylece
@@ -168,8 +284,8 @@ export default async function handler(req, res) {
         if (gorselUrl !== undefined) yeniPlan.gorselUrl = gorselUrl || null;
         return yeniPlan;
       });
-      await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, haftalikPaylasimlar: yanitSuz(data.haftalikPaylasimlar) });
+      const _v = await kaydetVeYedekle(data);
+      return res.status(200).json({ ok: true, _v, haftalikPaylasimlar: yanitSuz(data.haftalikPaylasimlar) });
     }
 
     if (action === "haftalikSil") {
@@ -191,8 +307,8 @@ export default async function handler(req, res) {
           data.gunlukKontrol = { tarih: bugun, yapilanlar: data.gunlukKontrol.yapilanlar.filter((k) => k !== itemKey) };
         }
       }
-      await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, haftalikPaylasimlar: data.haftalikPaylasimlar, gunlukKontrol: data.gunlukKontrol });
+      const _v = await kaydetVeYedekle(data);
+      return res.status(200).json({ ok: true, _v, haftalikPaylasimlar: yanitSuz(data.haftalikPaylasimlar), gunlukKontrol: data.gunlukKontrol });
     }
 
     if (action === "haftalikToggle") {
@@ -225,8 +341,30 @@ export default async function handler(req, res) {
           data.gunlukKontrol = { tarih: bugun, yapilanlar: kontrol.yapilanlar.filter((k) => k !== itemKey) };
         }
       }
-      await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, haftalikPaylasimlar: data.haftalikPaylasimlar, stoklar: data.stoklar, paylasimGecmisi: data.paylasimGecmisi, gunlukKontrol: data.gunlukKontrol });
+      /* BAĞLI KART DA İLERLESİN. Marka yöneticisi paylaşımı işaretlediği anda Operasyon
+       * kartı "Teslim Edildi"ye geçiyor; ayrıca panoya girip aynı işi ikinci kez yapması
+       * gerekmiyor. Karışıklığın kaynağı buydu: editör hazırlıyor, yönetici paylaşıyor ve
+       * iki panel birbirinden habersiz kalıyordu. */
+      let tasinacakIs = null;
+      if (plan.isId) {
+        tasinacakIs = bagliKartiIsaretle(data, plan.isId, yeniYapildi,
+          kimlik.markalar.length ? "Marka Yöneticisi" : "Yönetici (CEO)");
+      }
+
+      const _v = await kaydetVeYedekle(data);
+
+      /* DRIVE TAŞIMASI KİLİT DIŞINDA. Google çağrıları saniyeler sürebiliyor; kilidi elde
+       * tutarak beklemek o sırada işaretleme yapan herkesi bekletirdi. Kayıt zaten yazıldı;
+       * taşıma başarısız olsa bile paylaşım geçerli. */
+      await kilitBirak(kilitAlindi); kilitAlindi = false;
+      const tasima = tasinacakIs ? await bagliKartinDosyasiniTasi(data, tasinacakIs) : null;
+
+      return res.status(200).json({ ok: true, _v, haftalikPaylasimlar: yanitSuz(data.haftalikPaylasimlar),
+        stoklar: data.stoklar, paylasimGecmisi: yanitSuz(data.paylasimGecmisi), gunlukKontrol: data.gunlukKontrol,
+        cekimIsleri: kartlariSuz(data.cekimIsleri),
+        /* Taşıma sonucu yanıtta: kullanıcı dosyanın gerçekten yerine gidip gitmediğini
+         * görmeli. Sessiz başarısızlık, Drive'a elle bakmadan fark edilmez. */
+        driveSonuc: tasima });
     }
 
     if (action === "gunlukToggle") {
@@ -239,8 +377,8 @@ export default async function handler(req, res) {
       data.gunlukKontrol = { tarih: bugun, yapilanlar: yeniYapilanlar };
       stokDegistirDahili(data, clientId, tur, varMi ? 1 : -1);
       gecmiseEkle(data, clientId, markaAdi(clientId), tur, varMi ? "cekim" : "paylasim");
-      await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, gunlukKontrol: data.gunlukKontrol, stoklar: data.stoklar, paylasimGecmisi: data.paylasimGecmisi });
+      const _v = await kaydetVeYedekle(data);
+      return res.status(200).json({ ok: true, _v, gunlukKontrol: data.gunlukKontrol, stoklar: data.stoklar, paylasimGecmisi: yanitSuz(data.paylasimGecmisi) });
     }
 
     // ŞUBELER: bir markanın birden fazla şubesi/lokasyonu varsa her biri kendi adıyla
@@ -253,15 +391,15 @@ export default async function handler(req, res) {
       const liste = data.subeler || [];
       const yeni = { id: nid(), clientId, ad: ad.trim() };
       data.subeler = [...liste, yeni];
-      await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, subeler: yanitSuz(data.subeler) });
+      const _v = await kaydetVeYedekle(data);
+      return res.status(200).json({ ok: true, _v, subeler: yanitSuz(data.subeler) });
     }
 
     if (action === "subeSil") {
       const { subeId } = body;
       data.subeler = (data.subeler || []).filter((s) => s.id !== subeId);
-      await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, subeler: yanitSuz(data.subeler) });
+      const _v = await kaydetVeYedekle(data);
+      return res.status(200).json({ ok: true, _v, subeler: yanitSuz(data.subeler) });
     }
 
     if (action === "subeStokDegistir") {
@@ -275,8 +413,8 @@ export default async function handler(req, res) {
       // Genel (toplam) stok da aynı miktarda değişir.
       stokDegistirDahili(data, clientId, tur, delta);
       gecmiseEkle(data, clientId, `${markaAdi(clientId)}${subeAdi ? " (" + subeAdi + ")" : ""}`, tur, delta < 0 ? "paylasim" : "cekim");
-      await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, stoklar: data.stoklar, paylasimGecmisi: data.paylasimGecmisi });
+      const _v = await kaydetVeYedekle(data);
+      return res.status(200).json({ ok: true, _v, stoklar: data.stoklar, paylasimGecmisi: yanitSuz(data.paylasimGecmisi) });
     }
 
     if (action === "uyelikEkle") {
@@ -284,15 +422,15 @@ export default async function handler(req, res) {
       const liste = data.uyelikler || [];
       const yeni = { ...uyelik, id: nid() };
       data.uyelikler = [...liste, yeni];
-      await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, uyelikler: yanitSuz(data.uyelikler) });
+      const _v = await kaydetVeYedekle(data);
+      return res.status(200).json({ ok: true, _v, uyelikler: yanitSuz(data.uyelikler) });
     }
 
     if (action === "uyelikGuncelle") {
       const { uyelikId, patch } = body;
       data.uyelikler = (data.uyelikler || []).map((u) => (u.id === uyelikId ? { ...u, ...patch } : u));
-      await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, uyelikler: yanitSuz(data.uyelikler) });
+      const _v = await kaydetVeYedekle(data);
+      return res.status(200).json({ ok: true, _v, uyelikler: yanitSuz(data.uyelikler) });
     }
 
     if (action === "uyelikSil") {
@@ -310,8 +448,8 @@ export default async function handler(req, res) {
             silmeZamani: Date.now(), silen: "Yönetici (CEO)" },
         ];
       }
-      await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, uyelikler: yanitSuz(data.uyelikler) });
+      const _v = await kaydetVeYedekle(data);
+      return res.status(200).json({ ok: true, _v, uyelikler: yanitSuz(data.uyelikler) });
     }
 
     return res.status(400).json({ error: "Geçersiz işlem." });
