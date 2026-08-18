@@ -27,8 +27,11 @@ const sonuc = await onaylananiTasi({ dosyaLinki: "https://drive.google.com/file/
 t("taşıma sessizce atlanıyor, ÇÖKMÜYOR", sonuc.tasindi === false && !!sonuc.sebep, sonuc.sebep);
 
 console.log("\n ONAY hâlâ çalışıyor mu (en kritik)");
+/* Markaya Drive klasörü TANIMLI: "kurulu ama başarısız" senaryosu bu. Klasör tanımsızken
+ * sistem sessiz geçer (Drive kullanmayan markanın kartı sistem notlarıyla dolmasın diye),
+ * bu yüzden başarısızlığın görünürlüğünü sınamak için klasörün tanımlı olması gerekir. */
 await kv.set("marcus-os-data", {
-  _v: 1, clients: [{ id: 1, ad: "İbo Burger" }],
+  _v: 1, clients: [{ id: 1, ad: "İbo Burger", driveOnayKlasoru: "https://drive.google.com/drive/folders/1AbCdefGHIjklMNOpqrs" }],
   musteriHesaplari: [{ id: "m1", ad: "M", kullaniciAdi: "m", clientId: 1, sifreHash: hash("1","s"), sifreSalt: "s" }],
   musteriIcerikleri: [],
   cekimIsleri: [{ id: 1, marka: "İbo Burger", asama: "Kontrol Bekliyor", icerikTuru: "Reels",
