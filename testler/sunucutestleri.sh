@@ -26,9 +26,17 @@ for i in $(seq 1 60); do
   DOSYA="$KOK/testler/t$i.mjs"
   [ -f "$DOSYA" ] || continue
   CIKTI="$(cd "$KOK" && node "$DOSYA" 2>&1)"
+  CIKIS=$?
   G=$(printf '%s' "$CIKTI" | grep -c '✓')
   K=$(printf '%s' "$CIKTI" | grep -c '✗')
   SIZ=$(printf '%s' "$CIKTI" | grep -c 'SIZIYOR')
+  # Test ÇÖKERSE geriye ✗ satırı kalmaz; sayım yalnızca ✓'lara bakarsa çöküş "başarı" görünür.
+  # Bu gerçekten yaşandı: yarısı çalışmayan bir dosya "31 kontrol geçti" diye raporlandı.
+  if [ "$CIKIS" -ne 0 ] && [ "$K" -eq 0 ]; then
+    K=1
+    CIKTI="$CIKTI
+  ✗ test çöktü (çıkış kodu $CIKIS) — yukarıdaki hataya bak"
+  fi
   GECEN=$((GECEN+G)); KALAN=$((KALAN+K+SIZ))
   if [ "$K" -gt 0 ] || [ "$SIZ" -gt 0 ]; then
     printf "  ✗ t%-3s ✓%-4s ✗%s\n" "$i" "$G" "$((K+SIZ))"

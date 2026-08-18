@@ -492,14 +492,22 @@ function MedyaYukleyici({ job, onYuklendi, duzenlenebilir }) {
 
     try {
       // 1) Sunucudan yükleme adresi al (hedef klasörü o hazırlıyor)
-      const basla = await fetch("/api/data", {
+      const yanit = await fetch("/api/data", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({
           driveAction: "yuklemeBasla", isId: job.id,
           dosyaAdi: dosya.name, mimeTur: dosya.type, boyut: dosya.size,
         }),
-      }).then((r) => r.json());
+      });
+      /* Oturum düşmüşse sunucu "Yetkisiz. Şifre gerekli." diyor. Bu cümle geliştirici
+       * diliyle yazılmış; dosya yüklemeye çalışan personele bir şey anlatmıyor, üstelik
+       * "şifre gerekli" yükleme ekranında şifre isteniyor gibi duruyor. Ne yapılacağını
+       * söyleyen bir cümleye çeviriyoruz. */
+      if (yanit.status === 401 || yanit.status === 403) {
+        throw new Error("Oturumun düşmüş görünüyor. Çıkıp tekrar giriş yap, sonra dosyayı yeniden seç.");
+      }
+      const basla = await yanit.json();
       if (!basla.ok) throw new Error(basla.error || "Yükleme başlatılamadı.");
 
       // 2) Baytları DOĞRUDAN Google'a gönder.
