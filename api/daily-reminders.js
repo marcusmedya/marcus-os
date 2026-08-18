@@ -1,5 +1,6 @@
 import { kv } from "@vercel/kv";
 import { ownerYetkiliMi } from "../lib/oturum.js";
+import { gonderenAdres } from "../lib/eposta.js";
 
 // Her gün (vercel.json'daki zamanlamaya göre) otomatik çalışır — CRON_SECRET ile korunur,
 // ayrıca Ayarlar sayfasındaki "Şimdi Test Et" ile elle de tetiklenebilir — SITE_PASSWORD ile korunur.
@@ -31,7 +32,7 @@ const bugunISO = () => {
 };
 
 async function epostaGonder(resendKey, to, subject, html, cc) {
-  const body = { from: "Marcus Medya App <bildirim@marcusmedya.com>", to: [to], subject, html };
+  const body = { from: gonderenAdres(), to: [to], subject, html };
   if (cc && cc !== to) body.cc = [cc];
   const r = await fetch("https://api.resend.com/emails", {
     method: "POST",

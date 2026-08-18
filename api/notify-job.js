@@ -1,5 +1,6 @@
 import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
 import { trKucult } from "../lib/marka-kilidi.js";
+import { gonderenAdres } from "../lib/eposta.js";
 async function yetkiKontrol(req) {
   const ownerPw = process.env.SITE_PASSWORD;
   const provided = baslikOku(req, "x-site-password");
@@ -67,7 +68,7 @@ export default async function handler(req, res) {
       const r = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: "Marcus Medya App <bildirim@marcusmedya.com>", to: [email], subject: `Ödeme Hatırlatması — ${marka || ""}`, html }),
+        body: JSON.stringify({ from: gonderenAdres(), to: [email], subject: `Ödeme Hatırlatması — ${marka || ""}`, html }),
       });
       if (!r.ok) {
         const err = await r.json().catch(() => ({}));
@@ -108,7 +109,7 @@ export default async function handler(req, res) {
       const r = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: "Marcus Medya App <bildirim@marcusmedya.com>", to: [email], subject: `${marka || "Markanız"} — onayınızı bekleyen içerik`, html }),
+        body: JSON.stringify({ from: gonderenAdres(), to: [email], subject: `${marka || "Markanız"} — onayınızı bekleyen içerik`, html }),
       });
       if (!r.ok) {
         const err = await r.json().catch(() => ({}));
@@ -136,7 +137,7 @@ export default async function handler(req, res) {
       const r = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: "Marcus Medya App <bildirim@marcusmedya.com>", to: [email], subject: `Üyelik Giriş Bilgileri — ${marka || ""}`, html }),
+        body: JSON.stringify({ from: gonderenAdres(), to: [email], subject: `Üyelik Giriş Bilgileri — ${marka || ""}`, html }),
       });
       if (!r.ok) {
         const err = await r.json().catch(() => ({}));
@@ -171,7 +172,7 @@ export default async function handler(req, res) {
       method: "POST",
       headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        from: "Marcus Medya App <bildirim@marcusmedya.com>",
+        from: gonderenAdres(),
         to: [email],
         subject: durumBildirimi ? `İş Durumu: ${marka || ""} — ${asama || ""}` : `Yeni İş: ${marka || ""} — ${icerikTuru || ""}`,
         html,
