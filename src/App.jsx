@@ -36,6 +36,7 @@ import {
   useDuzenlemeKilidi, KilitUyarisi, MarkaSecici, FieldForm, temaOku, temaUygula, TurRozet, turEtiketi,
 } from "./tema.jsx";
 import { DriveGorsel, DriveVideo, driveEmbedUrl, VIDEO_YONLERI, DriveKucukGorsel } from "./drive.jsx";
+import { surumDinle, surumBildir } from "./surum.js";
 import { InstagramOnizleme, InstagramIzgara, aylikRaporAc } from "./instagram.jsx";
 import { MusteriPaneli } from "./musteriPaneli.jsx";
 import { Finans, HesapBakiyeleri, MiniList, hesapBakiyesi } from "./finans.jsx";
@@ -3180,7 +3181,7 @@ function SifreGateli({ children }) {
 
   useEffect(() => {
     fetch("/api/kasa", { headers: { ...authHeaders() } })
-      .then((r) => r.json())
+      .then((r) => r.json()).then(surumBildir)
       .then((res) => setAyarlandiMi(!!res.ayarlandiMi))
       .catch(() => setAyarlandiMi(false));
   }, []);
@@ -3194,7 +3195,7 @@ function SifreGateli({ children }) {
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ action: "dogrula", sifre }),
     })
-      .then((r) => r.json())
+      .then((r) => r.json()).then(surumBildir)
       .then((res) => {
         if (res.ok) setDogrulandi(true);
         else if (res.kasaSifresiYok) setAyarlandiMi(false);
@@ -3796,7 +3797,7 @@ function KasaSifresiKarti() {
 
   const durumuYukle = () => {
     fetch("/api/kasa", { headers: { "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) } })
-      .then((r) => r.json())
+      .then((r) => r.json()).then(surumBildir)
       .then((res) => setAyarlandiMi(!!res.ayarlandiMi))
       .catch(() => setAyarlandiMi(null));
   };
@@ -3812,7 +3813,7 @@ function KasaSifresiKarti() {
       headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
       body: JSON.stringify({ action: "degistir", yeniSifre }),
     })
-      .then((r) => r.json())
+      .then((r) => r.json()).then(surumBildir)
       .then((res) => {
         if (res.ok) { setBasari(true); setYeniSifre(""); setTekrar(""); setAcik(false); durumuYukle(); }
         else setHata(res.error || "Bir sorun oluştu.");
@@ -5813,7 +5814,7 @@ function MusteriHesaplariKart({ clients }) {
 
   const yukle = () => {
     fetch("/api/manage-staff?hesapTuru=musteri", { headers: { "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) } })
-      .then((r) => r.json())
+      .then((r) => r.json()).then(surumBildir)
       .then((res) => setHesaplar(res.hesaplar || []))
       .catch(() => setHesaplar([]));
   };
@@ -5827,7 +5828,7 @@ function MusteriHesaplariKart({ clients }) {
       headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
       body: JSON.stringify({ hesapTuru: "musteri", action: "ekle", ad: yeniAd.trim(), kullaniciAdi: yeniKullanici.trim(), sifre: yeniSifre, clientId: yeniClientId }),
     })
-      .then((r) => r.json())
+      .then((r) => r.json()).then(surumBildir)
       .then((res) => {
         if (res.error) { setHata(res.error); return; }
         setHesaplar(res.hesaplar);
@@ -5843,7 +5844,7 @@ function MusteriHesaplariKart({ clients }) {
       headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
       body: JSON.stringify({ hesapTuru: "musteri", action: "sifreSifirla", id, sifre: yeniSifreDeger }),
     })
-      .then((r) => r.json())
+      .then((r) => r.json()).then(surumBildir)
       .then((res) => { if (res.hesaplar) { setHesaplar(res.hesaplar); setSifirlanan(null); setYeniSifreDeger(""); setHata(""); } })
       .catch(() => setHata("Bağlantı hatası."));
   };
@@ -5855,7 +5856,7 @@ function MusteriHesaplariKart({ clients }) {
       headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
       body: JSON.stringify({ hesapTuru: "musteri", action: "sil", id }),
     })
-      .then((r) => r.json())
+      .then((r) => r.json()).then(surumBildir)
       .then((res) => { if (res.hesaplar) setHesaplar(res.hesaplar); })
       .catch(() => {});
   };
@@ -6038,7 +6039,7 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
 
   const yukle = () => {
     fetch("/api/manage-staff", { headers: { "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) } })
-      .then((r) => r.json())
+      .then((r) => r.json()).then(surumBildir)
       .then((res) => setHesaplar(res.hesaplar || []))
       .catch(() => setHesaplar([]));
   };
@@ -6052,7 +6053,7 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
       headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
       body: JSON.stringify({ action: "ekle", ad: yeniAd.trim(), kullaniciAdi: yeniKullanici.trim(), sifre: yeniSifre }),
     })
-      .then((r) => r.json())
+      .then((r) => r.json()).then(surumBildir)
       .then((res) => {
         if (res.error) { setHata(res.error); return; }
         setHesaplar(res.hesaplar);
@@ -6068,7 +6069,7 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
       headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
       body: JSON.stringify({ action: "sifreSifirla", id, sifre: yeniSifreDeger }),
     })
-      .then((r) => r.json())
+      .then((r) => r.json()).then(surumBildir)
       .then((res) => { if (res.hesaplar) setHesaplar(res.hesaplar); setSifirlanan(null); setYeniSifreDeger(""); });
   };
 
@@ -6079,7 +6080,7 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
       headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
       body: JSON.stringify({ action: "sil", id }),
     })
-      .then((r) => r.json())
+      .then((r) => r.json()).then(surumBildir)
       .then((res) => { if (res.hesaplar) setHesaplar(res.hesaplar); });
   };
 
@@ -6097,7 +6098,7 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
       headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
       body: JSON.stringify({ action: "guncelle", id, email: taslakEmail.trim(), izinler: taslakIzin, markalar: taslakMarkalar }),
     })
-      .then((r) => r.json())
+      .then((r) => r.json()).then(surumBildir)
       .then((res) => { if (res.hesaplar) { setHesaplar(res.hesaplar); setAcikId(null); } });
   };
 
@@ -7124,6 +7125,18 @@ export default function MarcusOS() {
 
   /** Sunucu tarafında zaten kaydedilmiş bir müşteri güncellemesini, tüm veriyi yeniden yazıp
    * olası eski/bayat verilerin üzerine yazma riski oluşturmadan yerel duruma yansıtır. */
+  /* Yardımcı uçlar (personel hesapları, kasa, ödeme kaydı) KV'ye yazıp sürüm sayacını
+   * artırıyor. Bildirilmezse bu sekme bir tur geride kalır ve bir sonraki kayıt sahte
+   * çakışmayla kullanıcının o anki düzenlemesini siler. skipNextSave: sayacı güncellemek
+   * yeni bir kayıt tetiklememeli. */
+  useEffect(() => {
+    surumDinle((v) => {
+      skipNextSave.current = true;
+      setData((d) => (d && d._v === v ? d : { ...d, _v: v }));
+    });
+    return () => surumDinle(null);
+  }, []);
+
   const mergeClientLocally = (guncelClient) => {
     skipNextSave.current = true;
     setData((d) => ({ ...d, clients: (d.clients || []).map((c) => (c.id === guncelClient.id ? guncelClient : c)) }));
@@ -7135,7 +7148,7 @@ export default function MarcusOS() {
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ action: "addKaydi", clientId, kayit }),
     })
-      .then((r) => r.json())
+      .then((r) => r.json()).then(surumBildir)
       .then((res) => { if (res.ok && res.client) mergeClientLocally(res.client); else if (res.error) window.alert(res.error); })
       .catch(() => window.alert("Bağlantı hatası — ödeme kaydedilemedi, tekrar dene."));
   };
@@ -7145,7 +7158,7 @@ export default function MarcusOS() {
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ action: "deleteKaydi", clientId, kayitId }),
     })
-      .then((r) => r.json())
+      .then((r) => r.json()).then(surumBildir)
       .then((res) => { if (res.ok && res.client) mergeClientLocally(res.client); else if (res.error) window.alert(res.error); })
       .catch(() => window.alert("Bağlantı hatası — silinemedi, tekrar dene."));
   };
@@ -7155,7 +7168,7 @@ export default function MarcusOS() {
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ action: "setOdemeGunu", clientId, odemeGunu }),
     })
-      .then((r) => r.json())
+      .then((r) => r.json()).then(surumBildir)
       .then((res) => { if (res.ok && res.client) mergeClientLocally(res.client); else if (res.error) window.alert(res.error); })
       .catch(() => window.alert("Bağlantı hatası — kaydedilemedi, tekrar dene."));
   };
