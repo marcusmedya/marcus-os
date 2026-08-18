@@ -108,5 +108,65 @@ r = await cagri(OWNER, { onizlemeAction: "gorsel", isId: 10 });
 t("Drive kurulu değilken çökmüyor", r.kod === 200 && r.govde.ok === false, `HTTP ${r.kod}`);
 t("sebep bildiriliyor", Boolean(r.govde.sebep), r.govde.sebep);
 
+/* ---- 5. KİMLİK SIRASI: ÖNCE SERVİS HESABI ----
+ *
+ * Uygulamanın OAuth izni `drive.file` — bilinçli olarak dar (Google doğrulaması istemesin
+ * diye). Ama o izin YALNIZCA uygulamanın kendi yüklediği dosyaları kapsıyor. Drive'a elle
+ * konmuş eski dosyalar (yükleme sistemi gelmeden önce açılmış bütün kartlar) o token'a
+ * görünmez ve önizleme boş kalır. Gerçekte tam olarak bu yaşandı.
+ *
+ * Servis hesabı marka klasörlerine üye olduğu için eskileri de okuyabiliyor — bu yüzden
+ * ÖNCE o deneniyor. Sıra bozulursa eski kartların hiçbirinde önizleme çıkmaz. */
+console.log("\n Kimlik sırası");
+{
+  const { generateKeyPairSync } = await import("crypto");
+  const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048,
+    privateKeyEncoding: { type: "pkcs8", format: "pem" }, publicKeyEncoding: { type: "spki", format: "pem" } });
+  process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = "sa@x.iam.gserviceaccount.com";
+  process.env.GOOGLE_PRIVATE_KEY = privateKey;
+  process.env.GOOGLE_OAUTH_CLIENT_ID = "c";
+  process.env.GOOGLE_OAUTH_CLIENT_SECRET = "s";
+  process.env.GOOGLE_OAUTH_REFRESH_TOKEN = "r";
+
+  const gercekFetch = globalThis.fetch;
+  let kullanilanJetonlar = [];
+  /* Servis hesabı çalışıyor, OAuth çalışmıyor: eski dosyaların gerçek durumu bu. */
+  globalThis.fetch = async (url, opt = {}) => {
+    const u = String(url);
+    if (u.includes("oauth2.googleapis.com")) {
+      const govde = String(opt.body || "");
+      const kim = govde.includes("refresh_token") ? "oauth" : "servis";
+      kullanilanJetonlar.push(kim);
+      return { ok: true, json: async () => ({ access_token: kim }) };
+    }
+    if (u.includes("drive/v3/files/")) {
+      const jeton = String((opt.headers || {}).Authorization || "");
+      if (jeton.includes("servis")) {
+        return { ok: true, json: async () => ({ thumbnailLink: "https://lh3.googleusercontent.com/x=s220", mimeType: "image/jpeg" }) };
+      }
+      return { ok: false, json: async () => ({ error: { message: "File not found" } }) };
+    }
+    if (u.includes("lh3.googleusercontent.com")) {
+      return { ok: true, arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer,
+        headers: { get: () => "image/jpeg" } };
+    }
+    return gercekFetch(url, opt);
+  };
+
+  try {
+    kullanilanJetonlar = [];
+    const r5 = await cagri(OWNER, { onizlemeAction: "gorsel", isId: 11 });   // eski, elle konmuş dosya
+    t("elle konmuş eski dosyanın önizlemesi geliyor", r5.kod === 200 && r5.govde.ok === true,
+      r5.govde.sebep || `HTTP ${r5.kod}`);
+    t("ÖNCE servis hesabı deneniyor", kullanilanJetonlar[0] === "servis", kullanilanJetonlar.join(" → "));
+    t("servis hesabı yetince OAuth'a hiç gidilmiyor", !kullanilanJetonlar.includes("oauth"),
+      kullanilanJetonlar.join(" → "));
+    t("veri data URI olarak dönüyor", String(r5.govde.veri || "").startsWith("data:image/"),
+      String(r5.govde.veri || "").slice(0, 24));
+  } finally {
+    globalThis.fetch = gercekFetch;
+  }
+}
+
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);
 if (k > 0) process.exitCode = 1;

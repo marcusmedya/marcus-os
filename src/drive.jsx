@@ -126,7 +126,10 @@ export function DriveGorsel({ link, yukseklik = 420, kapak = false, radius = 10,
 
   if (driveKlasorMu(link)) return <div style={kutu}>Bu bir Drive <strong>klasör</strong> bağlantısı — klasörler önizlenemez. Tek bir dosyanın bağlantısını yapıştır.</div>;
   if (adaylar.length === 0) return <div style={kutu}>Bu bağlantıdan bir Drive dosyası tanınamadı. Bağlantının drive.google.com/file/d/... biçiminde olduğundan emin ol.</div>;
-  if (sira >= adaylar.length) return <div style={kutu}>Görsel yüklenemedi. En yaygın sebep: dosyanın paylaşım ayarı kapalı. Drive'da dosyaya sağ tık → Paylaş → "Bağlantıya sahip olan herkes" → Görüntüleyen.</div>;
+  /* ESKİ METİN KALDIRILDI: "paylaşım ayarını 'bağlantısı olan herkes' yap" diyordu.
+   * Bugün bu YANLIŞ bir tavsiye — uygulanırsa müşteri dosyalarını herkese açar. Dosyalar
+   * bilerek kısıtlı; önizleme sunucudan geliyor. */
+  if (sira >= adaylar.length) return <div style={kutu}>Önizleme getirilemedi. Dosya Drive'da duruyor ve orada açılabiliyor — bu ekranda gösterilememesi dosyayla ilgili bir sorun değil.</div>;
 
   return (
     <img
