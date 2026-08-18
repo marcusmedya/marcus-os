@@ -266,12 +266,27 @@ export const VIDEO_YONLERI = [
 ];
 export const videoYonuBul = (yon) => VIDEO_YONLERI.find((y) => y.key === yon) || VIDEO_YONLERI[0];
 
+/**
+ * Videonun KENDİ oranına göre azami genişlik.
+ *
+ * Elle girilen "yön" ayarının yerini alıyor: oran videonun metadata'sından okunuyor, kimse
+ * bir şey seçmek zorunda kalmıyor ve yanlış seçilemiyor. Dikey bir Reels geniş çerçevede
+ * ya devasa çıkıyor ya iki yanı siyah bantla doluyordu.
+ */
+export function videoEni(oran) {
+  if (!oran) return 420;          // metadata gelmeden makul bir başlangıç
+  if (oran < 0.9) return 340;     // dikey — Reels / Story
+  if (oran < 1.25) return 440;    // kare
+  return 680;                     // yatay
+}
+
 export function DriveVideo({ link, yon, baslik, isId, icerikId }) {
   const embed = driveEmbedUrl(link);
   const y = videoYonuBul(yon);
   const video = useVideoAdresi({ isId, icerikId });
   const kapak = useSunucuOnizleme({ isId, icerikId, boyut: 800 });
   const [gomulu, setGomulu] = useState(false);
+  const [oran, setOran] = useState(null);
   if (!embed && !video.adres) return null;
 
   /* GERÇEK <video> ETİKETİ. Gömülü Drive oynatıcısı yerine bu kullanılıyor: üçüncü taraf
@@ -279,13 +294,17 @@ export function DriveVideo({ link, yon, baslik, isId, icerikId }) {
    * dikey bir Reels dikey görünüyor, çerçeveye yön ayarı girmek gerekmiyor. */
   if (video.durum === "hazir" && video.adres && !gomulu) {
     return (
-      <div style={{ maxWidth: y.maxGenislik, margin: "0 auto", width: "100%" }}>
+      <div style={{ maxWidth: oran ? videoEni(oran) : y.maxGenislik, margin: "0 auto", width: "100%" }}>
         <video
           src={video.adres}
           poster={kapak.durum === "hazir" ? kapak.veri : undefined}
           controls
           playsInline
           preload="metadata"
+          onLoadedMetadata={(e) => {
+            const v = e.currentTarget;
+            if (v.videoWidth && v.videoHeight) setOran(v.videoWidth / v.videoHeight);
+          }}
           style={{ width: "100%", maxHeight: "70vh", borderRadius: 10, background: "#000", display: "block" }}
         />
       </div>

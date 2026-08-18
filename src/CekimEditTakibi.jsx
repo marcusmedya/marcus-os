@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { medyaVarMi, asamalariDuzelt } from "../lib/asamalar.js";
-import { useSunucuOnizleme, useVideoAdresi, gomuluEngelliMi, GOMULU_ACIKLAMA } from "./drive.jsx";
+import { useSunucuOnizleme, useVideoAdresi, videoEni, gomuluEngelliMi, GOMULU_ACIKLAMA } from "./drive.jsx";
 // Para gösterimleri Gizlilik Modu'na uymalı — aksi halde ücretler gizliyken de görünür kalırdı.
 import { fmt, T, authHeaders } from "./tema.jsx";
 import {
@@ -534,21 +534,31 @@ function SunucuOnizleme({ isId, versiyon, video, drivedeAc, gomuluUrl }) {
   const { durum, veri } = useSunucuOnizleme({ isId, boyut: 1200 });
   const akis = useVideoAdresi(video ? { isId } : {});
   const [gomulu, setGomulu] = useState(false);
+  const [oran, setOran] = useState(null);
   useEffect(() => { setGomulu(false); }, [isId, versiyon]);
 
   /* VİDEO: gerçek <video> etiketi. Gömülü Drive oynatıcısı üçüncü taraf çerezi istiyor ve
    * Safari'de siyah kalıyordu; kendi sunucumuzdan akıtınca o sorun yok. Ayrıca oynatıcı
    * videonun KENDİ en-boy oranını alıyor — dikey Reels dikey görünüyor. */
   if (video && akis.durum === "hazir" && akis.adres && !gomulu) {
+    /* GENİŞLİK VİDEONUN KENDİ ORANINDAN GELİYOR, elle girilen bir "yön" ayarından değil.
+     * Dikey bir Reels geniş çerçevede ya devasa çıkıyor ya iki yanı siyah bantla doluyordu.
+     * Oran metadata ile geldiği an kutu ona göre daralıyor. */
     return (
-      <video
-        src={akis.adres}
-        poster={durum === "hazir" ? veri : undefined}
-        controls
-        playsInline
-        preload="metadata"
-        style={{ width: "100%", maxHeight: "68vh", borderRadius: 8, background: "#000", display: "block" }}
-      />
+      <div style={{ maxWidth: videoEni(oran), margin: "0 auto", width: "100%" }}>
+        <video
+          src={akis.adres}
+          poster={durum === "hazir" ? veri : undefined}
+          controls
+          playsInline
+          preload="metadata"
+          onLoadedMetadata={(e) => {
+            const v = e.currentTarget;
+            if (v.videoWidth && v.videoHeight) setOran(v.videoWidth / v.videoHeight);
+          }}
+          style={{ width: "100%", maxHeight: "70vh", borderRadius: 8, background: "#000", display: "block" }}
+        />
+      </div>
     );
   }
 
@@ -919,6 +929,9 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
   const kategori = KATEGORILER.includes(job.kategori) ? job.kategori : "Video";
   const asamalar = asamaListesi(kategori);
   const dosyaVar = medyaVarMi(job);
+  /* Karta YÜKLENMİŞ medya var mı? medyaVarMi elle yapıştırılmış bağlantıyı da sayıyor;
+   * burada ayrımı yapmak gerekiyor: oynatıcı yalnızca yüklenmiş medya için çıkıyor. */
+  const medyaKartta = Array.isArray(job.medya) && job.medya.length > 0;
   const editiTamamla = () => asamaGecir("Kontrol Bekliyor", TAMAMLADIM_ETIKETI[kategori]);
   const revizeyiTamamla = () => asamaGecir("Kontrol Bekliyor", "Revize Tamamlandı");
   const onayla = () => asamaGecir("Onaylandı");
@@ -1158,17 +1171,22 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
                    * anında gösterilir. Video'da ise Drive'ın /preview'ı kullanılır — tarayıcıların
                    * otomatik oynatma kısıtlaması yüzünden oynatmak için bir tık gerekiyor, bu
                    * platform kısıtı, tamamen kaldırılamıyor. */}
-                  {job.editliDosyaLink && !ciktiVideoMu(kategori) && (
+                  {/* KART İÇİ OYNATICI VARSA BURADA TEKRAR GÖSTERİLMEZ.
+                    * Kartın üstünde zaten güncel versiyon oynatılıyor; aynı dosyayı bir de
+                    * burada göstermek ekranı ikiye bölüyor ve alttaki (eski gömülü Drive
+                    * çerçevesi) siyah kalıyordu. Bağlantı satırları duruyor — dosyaya
+                    * Drive'dan ulaşmak isteyen için. */}
+                  {job.editliDosyaLink && !medyaKartta && !ciktiVideoMu(kategori) && (
                     <DriveGorsel link={job.editliDosyaLink} C={C} yukseklik={420} isId={job.id} boyut={1200} />
                   )}
-                  {job.editliDosyaLink && ciktiVideoMu(kategori) && !driveEmbedUrl(job.editliDosyaLink) && (
+                  {job.editliDosyaLink && !medyaKartta && ciktiVideoMu(kategori) && !driveEmbedUrl(job.editliDosyaLink) && (
                     <div style={{ width: "100%", borderRadius: 10, background: C.panelAlt, border: `1px dashed ${C.border}`, padding: "12px 15px", fontSize: 13, color: C.textFaint, lineHeight: 1.6 }}>
                       {driveKlasorMu(job.editliDosyaLink)
                         ? "Bu bir Drive klasör bağlantısı — klasörler oynatıcı olarak gösterilemez. Tek bir video dosyasının bağlantısını yapıştır."
                         : "Bu bağlantıdan bir Drive dosyası tanınamadı — oynatıcı gösterilemiyor. Bağlantının drive.google.com/file/d/... biçiminde olduğundan emin ol."}
                     </div>
                   )}
-                  {job.editliDosyaLink && ciktiVideoMu(kategori) && driveEmbedUrl(job.editliDosyaLink) && (
+                  {job.editliDosyaLink && !medyaKartta && ciktiVideoMu(kategori) && driveEmbedUrl(job.editliDosyaLink) && (
                     <>
                       {/* Oynatıcı çerçevesi videonun yönüne göre şekillenir. Sabit 16:9 çerçevede
                         * dikey (Reels) videolar ortada küçük kalıp iki yanı siyah bantla doluyordu.
