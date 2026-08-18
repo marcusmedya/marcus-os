@@ -150,8 +150,10 @@ function DriveGorsel({ link, C, yukseklik, kapak, kucuk, isId, icerikId, boyut =
   if (sira >= adaylar.length) {
     return (
       <div style={kutuStili}>
-        Görsel yüklenemedi. En yaygın sebep: dosyanın paylaşım ayarı kapalı.
-        {!kucuk && " Drive'da dosyaya sağ tık → Paylaş → \"Bağlantıya sahip olan herkes\" → Görüntüleyen olarak ayarla."}
+        {/* ESKİ METİN KALDIRILDI: "paylaşım ayarını aç" diyordu; bugün bu yanlış bir
+            tavsiye — uygulanırsa müşteri dosyaları herkese açılır. */}
+        Önizleme getirilemedi. Dosya Drive'da duruyor ve orada açılabiliyor — bu ekranda
+        gösterilememesi dosyayla ilgili bir sorun değil.
       </div>
     );
   }
