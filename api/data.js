@@ -198,7 +198,13 @@ async function teslimEdilenleriTasi(oncekiVeri, sonrakiVeri) {
   const sonuclar = [];
   for (const is of yeniler) {
     const link = is.editliDosyaLink || is.dosyaLinki || is.hamDosyaLink || "";
-    if (!link) continue;
+    /* Bağlantı yokken SESSİZ KALMA. Eskiden burada `continue` vardı: taşıma denenmiyor ve
+     * geçmişe hiçbir not düşülmüyordu. Kullanıcı "neden taşınmadı" sorusunun cevabını
+     * hiçbir yerde bulamıyordu — bu bir kez gerçek bir teşhis saatine mal oldu. */
+    if (!link) {
+      sonuclar.push({ isId: is.id, tasindi: false, sebep: "kartta dosya bağlantısı yok" });
+      continue;
+    }
     const marka = ((sonrakiVeri.clients || []).find((c) => trKucult(c.ad) === trKucult(is.marka)) || {});
     const sonuc = await onaylananiTasi({
       dosyaLinki: link, markaAdi: is.marka,
@@ -207,6 +213,45 @@ async function teslimEdilenleriTasi(oncekiVeri, sonrakiVeri) {
     sonuclar.push({ isId: is.id, ...sonuc });
   }
   return sonuclar;
+}
+
+/**
+ * "Teslim Edildi"ye yeni geçen işlerin dosyalarını taşır ve sonucu işin geçmişine yazar.
+ *
+ * NEDEN AYRI FONKSİYON: bu iş hem personel hem yönetici kayıt yolunda yapılmalı. Daha önce
+ * yalnızca personel yolunda çağrılıyordu; yönetici (asıl kullanıcı) kaydettiğinde taşıma
+ * hiç tetiklenmiyor, üstelik hiçbir iz de bırakmıyordu. İki kopya yazmak yerine tek yerden
+ * çağrılıyor ki bir daha ayrışmasın.
+ *
+ * KİLİT UYARISI: guvenliGuncelle kendi yazma kilidini alır. Bu yüzden bu fonksiyon ASLA
+ * açık bir kilidin içinden çağrılmamalıdır — çağrılırsa kilit alınamaz ve not düşülemez.
+ *
+ * ASLA HATA FIRLATMAZ: taşıma da not düşme de başarısız olsa asıl kayıt geçerli kalır.
+ */
+async function tasimalariIsleVeNotDus(oncekiVeri, sonrakiVeri) {
+  try {
+    const tasimalar = await teslimEdilenleriTasi(oncekiVeri || {}, sonrakiVeri || {});
+    if (tasimalar.length === 0) return;
+    await guvenliGuncelle((guncel) => ({
+      veri: {
+        ...guncel,
+        cekimIsleri: (guncel.cekimIsleri || []).map((j) => {
+          const t = tasimalar.find((x) => String(x.isId) === String(j.id));
+          if (!t) return j;
+          return { ...j, gecmis: [...(j.gecmis || []), {
+            id: (j.gecmis || []).length + 1,
+            tarih: new Date().toLocaleString("tr-TR"),
+            yazan: "Sistem",
+            aciklama: t.tasindi
+              ? `Dosya Drive'da "${t.klasor}" klasörüne taşındı.`
+              : `Drive taşıma yapılamadı: ${t.sebep}`,
+          }] };
+        }),
+      },
+    }));
+  } catch (e) {
+    /* Taşıma ya da not düşme çökerse kaydın kendisi zarar görmemeli. */
+  }
 }
 
 export default async function handler(req, res) {
@@ -844,24 +889,7 @@ export default async function handler(req, res) {
         /* Kayıt başarılıysa "Teslim Edildi"ye yeni geçen işlerin dosyalarını taşı.
          * Taşıma sonucu iş geçmişine not düşülür; taşıma başarısız olsa da kayıt geçerli. */
         if (sonuc.ok) {
-          const tasimalar = await teslimEdilenleriTasi(sonuc.oncekiVeri || {}, sonuc.veri || {});
-          if (tasimalar.length > 0) {
-            await guvenliGuncelle((guncel) => ({
-              veri: {
-                ...guncel,
-                cekimIsleri: (guncel.cekimIsleri || []).map((j) => {
-                  const t = tasimalar.find((x) => String(x.isId) === String(j.id));
-                  if (!t) return j;
-                  return { ...j, gecmis: [...(j.gecmis || []), {
-                    id: (j.gecmis || []).length + 1,
-                    tarih: new Date().toLocaleString("tr-TR"),
-                    yazan: "Sistem",
-                    aciklama: t.tasindi ? `Dosya Drive'da "${t.klasor}" klasörüne taşındı.` : `Drive taşıma yapılamadı: ${t.sebep}`,
-                  }] };
-                }),
-              },
-            }));
-          }
+          await tasimalariIsleVeNotDus(sonuc.oncekiVeri, sonuc.veri);
         }
 
         if (!sonuc.ok) {
@@ -881,6 +909,11 @@ export default async function handler(req, res) {
       // yazma tek bir bölünmez blok halinde yapılıyor. Eskiden bu adımlar arasında başka
       // bir isteğin araya girip yazdığı değişiklik fark edilmeden siliniyordu.
       const ownerKilidi = await kilitAl();
+      /* Drive taşıma, kilit BIRAKILDIKTAN SONRA yapılacağı için kaydın öncesi/sonrası
+       * buraya taşınır. Kilit içinde taşıma yapılamaz: not düşen guvenliGuncelle kendi
+       * kilidini almak ister ve alamaz. */
+      let ownerOncekiVeri = null;
+      let ownerYazilanVeri = null;
       try {
       // Owner'ın yerel kopyasında personelHesaplari hiç yok (GET'te hiç gönderilmiyor) —
       // bu yüzden her kayıtta mevcut hesapları sunucudan alıp geri ekliyoruz, yoksa
@@ -970,10 +1003,18 @@ export default async function handler(req, res) {
         }
       }
 
-      return res.status(200).json({ ok: true, _v: yazilan._v });
+      ownerOncekiVeri = existingFull;
+      ownerYazilanVeri = yazilan;
       } finally {
         await kilitBirak(ownerKilidi);
       }
+
+      /* KİLİT BIRAKILDI — taşıma ve not düşme burada yapılır.
+       * Yanıttan ÖNCE çalışır: yanıt gönderildikten sonra sunucu fonksiyonu donabilir ve
+       * arkada kalan iş hiç bitmeyebilir. */
+      await tasimalariIsleVeNotDus(ownerOncekiVeri, ownerYazilanVeri);
+
+      return res.status(200).json({ ok: true, _v: ownerYazilanVeri._v });
     }
 
     return res.status(405).json({ error: "Sadece GET/POST kabul edilir." });
