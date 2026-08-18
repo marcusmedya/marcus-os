@@ -47,10 +47,19 @@ function hashSifre(sifre, salt) {
 /** Hesap listesini kilit altında, en güncel veri üzerine yazar ve versiyon sayacını
  * artırır. Eskiden burada yukarıda okunan (bayatlamış olabilecek) kopyanın tamamı geri
  * yazılıyordu — bir hesap eklerken arada yapılan başka değişiklikler silinebiliyordu. */
+/* YAZILAN SÜRÜM DIŞARI VERİLİYOR.
+ *
+ * Bu uç KV'ye yazıyor ve sürüm sayacını artırıyor. Sayac tarayıcıya bildirilmezse yönetici
+ * sekmesi bir tur geride kalır; bir sonraki kaydı sahte "başka cihazdan değişmiş" uyarısı
+ * alır ve ön yüz kullanıcının O ANKİ düzenlemesini sunucu verisiyle ezer. Yani personel
+ * hesabı eklemek, sonra bir müşteriyi düzenlemek düzenlemeyi kaybettiriyordu. */
+let sonYazilanSurum;
 async function hesaplariYaz(alanAdi, guncel) {
   const sonuc = await guvenliGuncelle(async (veri) => ({ veri: { ...veri, [alanAdi]: guncel } }));
+  sonYazilanSurum = sonuc && sonuc.ok && sonuc.veri ? sonuc.veri._v : undefined;
   return sonuc.ok;
 }
+const surumEki = () => (typeof sonYazilanSurum === "number" ? { _v: sonYazilanSurum } : {});
 
 function guvenliListe(hesaplar) {
   // markalar: hesabın kilitli olduğu marka listesi (boş = tüm markalar görünür)
@@ -102,7 +111,7 @@ export default async function handler(req, res) {
         if (!(await hesaplariYaz(alanAdi, guncel))) return res.status(500).json({ error: "Kaydedilemedi, tekrar dene." });
         // Hesap açma/silme ve yetki değişiklikleri güvenlik defterine yazılır.
         await deftereYaz("hesap-islemi", { hesapTuru: hesapTuru || "personel", action, id: id || null, ad: ad || null });
-        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel) });
+        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel), ...surumEki() });
       }
 
       if (action === "sifreSifirla") {
@@ -113,7 +122,7 @@ export default async function handler(req, res) {
         if (!(await hesaplariYaz(alanAdi, guncel))) return res.status(500).json({ error: "Kaydedilemedi, tekrar dene." });
         // Hesap açma/silme ve yetki değişiklikleri güvenlik defterine yazılır.
         await deftereYaz("hesap-islemi", { hesapTuru: hesapTuru || "personel", action, id: id || null, ad: ad || null });
-        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel) });
+        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel), ...surumEki() });
       }
 
       if (action === "guncelle") {
@@ -136,7 +145,7 @@ export default async function handler(req, res) {
         if (!(await hesaplariYaz(alanAdi, guncel))) return res.status(500).json({ error: "Kaydedilemedi, tekrar dene." });
         // Hesap açma/silme ve yetki değişiklikleri güvenlik defterine yazılır.
         await deftereYaz("hesap-islemi", { hesapTuru: hesapTuru || "personel", action, id: id || null, ad: ad || null });
-        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel) });
+        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel), ...surumEki() });
       }
 
       if (action === "sil") {
@@ -145,7 +154,7 @@ export default async function handler(req, res) {
         if (!(await hesaplariYaz(alanAdi, guncel))) return res.status(500).json({ error: "Kaydedilemedi, tekrar dene." });
         // Hesap açma/silme ve yetki değişiklikleri güvenlik defterine yazılır.
         await deftereYaz("hesap-islemi", { hesapTuru: hesapTuru || "personel", action, id: id || null, ad: ad || null });
-        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel) });
+        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel), ...surumEki() });
       }
 
       // Bir marka (client) silindiğinde, o markaya bağlı Müşteri Paneli giriş hesabını/hesaplarını
@@ -157,7 +166,7 @@ export default async function handler(req, res) {
         if (!(await hesaplariYaz(alanAdi, guncel))) return res.status(500).json({ error: "Kaydedilemedi, tekrar dene." });
         // Hesap açma/silme ve yetki değişiklikleri güvenlik defterine yazılır.
         await deftereYaz("hesap-islemi", { hesapTuru: hesapTuru || "personel", action, id: id || null, ad: ad || null });
-        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel) });
+        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel), ...surumEki() });
       }
 
       return res.status(400).json({ error: "Geçersiz işlem." });

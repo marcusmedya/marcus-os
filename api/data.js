@@ -1029,18 +1029,29 @@ export default async function handler(req, res) {
              * Dördüncü tura giden bir içerik brief'in ya da beklentinin sorunlu olduğunu
              * gösterir — bu yüzden sayı olarak tutuluyor. */
             const yeniSayi = musteriAction === "revizeIste" ? (Number(hedef.revizeSayisi) || 0) + 1 : (Number(hedef.revizeSayisi) || 0);
+            const yeniIsler = isler.map((j) => (String(j.id) === String(isId)
+              ? {
+                  ...j,
+                  asama: yeniAsama,
+                  musteriRevizeNotu: musteriAction === "revizeIste" ? revizeNotu.trim() : null,
+                  revizeSayisi: yeniSayi,
+                  gecmis: [...(j.gecmis || []), { id: (j.gecmis || []).length + 1, tarih: zaman, yazan: "Müşteri", aciklama: not }],
+                }
+              : j));
+
+            /* ONAY STOĞA YANSISIN — ASIL ONAY YOLU BURASI.
+             *
+             * Stok "elde hazır bekleyen içerik" sayısı ve içerik MÜŞTERİ onayladığında hazır
+             * hale geliyor. Burada işlenmediğinde onay stoğa hiç yansımıyordu; üstelik bir
+             * sonraki normal kayıt kartı "zaten sayılmış" kabul edip işaretliyor ve artış
+             * KALICI OLARAK kayboluyordu. Sessiz ve geri dönüşü olmayan bir sayım hatası. */
+            const stokSonuc = onaylananlaraGoreStok(isler, yeniIsler, guncel.stoklar, guncel.clients);
+
             return {
               veri: {
                 ...guncel,
-                cekimIsleri: isler.map((j) => (String(j.id) === String(isId)
-                  ? {
-                      ...j,
-                      asama: yeniAsama,
-                      musteriRevizeNotu: musteriAction === "revizeIste" ? revizeNotu.trim() : null,
-                      revizeSayisi: yeniSayi,
-                      gecmis: [...(j.gecmis || []), { id: (j.gecmis || []).length + 1, tarih: zaman, yazan: "Müşteri", aciklama: not }],
-                    }
-                  : j)),
+                cekimIsleri: stokSonuc ? stokSonuc.cekimIsleri : yeniIsler,
+                ...(stokSonuc ? { stoklar: stokSonuc.stoklar } : {}),
               },
               ek: { hedefIs: hedef, yeniSayi },
             };

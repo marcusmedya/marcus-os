@@ -101,7 +101,9 @@ export default async function handler(req, res) {
         veri: { ...guncel, kasaSifresiHash: hash, kasaSifresiSalt: salt },
       }));
       if (!sonuc.ok) return res.status(500).json({ error: "Kasa şifresi kaydedilemedi, tekrar dene." });
-      return res.status(200).json({ ok: true });
+      /* Yazılan sürüm geri dönüyor: bildirilmezse yönetici sekmesi bir tur geride kalır ve
+       * sonraki kayıt sahte çakışmayla kullanıcının düzenlemesini siler. */
+      return res.status(200).json({ ok: true, ...(sonuc.veri && typeof sonuc.veri._v === "number" ? { _v: sonuc.veri._v } : {}) });
     }
 
     return res.status(400).json({ error: "Geçersiz işlem." });
