@@ -2063,9 +2063,9 @@ function haftaEkle(haftaKeyStr, adet) {
   return haftaBaslangici(d);
 }
 
-function HaftalikPaylasimPlani({ clients, plan, stoklar, onAddPlan, onToggleYapildi, onDeletePlan }) {
+function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, onAddPlan, onToggleYapildi, onDeletePlan }) {
   const [haftaKey, setHaftaKey] = useState(haftaBaslangici());
-  const [secim, setSecim] = useState(null); // { clientId, gun }
+  const [secim, setSecim] = useState(null); // { clientId, gun, tur }
   const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
   const buHaftaPlan = (plan || []).filter((p) => p.haftaKey === haftaKey);
 
@@ -2128,9 +2128,12 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, onAddPlan, onToggleYapi
                           <button
                             onClick={() => tikla(p)}
                             onDoubleClick={() => { if (window.confirm("Bu plan silinsin mi?")) onDeletePlan(p.id); }}
-                            title={`${p.tur} — tıkla: yapıldı işaretle (stoktan düşer), çift tıkla: sil`}
+                            title={`${p.tur}${p.isAdi ? ` — ${p.isAdi}` : ""}${p.isId ? " (Operasyon kartına bağlı: paylaşıldı deyince kart Teslim Edildi olur, dosya Drive'da 3 PAYLAŞILDI'ya geçer)" : ""} — tıkla: yapıldı işaretle (stoktan düşer), çift tıkla: sil`}
                             style={{
-                              width: 32, height: 28, borderRadius: 7, border: "none",
+                              width: 32, height: 28, borderRadius: 7,
+                              /* Bağlı kartın kenarlığı var: hangi hücrenin Drive'ı da
+                                 hareket ettireceği tek bakışta görünmeli. */
+                              border: p.isId ? `2px solid ${p.yapildi ? T.success : T.warning}` : "none",
                               background: p.yapildi ? T.successSoft : T.warningSoft,
                               color: p.yapildi ? T.success : T.warning,
                               cursor: "pointer", fontSize: 13, fontWeight: 700,
@@ -2151,23 +2154,82 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, onAddPlan, onToggleYapi
 
       <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 10 }}>
         <span style={{ color: T.warning }}>■</span> planlandı (henüz paylaşılmadı) · <span style={{ color: T.success }}>■</span> paylaşıldı (G=Görsel, V=Video, R=Reels, S=Story, C=Carousel). Bir güne tıklayıp tür seçerek plan ekle; planlı güne tıklayınca "paylaşıldı" işaretlenir (o markanın kartından o birim düşer), çift tıklayınca silinir.
+        <br />
+        <span style={{ display: "inline-block", width: 9, height: 9, border: `2px solid ${T.success}`, borderRadius: 3, verticalAlign: "middle", marginRight: 4 }} />
+        Kenarlıklı hücre bir <strong>Operasyon kartına bağlı</strong>: paylaşıldı dediğin an o iş
+        "Teslim Edildi" olur ve dosyası Drive'da <strong>3 PAYLAŞILDI</strong> klasörüne geçer.
+        Operasyon panosuna ya da Drive'a girmene gerek kalmaz.
       </div>
 
       {secim && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 90, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={() => setSecim(null)}>
-          <div onClick={(e) => e.stopPropagation()} className="marcus-card" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: "18px 22px", width: 280 }}>
-            <div style={{ fontSize: 13, color: T.text, fontWeight: 600, marginBottom: 12 }}>Hangi tür paylaşılacak?</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {PAYLASIM_TURLERI.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => { onAddPlan(secim.clientId, secim.gun, haftaKey, t); setSecim(null); }}
-                  style={{ padding: "12px 15px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.surfaceRaised, color: T.text, fontSize: 13, fontFamily: "Inter", cursor: "pointer", textAlign: "left" }}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
+          <div onClick={(e) => e.stopPropagation()} className="marcus-card" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: "18px 22px", width: 360, maxWidth: "100%", maxHeight: "80vh", overflowY: "auto" }}>
+            {!secim.tur ? (
+              <>
+                <div style={{ fontSize: 13, color: T.text, fontWeight: 600, marginBottom: 12 }}>Hangi tür paylaşılacak?</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {PAYLASIM_TURLERI.map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => setSecim((x) => ({ ...x, tur: t }))}
+                      style={{ padding: "12px 15px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.surfaceRaised, color: T.text, fontSize: 13, fontFamily: "Inter", cursor: "pointer", textAlign: "left" }}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                {/* İKİNCİ ADIM: HANGİ İÇERİK.
+                    Marka yöneticisinin serbest metin yazması yerine ONAYLANMIŞ kartlardan
+                    seçmesi isteniyor. Seçilen kart paylaşıldı işaretlendiğinde kendiliğinden
+                    "Teslim Edildi"ye geçiyor ve dosyası Drive'da 3 PAYLAŞILDI'ya taşınıyor —
+                    yönetici ne Operasyon panosuna ne de Drive'a giriyor. */}
+                <div style={{ fontSize: 13, color: T.text, fontWeight: 600, marginBottom: 4 }}>Hangi içerik paylaşılacak?</div>
+                <div style={{ fontSize: 11.5, color: T.textFaint, lineHeight: 1.6, marginBottom: 12 }}>
+                  {secim.tur} · {(aktifMarkalar.find((c) => c.id === secim.clientId) || {}).ad}.
+                  Kart seçersen paylaşıldı dediğin an o iş <strong>Teslim Edildi</strong> olur ve
+                  dosyası Drive'da <strong>3 PAYLAŞILDI</strong> klasörüne geçer.
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {(() => {
+                    const markaAd = ((aktifMarkalar.find((c) => c.id === secim.clientId) || {}).ad || "").trim().toLocaleLowerCase("tr");
+                    const bagliIdler = new Set((plan || []).map((x) => String(x.isId)).filter((x) => x && x !== "null"));
+                    const hazir = (isler || []).filter((j) =>
+                      (j.marka || "").trim().toLocaleLowerCase("tr") === markaAd
+                      && j.asama === "Onaylandı"
+                      && !bagliIdler.has(String(j.id)));
+                    if (hazir.length === 0) {
+                      return (
+                        <div style={{ fontSize: 12.5, color: T.textDim, background: T.surfaceRaised, borderRadius: 8, padding: "12px 15px", lineHeight: 1.6 }}>
+                          Bu markada paylaşıma hazır (müşterinin onayladığı) kart yok. Kart bağlamadan
+                          da plan ekleyebilirsin — o zaman Drive'a bir şey taşınmaz.
+                        </div>
+                      );
+                    }
+                    return hazir.map((j) => (
+                      <button
+                        key={j.id}
+                        onClick={() => { onAddPlan(secim.clientId, secim.gun, haftaKey, secim.tur, j.id); setSecim(null); }}
+                        style={{ padding: "12px 15px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.surfaceRaised, color: T.text, fontSize: 13, fontFamily: "Inter", cursor: "pointer", textAlign: "left" }}
+                      >
+                        <div style={{ fontWeight: 600 }}>{j.icerikTuru || "İsimsiz içerik"}</div>
+                        <div style={{ fontSize: 11.5, color: T.textFaint, marginTop: 2 }}>
+                          {j.kategori || "Video"}{j.editor ? ` · ${j.editor}` : ""}
+                        </div>
+                      </button>
+                    ));
+                  })()}
+                  <button
+                    onClick={() => { onAddPlan(secim.clientId, secim.gun, haftaKey, secim.tur); setSecim(null); }}
+                    style={{ padding: "12px 15px", borderRadius: 8, border: `1px dashed ${T.border}`, background: "transparent", color: T.textDim, fontSize: 12.5, fontFamily: "Inter", cursor: "pointer", textAlign: "left" }}
+                  >
+                    Kart bağlamadan ekle
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -2175,7 +2237,7 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, onAddPlan, onToggleYapi
   );
 }
 
-function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, onAddHaftalikPlan, onToggleHaftalikYapildi, onDeleteHaftalikPlan, subeler, onAddSube, onDeleteSube, onSubeStokDegis }) {
+function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, isler, onAddHaftalikPlan, onToggleHaftalikYapildi, onDeleteHaftalikPlan, subeler, onAddSube, onDeleteSube, onSubeStokDegis }) {
   const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
   const stoklarObj = stoklar || {};
 
@@ -2198,6 +2260,7 @@ function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, onAd
         clients={clients}
         plan={haftalikPlan}
         stoklar={stoklarObj}
+        isler={isler}
         onAddPlan={onAddHaftalikPlan}
         onToggleYapildi={onToggleHaftalikYapildi}
         onDeletePlan={onDeleteHaftalikPlan}
@@ -7210,7 +7273,7 @@ export default function MarcusOS() {
    * ve işaretleme haftalikToggle üzerinden yapılıyor. Sunucudaki gunlukToggle işlemi duruyor —
    * paylasimGecmisi ve stok düşümünü o yönetiyor, haftalikToggle da onu çağırıyor. */
 
-  const addHaftalikPlan = (clientId, gun, haftaKey, tur) => paylasimIstek({ action: "haftalikEkle", clientId, gun, haftaKey, tur }, "Bağlantı hatası — plan eklenemedi, tekrar dene.");
+  const addHaftalikPlan = (clientId, gun, haftaKey, tur, isId) => paylasimIstek({ action: "haftalikEkle", clientId, gun, haftaKey, tur, isId }, "Bağlantı hatası — plan eklenemedi, tekrar dene.");
   /** Planlanan paylaşımın alt metni (caption) — müşteri panelinde gösterilir. */
   /** Planlanan paylaşımın açıklama metni ve/veya görseli. Sadece verilen alan gönderilir —
    * biri güncellenirken diğeri sıfırlanmasın diye undefined olanlar isteğe hiç eklenmez. */
@@ -8013,7 +8076,7 @@ export default function MarcusOS() {
             />
           )}
           {staffTab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} clients={data.clients || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} duzenleyenAdi={loggedStaffName || "Personel"} olcumler={data.hesapOlcumleri || []} onKaydetOlcum={kaydetOlcum} onSilOlcum={silOlcum} />}
-          {staffTab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} />}
+          {staffTab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} isler={data.cekimIsleri || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} />}
           {/* Günlük Kontrol artık haftalık planı okur ve AYNI sunucu işlemine yazar
             (toggleHaftalikYapildi) — iki panelin ayrışması mümkün değil. */}
           {staffTab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="staff" />}
@@ -8457,7 +8520,7 @@ export default function MarcusOS() {
             />
           )}
           {tab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} clients={data.clients || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} duzenleyenAdi="Yönetici (CEO)" olcumler={data.hesapOlcumleri || []} onKaydetOlcum={kaydetOlcum} onSilOlcum={silOlcum} />}
-          {tab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} />}
+          {tab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} isler={data.cekimIsleri || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} />}
           {tab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="owner" />}
           {tab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} />}
           {tab === "cekim-edit" && <CekimEditTakibi role="owner" clients={data.clients || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} isUcretleri={data.isUcretleri || {}} onSaveIsUcreti={setIsUcreti} isUcretDetaylari={data.isUcretDetaylari || {}} onSaveIsUcretDetayi={setIsUcretDetayi} avanslar={data.avanslar || []} hesaplar={data.hesaplar || []} onAddAvans={addAvans} onDeleteAvans={deleteAvans} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={true} firmaAdi={data.firmaAdi} />}
