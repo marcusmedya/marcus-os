@@ -238,5 +238,39 @@ console.log("\n Klasör adı eşleştirme");
   globalThis.fetch = gercekFetch;
 }
 
+/* ---- 8. KLASÖR DURUM RAPORU ----
+ *
+ * "Bağlantı dolu mu" bakmak yetmiyor: dolu ama BAŞKA klasörü gösteriyor olabilir. VIZZ'de
+ * tam olarak bu yaşandı, dosyalar bir kat derine gömüldü ve hiçbir yerde uyarı yoktu. */
+console.log("\n Klasör durum raporu");
+{
+  await kv.set("marcus-os-data", { ...VERI(),
+    clients: [
+      { id: 1, ad: "VIZZ", driveOnayKlasoru: "https://drive.google.com/drive/folders/1AbCdefGHIjklMNOpqrs" },
+      { id: 2, ad: "BOŞ MARKA" },
+      { id: 3, ad: "BOZUK MARKA", driveOnayKlasoru: "bu bir bağlantı değil" },
+    ] });
+  delete process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  delete process.env.GOOGLE_PRIVATE_KEY;
+
+  const r = await cagri(OWNER, { driveAction: "klasorDurumu" });
+  t("rapor dönüyor", r.kod === 200 && Array.isArray(r.govde.markalar), `HTTP ${r.kod}`);
+  const bul = (ad) => (r.govde.markalar || []).find((m) => m.ad === ad) || {};
+  t("bağlantısı olmayan marka 'yok' işaretleniyor", bul("BOŞ MARKA").durum === "yok", bul("BOŞ MARKA").durum);
+  t("bozuk bağlantı 'gecersiz' işaretleniyor", bul("BOZUK MARKA").durum === "gecersiz", bul("BOZUK MARKA").durum);
+  t("Drive kurulu değilken çökmüyor", bul("VIZZ").durum === "kurulusuz", bul("VIZZ").durum);
+  t("üç markanın da durumu var", (r.govde.markalar || []).length === 3);
+
+  // marka kilitli personel yalnızca kendi markasını görmeli
+  const rk = await cagri(KILITLI, { driveAction: "klasorDurumu" });
+  t("marka kilitli personel sadece kendi markasını görüyor",
+    rk.kod === 200 && (rk.govde.markalar || []).length === 1 && rk.govde.markalar[0].ad === "VIZZ",
+    `${(rk.govde.markalar || []).length} marka`);
+  t("başka markanın adı sızmıyor", !JSON.stringify(rk.govde).includes("BOZUK"));
+
+  const rm = await cagri(MUSTERI, { driveAction: "klasorDurumu" });
+  t("müşteri hesabı rapor alamıyor", rm.kod === 403, `HTTP ${rm.kod}`);
+}
+
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);
 if (k > 0) process.exitCode = 1;

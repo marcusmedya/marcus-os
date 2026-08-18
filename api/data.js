@@ -5,7 +5,7 @@ import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, t
 import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, trKucult, markaEslestirici } from "../lib/marka-kilidi.js";
 import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
 import { epostaGonder, revizeBildirimHtml } from "../lib/eposta.js";
-import { onaylananiTasi, DURUM_KLASORLERI } from "../lib/drive-tasima.js";
+import { onaylananiTasi, DURUM_KLASORLERI, klasorDurumu } from "../lib/drive-tasima.js";
 import { yuklemeOturumuAc, yuklemeyiTamamla, yuklenenDosyayiSil, yuklemeHazirMi } from "../lib/drive-yukleme.js";
 
 /** Bir kayıt (eski veri, yeni veri) arasındaki ÖNEMLİ değişiklikleri (müşteri/personel/üyelik
@@ -483,6 +483,27 @@ export default async function handler(req, res) {
       if (perms.cekimEdit !== true) return res.status(403).json({ error: "Yetkin yok." });
       izinli = Array.isArray(staffMarkalar) ? staffMarkalar : [];
     }
+    /* KLASÖR DURUM RAPORU — iş kartı gerektirmez, bu yüzden kart aramasından ÖNCE.
+     *
+     * Her markanın Drive klasörünü gerçekten açıp ADINI geri getirir. "Bağlantı dolu mu"
+     * diye bakmak yetmiyor: bağlantı dolu ama BAŞKA bir klasörü gösteriyor olabilir —
+     * VIZZ'de tam olarak bu yaşandı ve dosyalar bir kat derine gömüldü. Kullanıcı doğru
+     * klasörü seçip seçmediğini adından anlasın. */
+    if (driveAction === "klasorDurumu") {
+      const markalar = (veri.clients || [])
+        .filter((c) => role !== "staff" || izinli.length === 0 || izinli.some((m) => trKucult(m) === trKucult(c.ad)));
+      /* Sıralı çalıştırılsaydı 17 marka × 2 Google çağrısı yanıtı dakikalara çıkarırdı.
+       * Paralel ama sınırlı: aynı anda en fazla 6, Google'ı boğmamak için. */
+      const sonuclar = [];
+      for (let i = 0; i < markalar.length; i += 6) {
+        const parca = await Promise.all(markalar.slice(i, i + 6).map(async (c) => ({
+          id: c.id, ad: c.ad, ...(await klasorDurumu(c.driveOnayKlasoru)),
+        })));
+        sonuclar.push(...parca);
+      }
+      return res.status(200).json({ ok: true, markalar: sonuclar });
+    }
+
     const is = (veri.cekimIsleri || []).find((j) => String(j.id) === String(isId));
     if (!is) return res.status(404).json({ error: "İş kartı bulunamadı." });
     if (role === "staff" && izinli.length > 0 && !izinli.some((m) => trKucult(m) === trKucult(is.marka))) {
