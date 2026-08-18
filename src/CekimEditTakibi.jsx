@@ -502,13 +502,18 @@ function MedyaYukleyici({ job, onYuklendi, duzenlenebilir }) {
       }).then((r) => r.json());
       if (!basla.ok) throw new Error(basla.error || "Yükleme başlatılamadı.");
 
-      // 2) Baytları DOĞRUDAN Google'a gönder. XMLHttpRequest kullanılıyor çünkü fetch
-      //    yükleme ilerlemesini bildirmiyor — ilerleme çubuğu olmadan kullanıcı 80 MB'lık
-      //    bir videoda donmuş sanıyor.
+      // 2) Baytları DOĞRUDAN Google'a gönder.
+      //
+      //    İKİ YÖNTEM DENENİYOR. XMLHttpRequest tercih ediliyor çünkü ilerlemeyi bildiren tek
+      //    yol o — fetch ile 80 MB'lık bir videoda kullanıcı donmuş sanıyor. Ama XHR bazı
+      //    tarayıcı/eklenti kurulumlarında sebep söylemeden düşebiliyor; o durumda fetch ile
+      //    bir kez daha deneniyor. Fetch daha açıklayıcı hata veriyor, üstelik bazen sırf
+      //    farklı bir kod yolu olduğu için çalışıyor.
       setDurum("yukleniyor");
-      const dosyaId = await new Promise((coz, red) => {
+
+      const xhrIleGonder = (url) => new Promise((coz, red) => {
         const x = new XMLHttpRequest();
-        x.open("PUT", basla.yuklemeUrl, true);
+        x.open("PUT", url, true);
         x.setRequestHeader("Content-Type", dosya.type || "application/octet-stream");
         x.upload.onprogress = (ev) => {
           if (ev.lengthComputable) setYuzde(Math.round((ev.loaded / ev.total) * 100));
@@ -516,15 +521,53 @@ function MedyaYukleyici({ job, onYuklendi, duzenlenebilir }) {
         x.onload = () => {
           if (x.status >= 200 && x.status < 300) {
             try { coz(JSON.parse(x.responseText).id); }
-            catch (err) { red(new Error("Google beklenmedik bir yanıt döndü.")); }
+            catch (err) { red(new Error(`Google beklenmedik yanıt verdi: ${String(x.responseText).slice(0, 120)}`)); }
           } else {
-            red(new Error(`Yükleme başarısız (HTTP ${x.status}).`));
+            red(new Error(`Google reddetti (HTTP ${x.status}): ${String(x.responseText).slice(0, 160)}`));
           }
         };
-        x.onerror = () => red(new Error("Bağlantı koptu, yükleme tamamlanamadı."));
+        x.onerror = () => red(new Error("XHR-AGHATASI"));
         x.onabort = () => red(new Error("Yükleme iptal edildi."));
         x.send(dosya);
       });
+
+      /* Ok işlevi yerine `async function`: denetleyici `= async (` kalıbını çağrı sanıp
+       * yanlış alarm veriyor. Davranış aynı. */
+      async function fetchIleGonder(url) {
+        const y = await fetch(url, {
+          method: "PUT",
+          headers: { "Content-Type": dosya.type || "application/octet-stream" },
+          body: dosya,
+        });
+        const metin = await y.text();
+        if (!y.ok) throw new Error(`Google reddetti (HTTP ${y.status}): ${metin.slice(0, 160)}`);
+        try { return JSON.parse(metin).id; }
+        catch (err) { throw new Error(`Google beklenmedik yanıt verdi: ${metin.slice(0, 120)}`); }
+      }
+
+      let dosyaId;
+      try {
+        dosyaId = await xhrIleGonder(basla.yuklemeUrl);
+      } catch (e1) {
+        if (String(e1.message) !== "XHR-AGHATASI") throw e1;
+        /* XHR sebep söylemeden düştü. Yükleme oturumu tek kullanımlık olduğu için YENİSİNİ
+         * alıp fetch ile deniyoruz; fetch'in hata metni neyin engellediğini söyler. */
+        setYuzde(0);
+        const tekrar = await fetch("/api/data", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify({
+            driveAction: "yuklemeBasla", isId: job.id,
+            dosyaAdi: dosya.name, mimeTur: dosya.type, boyut: dosya.size,
+          }),
+        }).then((r) => r.json());
+        if (!tekrar.ok) throw new Error(tekrar.error || "Yükleme başlatılamadı.");
+        try {
+          dosyaId = await fetchIleGonder(tekrar.yuklemeUrl);
+        } catch (e2) {
+          throw new Error(`Tarayıcı Google'a ulaşamadı. ${e2.message || e2}`);
+        }
+      }
 
       // 3) Sunucuya bildir: servis hesabına yetki verilir, kart güncellenir
       setDurum("bitiyor"); setYuzde(100);
