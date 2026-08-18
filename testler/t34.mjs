@@ -176,5 +176,67 @@ console.log("\n Origin başlığı Google'a iletiliyor mu");
   globalThis.fetch = gercekFetch;
 }
 
+/* ---- 7. KLASÖR ADI EŞLEŞTİRME — mevcut klasörler yeniden kullanılmalı ----
+ *
+ * Gerçek Drive'da aynı klasör üç ayrı yazımla duruyor: "AĞUSTOS", "Ağustos",
+ * "08 AGUSTOS 2026". Katı eşleştirme yapılırsa sistem var olanı bulamayıp yenisini açar,
+ * dosyalar ikiye bölünür ve kimse fark etmez. Bir markada tam olarak bu oldu. */
+console.log("\n Klasör adı eşleştirme");
+{
+  const { DURUM_KLASORLERI } = await import("../lib/drive-tasima.js");
+  t("durum klasörleri numaralı", DURUM_KLASORLERI.onayBekleyen === "1 ONAY BEKLEYENLER"
+    && DURUM_KLASORLERI.onaylanan === "2 ONAYLANANLAR"
+    && DURUM_KLASORLERI.paylasilan === "3 PAYLAŞILDI",
+    Object.values(DURUM_KLASORLERI).join(" | "));
+
+  /* klasorBulVeyaOlustur dışa açık değil; davranışı hedefKlasoruHazirla üzerinden,
+   * Drive'ı taklit ederek sınıyoruz. */
+  const { generateKeyPairSync } = await import("crypto");
+  const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048,
+    privateKeyEncoding: { type: "pkcs8", format: "pem" }, publicKeyEncoding: { type: "spki", format: "pem" } });
+  process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = "sa@x.iam.gserviceaccount.com";
+  process.env.GOOGLE_PRIVATE_KEY = privateKey;
+  const { hedefKlasoruHazirla } = await import("../lib/drive-tasima.js");
+
+  const gercekFetch = globalThis.fetch;
+  let acilanKlasorler = [];
+  const kur = (mevcutlar) => {
+    acilanKlasorler = [];
+    globalThis.fetch = async (url, opt = {}) => {
+      const u = String(url);
+      if (u.includes("oauth2.googleapis.com")) return { ok: true, json: async () => ({ access_token: "j" }) };
+      if (u.includes("files?q=")) {
+        const ust = decodeURIComponent(u.match(/'([^']+)'\+?in\+?parents|%27([^%]+)%27/) ? "" : "");
+        return { ok: true, json: async () => ({ files: mevcutlar.map((ad, i) => ({ id: "m" + i, name: ad })) }) };
+      }
+      if (u.includes("drive/v3/files?fields=id") && opt.method === "POST") {
+        const govde = JSON.parse(opt.body || "{}");
+        acilanKlasorler.push(govde.name);
+        return { ok: true, json: async () => ({ id: "yeni" }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    };
+  };
+
+  // Drive'da "08 AGUSTOS 2026" (Ğ'siz) ve "PAYLAŞILDI" (numarasız) var
+  kur(["08 AGUSTOS 2026", "PAYLAŞILDI"]);
+  await hedefKlasoruHazirla({ markaKlasoru: "https://drive.google.com/drive/folders/1AbCdefGHIjklMNOpqrs",
+    markaAdi: "VIZZ", durumAdi: DURUM_KLASORLERI.paylasilan });
+  t("Ğ'siz ay klasörü YENİDEN KULLANILDI", !acilanKlasorler.some((a) => /A[ĞG]USTOS/i.test(a)),
+    acilanKlasorler.join(", ") || "hiç klasör açılmadı");
+  t("numarasız PAYLAŞILDI yeniden kullanıldı", !acilanKlasorler.some((a) => /PAYLA/i.test(a)),
+    acilanKlasorler.join(", ") || "hiç klasör açılmadı");
+
+  // Hiçbiri yoksa yeni ve NUMARALI adla açılmalı
+  kur([]);
+  await hedefKlasoruHazirla({ markaKlasoru: "https://drive.google.com/drive/folders/1AbCdefGHIjklMNOpqrs",
+    markaAdi: "VIZZ", durumAdi: DURUM_KLASORLERI.onayBekleyen });
+  t("eksik klasörler numaralı adla açılıyor",
+    acilanKlasorler.some((a) => /^\d\d .+ \d{4}$/.test(a)) && acilanKlasorler.includes("1 ONAY BEKLEYENLER"),
+    acilanKlasorler.join(", "));
+
+  globalThis.fetch = gercekFetch;
+}
+
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);
 if (k > 0) process.exitCode = 1;

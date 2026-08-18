@@ -5,7 +5,7 @@ import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, t
 import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, trKucult, markaEslestirici } from "../lib/marka-kilidi.js";
 import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
 import { epostaGonder, revizeBildirimHtml } from "../lib/eposta.js";
-import { onaylananiTasi } from "../lib/drive-tasima.js";
+import { onaylananiTasi, DURUM_KLASORLERI } from "../lib/drive-tasima.js";
 import { yuklemeOturumuAc, yuklemeyiTamamla, yuklenenDosyayiSil, yuklemeHazirMi } from "../lib/drive-yukleme.js";
 
 /** Bir kayıt (eski veri, yeni veri) arasındaki ÖNEMLİ değişiklikleri (müşteri/personel/üyelik
@@ -197,10 +197,10 @@ async function resolveRole(req) {
  * henüz ekibin çalışma alanındadır, sistemin oraya karışmaması gerekir.
  */
 const ASAMA_KLASORU = {
-  "Kontrol Bekliyor": "ONAY BEKLEYENLER",
-  "Revize İstendi": "ONAY BEKLEYENLER",
-  "Onaylandı": "ONAYLANANLAR",
-  "Teslim Edildi": "PAYLAŞILDI",
+  "Kontrol Bekliyor": DURUM_KLASORLERI.onayBekleyen,
+  "Revize İstendi": DURUM_KLASORLERI.onayBekleyen,
+  "Onaylandı": DURUM_KLASORLERI.onaylanan,
+  "Teslim Edildi": DURUM_KLASORLERI.paylasilan,
 };
 
 /**
