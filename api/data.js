@@ -189,34 +189,83 @@ async function resolveRole(req) {
  *
  * ASLA HATA FIRLATMAZ — kaydın kendisi her koşulda geçerli kalır.
  */
-async function teslimEdilenleriTasi(oncekiVeri, sonrakiVeri) {
+/**
+ * AŞAMA -> DRIVE KLASÖRÜ eşlemesi.
+ *
+ * Listede olmayan aşamalarda dosyaya DOKUNULMAZ — erken aşamalarda (çekim, edit) dosya
+ * henüz ekibin çalışma alanındadır, sistemin oraya karışmaması gerekir.
+ */
+const ASAMA_KLASORU = {
+  "Kontrol Bekliyor": "ONAY BEKLEYENLER",
+  "Revize İstendi": "ONAY BEKLEYENLER",
+  "Onaylandı": "ONAYLANANLAR",
+  "Teslim Edildi": "PAYLAŞILDI",
+};
+
+/**
+ * AŞAMASI DEĞİŞEN İŞLERİN DOSYALARINI DOĞRU KLASÖRE TAŞIR.
+ *
+ * Kayıt öncesi ve sonrası iş listeleri karşılaştırılır; aşaması değişen her işin dosyası,
+ * yeni aşamasının karşılığı olan klasöre taşınır.
+ *
+ * İKİ YÖNLÜ: aşama geri alınırsa dosya da geri gelir. Teslim geri alınınca ONAYLANANLAR'a,
+ * onay geri alınınca ONAY BEKLEYENLER'e döner. Böylece Drive her zaman kartın gerçek
+ * aşamasını gösterir — yanlışlıkla teslim işaretlenen bir iş Drive'da yanlış yerde kalmaz.
+ *
+ * ASLA HATA FIRLATMAZ — kaydın kendisi her koşulda geçerli kalır.
+ */
+async function asamayaGoreTasi(oncekiVeri, sonrakiVeri) {
   const onceki = new Map(((oncekiVeri && oncekiVeri.cekimIsleri) || []).map((j) => [String(j.id), j.asama]));
-  const yeniler = ((sonrakiVeri && sonrakiVeri.cekimIsleri) || []).filter(
-    (j) => j.asama === "Teslim Edildi" && onceki.get(String(j.id)) !== "Teslim Edildi",
-  );
-  if (yeniler.length === 0) return [];
+  const degisenler = ((sonrakiVeri && sonrakiVeri.cekimIsleri) || []).filter((j) => {
+    /* KARŞILAŞTIRMA AŞAMAYA DEĞİL, HEDEF KLASÖRE BAKAR.
+     *
+     * İki aşama aynı klasöre düşüyor: "Kontrol Bekliyor" ve "Revize İstendi" ikisi de
+     * ONAY BEKLEYENLER. Aşamaya bakılsaydı her revize turunda dosya zaten bulunduğu klasöre
+     * "taşınmaya" çalışılır, Google'a boşuna 7 çağrı gider ve karta "taşıma yapılamadı: dosya
+     * zaten orada" diye SAHTE bir hata notu düşerdi. Onay döngüsündeki en sık geçiş bu
+     * olduğu için kartın geçmişi turlarca sahte notla dolardı.
+     *
+     * Önceki aşamanın olmaması (yeni açılan kart) da bir değişimdir: eskiKlasor undefined
+     * olur, hedef klasörden farklıdır, dosya taşınır. Doğrudan "Kontrol Bekliyor" ya da
+     * "Teslim Edildi" aşamasında açılan kartların dosyası bu yüzden yerinde kalmaz. */
+    const eskiKlasor = ASAMA_KLASORU[onceki.get(String(j.id))];
+    const yeniKlasor = ASAMA_KLASORU[j.asama];
+    if (!yeniKlasor) return false;              // bu aşamanın klasör karşılığı yok — dokunma
+    return eskiKlasor !== yeniKlasor;           // hedef değişmediyse yapacak iş yok
+  });
+  if (degisenler.length === 0) return [];
+
   const sonuclar = [];
   /* TOPLAM SÜRE SINIRI. Taşıma, kaydın yanıtı gönderilmeden önce çalışıyor; tek tek çağrılar
-   * sınırlı olsa da aynı anda 10 iş teslim edilirse toplam süre yine kabul edilemez olur.
+   * sınırlı olsa da aynı anda 10 iş aşama değiştirirse toplam süre kabul edilemez olur.
    * Süre dolunca kalanlar taşınmaz ama SESSİZ KALINMAZ — sebep geçmişe yazılır. */
   const BITIS = Date.now() + 20000;
-  for (const is of yeniler) {
+  for (const is of degisenler) {
     if (Date.now() > BITIS) {
       sonuclar.push({ isId: is.id, tasindi: false, sebep: "süre sınırı doldu, bu iş taşınmadı" });
       continue;
     }
+    const marka = ((sonrakiVeri.clients || []).find((c) => trKucult(c.ad) === trKucult(is.marka)) || {});
+    const markaKlasoru = marka.driveOnayKlasoru || "";
+    /* BU MARKA İÇİN DRIVE HİÇ KURULMAMIŞSA SESSİZ GEÇ.
+     *
+     * Kurulmamış bir şeyin "çalışmadığını" her aşama değişiminde geçmişe yazmak gürültüdür;
+     * Drive kullanmayan bir markanın kartı sistem notlarıyla dolar ve gerçek notlar kaybolur.
+     * Not yalnızca kullanıcı o marka için Drive'ı KURDUĞUNDA anlamlıdır — o zaman "neden
+     * taşınmadı" gerçek bir sorudur ve cevabı görünür olmalıdır. */
+    if (!markaKlasoru && !process.env.DRIVE_ONAY_KLASOR_ID) continue;
+
     const link = is.editliDosyaLink || is.dosyaLinki || is.hamDosyaLink || "";
-    /* Bağlantı yokken SESSİZ KALMA. Eskiden burada `continue` vardı: taşıma denenmiyor ve
-     * geçmişe hiçbir not düşülmüyordu. Kullanıcı "neden taşınmadı" sorusunun cevabını
-     * hiçbir yerde bulamıyordu — bu bir kez gerçek bir teşhis saatine mal oldu. */
+    /* Bağlantı yokken SESSİZ KALMA. Eskiden burada koşulsuz `continue` vardı: taşıma
+     * denenmiyor ve geçmişe hiçbir not düşülmüyordu. Kullanıcı "neden taşınmadı" sorusunun
+     * cevabını hiçbir yerde bulamıyordu — bu bir kez gerçek bir teşhis saatine mal oldu. */
     if (!link) {
       sonuclar.push({ isId: is.id, tasindi: false, sebep: "kartta dosya bağlantısı yok" });
       continue;
     }
-    const marka = ((sonrakiVeri.clients || []).find((c) => trKucult(c.ad) === trKucult(is.marka)) || {});
     const sonuc = await onaylananiTasi({
       dosyaLinki: link, markaAdi: is.marka,
-      markaKlasoru: marka.driveOnayKlasoru || "", hedefAd: "PAYLAŞILANLAR",
+      markaKlasoru, hedefAd: ASAMA_KLASORU[is.asama],
     });
     sonuclar.push({ isId: is.id, ...sonuc });
   }
@@ -245,7 +294,7 @@ async function teslimEdilenleriTasi(oncekiVeri, sonrakiVeri) {
  */
 async function tasimalariIsleVeNotDus(oncekiVeri, sonrakiVeri) {
   try {
-    const tasimalar = await teslimEdilenleriTasi(oncekiVeri || {}, sonrakiVeri || {});
+    const tasimalar = await asamayaGoreTasi(oncekiVeri || {}, sonrakiVeri || {});
     if (tasimalar.length === 0) return null;
     const notSonucu = await guvenliGuncelle((guncel) => ({
       veri: {
@@ -257,9 +306,13 @@ async function tasimalariIsleVeNotDus(oncekiVeri, sonrakiVeri) {
             id: (j.gecmis || []).length + 1,
             tarih: new Date().toLocaleString("tr-TR"),
             yazan: "Sistem",
+            /* zatenOrada bir HATA DEĞİL: dosya olması gereken yerde. Bunu "yapılamadı"
+             * diye yazmak kullanıcıyı olmayan bir sorunla uğraştırır. */
             aciklama: t.tasindi
               ? `Dosya Drive'da "${t.klasor}" klasörüne taşındı.`
-              : `Drive taşıma yapılamadı: ${t.sebep}`,
+              : t.zatenOrada
+                ? `Dosya zaten "${t.klasor}" klasöründe.`
+                : `Drive taşıma yapılamadı: ${t.sebep}`,
           }] };
         }),
       },
@@ -538,35 +591,17 @@ export default async function handler(req, res) {
            * TAŞIMA ASLA ONAYI ENGELLEMEZ: Drive kurulu değilse, yetki yoksa ya da bağlantı
            * koparsa onay yine geçerlidir. Sonuç işin geçmişine not olarak düşülür ki sessizce
            * kaybolmasın. */
-          if (musteriAction === "onayla" && sonucIs.ek && sonucIs.ek.hedefIs) {
-            const is = sonucIs.ek.hedefIs;
-            const link = is.editliDosyaLink || is.dosyaLinki || is.hamDosyaLink || "";
-            if (link) {
-              const guncelVeri0 = sonucIs.veri || {};
-              const markaKaydi = (guncelVeri0.clients || []).find((c) => trKucult(c.ad) === trKucult(is.marka));
-              const tasima = await onaylananiTasi({
-                dosyaLinki: link,
-                markaAdi: is.marka,
-                markaKlasoru: markaKaydi ? markaKaydi.driveOnayKlasoru : "",
-              });
-              if (tasima.tasindi || tasima.sebep) {
-                await guvenliGuncelle((guncel) => ({
-                  veri: {
-                    ...guncel,
-                    cekimIsleri: (guncel.cekimIsleri || []).map((j) => (String(j.id) === String(isId)
-                      ? { ...j, gecmis: [...(j.gecmis || []), {
-                          id: (j.gecmis || []).length + 1,
-                          tarih: new Date().toLocaleString("tr-TR"),
-                          yazan: "Sistem",
-                          aciklama: tasima.tasindi
-                            ? `Dosya Drive'da "${tasima.klasor}" klasörüne taşındı.`
-                            : `Drive taşıma yapılamadı: ${tasima.sebep}`,
-                        }] }
-                      : j)),
-                  },
-                }));
-              }
-            }
+          /* MÜŞTERİ İŞLEMİ SONRASI DRIVE TAŞIMA.
+           *
+           * Onay "Onaylandı", revize "Revize İstendi" aşamasına geçirir; her ikisinin de bir
+           * Drive klasörü karşılığı var. Yönetici/personel kaydıyla AYNI fonksiyon kullanılır
+           * — burada ikinci bir kopya tutulursa zamanla ayrışır ve müşteri onayı ile ekip
+           * işaretlemesi farklı davranmaya başlar.
+           *
+           * TAŞIMA ASLA ONAYI ENGELLEMEZ: Drive kurulu değilse, yetki yoksa ya da bağlantı
+           * koparsa onay yine geçerlidir; sonuç işin geçmişine not düşülür. */
+          if (sonucIs.ok) {
+            await tasimalariIsleVeNotDus(sonucIs.oncekiVeri, sonucIs.veri);
           }
 
           /* ATANAN KİŞİYE OTOMATİK BİLDİRİM.
