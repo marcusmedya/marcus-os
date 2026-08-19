@@ -227,5 +227,32 @@ console.log("\n İçeriğin hangi alanı");
   t("başka müşteri referans videoyu da göremiyor", r.kod === 403, `HTTP ${r.kod}`);
 }
 
+/* ---- 7. HATA SEBEBİ KİME GÖSTERİLİYOR ----
+ *
+ * "Önizleme getirilemedi" tek başına hiçbir şey söylemiyor; sebebi öğrenmek için her
+ * seferinde koda bakmak gerekiyordu. Oysa Google "File not found" diyorsa cevap bellidir:
+ * dosya, uygulamanın erişebildiği klasör ağacının dışında. Bu bilgi EKİBE lazım.
+ *
+ * MÜŞTERİYE GÖSTERİLMEZ: müşteri panelinde teknik hata metni hem anlamsız hem de sistemin
+ * iç yapısını sızdırır. */
+console.log("\n Hata sebebi kime gösteriliyor");
+{
+  delete process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  delete process.env.GOOGLE_PRIVATE_KEY;
+
+  let ry = await cagri(OWNER, { onizlemeAction: "gorsel", icerikId: "i1" });
+  t("yöneticiye sebep gösteriliyor", ry.govde.ok === false && Boolean(ry.govde.sebep), ry.govde.sebep);
+
+  let rk = await cagri(KILITLI, { onizlemeAction: "gorsel", isId: 10 });
+  t("personele de gösteriliyor", rk.govde.ok === false && Boolean(rk.govde.sebep), rk.govde.sebep);
+
+  let rm = await cagri(MUSTERI_A, { onizlemeAction: "gorsel", icerikId: "i1" });
+  t("müşteriye GÖSTERİLMİYOR", rm.govde.ok === false && !rm.govde.sebep, JSON.stringify(rm.govde));
+  t("müşteri yanıtında iç bilgi sızmıyor",
+    !JSON.stringify(rm.govde).toLowerCase().includes("oauth")
+    && !JSON.stringify(rm.govde).toLowerCase().includes("servis hesab"),
+    JSON.stringify(rm.govde));
+}
+
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);
 if (k > 0) process.exitCode = 1;
