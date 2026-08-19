@@ -4684,7 +4684,14 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, reklamla
    * kalır ve kampanyanın işe yarayıp yaramadığı hiç öğrenilemez. */
   const eksikReklamlar = (reklamlar || []).filter((r) => reklamDurumu(r) === "bitti" && !istatistikVarMi(r));
 
-  if (revizeler.length === 0 && onaylananlar.length === 0 && atanmamislar.length === 0 && eksikReklamlar.length === 0) return null;
+  /* MÜŞTERİ TALEPLERİ BU KONTROLE DAHİL — atlanmıştı ve sonucu ağırdı.
+   *
+   * Kutu, yapılacak başka bir şey yokken TAMAMEN gizleniyordu. Bekleyen tek şey bir müşteri
+   * isteğiyse kutu hiç çizilmiyor, istek hiçbir ekranda görünmüyordu: müşteri talep
+   * gönderiyor, panelinde "bekliyor" yazıyor, yönetici tarafında ise ortada hiçbir iz yok.
+   * Başlıktaki sayı zaten talepleri sayıyordu — yalnızca bu satır unutulmuştu. */
+  if (bekleyenTalepler.length === 0 && revizeler.length === 0 && onaylananlar.length === 0
+      && atanmamislar.length === 0 && eksikReklamlar.length === 0) return null;
 
   // Atama için isim havuzu: kayıtlı personel + freelancer'lar, tekrarsız.
   const kisiler = Array.from(new Set([
@@ -4697,12 +4704,42 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, reklamla
    *    "Tasarım Bekliyor"), yani iş doğrudan edit/tasarım sırasına girer.
    *  - REVİZE isteğiyse: "Revize İstendi".
    * Her durumda aşamayı formdan değiştirebilirsin. */
-  const varsayilanAsama = (kategori, onaylandiMi) => {
+  const varsayilanAsama = (kategori, onaylandiMi, talepMi) => {
+    /* MÜŞTERİ İSTEĞİ — iş henüz hiç başlamadı, akışın başından girer. Sabit bir aşama adı
+     * yazmak yanlıştı: eski kod her isteği "Talep Alındı"ya koyuyordu ama o aşama yalnızca
+     * Grafik Tasarım akışında var; Reels ve Görsel istekleri panoda hiç görünmüyordu. */
+    if (talepMi) return ILK_ASAMA(kategori);
     if (!onaylandiMi) return "Revize İstendi";
     // Fotoğrafta ilk aşama zaten "Çekim Yapıldı" — plan onaylandığında çekim yapılmış olur.
     if (kategori === "Grafik Tasarım") return "Tasarım Bekliyor";
     if (kategori === "Fotoğraf") return "Çekim Yapıldı";
     return "Çekim Yapıldı";
+  };
+
+  /* MÜŞTERİ İSTEĞİ İÇİN AKTARIM FORMU.
+   *
+   * Önceden "Operasyon'a al" tek tıkta kartı açıyor, kimseye atamıyor, kategoriyi talebin
+   * türünden tahmin ediyordu. İş kime düşecek, hangi aşamada başlayacak, ne zaman teslim
+   * edilecek — hepsi sonradan Operasyon'a girip tek tek düzeltilmeyi bekliyordu.
+   * Revize ve onaylanan planlar için zaten olan form artık burada da açılıyor. */
+  const talebinKategorisi = (t) => (t.tur === "Reels" ? "Video" : t.tur === "Görsel" ? "Fotoğraf" : "Grafik Tasarım");
+  const talepFormuAc = (t) => {
+    const kat = talebinKategorisi(t);
+    setAcikId(`talep-${t.id}`);
+    setForm({
+      kategori: kat,
+      kameraman: "",
+      editor: "",
+      teslimTarihi: t.neZaman || bugunISOTarih(),
+      asama: ILK_ASAMA(kat),
+    });
+  };
+  const talebiAktar = (t) => {
+    if (!form.kameraman && !form.editor) {
+      if (!window.confirm("Kimseye atamadan Operasyon'a alınsın mı? Sonradan Operasyon'dan atayabilirsin.")) return;
+    }
+    onTalepKarar && onTalepKarar(t.id, "onayla", form);
+    setAcikId(null);
   };
 
   const formuAc = (i) => {
@@ -4745,9 +4782,11 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, reklamla
                 {t.acil && <span style={{ color: T.danger }}> · acil</span>}
               </span>
               <span style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button onClick={() => onTalepKarar && onTalepKarar(t.id, "onayla")} style={{ padding: "6px 10px", borderRadius: 8, border: "none", background: T.accentSoft, color: T.accentText, fontSize: 13, fontWeight: 600, fontFamily: "Inter", cursor: "pointer" }}>
-                  Operasyon'a al
-                </button>
+                {acikId !== `talep-${t.id}` && (
+                  <button onClick={() => talepFormuAc(t)} style={{ padding: "6px 10px", borderRadius: 8, border: "none", background: T.accentSoft, color: T.accentText, fontSize: 13, fontWeight: 600, fontFamily: "Inter", cursor: "pointer" }}>
+                    Operasyon'a al
+                  </button>
+                )}
                 <button onClick={() => { if (window.confirm("Bu istek reddedilecek. Müşteri panelinde \"şimdilik alınmadı\" görünecek. Devam edilsin mi?")) onTalepKarar && onTalepKarar(t.id, "reddet"); }} style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: "transparent", color: T.textDim, fontSize: 13, fontWeight: 600, fontFamily: "Inter", cursor: "pointer" }}>
                   Reddet
                 </button>
@@ -4766,6 +4805,16 @@ function OnayKutusu({ icerikler, isler, clients, roster, freelancerlar, reklamla
                 {t.neZaman ? `İstenen tarih: ${t.neZaman}` : ""}{t.neZaman && t.referans ? " · " : ""}
                 {t.referans ? <a href={t.referans} target="_blank" rel="noreferrer" style={{ color: T.accentText }}>referans ↗</a> : null}
               </div>
+            )}
+
+            {acikId === `talep-${t.id}` && (
+              <AktarimFormu
+                i={{ durum: "talep" }}
+                form={form} setForm={setForm} kisiler={kisiler}
+                varsayilanAsama={varsayilanAsama}
+                onAktar={() => talebiAktar(t)}
+                onVazgec={() => setAcikId(null)}
+              />
             )}
           </div>
         );
@@ -4861,6 +4910,7 @@ function AktarimFormu({ i, form, setForm, kisiler, varsayilanAsama, onAktar, onV
     </div>
   );
   const onaylandiMi = i.durum === "onaylandi";
+  const talepMi = i.durum === "talep";
 
   return (
     <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
@@ -4869,7 +4919,7 @@ function AktarimFormu({ i, form, setForm, kisiler, varsayilanAsama, onAktar, onV
         {KATEGORILER.map((k) => (
           <button
             key={k}
-            onClick={() => setForm((f) => ({ ...f, kategori: k, asama: varsayilanAsama(k, onaylandiMi) }))}
+            onClick={() => setForm((f) => ({ ...f, kategori: k, asama: varsayilanAsama(k, onaylandiMi, talepMi) }))}
             style={{ flex: 1, padding: "7px 0", borderRadius: 8, border: "none", cursor: "pointer", fontFamily: "Inter", fontSize: 13, fontWeight: 600,
               background: form.kategori === k ? T.accentSoft : T.surface, color: form.kategori === k ? T.accentText : T.textDim }}
           >
@@ -7824,7 +7874,7 @@ export default function MarcusOS() {
    * alınmadı" görünür ve o talep 3'lük sınırdan düşer. Silmek yerine işaretlemek, aynı
    * isteğin tekrar tekrar gelmesini de görünür kılar.
    */
-  const musteriTalepKarari = (talepId, karar) => setData((d) => {
+  const musteriTalepKarari = (talepId, karar, atama) => setData((d) => {
     const liste = d.musteriTalepleri || [];
     const t = liste.find((x) => String(x.id) === String(talepId));
     if (!t) return d;
@@ -7836,7 +7886,16 @@ export default function MarcusOS() {
     const marka = (d.clients || []).find((c) => String(c.id) === String(t.clientId));
     const isler = d.cekimIsleri || [];
     const yeniId = isler.reduce((m, j) => Math.max(m, Number(j.id) || 0), 0) + 1;
-    const kategori = t.tur === "Reels" ? "Video" : t.tur === "Görsel" ? "Fotoğraf" : "Grafik Tasarım";
+    /* Kategori ve aşama artık Planım'daki formdan geliyor; form açılmadan onaylanırsa
+     * talebin türünden tahmin ediliyor. */
+    const tahminKategori = t.tur === "Reels" ? "Video" : t.tur === "Görsel" ? "Fotoğraf" : "Grafik Tasarım";
+    const kategori = KATEGORILER.includes(atama && atama.kategori) ? atama.kategori : tahminKategori;
+    /* AŞAMA O KATEGORİDE GERÇEKTEN VAR MI — pano sütunları bu listeden geliyor.
+     * Eskiden kategori ne olursa olsun "Talep Alındı" yazılıyordu; o aşama yalnızca Grafik
+     * Tasarım akışında var. Reels ve Görsel istekleri hiçbir sütuna denk gelmiyor, panoda
+     * HİÇ görünmüyordu — kayıt duruyor ama kimse göremiyordu. */
+    const istenenAsama = atama && atama.asama;
+    const asama = asamaListesi(kategori).includes(istenenAsama) ? istenenAsama : ILK_ASAMA(kategori);
     return {
       ...d,
       musteriTalepleri: guncelTalepler,
@@ -7844,15 +7903,18 @@ export default function MarcusOS() {
         id: yeniId,
         marka: marka ? marka.ad : "",
         kategori,
-        asama: "Talep Alındı",
+        asama,
+        kameraman: (atama && atama.kameraman) || "",
+        editor: (atama && atama.editor) || "",
         icerikTuru: t.tur,
         brief: `MÜŞTERİ İSTEĞİ:\n${t.aciklama}${t.referans ? `\n\nReferans: ${t.referans}` : ""}${(t.dosyalar || []).length ? `\n\nMüşterinin yüklediği dosyalar:\n${t.dosyalar.map((d) => `${d.ad} — ${d.baglanti}`).join("\n")}` : ""}`,
         /* İlk dosya ham dosya bağlantısı olarak da kartın üstüne konur; ekip Drive'da
          * aramak zorunda kalmasın. */
         hamDosyaLink: (t.dosyalar || [])[0] ? t.dosyalar[0].baglanti : "",
-        teslimTarihi: t.neZaman || "",
+        teslimTarihi: (atama && atama.teslimTarihi) || t.neZaman || "",
         oncelik: t.acil ? "yuksek" : "normal",
-        gecmis: [{ id: 1, tarih: new Date().toLocaleString("tr-TR"), yazan: "Müşteri talebi", aciklama: "Müşteri panelinden gelen istek onaylandı." }],
+        gecmis: [{ id: 1, tarih: new Date().toLocaleString("tr-TR"), yazan: "Müşteri talebi",
+          aciklama: `Müşteri panelinden gelen istek onaylandı.${(atama && (atama.kameraman || atama.editor)) ? ` Atanan: ${[atama.kameraman, atama.editor].filter(Boolean).join(", ")}` : ""}` }],
       }],
     };
   });

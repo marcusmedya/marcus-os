@@ -180,33 +180,11 @@ function DriveGorsel({ link, C, yukseklik, kapak, kucuk, isId, icerikId, boyut =
  *
  * Bir ara "… Yapıldı" diye ayrı bir sütun denendi ve kaldırıldı: dosya zaten ilk aşamadan
  * itibaren yüklenebiliyor, bir sütun uğruna herkesin fazladan tıklaması anlamsızdı. */
-export const ASAMALAR_VIDEO = [
-  "Çekim Planlandı", "Çekim Yapıldı", "Dosyalar Aktarıldı", "Edit Bekliyor",
-  "Edit Yapılıyor", "Kontrol Bekliyor", "Revize İstendi", "Onaylandı", "Teslim Edildi",
-];
-export const ASAMALAR_TASARIM = [
-  "Talep Alındı", "Tasarım Bekliyor", "Tasarım Yapılıyor",
-  "Kontrol Bekliyor", "Revize İstendi", "Onaylandı", "Teslim Edildi",
-];
-/** Geriye dönük uyumluluk: kategorisiz eski kayıtlar Video akışını kullanır. */
-export const ASAMALAR = ASAMALAR_VIDEO;
-/* FOTOĞRAF akışı bilerek kısa tutuldu (kullanıcının tercihi): çekim yapılır, düzenlenir,
- * kontrole çıkar. Video'daki "Dosyalar Aktarıldı / Edit Bekliyor" ayrımı fotoğrafta bir işe
- * yaramıyor — fotoğrafçı çekimi bitirir bitirmez düzenlemeye geçiyor. */
-export const ASAMALAR_FOTOGRAF = [
-  "Çekim Yapıldı", "Düzenleniyor", "Kontrol Bekliyor", "Revize İstendi", "Onaylandı", "Teslim Edildi",
-];
+/* AŞAMA LİSTELERİ ARTIK lib/asamalar.js'TE — sunucu da okuyabilsin diye. Buradan yeniden
+ * dışa veriliyor ki mevcut çağrı yerleri değişmesin. */
+import { ASAMALAR_VIDEO, ASAMALAR_FOTOGRAF, ASAMALAR_TASARIM, ASAMALAR, asamaListesi, ILK_ASAMA } from "../lib/asamalar.js";
+export { ASAMALAR_VIDEO, ASAMALAR_FOTOGRAF, ASAMALAR_TASARIM, ASAMALAR, asamaListesi, ILK_ASAMA };
 
-const ASAMA_TABLOSU = {
-  "Video": ASAMALAR_VIDEO,
-  "Fotoğraf": ASAMALAR_FOTOGRAF,
-  "Grafik Tasarım": ASAMALAR_TASARIM,
-};
-/** Kategorisiz eski kayıtlar Video akışını kullanır (geriye dönük uyumluluk). */
-export const asamaListesi = (kategori) => ASAMA_TABLOSU[kategori] || ASAMALAR_VIDEO;
-
-/** Bir kategorinin ilk aşaması — yeni iş oluşturulurken kullanılır. */
-export const ILK_ASAMA = (kategori) => asamaListesi(kategori)[0];
 
 /** Çıktısı video mu? Fotoğraf ve tasarımın çıktısı GÖRSELDİR; oynatıcı yerine görsel
  * önizleme gösterilmeli. Eskiden "Grafik Tasarım değilse video" varsayılıyordu. */
