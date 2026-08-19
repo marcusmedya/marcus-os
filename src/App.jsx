@@ -41,6 +41,10 @@ import { InstagramOnizleme, InstagramIzgara, aylikRaporAc } from "./instagram.js
 import { MusteriPaneli } from "./musteriPaneli.jsx";
 import { hazirIcerikleriUret, musteriKayitlariniSuz } from "../lib/musteri-gorunumu.js";
 import { markaEslestirici } from "../lib/marka-kilidi.js";
+/* Paylaşım türleri ve stok anahtarı TEK KAYNAKTAN. Bu iki tanım burada da ayrıca
+ * yazılıydı; listeye tür eklendiğinde biri geride kalabilir, stok sayılır ama panelde
+ * satırı hiç görünmezdi. */
+import { PAYLASIM_TURLERI, stokAnahtari, stokYanitiniUygula } from "../lib/stok.js";
 import { Finans, HesapBakiyeleri, MiniList, hesapBakiyesi } from "./finans.jsx";
 import { HataYakalayici } from "./hataYakalayici.jsx";
 import { Personel, avansToplami, avansKisiyeAitMi, odemeToplami, odemeKisiyeAitMi, AvansVerFormu, AvansListesi } from "./personel.jsx";
@@ -1950,7 +1954,7 @@ function Reklamlar({ reklamlar, clients, onAdd, onUpdate, onDelete, duzenleyenAd
 /* ------------------------------------------------------------------ */
 /* PAYLAŞIMLAR                                                           */
 /* ------------------------------------------------------------------ */
-const PAYLASIM_TURLERI = ["Görsel", "Video", "Reels", "Story", "Carousel"];
+
 
 /* KART SEÇİCİDE KÜÇÜK RESİM.
  *
@@ -2028,7 +2032,7 @@ function KartOnizleme({ is, boyut = 52 }) {
   );
 }
 const TUR_HARFI = { "Görsel": "G", "Video": "V", "Reels": "R", "Story": "S", "Carousel": "C" };
-const stokAnahtari = (clientId, tur) => `${clientId}_${tur}`;
+
 
 function MarkaStokKarti({ client, stoklar, gecmis, subeler, onStokDegis, onAddSube, onDeleteSube, onSubeStokDegis }) {
   const [subeEkleAcik, setSubeEkleAcik] = useState(false);
@@ -7003,7 +7007,15 @@ export default function MarcusOS() {
           }
           if (!r.ok) { setSaveStatus("error"); return; }
           const res = await r.json();
-          if (typeof res._v === "number") { skipNextSave.current = true; setData((d) => ({ ...d, _v: res._v })); }
+          /* SUNUCUNUN HESAPLADIĞI STOK GERİ İŞLENİYOR.
+           * Stok artışını sunucu hesaplıyor (tür tespiti, çift sayma koruması, marka
+           * eşleşmesi tarayıcıya bırakılamaz). Yanıt yalnızca _v taşırken kart onaylanınca
+           * stok gerçekten artıyor ama Paylaşımlar panelindeki sayı sayfa yenilenene kadar
+           * eski kalıyordu. */
+          if (typeof res._v === "number" || res.stok) {
+            skipNextSave.current = true;
+            setData((d) => stokYanitiniUygula(d, res));
+          }
           setSaveStatus("saved");
           setLastSavedAt(new Date());
         })

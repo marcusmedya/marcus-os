@@ -54,7 +54,12 @@ t("Carousel ayırt ediliyor", paylasimTuru({ icerikTuru: "Ürün Carousel", kate
 t("ad bir şey söylemiyorsa kategoriye düşülüyor (video)",
   paylasimTuru({ icerikTuru: "Sivrisinek Kampanya", kategori: "Video" }) === "Video");
 t("ad bir şey söylemiyorsa kategoriye düşülüyor (görsel)",
-  paylasimTuru({ icerikTuru: "Yeni Ürünler", kategori: "Grafik Tasarım" }) === "Görsel");
+  paylasimTuru({ icerikTuru: "Yeni Ürünler", kategori: "Fotoğraf" }) === "Görsel");
+/* KURAL DEĞİŞTİ: Grafik Tasarım'ın artık kendi stok satırı var. Önceden Görsel'e
+ * yazılıyordu; tasarım ile fotoğraf aynı kovada birikince "kaç tasarım hazır?" sorusu
+ * cevapsız kalıyordu. Ayrıntısı t48'de. */
+t("Grafik Tasarım kendi stoğuna gidiyor",
+  paylasimTuru({ icerikTuru: "Yeni Ürünler", kategori: "Grafik Tasarım" }) === "Tasarım");
 t("kartta açıkça yazılıysa tahmin edilmiyor",
   paylasimTuru({ icerikTuru: "Reels 3", kategori: "Video", paylasimTuru: "Carousel" }) === "Carousel");
 
