@@ -12,7 +12,16 @@ import { gonderenAdres } from "../lib/eposta.js";
 async function yetkiliMi(req) {
   const cronSecret = process.env.CRON_SECRET;
   const sitePw = process.env.SITE_PASSWORD;
-  if (!cronSecret && !sitePw) return true;
+  /* KAPALI DÜŞÜYOR — ESKİDEN AÇIK DÜŞÜYORDU (denetim bulgusu).
+   *
+   * Burada "yapılandırma eksikse izin ver" vardı. Ölçüldü: SITE_PASSWORD tanımsızken bu uç
+   * kimliksiz isteklere yanıt veriyordu. Üretimde değişken tanımlı olduğu için gizli
+   * kalmıştı; ama değişken silinirse, yeni bir ortam (önizleme dağıtımı) açılırsa ya da
+   * yanlış girilirse sistem halka açılıyordu.
+   *
+   * Yapılandırma eksikse artık kimse giremiyor. Kilitlenme riski yok: çözüm tek bir ortam
+   * değişkeni tanımlamak ve eksiklik ekranda ayrıca bildiriliyor. */
+  if (!cronSecret && !sitePw) return false;
   if (cronSecret && req.headers["authorization"] === `Bearer ${cronSecret}`) return true;
   if (sitePw && (await ownerYetkiliMi(req))) return true;
   return false;

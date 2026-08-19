@@ -3,7 +3,7 @@ import { medyaVarMi, asamalariDuzelt, guncelMedyalar, slotGecmisi, slotEtiketi,
          bosSlot, medyaSlotu, STORY_SLOT, EN_FAZLA_SLAYT } from "../lib/asamalar.js";
 import { useSunucuOnizleme, useVideoAdresi, videoEni, gomuluEngelliMi, GOMULU_ACIKLAMA } from "./drive.jsx";
 // Para gösterimleri Gizlilik Modu'na uymalı — aksi halde ücretler gizliyken de görünür kalırdı.
-import { fmt, T, authHeaders } from "./tema.jsx";
+import { fmt, T, authHeaders, tarihIso } from "./tema.jsx";
 import {
   Camera, Plus, X, Clock, AlertTriangle, CheckCircle2, User, Link2,
   MessageSquare, History, ChevronRight, ChevronLeft, Pencil, Trash2, LayoutGrid, BarChart3, ListTodo, Rocket,
@@ -1216,7 +1216,12 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
     // Eskiden bu bilgi sadece işlem geçmişindeki metnin içinde duruyordu ve oradan
     // ayrıştırmak gerekiyordu — kırılgan bir yöntemdi. Geri alınırsa tarih temizlenir ki
     // rapor yanlış saymasın.
-    if (yeniAsama === "Teslim Edildi") patch.teslimEdilmeTarihi = new Date().toISOString().slice(0, 10);
+    /* TESLİM TARİHİ TÜRKİYE SAATİYLE — denetim bulgusu.
+     * `toISOString()` UTC veriyor. Türkiye UTC+3 olduğu için gece 00:00–03:00 arasında
+     * teslim edilen bir iş BİR ÖNCEKİ GÜNE yazılıyordu. Ayın 1'inde bu, işi bir ÖNCEKİ AYA
+     * atıyor — Aylık İş Raporu ve kişi hak edişi bu tarihe göre sayıyor (isTeslimTarihi).
+     * tarihIso zaten Europe/Istanbul kullanıyor; aynı kural burada da geçerli olmalıydı. */
+    if (yeniAsama === "Teslim Edildi") patch.teslimEdilmeTarihi = tarihIso(new Date());
     else if (job.asama === "Teslim Edildi") patch.teslimEdilmeTarihi = null;
     onUpdate(job.id, patch);
   };
