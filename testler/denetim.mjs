@@ -19,7 +19,15 @@ export const TEMIZ_VERI = () => ({
   musteriHesaplari: [],
 });
 export const KIMLIK = { "x-staff-username-b64": b64("ortak"), "x-staff-password-b64": b64("1234") };
-export const R = () => { const r = {}; r.status = (k) => { r.kod = k; return r; }; r.json = (g) => { r.govde = g; return r; }; return r; };
+export const R = () => {
+  const r = { basliklar: {} };
+  r.status = (k) => { r.kod = k; return r; };
+  r.json = (g) => { r.govde = g; return r; };
+  /* setHeader gerçek Vercel yanıtında var; taklitte yoksa Retry-After gibi başlıklar
+     test edilemez ve sessizce atlanır. */
+  r.setHeader = (ad, deger) => { r.basliklar[String(ad).toLowerCase()] = deger; return r; };
+  return r;
+};
 export async function cagir(handler, req) { const res = R(); await handler(req, res); return res; }
 export function sizintiAra(nesne, gizliler = ["GİZLİ", "GIZLISIFRE", "99000", "90000"]) {
   const metin = JSON.stringify(nesne || {});

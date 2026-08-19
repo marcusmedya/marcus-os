@@ -1,7 +1,7 @@
 import { kv } from "@vercel/kv";
 import crypto from "crypto";
 import { KEY, guvenliGuncelle, kilitAl, kilitBirak, guvenliYaz, deftereYaz, defteriOku,
-         catisanAlanlar, bugunISO } from "../lib/kv-yaz.js";
+         catisanAlanlar, bugunISO, mesgulYanit } from "../lib/kv-yaz.js";
 import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, tumOturumlariIptalEt, ikiAdimliAktifMi, esitMi, baslikOku } from "../lib/oturum.js";
 import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, trKucult, markaEslestirici } from "../lib/marka-kilidi.js";
 import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
@@ -870,6 +870,10 @@ export default async function handler(req, res) {
         },
       }));
 
+      /* Yazma yapılamadıysa "ok: true" dönmek yanıltıcı olur: ön yüz taşımanın
+       * kaydedildiğini sanır. Sistem yoğunsa 503 dönülür, aynı istek tekrar denenebilir
+       * (bu göç idempotent — ikinci kez çalıştırmak zarar vermez). */
+      if (yazma && yazma.mesgul) return mesgulYanit(res);
       return res.status(200).json({
         ok: true, sonuclar,
         kalan: Math.max(0, adaylar.length - sonuclar.length),
@@ -1425,6 +1429,14 @@ export default async function handler(req, res) {
           /* Yönetici şifresi tanımlı mı — tanımlı DEĞİLSE hiç kimse giremez.
            * Eskiden tam tersiydi: tanımsızken HERKES yönetici oluyordu. */
           sitePasswordVar: !!process.env.SITE_PASSWORD,
+          /* Cron uçlarını koruyan sır. Tanımlı değilse gece yedeği ve günlük özet
+           * ÇALIŞMAZ — ama hiçbir hata da vermez, bu yüzden ekranda söylenmesi gerekiyor. */
+          cronSecretVar: !!process.env.CRON_SECRET,
+          /* HANGİ ORTAMDAYIZ. Denetimde çıkan asıl sorun buydu: değişkenler Production'da
+           * tanımlıydı ama Preview'da değildi ve bunu görmenin bir yolu yoktu. Artık
+           * hangi ortama bakıldığı ekranda yazıyor — önizleme dağıtımını açan biri
+           * eksikliği anında görüyor. */
+          ortam: process.env.VERCEL_ENV || "yerel",
         },
       });
     }
@@ -1678,6 +1690,9 @@ export default async function handler(req, res) {
       // yazma tek bir bölünmez blok halinde yapılıyor. Eskiden bu adımlar arasında başka
       // bir isteğin araya girip yazdığı değişiklik fark edilmeden siliniyordu.
       const ownerKilidi = await kilitAl();
+      /* Kilit alınamadıysa kayıt REDDEDİLİR. Kilitsiz yazmak, o an kaydeden diğer
+       * kullanıcıların değişikliğini fark edilmeden silmek demekti. */
+      if (!ownerKilidi) return mesgulYanit(res);
       /* Drive taşıma, kilit BIRAKILDIKTAN SONRA yapılacağı için kaydın öncesi/sonrası
        * buraya taşınır. Kilit içinde taşıma yapılamaz: not düşen guvenliGuncelle kendi
        * kilidini almak ister ve alamaz. */

@@ -1,6 +1,6 @@
 import { kv } from "@vercel/kv";
 import crypto from "crypto";
-import { KEY, guvenliGuncelle } from "../lib/kv-yaz.js";
+import { KEY, guvenliGuncelle, mesgulYanit } from "../lib/kv-yaz.js";
 import { ownerYetkiliMi, baslikOku, esitMi } from "../lib/oturum.js";
 
 function hashSifre(sifre, salt) {
@@ -109,7 +109,10 @@ export default async function handler(req, res) {
         degisenAlanlar: ["kasa"],
         veri: { ...guncel, kasaSifresiHash: hash, kasaSifresiSalt: salt },
       }));
-      if (!sonuc.ok) return res.status(500).json({ error: "Kasa şifresi kaydedilemedi, tekrar dene." });
+      if (!sonuc.ok) {
+        if (sonuc.mesgul) return mesgulYanit(res);
+        return res.status(500).json({ error: "Kasa şifresi kaydedilemedi, tekrar dene." });
+      }
       /* Yazılan sürüm geri dönüyor: bildirilmezse yönetici sekmesi bir tur geride kalır ve
        * sonraki kayıt sahte çakışmayla kullanıcının düzenlemesini siler. */
       return res.status(200).json({ ok: true, ...(sonuc.veri && typeof sonuc.veri._v === "number" ? { _v: sonuc.veri._v } : {}) });

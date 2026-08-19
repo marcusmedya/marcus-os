@@ -5684,9 +5684,25 @@ const AYAR_SEKMELERI = [
   { key: "hesap", label: "Hesaplar" },
 ];
 
+/* Vercel'in ortam adları teknik; ekranda Türkçe karşılığı görünsün. */
+const ORTAM_ADI = {
+  production: "Canlı (Production)",
+  preview: "Önizleme (Preview)",
+  development: "Geliştirme (Development)",
+  yerel: "Yerel makine",
+};
+/* Bunlar OLMADAN sistem güvenli çalışmaz: SITE_PASSWORD yoksa kimse giremez,
+ * CRON_SECRET yoksa gece yedeği ve günlük özet sessizce hiç çalışmaz. */
+const ZORUNLU_DEGISKENLER = [
+  { anahtar: "SITE_PASSWORD", bayrak: "sitePasswordVar" },
+  { anahtar: "CRON_SECRET", bayrak: "cronSecretVar" },
+];
+
 function Ayarlar({ onGit, guvenlik, silinenler, onSurumGuncelle, onGeriAl, onKaliciSil, onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu, onSaveTeblig, staffPermissions, onUpdatePermissions, markaKimligiGorseli, onSaveMarkaKimligi, paylasimGorseli, onSavePaylasimGorseli, acikZeminLogosu, onSaveAcikZeminLogosu, onRosterChange, clients, gizlilikModu, onToggleGizlilik, islemGecmisi }) {
   const [ayarSekme, setAyarSekme] = useState("gorunum");
   const fileInputRef = useRef(null);
+  const eksikDegiskenler = ZORUNLU_DEGISKENLER.filter((x) => guvenlik && !guvenlik[x.bayrak]).map((x) => x.anahtar);
+  const yapilandirmaTam = Boolean(guvenlik) && eksikDegiskenler.length === 0;
   const rows = [
     { label: "İşletme Adı", value: "Marcus Medya" },
     { label: "Sektör", value: "Medya & Reklam Ajansı" },
@@ -5836,6 +5852,23 @@ function Ayarlar({ onGit, guvenlik, silinenler, onSurumGuncelle, onGeriAl, onKal
           * bu bilgi sunucudan geliyor. */}
         {guvenlik && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+            {/* ORTAM YAPILANDIRMA KARTI
+              * Denetimde çıkan en ciddi açık, kodun kendisinde değil yapılandırmadaydı:
+              * SITE_PASSWORD bir ortamda tanımsız kalırsa o dağıtım korumasız açılıyordu.
+              * Artık kod bu durumda kimseyi içeri almıyor — ama eksikliği GÖRMENİN de bir
+              * yolu olmalı. Bu kart, açık olan dağıtımın hangi ortam olduğunu ve orada
+              * hangi değişkenin eksik olduğunu söyler; önizleme adresini açan biri
+              * eksikliği anında görür. */}
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 9, background: yapilandirmaTam ? T.successSoft : T.dangerSoft, borderRadius: 10, padding: "12px 15px" }}>
+              <span style={{ fontSize: 15, lineHeight: 1 }}>{yapilandirmaTam ? "✓" : "⚠"}</span>
+              <div style={{ fontSize: 13, fontFamily: "Inter", lineHeight: 1.6, color: yapilandirmaTam ? T.success : T.danger }}>
+                <strong>Bu dağıtım: {ORTAM_ADI[guvenlik.ortam] || guvenlik.ortam}</strong><br />
+                {yapilandirmaTam
+                  ? <>Zorunlu ortam değişkenlerinin hepsi bu ortamda tanımlı.</>
+                  : <>Eksik: {eksikDegiskenler.map((x) => <code key={x} style={{ marginRight: 6 }}>{x}</code>)}<br />
+                      Vercel → Settings → Environment Variables → bu ortamı işaretleyerek ekle → <strong>Redeploy</strong>.</>}
+              </div>
+            </div>
             <div style={{ display: "flex", alignItems: "flex-start", gap: 9, background: guvenlik.ikiAdimliAktif ? T.successSoft : T.dangerSoft, borderRadius: 10, padding: "12px 15px" }}>
               <span style={{ fontSize: 15, lineHeight: 1 }}>{guvenlik.ikiAdimliAktif ? "✓" : "⚠"}</span>
               <div style={{ fontSize: 13, fontFamily: "Inter", lineHeight: 1.6, color: guvenlik.ikiAdimliAktif ? T.success : T.danger }}>
