@@ -7,7 +7,7 @@
  */
 import React, { useState, useEffect } from "react";
 import { T, escapeHtml, inputStyle, saveBtnStyle, cancelBtnStyle, OLCUM_ALANLARI, istatistikVarMi, reklamMetrikleri } from "./tema.jsx";
-import { driveGorselAdaylari } from "./drive.jsx";
+import { driveGorselAdaylari, useSunucuOnizleme } from "./drive.jsx";
 
 export function DriveKareGorsel({ link }) {
   const adaylar = driveGorselAdaylari(link);
@@ -32,6 +32,32 @@ export function DriveKareGorsel({ link }) {
   );
 }
 
+/**
+ * PLANA BAĞLI OPERASYON KARTININ KAPAK GÖRSELİ.
+ *
+ * Paylaşım planındaki bir kutu bir Operasyon kartına bağlanabiliyor. Bağlıysa o kartın
+ * gerçek görselini göstermek gerekiyor: "Reels" yazan boş bir kare, akışın nasıl duracağı
+ * hakkında hiçbir şey söylemiyor — ızgaranın varlık sebebi de tam olarak bu.
+ *
+ * Görsel sunucudan kimlikle isteniyor (bağlantıyla değil): müşteri panelinde bu istek,
+ * kartın gerçekten o markaya ait olduğu doğrulandıktan sonra karşılanıyor.
+ *
+ * Görsel gelmezse tür adına düşülüyor — eski davranış. Kutu asla boş kalmıyor.
+ */
+export function BagliKartKapagi({ isId, yazi }) {
+  const sunucu = useSunucuOnizleme({ isId, boyut: 600 });
+
+  if (sunucu.durum === "hazir" && sunucu.veri) {
+    return <img src={sunucu.veri} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />;
+  }
+  return (
+    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "#555", fontSize: 11, fontFamily: "Inter", textAlign: "center", padding: 6, lineHeight: 1.4 }}>
+      {sunucu.durum === "yukleniyor" ? "…" : yazi}
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* INSTAGRAM ÖNİZLEME                                                    */
 /* ------------------------------------------------------------------ */
@@ -40,7 +66,7 @@ export function DriveKareGorsel({ link }) {
  * (Müşteri Paneli sekmesi) hem müşterinin ekranında AYNI bileşen kullanılır — iki taraf
  * asla farklı bir şey görmez.
  */
-export function InstagramOnizleme({ marka, tur, gun, gorselUrl, altMetin, yapildi, kompakt = false }) {
+export function InstagramOnizleme({ marka, tur, gun, gorselUrl, altMetin, yapildi, isId, kompakt = false }) {
   const [metinAcik, setMetinAcik] = useState(false);
   const uzunMetin = (altMetin || "").length > 125;
   const gosterilenMetin = !uzunMetin || metinAcik ? altMetin : (altMetin || "").slice(0, 125) + "…";
@@ -68,6 +94,8 @@ export function InstagramOnizleme({ marka, tur, gun, gorselUrl, altMetin, yapild
           <img src={gorselUrl} alt={altMetin || "Paylaşım görseli"} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
         ) : gorselUrl ? (
           <DriveKareGorsel link={gorselUrl} />
+        ) : isId ? (
+          <BagliKartKapagi isId={isId} yazi="Görsel henüz eklenmedi" />
         ) : (
           <div style={{ color: "#555", fontSize: 13, fontFamily: "Inter", textAlign: "center", padding: 20, lineHeight: 1.6 }}>
             Görsel henüz eklenmedi
@@ -135,6 +163,8 @@ export function InstagramIzgara({ marka, gonderiler, onSec }) {
               <img src={p.gorselUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
             ) : p.gorselUrl ? (
               <DriveKareGorsel link={p.gorselUrl} />
+            ) : p.isId ? (
+              <BagliKartKapagi isId={p.isId} yazi={p.tur} />
             ) : (
               <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#555", fontSize: 11, fontFamily: "Inter", textAlign: "center", padding: 6, lineHeight: 1.4 }}>
                 {p.tur}
@@ -142,7 +172,14 @@ export function InstagramIzgara({ marka, gonderiler, onSec }) {
             )}
             {/* Sol üstte gün etiketi, sağ altta paylaşıldı işareti */}
             <span style={{ position: "absolute", top: 4, left: 4, background: "rgba(0,0,0,.62)", color: "#fff", fontSize: 11, fontWeight: 700, padding: "6px 10px", borderRadius: 5, fontFamily: "Inter" }}>{p.gun}</span>
-            {p.yapildi && <span style={{ position: "absolute", bottom: 4, right: 5, color: "#4ade80", fontSize: 13 }}>✓</span>}
+            {/* Paylaşıldı işareti: çıplak bir ✓ görselin üstünde kayboluyordu. Zeminli
+              * rozet hem koyu hem açık görselde okunuyor. */}
+            {p.yapildi && (
+              <span style={{ position: "absolute", bottom: 4, right: 4, background: "rgba(22,163,74,.92)", color: "#fff",
+                             fontSize: 10, fontWeight: 700, fontFamily: "Inter", padding: "3px 6px", borderRadius: 5 }}>
+                ✓ Paylaşıldı
+              </span>
+            )}
           </button>
         ))}
       </div>
