@@ -364,9 +364,8 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
   const [revizeAcikId, setRevizeAcikId] = useState(null);
   const [talepGonderiliyor, setTalepGonderiliyor] = useState(false);
   const [acikIcerikId, setAcikIcerikId] = useState(null); // açık olan içerik kartı
-  // Ortak "Üretim Durumu" ile açılır: ilk sorusu "işler nerede?" — müşterininki ise
-  // "onayımı bekleyen ne var?".
-  const [sekme, setSekme] = useState(ortakModu ? "uretim" : "onay");
+  // Ortak da müşterinin gördüğü sekmeyle açılır — panel birebir aynı olsun.
+  const [sekme, setSekme] = useState("onay");
   /* TÜR SÜZGECİ — "sadece Reels'leri göster" gibi. Uzun listelerde müşteri aradığını
    * bulamıyordu. "hepsi" seçiliyken hiçbir şey gizlenmez. */
   const [turSuzgec, setTurSuzgec] = useState("hepsi");
@@ -512,16 +511,23 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
     { key: "talep", label: "İçerik İste", rozet: 0 },
   ];
 
-  /* ORTAK MODU — yalnızca İLERLEYİŞ ve ONAYLANANLAR.
+  /* ORTAK MODU — MÜŞTERİNİN GÖRDÜĞÜNÜN AYNISI, TEK BİR EKSİKLE.
    *
-   * Ortağın işi üretimi takip edip onaylanan içeriği paylaşmak; müşterinin karar sürecini
-   * (neyi onaylamadı, neye revize istedi) görmesi gerekmiyor. Reklam ve paylaşım takvimi de
-   * ajans-müşteri ilişkisine ait, ortağın işi değil.
+   * Önceden ortağa yalnızca "Üretim Durumu" ve "Onaylananlar" açıktı. Gerekçe, ortağın
+   * müşterinin karar sürecini görmesine gerek olmadığıydı — ama pratikte ters düştü:
+   * içeriği paylaşacak kişi neyin neden beklediğini, takvimde ne olduğunu ve reklamların
+   * durumunu göremiyordu. Marka yönetimini ortağa devrediyorsan onun müşteriyle aynı
+   * resmi görmesi gerekiyor.
    *
-   * Not: "Onaylananlar" sekmesinde teslim edilmiş işler de var — paylaşılacak dosya orada. */
-  const ORTAK_SEKMELERI = ["uretim", "onayli"];
+   * TEK İSTİSNA "İçerik İste": o, müşterinin ajanstan talepte bulunduğu yer. Ortak
+   * müşteri adına talep açamaz — açsaydı talep müşteriden gelmiş gibi görünürdü.
+   *
+   * Karar düğmeleri (Onayla / Değişiklik iste) ayrıca gizli kalmaya devam ediyor; ortak
+   * müşteri adına karar veremez. Sekmenin açık olması ile o sekmede işlem yapılabilmesi
+   * ayrı şeyler. */
+  const ORTAGA_KAPALI_SEKMELER = ["talep"];
   const sekmeler = ortakModu
-    ? ORTAK_SEKMELERI.map((k) => tumSekmeler.find((x) => x.key === k)).filter(Boolean)
+    ? tumSekmeler.filter((x) => !ORTAGA_KAPALI_SEKMELER.includes(x.key))
     : tumSekmeler;
 
   const bugunYazi = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });

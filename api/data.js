@@ -1216,9 +1216,16 @@ export default async function handler(req, res) {
         if (!hedefMarka || !izinli.some((m) => trKucult(m) === trKucult(hedefMarka.ad))) {
           return res.status(403).json({ error: "Bu markaya erişimin yok." });
         }
+        /* "İçerik İste" ortağa kapalı: orası müşterinin ajanstan talepte bulunduğu yer,
+         * ortak müşteri adına talep açamaz. Sekmeyi gizlemek yetmez — veriyi de
+         * göndermiyoruz, yoksa gizleme yalnızca görsel olurdu ve talep metinleri yanıtın
+         * içinde okunabilir kalırdı. */
+        const ortakGorunumu = musteriGorunumuUret(data, hedefMarka, markaEslestirici);
+        delete ortakGorunumu.talepler;
+
         return res.status(200).json({
           ok: true,
-          markaPaneli: musteriGorunumuUret(data, hedefMarka, markaEslestirici),
+          markaPaneli: ortakGorunumu,
           markalarim: (data.clients || [])
             .filter((c) => izinli.some((m) => trKucult(m) === trKucult(c.ad)))
             .map((c) => ({ id: c.id, ad: c.ad })),
