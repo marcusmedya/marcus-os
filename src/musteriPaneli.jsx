@@ -1029,8 +1029,8 @@ function HazirIcerikler({ liste, gonderiliyor, onIslem, basliksiz = false, saltO
                   {h.dosyaLinki ? (
                     <div style={{ marginBottom: 14 }}>
                       {video
-                        ? <DriveVideo link={h.dosyaLinki} yon={h.videoYonu} baslik={h.baslik} isId={h.id} />
-                        : <DriveGorsel link={h.dosyaLinki} yukseklik={460} isId={h.id} />}
+                        ? <DriveVideo link={h.dosyaLinki} yon={h.videoYonu} baslik={h.baslik} isId={h.isId} />
+                        : <DriveGorsel link={h.dosyaLinki} yukseklik={460} isId={h.isId} />}
                     </div>
                   ) : (
                     <div style={{ marginBottom: 14, background: MT.kagit, border: `1px dashed ${MT.cizgiKoyu}`, borderRadius: 9, padding: "12px 15px", fontSize: 13, color: MT.soluk, fontFamily: "Inter", lineHeight: 1.6 }}>
