@@ -405,6 +405,14 @@ t("kalan slaytlar yeniden numaralanıyor", cekim.includes("KALAN SLAYTLAR YENİD
 
 /* KART SİLİNMEDEN ÖNCE DOSYALARI TEMİZLENMELİ. */
 t("dosyası olan kart silinemiyor", cekim.includes("KART SİLİNMEDEN ÖNCE DOSYALARI TEMİZLENMELİ"));
+/* ÇIKMAZ KAPATILDI. Düzenleme kilidi YALNIZCA medya düzenlemeyi kapatıyordu; karttaki
+ * diğer her şey (Onayla, Revize İste, Düzenle, Sil, aşama değiştir) kilit varken de
+ * çalışıyor. Bu tutarsızlık kullanıcıyı iki kapının arasında bırakıyordu: kilit varken
+ * dosya silinemiyor, dosya varken de kart silinemiyor. */
+t("düzenleme kilidi medyayı da kapatmıyor",
+  /duzenlenebilir=\{duzenleyebilirMi\(job, role, staffName\)\}/.test(cekim));
+t("kilit artık hiçbir yerde duvar değil", !/duzenleyebilirMi\(job, role, staffName\) && !kilitleyen/.test(cekim));
+t("kilit uyarısı yerinde duruyor (bilgi olarak)", cekim.includes("<KilitUyarisi kisi={kilitleyen} />"));
 t("silme düğmesi doğrudan onDelete çağırmıyor", !/onClick=\{\(\) => \{ if \(window\.confirm\("Bu iş silinsin mi\?"\)\) onDelete\(job\.id\); \}\}/.test(cekim));
 t("engel mesajı ne yapılacağını söylüyor", cekim.includes("Önce dosyaları kaldır"));
 t("dosya kalmayınca kart silinebiliyor", /if \(window\.confirm\("Bu iş silinsin mi\?"\)\) onDelete\(job\.id\);/.test(cekim));
