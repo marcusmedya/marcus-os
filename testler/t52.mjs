@@ -290,11 +290,20 @@ await kv.set("marcus-os-data", {
   musteriHesaplari: [], stoklar: {},
 });
 
+/* OAuth yükleme kimlik bilgileri: silme ASIL YOLU OAuth üzerinden gidiyor. */
+process.env.GOOGLE_OAUTH_CLIENT_ID = "id";
+process.env.GOOGLE_OAUTH_CLIENT_SECRET = "secret";
+process.env.GOOGLE_OAUTH_REFRESH_TOKEN = "refresh";
+
 const istekler = [];
 globalThis.fetch = async (url, secenekler) => {
   const adres = String(url);
   const yontem = (secenekler && secenekler.method) || "GET";
   if (adres.includes("oauth2.googleapis.com/token")) {
+    /* Bu uç HEM servis hesabının HEM OAuth'un jeton adresi. Gövdesindeki grant_type
+     * hangisi olduğunu söylüyor. */
+    const govde = String((secenekler && secenekler.body) || "");
+    istekler.push({ jeton: govde.includes("refresh_token") ? "oauth" : "servis" });
     return { ok: true, status: 200, json: async () => ({ access_token: "t" }), text: async () => "{}" };
   }
   const m = adres.match(/\/drive\/v3\/files\/([^/?]+)/);
@@ -314,10 +323,23 @@ t("o slotun TÜM versiyonları çöpe atıldı", sr.govde.silinen.length === 2, 
 t("güncel ve eski versiyon birlikte", sr.govde.silinen.includes("SLOT2VER2BB") && sr.govde.silinen.includes("SLOT2VER1AA"));
 t("BAŞKA slotun dosyasına dokunulmadı",
   !sr.govde.silinen.includes("ESKIDOSYA01") && !sr.govde.silinen.includes("STORYVER1CC"));
+/* `istekler` jeton çağrılarını da tutuyor; yalnızca dosyaya giden PATCH'lere bakılıyor. */
+const patchler = istekler.filter((x) => x.dosyaId);
 t("KALICI SİLME DEĞİL — çöpe atılıyor",
-  istekler.length > 0 && istekler.every((x) => String(x.govde).includes('"trashed":true')),
-  JSON.stringify(istekler.map((x) => x.govde)));
-t("DELETE yöntemi kullanılmıyor", istekler.every((x) => x.dosyaId));
+  patchler.length === 2 && patchler.every((x) => String(x.govde).includes('"trashed":true')),
+  JSON.stringify(patchler.map((x) => x.govde)));
+t("DELETE yöntemi kullanılmıyor", patchler.length === 2);
+/* SAHİPLİK MESELESİ — ölçerek öğrenildi.
+ * İlk sürüm servis hesabıyla çöpe atmayı deniyordu ve Google reddediyordu:
+ *   "The user does not have sufficient permissions for this file."
+ * Drive'da çöpe atmak DÜZENLEME değil SAHİPLİK istiyor; uygulamanın yüklediği dosyaların
+ * sahibi kullanıcı (servis hesaplarının depolama kotası yok). Bu yüzden ASIL YOL OAuth. */
+t("çöpe atma OAUTH ile deneniyor (sahiplik meselesi)",
+  istekler.some((x) => x.jeton === "oauth"),
+  JSON.stringify(istekler.filter((x) => x.jeton)));
+t("OAuth başarılıysa servis hesabına düşülmüyor",
+  !istekler.some((x) => x.jeton === "servis"),
+  JSON.stringify(istekler.filter((x) => x.jeton)));
 
 sr = await sil("7");
 t("dosyası olmayan parça hata vermiyor", sr.kod === 200 && sr.govde.silinen.length === 0, JSON.stringify(sr.govde));
@@ -329,6 +351,24 @@ const DAR = { "x-staff-username-b64": Buffer.from("ed").toString("base64"),
 sr = await sil("1", DAR);
 t("cekimEdit izni olmayan personel silemiyor", sr.kod === 403, `${sr.kod} ${JSON.stringify(sr.govde)}`);
 
+/* OAUTH REDDEDERSE SERVİS HESABINA DÜŞÜLÜYOR — elle yapıştırılmış eski dosyalar
+ * uygulama tarafından yüklenmediği için dar `drive.file` kapsamının dışında kalıyor. */
+const sira = [];
+globalThis.fetch = async (url, secenekler) => {
+  const adres = String(url);
+  if (adres.includes("oauth2.googleapis.com/token")) {
+    const govde = String((secenekler && secenekler.body) || "");
+    sira.push(govde.includes("refresh_token") ? "oauth" : "servis");
+    return { ok: true, status: 200, json: async () => ({ access_token: "t" }), text: async () => "{}" };
+  }
+  const oauthMu = sira[sira.length - 1] === "oauth";
+  if (oauthMu) return { ok: false, status: 404, json: async () => ({ error: { message: "File not found" } }), text: async () => "yok" };
+  return { ok: true, status: 200, json: async () => ({ id: "x" }), text: async () => "{}" };
+};
+sr = await sil("1");
+t("OAuth göremezse servis hesabı deneniyor", sira.includes("oauth") && sira.includes("servis"), sira.join(","));
+t("yedek yol başarılıysa silme başarılı sayılıyor", sr.kod === 200 && sr.govde.ok === true, JSON.stringify(sr.govde));
+
 /* Drive silinemezse kart TEMİZLENMEMELİ — "silindi" sanılan ama duran dosya üretirdi. */
 globalThis.fetch = async (url) => {
   if (String(url).includes("oauth2.googleapis.com/token")) {
@@ -339,6 +379,9 @@ globalThis.fetch = async (url) => {
 sr = await sil("1");
 t("Drive silemezse istek HATA dönüyor", sr.kod === 400, `${sr.kod} ${JSON.stringify(sr.govde)}`);
 t("hata sebebi görünüyor", String(sr.govde.error || "").includes("izin yok"), JSON.stringify(sr.govde));
+/* Aynı sebep her dosya için tekrar yazılıyordu; üç kopya aynı cümle ekranda okunmuyordu. */
+t("aynı sebep tekrar yazılmıyor",
+  (String(sr.govde.error || "").match(/izin yok/g) || []).length === 1, JSON.stringify(sr.govde));
 globalThis.fetch = gercekFetch;
 
 t("kayıt sunucuda KV'ye yazılmadı (sürüm sayacı korunuyor)",

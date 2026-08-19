@@ -5,8 +5,7 @@ import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, t
 import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, trKucult, markaEslestirici } from "../lib/marka-kilidi.js";
 import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
 import { epostaGonder, revizeBildirimHtml } from "../lib/eposta.js";
-import { onaylananiTasi, DURUM_KLASORLERI, klasorDurumu, driveDosyaIdCikar, videoAkisi,
-         dosyayiCopeAt } from "../lib/drive-tasima.js";
+import { onaylananiTasi, DURUM_KLASORLERI, klasorDurumu, driveDosyaIdCikar, videoAkisi } from "../lib/drive-tasima.js";
 import { jetonUret, jetonCoz } from "../lib/video-jeton.js";
 import { Readable } from "stream";
 import { dosyasizKontroleGirenleriGeriAl, medyaVarMi, asamalariDuzelt,
@@ -14,7 +13,8 @@ import { dosyasizKontroleGirenleriGeriAl, medyaVarMi, asamalariDuzelt,
          tasinacakDosyalar } from "../lib/asamalar.js";
 import { epostaGonderAyrintili, gonderenAdres } from "../lib/eposta.js";
 import { onaylananlaraGoreStok } from "../lib/stok.js";
-import { yuklemeOturumuAc, yuklemeyiTamamla, yuklenenDosyayiSil, yuklemeHazirMi, kucukResimGetir } from "../lib/drive-yukleme.js";
+import { yuklemeOturumuAc, yuklemeyiTamamla, yuklenenDosyayiSil, yuklemeHazirMi, kucukResimGetir,
+         dosyayiCopeAt } from "../lib/drive-yukleme.js";
 
 /** Bir kayıt (eski veri, yeni veri) arasındaki ÖNEMLİ değişiklikleri (müşteri/personel/üyelik
  * ekleme-silme, müşteri durum değişikliği) otomatik tespit edip okunabilir işlem geçmişi
@@ -998,7 +998,10 @@ export default async function handler(req, res) {
       /* Hiçbiri silinemediyse HATA döndürülüyor: kartı temizleyip Drive'ı dolu bırakmak
        * "silindi" sanılan ama duran dosyalar üretirdi. */
       if (silinen.length === 0) {
-        return res.status(400).json({ error: `Drive'dan silinemedi: ${basarisiz.map((x) => x.sebep).join("; ")}` });
+        /* Aynı sebep her dosya için tekrar yazılıyordu; üç kopya aynı cümle ekranda
+         * okunmuyordu. Benzersizleştiriliyor. */
+        const sebepler = [...new Set(basarisiz.map((x) => x.sebep).filter(Boolean))];
+        return res.status(400).json({ error: `Drive'dan silinemedi: ${sebepler.join(" · ")}` });
       }
       return res.status(200).json({ ok: true, silinen, basarisiz });
     }
