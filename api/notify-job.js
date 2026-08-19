@@ -1,10 +1,12 @@
-import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
+import { ownerYetkiliMi, baslikOku, esitMi } from "../lib/oturum.js";
 import { trKucult } from "../lib/marka-kilidi.js";
 import { gonderenAdres } from "../lib/eposta.js";
 async function yetkiKontrol(req) {
   const ownerPw = process.env.SITE_PASSWORD;
   const provided = baslikOku(req, "x-site-password");
-  if (!ownerPw) return { yetkili: true, owner: true, markaYoneticisi: true };
+  /* KAPALI DÜŞÜYOR — denetim bulgusu. "Yapılandırma eksikse izin ver" satırı buradaydı;
+   * SITE_PASSWORD tanımsızken bu uç kimliksiz isteklere yanıt veriyordu. */
+  if (!ownerPw) return { yetkili: false, owner: false, markaYoneticisi: false };
   if (await ownerYetkiliMi(req)) return { yetkili: true, owner: true, markaYoneticisi: true };
 
   const username = baslikOku(req, "x-staff-username");
@@ -16,7 +18,7 @@ async function yetkiKontrol(req) {
     const hesap = ((data && data.personelHesaplari) || []).find((h) => h.kullaniciAdi === username);
     if (hesap) {
       const hash = crypto.scryptSync(password, hesap.sifreSalt, 64).toString("hex");
-      if (hash === hesap.sifreHash) {
+      if (esitMi(hash, hesap.sifreHash)) {
         const perms = hesap.izinler || (data && data.staffPermissions) || {};
         // Marka kilidi hesabın sunucudaki kaydından okunur; aşağıda gönderilen markaya karşı doğrulanır.
         const markalar = Array.isArray(hesap.markalar) ? hesap.markalar : [];

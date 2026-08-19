@@ -1,7 +1,7 @@
 import { kv } from "@vercel/kv";
 import crypto from "crypto";
 import { KEY, guvenliGuncelle, kilitAl, kilitBirak, guvenliYaz, deftereYaz, defteriOku,
-         catisanAlanlar } from "../lib/kv-yaz.js";
+         catisanAlanlar, bugunISO } from "../lib/kv-yaz.js";
 import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, tumOturumlariIptalEt, ikiAdimliAktifMi, esitMi, baslikOku } from "../lib/oturum.js";
 import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, trKucult, markaEslestirici } from "../lib/marka-kilidi.js";
 import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
@@ -187,12 +187,28 @@ async function resolveRole(req) {
   // Yeni yol: tarayıcı artık şifre yerine süreli bir oturum anahtarı gönderiyor.
   if (req.headers["x-oturum"] && (await oturumGecerliMi(req.headers["x-oturum"]))) return { role: "owner" };
 
-  if (!ownerPw && !staffPwLegacy) {
-    const username = baslikOku(req, "x-staff-username");
-    if (!username) return { role: "owner" };
-  }
-  if (ownerPw && provided === ownerPw) return { role: "owner" };
-  if (staffPwLegacy && provided === staffPwLegacy) return { role: "staff", staffId: null, staffName: null };
+  /* KAPALI DÜŞME — ESKİDEN AÇIK DÜŞÜYORDU (kritik).
+   *
+   * Burada şöyle bir blok vardı: SITE_PASSWORD ve STAFF_PASSWORD'ün İKİSİ DE tanımsızsa,
+   * kimlik bilgisi göndermeyen herkese `owner` rolü veriliyordu. Ölçüldü: değişkenler
+   * tanımsızken kimliksiz bir GET tüm veriyi (müşteri şifreleri dahil) döndürüyor,
+   * kimliksiz bir POST ise veriyi değiştirebiliyordu.
+   *
+   * Üretimde SITE_PASSWORD tanımlı olduğu için bu gizli kalmıştı. Ama tetiklenmesi zor
+   * değil: ortam değişkeni silinirse, yeni bir ortam (önizleme dağıtımı) açılırsa ya da
+   * yapılandırma yanlış girilirse sistem tamamen halka açılıyordu.
+   *
+   * Artık yapılandırma eksikse HİÇ KİMSE giremiyor. Kilitlenme riski yok: eksikliğin ne
+   * olduğu `guvenlik.sitePasswordVar` ile ekranda bildiriliyor ve çözümü tek bir ortam
+   * değişkeni tanımlamak.
+   *
+   * lib/oturum.js'teki ownerYetkiliMi zaten böyle davranıyordu; buradaki tutarsızlıktı. */
+  if (!ownerPw && !staffPwLegacy) return null;
+
+  /* SABİT SÜRELİ KARŞILAŞTIRMA — düz `===` sızdırabiliyor. Aynı dosyadaki diğer
+   * karşılaştırmalar zaten esitMi kullanıyordu; burası atlanmıştı. */
+  if (ownerPw && provided && esitMi(provided, ownerPw)) return { role: "owner" };
+  if (staffPwLegacy && provided && esitMi(provided, staffPwLegacy)) return { role: "staff", staffId: null, staffName: null };
 
   const username = baslikOku(req, "x-staff-username");
   const password = baslikOku(req, "x-staff-password");
@@ -201,7 +217,7 @@ async function resolveRole(req) {
     const hesap = ((data && data.personelHesaplari) || []).find((h) => h.kullaniciAdi === username);
     if (hesap) {
       const hash = hashSifre(password, hesap.sifreSalt);
-      if (hash === hesap.sifreHash) return { role: "staff", staffId: hesap.id, staffName: hesap.ad, staffPerms: hesap.izinler || null, staffEmail: hesap.email || "", staffMarkalar: hesap.markalar || [] };
+      if (esitMi(hash, hesap.sifreHash)) return { role: "staff", staffId: hesap.id, staffName: hesap.ad, staffPerms: hesap.izinler || null, staffEmail: hesap.email || "", staffMarkalar: hesap.markalar || [] };
     }
   }
 
@@ -214,7 +230,7 @@ async function resolveRole(req) {
     const hesap = ((data && data.musteriHesaplari) || []).find((h) => h.kullaniciAdi === musteriUsername);
     if (hesap) {
       const hash = hashSifre(musteriPassword, hesap.sifreSalt);
-      if (hash === hesap.sifreHash) return { role: "musteri", musteriId: hesap.id, musteriClientId: hesap.clientId, musteriAd: hesap.ad };
+      if (esitMi(hash, hesap.sifreHash)) return { role: "musteri", musteriId: hesap.id, musteriClientId: hesap.clientId, musteriAd: hesap.ad };
     }
   }
   return null;
@@ -496,9 +512,14 @@ export default async function handler(req, res) {
 
     // Adım 1: şifre kontrolü. Doğruysa ya kod gönderilir ya da doğrudan oturum açılır.
     if (authAction === "girisBasla") {
+      /* ŞİFRE TANIMSIZSA GİRİŞ YOK — eskiden burada herkese geçerli bir oturum anahtarı
+       * veriliyordu. resolveRole'deki açık düşmenin ikinci yarısı buydu. */
       if (!ownerPw) {
-        const { token, sure } = await oturumAc(!!hatirla);
-        return res.status(200).json({ ok: true, token, sure, kodGerekli: false });
+        return res.status(503).json({
+          error: "Sistem henüz yapılandırılmamış: yönetici şifresi (SITE_PASSWORD) tanımlı değil. "
+               + "Vercel proje ayarlarından bu değişkeni tanımlayıp yeniden dağıt.",
+          yapilandirmaEksik: true,
+        });
       }
       if (!sifre || !esitMi(sifre, ownerPw)) {
         await basarisizGirisiKaydet(req);
@@ -1036,7 +1057,19 @@ export default async function handler(req, res) {
       }
 
       if (req.method === "POST") {
-        const { musteriAction, icerikId, isId, revizeNotu, talep } = req.body || {};
+        const { musteriAction, icerikId, isId, talep } = req.body || {};
+        /* REVİZE NOTU SINIRLI — denetim bulgusu.
+         *
+         * Müşteri talebindeki metinler zaten kırpılıyordu (tur 40, açıklama 2000, referans 500)
+         * ama revize notu SINIRSIZDI: ölçüldü, 200.000 karakterlik bir not olduğu gibi
+         * kaydedildi. Tüm uygulama TEK bir JSON belgesi olduğu ve her istekte baştan sona
+         * okunduğu için birkaç MB'lık çöp her şeyi yavaşlatır, zamanla KV sınırına dayanır.
+         * Üstelik not hem karta hem işlem geçmişine iki kez yazılıyor.
+         *
+         * 2000 karakter, açıklama alanıyla aynı sınır — revize notu ondan uzun olmamalı. */
+        const revizeNotu = typeof req.body?.revizeNotu === "string"
+          ? req.body.revizeNotu.slice(0, 2000)
+          : req.body?.revizeNotu;
 
         /* İÇERİK TALEBİ — müşteri panelinden gelen istek.
          *
@@ -1240,7 +1273,10 @@ export default async function handler(req, res) {
                 const not = { id: (j.gecmis || []).length + 1, tarih: new Date().toLocaleString("tr-TR"), yazan: "Müşteri", aciklama: "Müşteri içeriği onayladı." };
                 // Aylık İş Raporu bu tarihe göre sayıyor — müşteri onayıyla teslim edilen
                 // işler de sayıma girsin diye burada da kaydediliyor.
-                return { ...j, asama: "Teslim Edildi", teslimEdilmeTarihi: new Date().toISOString().slice(0, 10), gecmis: [...(j.gecmis || []), not] };
+                /* Teslim tarihi TÜRKİYE saatiyle — toISOString() UTC veriyor ve gece
+                 * 00:00–03:00 arasında işi bir önceki güne (ayın 1'inde bir önceki AYA)
+                 * yazıyordu. Aylık rapor ve hak ediş bu tarihe göre sayılıyor. */
+                return { ...j, asama: "Teslim Edildi", teslimEdilmeTarihi: bugunISO(), gecmis: [...(j.gecmis || []), not] };
               });
             }
           } else {
@@ -1386,6 +1422,9 @@ export default async function handler(req, res) {
            * Yetkiler" kartının hiçbir etkisi yoktur — herkes kişisel hesabıyla girer ve
            * kendi yetkileri geçerlidir. Bu bayrak olmadan kart boşuna ayarlanabilirdi. */
           ortakSifreAktif: !!process.env.STAFF_PASSWORD,
+          /* Yönetici şifresi tanımlı mı — tanımlı DEĞİLSE hiç kimse giremez.
+           * Eskiden tam tersiydi: tanımsızken HERKES yönetici oluyordu. */
+          sitePasswordVar: !!process.env.SITE_PASSWORD,
         },
       });
     }

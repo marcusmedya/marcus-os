@@ -9,7 +9,16 @@ const GERI_ALMA_PREFIX = "marcus-os-geri-alma-";
 
 async function checkAuth(req, res) {
   const required = process.env.SITE_PASSWORD;
-  if (!required) return true;
+  /* KAPALI DÜŞÜYOR — ESKİDEN AÇIK DÜŞÜYORDU (denetim bulgusu).
+   *
+   * Burada "yapılandırma eksikse izin ver" vardı. Ölçüldü: SITE_PASSWORD tanımsızken bu uç
+   * kimliksiz isteklere yanıt veriyordu. Üretimde değişken tanımlı olduğu için gizli
+   * kalmıştı; ama değişken silinirse, yeni bir ortam (önizleme dağıtımı) açılırsa ya da
+   * yanlış girilirse sistem halka açılıyordu.
+   *
+   * Yapılandırma eksikse artık kimse giremiyor. Kilitlenme riski yok: çözüm tek bir ortam
+   * değişkeni tanımlamak ve eksiklik ekranda ayrıca bildiriliyor. */
+  if (!required) return false;
   // Oturum anahtarı ya da şifre — ikisi de kabul edilir (bkz. lib/oturum.js).
   if (await ownerYetkiliMi(req)) return true;
   res.status(401).json({ error: "Yetkisiz. Şifre gerekli." });

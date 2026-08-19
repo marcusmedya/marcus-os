@@ -1,7 +1,7 @@
 import { kv } from "@vercel/kv";
 import crypto from "crypto";
 import { KEY, guvenliGuncelle } from "../lib/kv-yaz.js";
-import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
+import { ownerYetkiliMi, baslikOku, esitMi } from "../lib/oturum.js";
 
 function hashSifre(sifre, salt) {
   return crypto.scryptSync(sifre, salt, 64).toString("hex");
@@ -14,8 +14,10 @@ async function yetkiliMi(req) {
   const staffPwLegacy = process.env.STAFF_PASSWORD;
   const provided = baslikOku(req, "x-site-password");
   if (await ownerYetkiliMi(req)) return { owner: true };
-  if (!ownerPw && !staffPwLegacy && !baslikOku(req, "x-staff-username")) return { owner: true };
-  if (staffPwLegacy && provided === staffPwLegacy) return { owner: false };
+  /* KAPALI DÜŞÜYOR — denetim bulgusu. "Yapılandırma eksikse izin ver" satırı buradaydı;
+   * SITE_PASSWORD tanımsızken bu uç kimliksiz isteklere yanıt veriyordu. */
+  if (!ownerPw && !staffPwLegacy) return null;
+  if (staffPwLegacy && provided && esitMi(provided, staffPwLegacy)) return { owner: false };
 
   const username = baslikOku(req, "x-staff-username");
   const password = baslikOku(req, "x-staff-password");
@@ -24,7 +26,7 @@ async function yetkiliMi(req) {
     const hesap = ((data && data.personelHesaplari) || []).find((h) => h.kullaniciAdi === username);
     if (hesap) {
       const hash = hashSifre(password, hesap.sifreSalt);
-      if (hash === hesap.sifreHash) {
+      if (esitMi(hash, hesap.sifreHash)) {
         const perms = hesap.izinler || (data && data.staffPermissions) || {};
         if (perms.sifreKasasi === true) return { owner: false };
       }

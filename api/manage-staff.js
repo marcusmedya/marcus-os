@@ -10,7 +10,16 @@ const DEFAULT_PERMS = {
 
 async function checkOwner(req) {
   const required = process.env.SITE_PASSWORD;
-  if (!required) return true; // şifre ayarlanmadıysa (ilk kurulum) izin ver
+  /* KAPALI DÜŞÜYOR — ESKİDEN AÇIK DÜŞÜYORDU (denetim bulgusu).
+   *
+   * Burada "yapılandırma eksikse izin ver" vardı. Ölçüldü: SITE_PASSWORD tanımsızken bu uç
+   * kimliksiz isteklere yanıt veriyordu. Üretimde değişken tanımlı olduğu için gizli
+   * kalmıştı; ama değişken silinirse, yeni bir ortam (önizleme dağıtımı) açılırsa ya da
+   * yanlış girilirse sistem halka açılıyordu.
+   *
+   * Yapılandırma eksikse artık kimse giremiyor. Kilitlenme riski yok: çözüm tek bir ortam
+   * değişkeni tanımlamak ve eksiklik ekranda ayrıca bildiriliyor. */
+  if (!required) return false;
   return await ownerYetkiliMi(req);
 }
 
