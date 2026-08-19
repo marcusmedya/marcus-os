@@ -1,6 +1,7 @@
 import { kv } from "@vercel/kv";
 import crypto from "crypto";
-import { KEY, guvenliGuncelle, kilitAl, kilitBirak, guvenliYaz, deftereYaz, defteriOku } from "../lib/kv-yaz.js";
+import { KEY, guvenliGuncelle, kilitAl, kilitBirak, guvenliYaz, deftereYaz, defteriOku,
+         catisanAlanlar } from "../lib/kv-yaz.js";
 import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, tumOturumlariIptalEt, ikiAdimliAktifMi, esitMi, baslikOku } from "../lib/oturum.js";
 import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, trKucult, markaEslestirici } from "../lib/marka-kilidi.js";
 import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
@@ -358,6 +359,9 @@ async function tasimalariIsleVeNotDus(oncekiVeri, sonrakiVeri) {
     const tasimalar = await asamayaGoreTasi(oncekiVeri || {}, sonrakiVeri || {});
     if (tasimalar.length === 0) return null;
     const notSonucu = await guvenliGuncelle((guncel) => ({
+      /* YALNIZCA cekimIsleri değişiyor — bildirilmezse tüm alanların sayacı artar ve
+       * o anda başka bir bölümde çalışan herkes gereksiz yere bayat olurdu. */
+      degisenAlanlar: ["cekimIsleri"],
       veri: {
         ...guncel,
         cekimIsleri: (guncel.cekimIsleri || []).map((j) => {
@@ -827,6 +831,7 @@ export default async function handler(req, res) {
       /* TEK YAZMA, SONUNDA. Her kart için ayrı yazmak sürüm sayacını defalarca artırır ve
        * tarayıcıyı geride bırakır — bu projede o yoldan veri kaybı yaşandı. */
       const yazma = await guvenliGuncelle((guncel) => ({
+        degisenAlanlar: ["cekimIsleri"],
         veri: {
           ...guncel,
           cekimIsleri: (guncel.cekimIsleri || []).map((j) => {
@@ -1054,6 +1059,7 @@ export default async function handler(req, res) {
             }
             const yeniId = liste.reduce((m, x) => Math.max(m, Number(x.id) || 0), 0) + 1;
             return {
+              degisenAlanlar: ["musteriTalepleri"],
               veri: {
                 ...guncel,
                 musteriTalepleri: [...liste, {
@@ -1140,6 +1146,7 @@ export default async function handler(req, res) {
             const stokSonuc = onaylananlaraGoreStok(isler, yeniIsler, guncel.stoklar, guncel.clients);
 
             return {
+              degisenAlanlar: stokSonuc ? ["cekimIsleri", "stoklar"] : ["cekimIsleri"],
               veri: {
                 ...guncel,
                 cekimIsleri: stokSonuc ? stokSonuc.cekimIsleri : yeniIsler,
@@ -1250,7 +1257,10 @@ export default async function handler(req, res) {
               });
             }
           }
-          return { veri: yeni };
+          /* Bu yol iki alana dokunabiliyor: kaydın kendisi ve varsa bağlı Operasyon kartı.
+           * İkisini de bildiriyoruz; bildirilmeyen alanların sayacı artmasın ki o sırada
+           * başka bir bölümde çalışanlar gereksiz yere bayat olmasın. */
+          return { degisenAlanlar: ["musteriIcerikleri", "cekimIsleri"], veri: yeni };
         });
 
         if (!sonuc.ok) return res.status(sonuc.kod || 400).json({ error: sonuc.hata || "İşlem yapılamadı." });
@@ -1418,6 +1428,7 @@ export default async function handler(req, res) {
         }
         const zaman = new Date().toLocaleString("tr-TR");
         return {
+          degisenAlanlar: ["cekimIsleri"],
           veri: {
             ...guncel,
             cekimIsleri: isler.map((j) => (String(j.id) === String(req.body.isId)
@@ -1433,6 +1444,14 @@ export default async function handler(req, res) {
 
     if (req.method === "POST") {
       const { data, force, kilitAction, _v: clientVersion } = req.body || {};
+      /* ALAN BAZLI KAYIT — istemci yalnızca DOKUNDUĞU alanları bildiriyor.
+       * Gelmezse eski (tam blob + tek sayaç) yola düşülür; sessizce kaydetmeyi bırakmaz. */
+      const bildirilenAlanlar = Array.isArray(req.body && req.body.degisenAlanlar)
+        ? req.body.degisenAlanlar.filter((a) => typeof a === "string" && a && a !== "_v" && a !== "_alanSurumleri")
+        : null;
+      const tabanSurumler = (req.body && req.body.alanSurumleri && typeof req.body.alanSurumleri === "object")
+        ? req.body.alanSurumleri : null;
+      const alanBazliMi = Array.isArray(bildirilenAlanlar) && bildirilenAlanlar.length > 0 && Boolean(tabanSurumler);
 
       // Düzenleme kilidi (eşzamanlı düzenleme uyarısı) — ayrı bir uç noktaydı, Vercel'in
       // Hobby planındaki 12 fonksiyon sınırına takılmamak için buraya taşındı. Owner ya da
@@ -1475,7 +1494,16 @@ export default async function handler(req, res) {
         // versiyon sayacını artırıyor. Ayrıca çakışma kontrolü personel için de geçerli:
         // iki editör aynı anda çalışırken biri diğerinin işini geri alamıyor.
         const sonuc = await guvenliGuncelle(async (existing) => {
-          if (!force && typeof existing._v === "number" && typeof clientVersion === "number" && existing._v !== clientVersion) {
+          /* Personelde de çakışma yalnızca DOKUNULAN alanlara bakıyor — yöneticideki
+           * gerekçenin aynısı: başka bir bölümde çalışan biri herkesi bayat yapmasın. */
+          if (!force && alanBazliMi) {
+            const catisanlar = catisanAlanlar(existing, bildirilenAlanlar, tabanSurumler);
+            if (catisanlar.length > 0) {
+              return { iptal: true, kod: 409, hata: "stale",
+                ek: { serverVersion: existing._v, catisanAlanlar: catisanlar,
+                      alanSurumleri: existing._alanSurumleri || {} } };
+            }
+          } else if (!force && typeof existing._v === "number" && typeof clientVersion === "number" && existing._v !== clientVersion) {
             return { iptal: true, kod: 409, hata: "stale", ek: { serverVersion: existing._v } };
           }
           const guncelHesap = staffId ? ((existing.personelHesaplari || []).find((h) => h.id === staffId)) : null;
@@ -1488,10 +1516,17 @@ export default async function handler(req, res) {
           const hamYaziPerms = guncelHesap ? { ...DEFAULT_PERMS, ...(guncelHesap.izinler || {}) } : { ...DEFAULT_PERMS, ...(existing.staffPermissions || {}) };
           const perms = izinleriDaralt(hamYaziPerms, yaziKilitli);
           const merged = { ...existing };
+          /* Gerçekten hangi alanlara yazıldığını topluyoruz; sayaç yalnızca onlar için
+           * artsın. Bildirilmezse hepsi artar ve herkes gereksiz yere bayat olur. */
+          const yazilanAlanlar = new Set(["cekimIsleri"]);   // aşama düzeltme + stok her kayıtta dokunabiliyor
           Object.entries(PERMISSION_WRITE_FIELDS).forEach(([permKey, fields]) => {
             if (perms[permKey] !== true) return;
             fields.forEach((f) => {
               if (data[f] === undefined) return;
+              /* ALAN BAZLI KAYITTA istemci bildirmediği alanı yazmaz — bayat kopyası
+               * başkasının yazdığının üstüne gitmesin. */
+              if (alanBazliMi && !bildirilenAlanlar.includes(f)) return;
+              yazilanAlanlar.add(f);
               if (f === "clients") {
                 // Personel yazımlarında da aynı güvenlik freni: müşteri sayısı çarpıcı biçimde
                 // azalıyorsa (bayat/eksik veri olabilir) bu alanı yazmayı reddet.
@@ -1563,7 +1598,9 @@ export default async function handler(req, res) {
           if (yeniKayitlar.length > 0) {
             merged.islemGecmisi = [...(existing.islemGecmisi || []), ...yeniKayitlar].slice(-200);
           }
-          return { veri: merged };
+          if (stokSonuc) yazilanAlanlar.add("stoklar");
+          if (yeniKayitlar.length > 0) yazilanAlanlar.add("islemGecmisi");
+          return { veri: merged, degisenAlanlar: [...yazilanAlanlar] };
         });
 
         /* Kayıt başarılıysa "Teslim Edildi"ye yeni geçen işlerin dosyalarını taşı.
@@ -1578,15 +1615,24 @@ export default async function handler(req, res) {
 
         if (!sonuc.ok) {
           if (sonuc.kod === 409) {
+            const ek = sonuc.ek || {};
             return res.status(409).json({
               staleConflict: true,
-              error: "Bu veri, sen düzenlerken başka bir cihazdan/sekmeden değişmiş. Kaybını önlemek için önce en güncel veriyi çekip senin değişikliğini tekrar uygulaman gerekiyor.",
+              ...(ek.catisanAlanlar ? { catisanAlanlar: ek.catisanAlanlar } : {}),
+              ...(ek.alanSurumleri ? { alanSurumleri: ek.alanSurumleri } : {}),
+              error: ek.catisanAlanlar
+                ? "Düzenlediğin bölüm başka bir cihazdan/sekmeden değişmiş. O bölümün güncel hâli çekildi; diğer değişikliklerin korundu."
+                : "Bu veri, sen düzenlerken başka bir cihazdan/sekmeden değişmiş. Kaybını önlemek için önce en güncel veriyi çekip senin değişikliğini tekrar uygulaman gerekiyor.",
               serverVersion: sonuc.mevcut && sonuc.mevcut._v,
             });
           }
           return res.status(sonuc.kod || 400).json({ error: sonuc.hata || "Kayıt yapılamadı." });
         }
-        return res.status(200).json({ ok: true, _v: staffSonHal._v, ...(stokBildirimi ? { stok: stokBildirimi } : {}) });
+        return res.status(200).json({
+          ok: true, _v: staffSonHal._v,
+          alanSurumleri: (staffSonHal && staffSonHal._alanSurumleri) || {},
+          ...(stokBildirimi ? { stok: stokBildirimi } : {}),
+        });
       }
 
       // Owner kaydı da artık kilit altında: okuma, çakışma kontrolü, güvenlik freni ve
@@ -1612,7 +1658,27 @@ export default async function handler(req, res) {
       // durumda üzerine kör kör yazmak yerine reddedip ön yüzün önce en güncel veriyi
       // çekmesini istiyoruz. "force: true" ile (kullanıcı bilerek üzerine yazmak isterse) bu
       // kontrol atlanabilir.
-      if (!force && existingFull && typeof existingFull._v === "number" && typeof clientVersion === "number" && existingFull._v !== clientVersion) {
+      /* ÇAKIŞMA KONTROLÜ — ARTIK YALNIZCA DOKUNULAN ALANLARA BAKIYOR.
+       *
+       * Eskiden tek bir genel sayaç vardı: şifre kasasına kayıt giren biri onu artırıyor,
+       * o anda kart düzenleyen HERKES bayat sayılıp 409 alıyordu. Oysa şifre kasasıyla
+       * Operasyon kartlarının hiçbir ilgisi yok. Üç kişi aynı anda çalıştığında sistem
+       * pratikte kilitleniyordu.
+       *
+       * Artık yalnızca "benim dokunduğum alanı başkası değiştirdi mi" soruluyor. */
+      if (!force && alanBazliMi) {
+        const catisanlar = catisanAlanlar(existingFull, bildirilenAlanlar, tabanSurumler);
+        if (catisanlar.length > 0) {
+          return res.status(409).json({
+            staleConflict: true,
+            catisanAlanlar: catisanlar,
+            error: "Düzenlediğin bölüm başka bir cihazdan/sekmeden değişmiş. O bölümün güncel hâli çekildi; diğer değişikliklerin korundu.",
+            serverVersion: existingFull._v,
+            alanSurumleri: (existingFull && existingFull._alanSurumleri) || {},
+          });
+        }
+      } else if (!force && existingFull && typeof existingFull._v === "number" && typeof clientVersion === "number" && existingFull._v !== clientVersion) {
+        /* ESKİ YOL — alan bilgisi göndermeyen istemciler için aynen duruyor. */
         return res.status(409).json({
           staleConflict: true,
           error: "Bu veri, sen düzenlerken başka bir cihazdan/sekmeden değişmiş. Kaybını önlemek için önce en güncel veriyi çekip senin değişikliğini tekrar uygulaman gerekiyor.",
@@ -1653,8 +1719,18 @@ export default async function handler(req, res) {
       // sunucudaki mevcut değerleriyle geri eklenir — yoksa her kayıtta sessizce silinirler.
       // personelHesaplari için bu zaten yapılıyordu; kasaSifresiHash/Salt de AYNI kategoride
       // olduğu halde unutulmuştu — bu da "kasa şifresi kendiliğinden sıfırlanıyor" hatasının sebebiydi.
+      /* ALAN BAZLI BİRLEŞTİRME.
+       *
+       * Alan bilgisi geldiyse taban SUNUCUDAKİ veri olur ve istemciden YALNIZCA bildirdiği
+       * alanlar alınır. Böylece o sırada başkasının yazdığı şifre kaydı, müşteri, reklam…
+       * hiçbiri ezilmez — istemcinin bayat kopyası onların üstüne yazamaz.
+       *
+       * Alan bilgisi yoksa eski davranış: tüm blob istemciden. */
+      const govde = alanBazliMi
+        ? { ...(existingFull || {}), ...Object.fromEntries(bildirilenAlanlar.map((a) => [a, data[a]])) }
+        : data;
       const finalData = {
-        ...data,
+        ...govde,
         personelHesaplari: (existingFull && existingFull.personelHesaplari) || [],
         musteriHesaplari: (existingFull && existingFull.musteriHesaplari) || [],
         kasaSifresiHash: existingFull ? existingFull.kasaSifresiHash : undefined,
@@ -1703,7 +1779,9 @@ export default async function handler(req, res) {
         finalData.islemGecmisi = existingFull.islemGecmisi;
       }
       // Versiyonu artırır, günlük + saatlik yedeği yazar, yetim müşteri hesaplarını temizler.
-      const yazilan = await guvenliYaz(finalData);
+      /* Yalnızca dokunulan alanların sayacı artsın — herkesin bayat olmaması için.
+       * Bildirilmezse hepsi artar (eski davranış). */
+      const yazilan = await guvenliYaz(finalData, alanBazliMi ? bildirilenAlanlar : undefined);
 
       if (Math.random() < 0.08) {
         try {
@@ -1730,7 +1808,13 @@ export default async function handler(req, res) {
        * arkada kalan iş hiç bitmeyebilir. */
       const ownerSonHal = (await tasimalariIsleVeNotDus(ownerOncekiVeri, ownerYazilanVeri)) || ownerYazilanVeri;
 
-      return res.status(200).json({ ok: true, _v: ownerSonHal._v, ...(ownerStokBildirimi ? { stok: ownerStokBildirimi } : {}) });
+      return res.status(200).json({
+        ok: true, _v: ownerSonHal._v,
+        /* İstemci taban sürümlerini tazelesin — yoksa bir sonraki kaydı kendi yazdığı
+         * değişiklik yüzünden çakışma sanardı. */
+        alanSurumleri: (ownerSonHal && ownerSonHal._alanSurumleri) || {},
+        ...(ownerStokBildirimi ? { stok: ownerStokBildirimi } : {}),
+      });
     }
 
     return res.status(405).json({ error: "Sadece GET/POST kabul edilir." });

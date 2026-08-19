@@ -55,7 +55,12 @@ function hashSifre(sifre, salt) {
  * hesabı eklemek, sonra bir müşteriyi düzenlemek düzenlemeyi kaybettiriyordu. */
 let sonYazilanSurum;
 async function hesaplariYaz(alanAdi, guncel) {
-  const sonuc = await guvenliGuncelle(async (veri) => ({ veri: { ...veri, [alanAdi]: guncel } }));
+  /* Yalnızca hesap listesi değişiyor — sayaç yalnızca onun için artsın ki o sırada
+   * kart düzenleyen ya da şifre kasasına yazan kimse bayat olmasın. */
+  const sonuc = await guvenliGuncelle(async (veri) => ({
+    degisenAlanlar: [alanAdi],
+    veri: { ...veri, [alanAdi]: guncel },
+  }));
   sonYazilanSurum = sonuc && sonuc.ok && sonuc.veri ? sonuc.veri._v : undefined;
   return sonuc.ok;
 }

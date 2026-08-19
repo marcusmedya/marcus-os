@@ -6790,6 +6790,17 @@ export default function MarcusOS() {
   const [tebligOpen, setTebligOpen] = useState(null);
   const saveTimer = useRef(null);
   const skipNextSave = useRef(true);
+  /* SUNUCUNUN SON BİLİNEN HÂLİ — hangi alanı DEĞİŞTİRDİĞİMİZİ bulmak için.
+   *
+   * Neden gerekli: eskiden her kayıtta 28 üst düzey alanın hepsi gönderiliyordu ve tek bir
+   * genel sayaç vardı. Şifre kasasına kayıt giren biri o sayacı artırıyor, aynı anda kart
+   * düzenleyen herkes bir anda "bayat" olup 409 yiyor ve DÜZENLEMESİ ATILIYORDU. Üç kişi
+   * aynı anda çalıştığında sistem pratikte kilitleniyordu.
+   *
+   * Artık yalnızca dokunduğumuz alanları gönderiyoruz; sunucu gerisini kendi kopyasından
+   * koruyor ve çakışmayı yalnızca o alanlar için kontrol ediyor. */
+  const sonSunucuVerisi = useRef(null);
+  const otomatikBirlestirmeSayisi = useRef(0);
 
   const loadData = (isRetry) => {
     if (isRetry) setAuthChecking(true);
@@ -6860,6 +6871,7 @@ export default function MarcusOS() {
         if (res.guvenlik) setGuvenlikDurumu(res.guvenlik);
         if (res.staffName) setLoggedStaffName(res.staffName);
         if (res.data) {
+          sonSunucuVerisi.current = res.data;      // taban: bundan sonra ne değişirse bizim
           setData(res.data);
           setNeedsSeedConfirm(false);
         } else {
@@ -6908,6 +6920,7 @@ export default function MarcusOS() {
         const res = await r.json();
         if (res.data) {
           skipNextSave.current = true;
+          sonSunucuVerisi.current = res.data;
           setData(res.data);
           return true;
         }
@@ -7032,22 +7045,70 @@ export default function MarcusOS() {
     setSaveStatus("saving");
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      fetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify({ data, _v: data._v }) })
+      /* HANGİ ALANLARI DEĞİŞTİRDİK — referans karşılaştırmasıyla.
+       *
+       * Bu kesin bir ölçüm, tahmin değil: uygulamadaki 87 setData çağrısının hepsi durumu
+       * DEĞİŞMEZ (immutable) güncelliyor — `{...d, alan: yeni}`. Hiçbirinde yerinde
+       * değiştirme (push/splice/sort/doğrudan atama) yok; tarandı. Bu yüzden referans
+       * aynıysa alan kesinlikle değişmemiştir.
+       *
+       * Taban yoksa (ilk yükleme henüz oturmadıysa) alan listesi gönderilmez ve sunucu
+       * eski davranışa düşer — sessizce kaydetmeyi bırakmaz. */
+      const taban = sonSunucuVerisi.current;
+      const degisenAlanlar = taban
+        ? Object.keys(data).filter((a) => a !== "_v" && a !== "_alanSurumleri" && data[a] !== taban[a])
+        : null;
+      const alanSurumleri = taban ? (taban._alanSurumleri || {}) : null;
+      const govde = (degisenAlanlar && degisenAlanlar.length > 0 && alanSurumleri)
+        ? { data, _v: data._v, degisenAlanlar, alanSurumleri }
+        : { data, _v: data._v };
+
+      fetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(govde) })
         .then(async (r) => {
           if (r.status === 409) {
             const res = await r.json();
             if (res.staleConflict) {
-              // Başka bir cihaz/sekme araya girmiş — bu değişikliği ZORLA üzerine yazmak yerine
-              // (bu tam da önlemeye çalıştığımız veri kaybı senaryosu), önce sunucudaki en
-              // güncel veriyi çekip kullanıcıyı bilgilendiriyoruz. Az önceki değişikliği
-              // kaybetmiş olabilir, tekrar uygulaması gerekebilir — ama en azından ARADA
-              // BAŞKASININ yaptığı değişiklikler kaybolmuyor.
+              /* GERÇEK ÇAKIŞMA — artık YALNIZCA aynı alana iki kişi dokunduğunda oluşuyor.
+               *
+               * ESKİ DAVRANIŞ: sunucudaki veri olduğu gibi çekilip yerel durumun ÜZERİNE
+               * yazılıyordu. Kullanıcının o anki düzenlemesi — çakışmayan alanlardakiler
+               * dahil — tamamen siliniyordu. Şikâyetin kaynağı buydu.
+               *
+               * YENİ DAVRANIŞ: yalnızca ÇAKIŞAN alanlar sunucudan tazeleniyor; kullanıcının
+               * diğer alanlardaki düzenlemeleri yerinde kalıyor ve bir sonraki turda
+               * kaydediliyor. Yani en kötü ihtimalde tek bir bölüm geri alınıyor, tüm iş
+               * değil. */
+              const catisanlar = Array.isArray(res.catisanAlanlar) ? res.catisanAlanlar : null;
+
+              /* Döngü freni: aynı çakışma üst üste tekrar ederse otomatik birleştirmeyi
+               * bırakıp kullanıcıya söylüyoruz. Sonsuz yeniden deneme, sunucuyu da
+               * kullanıcıyı da yorar. */
+              otomatikBirlestirmeSayisi.current += 1;
+              const cokTekrarladi = otomatikBirlestirmeSayisi.current > 3;
+
               setSaveStatus("error");
-              setStaleConflictMsg("Az önce başka bir cihazdan/sekmeden değişiklik yapılmış. En güncel veri çekildi — az önceki değişikliğini kontrol edip gerekirse tekrar uygula.");
+              setStaleConflictMsg(
+                catisanlar && !cokTekrarladi
+                  ? `"${catisanlar.join(", ")}" bölümü başka bir cihazdan/sekmeden değişmiş. O bölümün güncel hâli alındı; diğer değişikliklerin korundu.`
+                  : "Az önce başka bir cihazdan/sekmeden değişiklik yapılmış. En güncel veri çekildi — az önceki değişikliğini kontrol edip gerekirse tekrar uygula.",
+              );
               skipNextSave.current = true;
               fetch("/api/data", { headers: authHeaders() })
                 .then((r2) => r2.json())
-                .then((res2) => { if (res2.data) setData(res2.data); })
+                .then((res2) => {
+                  if (!res2.data) return;
+                  sonSunucuVerisi.current = res2.data;
+                  if (catisanlar && !cokTekrarladi) {
+                    /* Yalnızca çakışan alanları tazele; gerisi kullanıcıda kalsın. */
+                    setData((d) => {
+                      const birlesik = { ...d, _v: res2.data._v, _alanSurumleri: res2.data._alanSurumleri };
+                      for (const alan of catisanlar) birlesik[alan] = res2.data[alan];
+                      return birlesik;
+                    });
+                  } else {
+                    setData(res2.data);
+                  }
+                })
                 .catch(() => {});
               return;
             }
@@ -7064,8 +7125,19 @@ export default function MarcusOS() {
            * eski kalıyordu. */
           if (typeof res._v === "number" || res.stok) {
             skipNextSave.current = true;
-            setData((d) => stokYanitiniUygula(d, res));
+            setData((d) => {
+              const yeni = stokYanitiniUygula(d, res);
+              /* Taban artık bu hâl: bundan SONRA değişen alanlar bizim değişikliğimiz.
+               * Sunucunun bize verdiği alan sürümleri de tabana yazılıyor, yoksa bir
+               * sonraki kaydı kendi yazdığımız değişiklik yüzünden çakışma sanardık. */
+              const tabanHali = res.alanSurumleri
+                ? { ...yeni, _alanSurumleri: res.alanSurumleri }
+                : yeni;
+              sonSunucuVerisi.current = tabanHali;
+              return tabanHali;
+            });
           }
+          otomatikBirlestirmeSayisi.current = 0;
           setSaveStatus("saved");
           setLastSavedAt(new Date());
         })

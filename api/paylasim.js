@@ -149,10 +149,20 @@ function gecmiseEkle(data, clientId, marka, tur, tip) {
   data.paylasimGecmisi = [...liste, { id: nid(), clientId, marka, tur, tip, tarih: bugunTR() }];
 }
 
+/** Bu uç noktanın dokunabildiği alanlar — sayaç yalnızca bunlar için artar.
+ *
+ * `cekimIsleri` BİLEREK YOK: yalnızca plana bağlı kart işaretlenirken dokunuluyor. Listeye
+ * konsaydı stok değiştirmek bile Operasyon'da çalışan herkesi bayat yapardı — düzeltmeye
+ * çalıştığımız sorunun aynısı, küçük ölçekte. O işlem alanı kendisi bildiriyor. */
+const BU_UCUN_ALANLARI = [
+  "stoklar", "paylasimGecmisi", "gunlukKontrol", "haftalikPaylasimlar",
+  "subeler", "uyelikler",
+];
+
 /** Her kayıtta ana veriyi VE o günün yedeğini birlikte yazar — bu uç nokta üzerinden yapılan
  * (stok/paylaşım/haftalık plan/şube/günlük kontrol) değişiklikler daha önce günlük yedeğe hiç
  * dahil edilmiyordu, bu da bu verinin bir "bu tarihe dön" işleminde kaybolabileceği anlamına geliyordu. */
-async function kaydetVeYedekle(data) {
+async function kaydetVeYedekle(data, degisenAlanlar) {
   // Ortak yazma katmanı: versiyon sayacını artırır, günlük + saatlik yedeği yazar.
   // Sayacın artması kritik — eskiden bu uç noktadan yapılan stok/plan değişiklikleri
   // sayacı artırmadığı için, açık duran bir yönetici sekmesi bunların üzerine yazabiliyordu.
@@ -162,7 +172,10 @@ async function kaydetVeYedekle(data) {
   // sahte bir "başka cihazdan değişmiş" uyarısı alıp kullanıcının o anki düzenlemesini
   // sunucu verisiyle eziyordu. Paylaşım paneline dokunmak, Operasyon'daki düzenlemeyi
   // kaybettiriyordu ve arada bir bağ görünmediği için sebebi anlaşılmıyordu.
-  const yazilan = await guvenliYaz(data);
+  /* ALAN BAZLI SAYAÇ: bu uç yalnızca aşağıdaki alanlara dokunuyor. Bildirmeseydik TÜM
+   * alanların sayacı artardı ve paylaşım panelinde bir kutu işaretlemek, o sırada Operasyon'da
+   * kart düzenleyen herkesi bayat yapıp kaydını 409 ile geri çevirirdi. Yaşanan tam olarak buydu. */
+  const yazilan = await guvenliYaz(data, degisenAlanlar || BU_UCUN_ALANLARI);
   return (yazilan && typeof yazilan._v === "number") ? yazilan._v : undefined;
 }
 
@@ -382,7 +395,10 @@ export default async function handler(req, res) {
           data.gunlukKontrol = { tarih: bugun, yapilanlar: kontrol.yapilanlar.filter((k) => k !== itemKey) };
         }
       }
-      const _v = await kaydetVeYedekle(data);
+      /* Bu işlem plana BAĞLI Operasyon kartına da dokunabiliyor (aşama + stok işareti),
+       * o yüzden cekimIsleri burada ayrıca bildiriliyor. Diğer işlemler kartlara
+       * dokunmadığı için onları bayat yapmıyor. */
+      const _v = await kaydetVeYedekle(data, [...BU_UCUN_ALANLARI, "cekimIsleri"]);
 
       /* DRIVE TAŞIMASI KİLİT DIŞINDA. Google çağrıları saniyeler sürebiliyor; kilidi elde
        * tutarak beklemek o sırada işaretleme yapan herkesi bekletirdi. Kayıt zaten yazıldı;

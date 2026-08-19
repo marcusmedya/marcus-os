@@ -98,6 +98,13 @@ export default async function handler(req, res) {
       // Kilit altında ve en güncel veri üzerinde yazılır — yukarıda okunan kopya bu noktada
       // bayatlamış olabilir ve o kopyayı yazmak arada yapılan işleri silerdi.
       const sonuc = await guvenliGuncelle(async (guncel) => ({
+        /* Yalnızca kasa şifresi değişiyor; başka bölümde çalışanlar etkilenmesin.
+         *
+         * SAYAÇ ADI NÖTR: `_alanSurumleri` haritası yönetici GET'inde gönderiliyor ve
+         * gizli alan ADLARININ oraya girmesi gereksiz. Değer zaten bir sayı, sızıntı yok
+         * ama alan adını da taşımaya gerek yok. Tarayıcı bu alanları hiç göndermediği
+         * için adın tutması da gerekmiyor. */
+        degisenAlanlar: ["kasa"],
         veri: { ...guncel, kasaSifresiHash: hash, kasaSifresiSalt: salt },
       }));
       if (!sonuc.ok) return res.status(500).json({ error: "Kasa şifresi kaydedilemedi, tekrar dene." });
