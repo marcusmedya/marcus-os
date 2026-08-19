@@ -10,6 +10,31 @@ belgelerde — bu dosya yalnızca "bilmeden dokunulursa bir şey kırılır" bil
 
 ---
 
+## BU DOSYANIN BAKIMI — Claude için talimat
+
+Bu dosya kendiliğinden güncellenmez. **Bayat bir CLAUDE.md, olmayan bir CLAUDE.md'den
+daha tehlikelidir**: yeni oturum ona güvenerek başlar ve yanlış varsayımla çalışır.
+
+Aşağıdakilerden biri değiştiğinde, **aynı commit içinde bu dosyayı da güncelle.**
+Ayrıca istenmesini bekleme; bu talimat yeterli iznin.
+
+- `api/` altındaki fonksiyon sayısı (12 sınırı, şu an 11)
+- Yazma/kilit davranışı (`lib/kv-yaz.js`) — kilit kuralı, sürüm sayaçları, stok otoritesi
+- Roller, izinler ya da hangi panelin neyi gördüğü
+- Aşama listeleri (`lib/asamalar.js`) veya stok türleri (`lib/stok.js`)
+- Google Drive kimlikleri/kapsamları
+- Ortam değişkeni eklenmesi ya da anlamının değişmesi
+- Test çalıştırma komutları
+- "Asla yapılmayacaklar" listesine eklenen yeni bir kural
+
+Şunlar için **güncelleme**: hata düzeltmesi, yeni test, arayüz değişikliği, metin
+düzeltmesi. Bunlar `README.md`'ye ait. Bu dosya kısa kalmalı — her oturumda okunuyor.
+
+Güncellerken **yazdığın her teknik iddiayı koddan doğrula.** Buradaki yanlış bir
+cümle, sonraki oturumlarda tekrar tekrar yanlış karar ürettirir.
+
+---
+
 ## Sistemi bir cümlede
 
 React SPA + Vercel serverless fonksiyonları + Upstash Redis. **Tüm uygulama verisi
