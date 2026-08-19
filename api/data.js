@@ -146,7 +146,10 @@ const PERMISSION_WRITE_FIELDS = {
   odemeTakvimi: ["clients", "hesaplar", "hesapTransferleri", "hesapDuzeltmeleri"],
   teklif: ["teklifler", "teklifSablonlari", "sozlesmeSablonlari", "markaKimligiGorseli"],
   reklamlar: ["reklamlar", "hesapOlcumleri"],
-  paylasimlar: ["stoklar", "paylasimGecmisi", "gunlukKontrol", "haftalikPaylasimlar", "subeler"],
+  /* `stoklar` BİLEREK YOK — aynı sebeple (bkz. yönetici yolundaki uzun not): stok yalnızca
+   * /api/paylasim üzerinden değişir, buradaki kopya bayat olabilir ve sunucunun hesapladığı
+   * artışı sessizce silerdi. */
+  paylasimlar: ["paylasimGecmisi", "gunlukKontrol", "haftalikPaylasimlar", "subeler"],
   cekimListesi: [],
   cekimEdit: ["cekimIsleri", "markalasmaSurecleri", "musteriIcerikleri"],
   personel: ["personel"],
@@ -1453,7 +1456,7 @@ export default async function handler(req, res) {
           /* ONAYLANAN İŞ STOĞA GİRER. Aşama düzeltmesinden SONRA çalışıyor — düzeltilmemiş
            * bir aşamayı saymak yanlış türde stok üretirdi. */
           const stokSonuc = onaylananlaraGoreStok(
-            existing.cekimIsleri, merged.cekimIsleri, merged.stoklar || existing.stoklar, merged.clients || existing.clients);
+            existing.cekimIsleri, merged.cekimIsleri, existing.stoklar, merged.clients || existing.clients);
           if (stokSonuc) { merged.stoklar = stokSonuc.stoklar; merged.cekimIsleri = stokSonuc.cekimIsleri; }
           /* Sayılar YALNIZCA stoğu görme izni olana gönderilir. İzni yoksa hangi kartın
            * sayıldığı bilgisi gider (kendi kartları), adet gitmez. */
@@ -1594,11 +1597,24 @@ export default async function handler(req, res) {
         existingFull && existingFull.cekimIsleri, finalData.cekimIsleri, new Date().toLocaleString("tr-TR"));
       if (duzeltilmisIsler) finalData.cekimIsleri = duzeltilmisIsler;
 
-      /* Onaylanan iş stoğa girer — kural kime ait olduğuna göre değişmiyor. */
+      /* STOK TABLOSU İSTEMCİDEN ALINMAZ — ÖLÇÜLMÜŞ VERİ KAYBI.
+       *
+       * Stok yalnızca /api/paylasim üzerinden değiştiriliyor (+/- düğmeleri, paylaşım
+       * işaretleme) ve onay geçişlerinde sunucu hesaplıyor. Bu blob kaydında `stoklar`
+       * tarayıcının PASİF bir kopyası; taze olması için hiçbir sebep yok.
+       *
+       * Yanıt eskiden stoğu geri vermediği için tarayıcının kopyası donuyordu. Sonuç:
+       *   1. kartı onayla -> sunucu {"1_Reels":1} yazıyor, tarayıcı hâlâ {} tutuyor
+       *   2. kartı onayla -> tarayıcı {} gönderiyor, sunucu onun üstüne 1 ekliyor
+       *   sonuç {"1_Reels":1} — İKİ onay yapıldı ama stok BİR. İlk artış silinmiş oldu.
+       *
+       * Ölçüldü, tahmin değil. Artık taban HER ZAMAN sunucudaki değer; gönderilen
+       * yok sayılıyor. Aynı kural müşteri onayında zaten böyleydi. */
       const stokSonucu = onaylananlaraGoreStok(
         existingFull && existingFull.cekimIsleri, finalData.cekimIsleri,
-        finalData.stoklar !== undefined ? finalData.stoklar : (existingFull && existingFull.stoklar),
+        existingFull && existingFull.stoklar,
         finalData.clients || (existingFull && existingFull.clients));
+      if (!stokSonucu) finalData.stoklar = (existingFull && existingFull.stoklar) || {};
       if (stokSonucu) {
         finalData.stoklar = stokSonucu.stoklar;
         finalData.cekimIsleri = stokSonucu.cekimIsleri;
