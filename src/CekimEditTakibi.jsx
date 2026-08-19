@@ -917,6 +917,25 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
                                  fontSize: 10, fontWeight: 700, padding: "2px 5px", borderRadius: 4 }}>
                     {m.slot === STORY_SLOT ? "STORY" : m.slot}
                   </span>
+                  {/* SİLME KARENİN ÜSTÜNDE.
+                    * Düğme yalnızca büyük önizlemenin altında dururken bulunamıyordu: önizleme
+                    * uzun olduğu için ekranın altında kalıyor, "5 görselden birini nasıl
+                    * sileceğim?" sorusu cevapsız kalıyordu. Kaldırma işareti, kaldırılacak
+                    * şeyin üstünde olmalı. */}
+                  {duzenlenebilir && typeof onMedyaDegis === "function" && !meshgul && (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      title={`${slotEtiketi(m.slot)} — sil`}
+                      onClick={(e) => { e.stopPropagation(); parcaSil(m); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); parcaSil(m); } }}
+                      style={{ position: "absolute", top: 3, right: 3, width: 18, height: 18, borderRadius: 999,
+                               background: "rgba(0,0,0,.75)", color: "#fff", fontSize: 12, lineHeight: "17px",
+                               textAlign: "center", cursor: "pointer", fontWeight: 700 }}
+                    >
+                      ×
+                    </span>
+                  )}
                   {Number(m.versiyon) > 1 && (
                     <span style={{ position: "absolute", bottom: 3, right: 3, background: "rgba(0,0,0,.7)", color: "#fff",
                                    fontSize: 10, fontWeight: 700, padding: "2px 5px", borderRadius: 4 }}>
@@ -944,16 +963,10 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
                     <ExternalLink size={12} /> Drive'da Aç
                   </a>
                 </div>
-                <SunucuOnizleme
-                  isId={job.id}
-                  slot={m.slot}
-                  versiyon={m.versiyon}
-                  video={videoMu(m)}
-                  drivedeAc={m.url}
-                  gomuluUrl={`https://drive.google.com/file/d/${m.dosyaId}/preview`}
-                />
+                {/* İŞLEMLER ÖNİZLEMENİN ÜSTÜNDE. Altında dururken önizlemenin boyu yüzünden
+                  * ekranın dışında kalıyor ve bulunamıyorlardı. */}
                 {duzenlenebilir && !meshgul && (
-                  <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
                     <button style={{ ...btnGhost, fontSize: 12 }} onClick={() => dosyaSec(m.slot)}>
                       Bu parçanın yeni versiyonunu yükle
                     </button>
@@ -971,6 +984,14 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
                     )}
                   </div>
                 )}
+                <SunucuOnizleme
+                  isId={job.id}
+                  slot={m.slot}
+                  versiyon={m.versiyon}
+                  video={videoMu(m)}
+                  drivedeAc={m.url}
+                  gomuluUrl={`https://drive.google.com/file/d/${m.dosyaId}/preview`}
+                />
                 {gecmisSlot === m.slot && gecmis.length > 0 && (
                   <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
                     {gecmis.map((eski) => (
@@ -1049,7 +1070,8 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
           {!meshgul && slotlar.length > 0 && (
             <div style={{ fontSize: 11, color: C.textFaint, marginTop: 6, lineHeight: 1.5 }}>
               Kaydırmalı (karosel) gönderi için birden çok dosya seçebilirsin — sırayla eklenir.
-              Bir parçayı değiştirmek için karesine tıklayıp "yeni versiyonunu yükle" de.
+              Bir parçayı silmek için karesinin sağ üstündeki ×'e bas; değiştirmek için karesine
+              tıklayıp "yeni versiyonunu yükle" de. Silinen dosya Drive'da çöp kutusuna gider.
             </div>
           )}
           {durum === "hata" && (

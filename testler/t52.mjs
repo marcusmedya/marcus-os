@@ -347,6 +347,14 @@ t("kart hâlâ bütün medyasıyla duruyor (temizlik tarayıcı kaydıyla oluyor
   (await kv.get("marcus-os-data")).cekimIsleri[0].medya.length === 4);
 
 t("arayüzde silme düğmesi var", cekim.includes("Bu parçayı sil"));
+/* SİLME BULUNABİLİR OLMALI. İlk hâlinde düğme yalnızca büyük önizlemenin ALTINDAydı;
+ * önizlemenin boyu yüzünden ekranın dışında kalıyor ve kullanıcı "5 görselden birini nasıl
+ * sileceğim?" diye soruyordu. Düğmenin var olması yetmiyor, görünür olması gerekiyor. */
+t("küçük karenin üstünde × var", cekim.includes("SİLME KARENİN ÜSTÜNDE"));
+t("× karenin açılmasını tetiklemiyor", /onClick=\{\(e\) => \{ e\.stopPropagation\(\); parcaSil\(m\); \}\}/.test(cekim));
+t("işlemler önizlemenin ÜSTÜNDE", cekim.indexOf("İŞLEMLER ÖNİZLEMENİN ÜSTÜNDE") < cekim.indexOf("<SunucuOnizleme\n                  isId={job.id}\n                  slot={m.slot}"));
+t("ipucu metni × yolunu anlatıyor", cekim.includes("karesinin sağ üstündeki ×'e bas"));
+t("silme sürerken × gizleniyor", /!meshgul && \(\s*<span\s*role="button"/.test(cekim));
 t("silmeden önce onay soruluyor", cekim.includes("çöp kutusuna taşınacak. Devam edilsin mi?"));
 t("önce Drive sonra kart sırası korunuyor", cekim.includes("SIRA ÖNEMLİ: önce Drive, sonra kart"));
 t("kalan slaytlar yeniden numaralanıyor", cekim.includes("KALAN SLAYTLAR YENİDEN NUMARALANIYOR"));
