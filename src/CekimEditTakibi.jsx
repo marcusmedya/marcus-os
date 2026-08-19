@@ -1433,7 +1433,19 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
 
             <MedyaYukleyici
               job={job}
-              duzenlenebilir={duzenleyebilirMi(job, role, staffName) && !kilitleyen}
+              /* KİLİT BİR UYARI, DUVAR DEĞİL — ve yalnızca burada duvar gibi davranıyordu.
+               *
+               * Karttaki her şey (Onayla, Revize İste, Düzenle, Sil, aşama değiştir) kilit
+               * varken de çalışıyor; üstteki bant "aynı anda kaydederseniz biriniz diğerinin
+               * işini ezebilir" diye uyarıyor, o kadar. Yalnızca medya düzenleme kapanıyordu.
+               *
+               * Bu tutarsızlık bir çıkmaz üretti: kilit varken dosya silinemiyor, dosya
+               * varken de kart silinemiyor (bkz. kartiSil). Kullanıcı iki kapının arasında
+               * kalıyordu.
+               *
+               * Eşzamanlı kayıt riski zaten _v sayacıyla karşılanıyor: araya başka bir kayıt
+               * girerse istek 409 alıyor ve üzerine yazılmıyor. */
+              duzenlenebilir={duzenleyebilirMi(job, role, staffName)}
               onMedyaDegis={(yeniMedya, aciklama) => onUpdate(job.id, {
                 medya: yeniMedya,
                 gecmis: logKaydet(aciklama),
