@@ -215,11 +215,15 @@ await sifirla();
 /* ---------------------------------------------------------------- */
 console.log("\n6) TARAYICI TARAFI — 503 alınca kendiliğinden tekrar deniyor");
 
+/* Gerçek Response gibi davranan taklit: clone().json() ile gövdesi okunabiliyor. */
+const yanitYap = (durum, govde) => ({ status: durum, clone: () => ({ json: async () => govde }) });
+const MESGUL_GOVDE = { error: "yoğun", mesgul: true };
+
 {
   /* Sunucu iki kez meşgul, üçüncüde kabul ediyor. Kullanıcı hiçbir şey görmemeli. */
   const kap = {};
   let sayac = 0;
-  kap.fetch = async (url) => { sayac++; return { status: sayac <= 2 ? 503 : 200, url }; };
+  kap.fetch = async () => { sayac++; return sayac <= 2 ? yanitYap(503, MESGUL_GOVDE) : yanitYap(200, { ok: true }); };
   t("kurulum bir kez yapılıyor", tekrarDenemeyiKur(kap) === true);
   t("ikinci kurulum reddediliyor", tekrarDenemeyiKur(kap) === false, "fetch iki kez sarmalanmasın");
 
@@ -232,17 +236,35 @@ console.log("\n6) TARAYICI TARAFI — 503 alınca kendiliğinden tekrar deniyor"
   /* Tüm denemeler meşgulse hata kullanıcıya ULAŞMALI — sessizce yutulmamalı. */
   const kap = {};
   let sayac = 0;
-  kap.fetch = async () => { sayac++; return { status: 503 }; };
+  kap.fetch = async () => { sayac++; return yanitYap(503, MESGUL_GOVDE); };
   tekrarDenemeyiKur(kap);
   const yanit = await kap.fetch("/api/data", { method: "POST" });
   t("hep meşgulse 503 kullanıcıya dönüyor", yanit.status === 503);
   t("deneme sayısı üstte kalıyor", sayac === 1 + MESGUL_BEKLEMELERI.length, "gönderilen: " + sayac);
 }
 {
+  /* KRİTİK AYRIM: 503'ü barındırma katmanı döndürdüyse (bizim imzamız yok) istek
+   * sunucuda KISMEN uygulanmış olabilir — tekrar göndermek aynı işlemi iki kez
+   * uygulardı. Örneğin aynı ödeme kaydı iki kez eklenirdi. */
+  const kap = {};
+  let sayac = 0;
+  kap.fetch = async () => { sayac++; return yanitYap(503, { error: "fonksiyon yanıt vermedi" }); };
+  tekrarDenemeyiKur(kap);
+  await kap.fetch("/api/client-payment", { method: "POST" });
+  t("yabancı 503 TEKRAR EDİLMİYOR", sayac === 1, "gönderilen: " + sayac);
+
+  sayac = 0;
+  kap.__mesgulTekrarKuruldu = false;
+  const kap2 = { fetch: async () => { sayac++; return { status: 503 }; } };
+  tekrarDenemeyiKur(kap2);
+  await kap2.fetch("/api/data", { method: "POST" });
+  t("gövdesi okunamayan 503 tekrar edilmiyor", sayac === 1, "güvenli taraf: tekrar etme");
+}
+{
   /* Bizim API'miz olmayan adresler ve gövdesi tükenen Request nesneleri tekrar edilmez. */
   const kap = {};
   let sayac = 0;
-  kap.fetch = async () => { sayac++; return { status: 503 }; };
+  kap.fetch = async () => { sayac++; return yanitYap(503, MESGUL_GOVDE); };
   tekrarDenemeyiKur(kap);
   await kap.fetch("https://www.googleapis.com/upload");
   t("dış adresler tekrar denenmiyor", sayac === 1, "gönderilen: " + sayac);
