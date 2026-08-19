@@ -1383,6 +1383,11 @@ export default async function handler(req, res) {
       // paylasimlar/cekimEdit gibi dar izinler clients'i sadece okuyabilir, asla yazamaz
       // (yoksa sadeleştirilmiş liste, zengin müşteri verisinin üzerine yazardı).
       if (role === "staff") {
+        /* STOK BİLDİRİMİ — kilidin İÇİNDE hesaplanır, DIŞINDA yanıta konur.
+         * Yanıt eskiden yalnızca _v taşıyordu: stok sunucuda artıyor ama tarayıcıdaki sayı
+         * sayfa yenilenene kadar eski kalıyordu. "Onayladım, stok artmadı" görüntüsü. */
+        let stokBildirimi = null;
+        let stokOkuyabilir = false;
         // Personel kaydı da artık kilit altında, EN GÜNCEL veri okunarak yapılıyor ve
         // versiyon sayacını artırıyor. Ayrıca çakışma kontrolü personel için de geçerli:
         // iki editör aynı anda çalışırken biri diğerinin işini geri alamıyor.
@@ -1443,6 +1448,33 @@ export default async function handler(req, res) {
           const stokSonuc = onaylananlaraGoreStok(
             existing.cekimIsleri, merged.cekimIsleri, merged.stoklar || existing.stoklar, merged.clients || existing.clients);
           if (stokSonuc) { merged.stoklar = stokSonuc.stoklar; merged.cekimIsleri = stokSonuc.cekimIsleri; }
+          /* Sayılar YALNIZCA stoğu görme izni olana gönderilir. İzni yoksa hangi kartın
+           * sayıldığı bilgisi gider (kendi kartları), adet gitmez. */
+          stokOkuyabilir = perms.paylasimlar === true || perms.cekimListesi === true;
+          if (stokSonuc) {
+            /* MARKA KİLİDİ BURADA DA GEÇERLİ.
+             * stokSonuc.stoklar TÜM markaların sayılarını taşıyor. Olduğu gibi gönderilseydi,
+             * yalnızca kendi markasına yetkili bir personel yanıt içinde bütün ajansın stok
+             * tablosunu görürdü — GET'te özenle süzülen bir bilgi, POST yanıtından sızardı.
+             * Okumadaki süzgecin AYNISI uygulanıyor. */
+            const kilitli = yaziKilitli;
+            const suzulmusStoklar = kilitli
+              ? markayaGoreSuz({ clients: merged.clients || existing.clients, stoklar: stokSonuc.stoklar }, yaziMarkalari).stoklar
+              : stokSonuc.stoklar;
+            const izinliIdler = new Set(Object.keys(suzulmusStoklar || {}).map((k) => String(k).split("_")[0]));
+            const degisenler = kilitli
+              ? stokSonuc.degisenler.filter((d) => {
+                  const kart = (merged.cekimIsleri || []).find((j) => String(j.id) === String(d.isId));
+                  const c = (merged.clients || existing.clients || []).find((x) => trKucult(x.ad) === trKucult(kart && kart.marka));
+                  return c ? izinliIdler.has(String(c.id)) : false;
+                })
+              : stokSonuc.degisenler;
+
+            stokBildirimi = {
+              stoklar: stokOkuyabilir ? suzulmusStoklar : undefined,
+              isaretlenen: degisenler.map((d) => (stokOkuyabilir ? d : { isId: d.isId, yon: d.yon })),
+            };
+          }
 
           const yeniKayitlar = degisiklikleriTespitEt(existing, merged, staffName || "Personel");
           if (yeniKayitlar.length > 0) {
@@ -1471,7 +1503,7 @@ export default async function handler(req, res) {
           }
           return res.status(sonuc.kod || 400).json({ error: sonuc.hata || "Kayıt yapılamadı." });
         }
-        return res.status(200).json({ ok: true, _v: staffSonHal._v });
+        return res.status(200).json({ ok: true, _v: staffSonHal._v, ...(stokBildirimi ? { stok: stokBildirimi } : {}) });
       }
 
       // Owner kaydı da artık kilit altında: okuma, çakışma kontrolü, güvenlik freni ve
@@ -1483,6 +1515,7 @@ export default async function handler(req, res) {
        * kilidini almak ister ve alamaz. */
       let ownerOncekiVeri = null;
       let ownerYazilanVeri = null;
+      let ownerStokBildirimi = null;
       try {
       // Owner'ın yerel kopyasında personelHesaplari hiç yok (GET'te hiç gönderilmiyor) —
       // bu yüzden her kayıtta mevcut hesapları sunucudan alıp geri ekliyoruz, yoksa
@@ -1559,7 +1592,11 @@ export default async function handler(req, res) {
         existingFull && existingFull.cekimIsleri, finalData.cekimIsleri,
         finalData.stoklar !== undefined ? finalData.stoklar : (existingFull && existingFull.stoklar),
         finalData.clients || (existingFull && existingFull.clients));
-      if (stokSonucu) { finalData.stoklar = stokSonucu.stoklar; finalData.cekimIsleri = stokSonucu.cekimIsleri; }
+      if (stokSonucu) {
+        finalData.stoklar = stokSonucu.stoklar;
+        finalData.cekimIsleri = stokSonucu.cekimIsleri;
+        ownerStokBildirimi = { stoklar: stokSonucu.stoklar, isaretlenen: stokSonucu.degisenler };
+      }
 
       // Bu kayıtta ne değişti (müşteri/personel/üyelik eklendi-silindi, durum değişti) —
       // İşlem Geçmişi defterine otomatik not düşülür. Son 200 kayıtla sınırlı tutulur.
@@ -1597,7 +1634,7 @@ export default async function handler(req, res) {
        * arkada kalan iş hiç bitmeyebilir. */
       const ownerSonHal = (await tasimalariIsleVeNotDus(ownerOncekiVeri, ownerYazilanVeri)) || ownerYazilanVeri;
 
-      return res.status(200).json({ ok: true, _v: ownerSonHal._v });
+      return res.status(200).json({ ok: true, _v: ownerSonHal._v, ...(ownerStokBildirimi ? { stok: ownerStokBildirimi } : {}) });
     }
 
     return res.status(405).json({ error: "Sadece GET/POST kabul edilir." });
