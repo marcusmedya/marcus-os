@@ -125,6 +125,7 @@ export function useSunucuOnizleme({ isId, icerikId, alan, boyut = 800 }) {
   const anahtar = isId !== undefined && isId !== null ? `is:${isId}:${boyut}`
                 : icerikId !== undefined && icerikId !== null ? `icerik:${icerikId}:${alan || ""}:${boyut}` : null;
   const [veri, setVeri] = useState(() => (anahtar ? onizlemeBellegi.get(anahtar) || null : null));
+  const [sebep, setSebep] = useState("");
   const [durum, setDurum] = useState(() => {
     if (!anahtar) return "yok";
     return onizlemeBellegi.get(anahtar) ? "hazir" : "yukleniyor";
@@ -145,13 +146,13 @@ export function useSunucuOnizleme({ isId, icerikId, alan, boyut = 800 }) {
       .then((r) => {
         if (iptal) return;
         if (r.ok && r.veri) { onizlemeBellegi.set(anahtar, r.veri); setVeri(r.veri); setDurum("hazir"); }
-        else setDurum("olmadi");
+        else { setSebep(r.sebep || ""); setDurum("olmadi"); }
       })
       .catch(() => { if (!iptal) setDurum("olmadi"); }));
     return () => { iptal = true; };
   }, [anahtar, isId, icerikId, alan, boyut]);
 
-  return { durum, veri };
+  return { durum, veri, sebep };
 }
 
 export function driveKlasorMu(link) {
@@ -222,7 +223,18 @@ export function DriveGorsel({ link, yukseklik = 420, kapak = false, radius = 10,
   /* ESKİ METİN KALDIRILDI: "paylaşım ayarını 'bağlantısı olan herkes' yap" diyordu.
    * Bugün bu YANLIŞ bir tavsiye — uygulanırsa müşteri dosyalarını herkese açar. Dosyalar
    * bilerek kısıtlı; önizleme sunucudan geliyor. */
-  if (sira >= adaylar.length) return <div style={kutu}>Önizleme getirilemedi. Dosya Drive'da duruyor ve orada açılabiliyor — bu ekranda gösterilememesi dosyayla ilgili bir sorun değil.</div>;
+  if (sira >= adaylar.length) {
+    return (
+      <div style={kutu}>
+        Önizleme getirilemedi. Dosya Drive'da duruyor ve orada açılabiliyor — bu ekranda
+        gösterilememesi dosyayla ilgili bir sorun değil.
+        {/* Google'ın kendi cevabı yalnızca ekibe gösteriliyor; müşteriye teknik metin gitmez
+            (sunucu müşteri rolünde bu alanı boş bırakıyor). "File not found" gibi bir cevap,
+            dosyanın uygulamanın erişebildiği klasör ağacı dışında olduğunu söyler. */}
+        {sunucu.sebep ? <div style={{ marginTop: 6, opacity: 0.75 }}>Google: {sunucu.sebep}</div> : null}
+      </div>
+    );
+  }
 
   return (
     <img

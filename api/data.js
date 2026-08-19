@@ -670,7 +670,18 @@ export default async function handler(req, res) {
     }
 
     const sonuc = await kucukResimGetir(kimlik, boyut);
-    if (!sonuc.ok) return res.status(200).json({ ok: false, kod: "alinamadi", sebep: sonuc.sebep });
+    if (!sonuc.ok) {
+      /* GOOGLE'IN KENDİ CEVABI EKİBE GÖSTERİLİYOR, MÜŞTERİYE GÖSTERİLMİYOR.
+       *
+       * "Önizleme getirilemedi" tek başına hiçbir şey söylemiyor; sebebi görmek için her
+       * seferinde kod okumak gerekiyordu. Oysa Google "File not found" diyorsa cevap bellidir:
+       * dosya, uygulamanın erişebildiği klasör ağacının dışında. Müşteri paneli teknik metin
+       * göstermemeli — orada sebep boş geçiliyor. */
+      return res.status(200).json({
+        ok: false, kod: "alinamadi",
+        sebep: role === "musteri" ? "" : sonuc.sebep,
+      });
+    }
     return res.status(200).json({ ok: true, veri: sonuc.veri, mimeTur: sonuc.mimeTur });
   }
 
