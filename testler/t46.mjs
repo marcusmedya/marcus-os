@@ -61,6 +61,7 @@ t("müşteri içeriği üretildi", gorunum.icerikler.length === 1);
  * Bileşene yeni bir alan okutulduğunda projeksiyonda karşılığı yoksa test düşer. */
 const ESLESMELER = [
   { bilesen: "HazirIcerikler",       degisken: "h", kayit: gorunum.hazirIcerikler[0] },
+  { bilesen: "IcerikParcalari",      degisken: "h", kayit: gorunum.hazirIcerikler[0] },
   { bilesen: "MusteriOperasyon",     degisken: "j", kayit: gorunum.operasyonIsleri[0] },
   { bilesen: "MusteriReklamlar",     degisken: "r", kayit: gorunum.reklamlar[0] },
   { bilesen: "MusteriPaylasimPlani", degisken: "p", kayit: gorunum.paylasimPlani[0] },
@@ -85,9 +86,11 @@ for (const { bilesen, degisken, kayit } of ESLESMELER) {
 /* ASIL HATA — nokta atışı. Yukarıdaki genel kural bu satırı zaten yakalar; burada ayrıca
  * doğrudan sınanıyor ki gelecekte genel kural gevşetilirse bu yine de düşsün. */
 console.log("\nÖnizleme bileşenlerine giden kimlik");
-const hazir = govde("HazirIcerikler") || "";
+/* Önizlemeler artık iki bileşene yayılmış durumda: kart gövdesi ile parça (karosel slaydı)
+ * seçicisi. İkisini birden tarıyoruz — biri gözden kaçarsa hata yine yakalansın. */
+const hazir = (govde("HazirIcerikler") || "") + (govde("IcerikParcalari") || "");
 const kimlikler = [...hazir.matchAll(/isId=\{h\.(\w+)\}/g)].map((m) => m[1]);
-t("önizleme bileşenlerine kimlik veriliyor", kimlikler.length === 2, kimlikler.join(","));
+t("önizleme bileşenlerine kimlik veriliyor", kimlikler.length >= 2, kimlikler.join(","));
 t("verilen kimlik projeksiyonda var",
   kimlikler.length > 0 && kimlikler.every((a) => Object.prototype.hasOwnProperty.call(gorunum.hazirIcerikler[0], a)),
   kimlikler.join(","));

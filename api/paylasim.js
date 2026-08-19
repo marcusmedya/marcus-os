@@ -3,6 +3,7 @@ import { KEY, guvenliYaz, kilitAl, kilitBirak, bugunISO } from "../lib/kv-yaz.js
 import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
 import { markaErisimiVarMi } from "../lib/marka-kilidi.js";
 import { onaylananiTasi, DURUM_KLASORLERI } from "../lib/drive-tasima.js";
+import { tasinacakDosyalar } from "../lib/asamalar.js";
 import { onaylananlaraGoreStok, paylasimTuru } from "../lib/stok.js";
 
 const nid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -110,11 +111,26 @@ async function bagliKartinDosyasiniTasi(data, is) {
   const marka = (data.clients || []).find((c) => trKucult(c.ad) === trKucult(is.marka)) || {};
   const markaKlasoru = marka.driveOnayKlasoru || "";
   if (!markaKlasoru && !process.env.DRIVE_ONAY_KLASOR_ID) return null;   // Drive kurulu değil
-  const link = is.editliDosyaLink || is.dosyaLinki || is.hamDosyaLink || "";
-  if (!link) return { tasindi: false, sebep: "kartta dosya bağlantısı yok" };
+  /* KARTIN TÜM DOSYALARI — karosel gönderide 8 slayt ve bir story boyutu aynı kartta.
+   * Tek bağlantı taşımak, kalan slaytları eski klasörde bırakırdı. */
+  const dosyalar = tasinacakDosyalar(is);
+  if (dosyalar.length === 0) return { tasindi: false, sebep: "kartta dosya bağlantısı yok" };
   const hedefAd = is.asama === PAYLASILDI_ASAMASI ? DURUM_KLASORLERI.paylasilan : DURUM_KLASORLERI.onaylanan;
   try {
-    return await onaylananiTasi({ dosyaLinki: link, markaAdi: is.marka, markaKlasoru, hedefAd });
+    const sonuclar = [];
+    for (const d of dosyalar) {
+      sonuclar.push(await onaylananiTasi({ dosyaLinki: d.link, markaAdi: is.marka, markaKlasoru, hedefAd }));
+    }
+    const basarili = sonuclar.filter((x) => x && x.tasindi).length;
+    const zaten = sonuclar.filter((x) => x && x.zatenOrada).length;
+    const hatali = sonuclar.filter((x) => x && !x.tasindi && !x.zatenOrada);
+    return {
+      tasindi: basarili > 0,
+      zatenOrada: basarili === 0 && zaten === sonuclar.length,
+      klasor: hedefAd,
+      adet: sonuclar.length,
+      sebep: hatali.length ? hatali.map((x) => x.sebep).filter(Boolean).join("; ") : undefined,
+    };
   } catch (e) {
     return { tasindi: false, sebep: String(e.message || e) };
   }

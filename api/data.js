@@ -8,7 +8,9 @@ import { epostaGonder, revizeBildirimHtml } from "../lib/eposta.js";
 import { onaylananiTasi, DURUM_KLASORLERI, klasorDurumu, driveDosyaIdCikar, videoAkisi } from "../lib/drive-tasima.js";
 import { jetonUret, jetonCoz } from "../lib/video-jeton.js";
 import { Readable } from "stream";
-import { dosyasizKontroleGirenleriGeriAl, medyaVarMi, asamalariDuzelt } from "../lib/asamalar.js";
+import { dosyasizKontroleGirenleriGeriAl, medyaVarMi, asamalariDuzelt,
+         guncelMedyalar, slotSonrakiVersiyon, slotGecerliMi, medyaSlotu,
+         tasinacakDosyalar } from "../lib/asamalar.js";
 import { epostaGonderAyrintili, gonderenAdres } from "../lib/eposta.js";
 import { onaylananlaraGoreStok } from "../lib/stok.js";
 import { yuklemeOturumuAc, yuklemeyiTamamla, yuklenenDosyayiSil, yuklemeHazirMi, kucukResimGetir } from "../lib/drive-yukleme.js";
@@ -294,19 +296,38 @@ async function asamayaGoreTasi(oncekiVeri, sonrakiVeri) {
      * taşınmadı" gerçek bir sorudur ve cevabı görünür olmalıdır. */
     if (!markaKlasoru && !process.env.DRIVE_ONAY_KLASOR_ID) continue;
 
-    const link = is.editliDosyaLink || is.dosyaLinki || is.hamDosyaLink || "";
-    /* Bağlantı yokken SESSİZ KALMA. Eskiden burada koşulsuz `continue` vardı: taşıma
+    /* KARTIN TÜM DOSYALARI TAŞINIR — karosel gönderide 8 slayt ve bir story boyutu aynı
+     * kartta duruyor. Eskiden yalnızca tek bir bağlantı taşınıyordu; çok dosyalı kartlarda
+     * kalan slaytlar eski klasörde unutulurdu. */
+    const dosyalar = tasinacakDosyalar(is);
+    /* Dosya yokken SESSİZ KALMA. Eskiden burada koşulsuz `continue` vardı: taşıma
      * denenmiyor ve geçmişe hiçbir not düşülmüyordu. Kullanıcı "neden taşınmadı" sorusunun
      * cevabını hiçbir yerde bulamıyordu — bu bir kez gerçek bir teşhis saatine mal oldu. */
-    if (!link) {
+    if (dosyalar.length === 0) {
       sonuclar.push({ isId: is.id, tasindi: false, sebep: "kartta dosya bağlantısı yok" });
       continue;
     }
-    const sonuc = await onaylananiTasi({
-      dosyaLinki: link, markaAdi: is.marka,
-      markaKlasoru, hedefAd: ASAMA_KLASORU[is.asama],
+    const hedefAd = ASAMA_KLASORU[is.asama];
+    const tekTek = [];
+    for (const d of dosyalar) {
+      /* Biri başarısız olsa da kalanlar denenir: bir slaydın taşınamaması yüzünden
+       * diğer yedisini eski klasörde bırakmak daha kötü. */
+      tekTek.push(await onaylananiTasi({
+        dosyaLinki: d.link, markaAdi: is.marka, markaKlasoru, hedefAd,
+      }));
+    }
+    /* Kart başına TEK bir sonuç: geçmişe 8 ayrı not düşmek defteri okunmaz hâle getirirdi. */
+    const basarili = tekTek.filter((x) => x && x.tasindi).length;
+    const zatenOrada = tekTek.filter((x) => x && x.zatenOrada).length;
+    const hatalilar = tekTek.filter((x) => x && !x.tasindi && !x.zatenOrada);
+    sonuclar.push({
+      isId: is.id,
+      tasindi: basarili > 0,
+      zatenOrada: basarili === 0 && zatenOrada === tekTek.length,
+      klasor: hedefAd,
+      adet: tekTek.length,
+      sebep: hatalilar.length ? hatalilar.map((x) => x.sebep).filter(Boolean).join("; ") : undefined,
     });
-    sonuclar.push({ isId: is.id, ...sonuc });
   }
   return sonuclar;
 }
@@ -348,9 +369,9 @@ async function tasimalariIsleVeNotDus(oncekiVeri, sonrakiVeri) {
             /* zatenOrada bir HATA DEĞİL: dosya olması gereken yerde. Bunu "yapılamadı"
              * diye yazmak kullanıcıyı olmayan bir sorunla uğraştırır. */
             aciklama: t.tasindi
-              ? `Dosya Drive'da "${t.klasor}" klasörüne taşındı.`
+              ? `${(t.adet || 1) > 1 ? `${t.adet} dosya` : "Dosya"} Drive'da "${t.klasor}" klasörüne taşındı.${t.sebep ? ` (Taşınamayan: ${t.sebep})` : ""}`
               : t.zatenOrada
-                ? `Dosya zaten "${t.klasor}" klasöründe.`
+                ? `${(t.adet || 1) > 1 ? "Dosyalar" : "Dosya"} zaten "${t.klasor}" klasöründe.`
                 : `Drive taşıma yapılamadı: ${t.sebep}`,
           }] };
         }),
@@ -635,9 +656,15 @@ export default async function handler(req, res) {
     } else if (oIsId !== undefined && oIsId !== null) {
       const is = (veriO.cekimIsleri || []).find((j) => String(j.id) === String(oIsId));
       if (!is) return res.status(404).json({ error: "Kart bulunamadı." });
-      const medya = Array.isArray(is.medya) ? is.medya : [];
-      const sonuncu = medya.length ? medya[medya.length - 1] : null;
-      link = (sonuncu && sonuncu.dosyaId) ? `https://drive.google.com/file/d/${sonuncu.dosyaId}/view`
+      /* HANGİ SLOT — bir kartta karosel için 8 slayt ve bir story boyutu olabiliyor.
+       * Slot verilmezse ilk slayt gösterilir; eski çağrılar bozulmasın.
+       * Dizinin SON elemanını almak yanlıştı: yükleme sırası slayt sırası değil. */
+      const guncelListe = guncelMedyalar(is);
+      const istenenSlot = slotGecerliMi(req.body.slot) ? String(req.body.slot).trim() : null;
+      const secilen = istenenSlot
+        ? guncelListe.find((m) => medyaSlotu(m) === istenenSlot)
+        : guncelListe[0];
+      link = (secilen && secilen.dosyaId) ? `https://drive.google.com/file/d/${secilen.dosyaId}/view`
            : (is.editliDosyaLink || is.hamDosyaLink || is.dosyaLinki || null);
       markaAdi = is.marka;
       if (role === "musteri" && trKucult(is.marka) !== trKucult(markaAdiCoz(musteriClientId))) {
@@ -890,19 +917,24 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: "Drive yükleme kurulu değil. Ayarlardaki Google bağlantısını tamamla." });
       }
       const marka = (veri.clients || []).find((c) => trKucult(c.ad) === trKucult(is.marka)) || {};
+      /* HANGİ SLOT — karosel slaydı ("1".."10") ya da "story".
+       * Tarayıcıdan geleni doğruluyoruz: geçersiz bir slot, kaydın içine gelişigüzel anahtar
+       * açardı ve o dosya hiçbir ekranda görünmezdi. */
+      const slot = slotGecerliMi(req.body.slot) ? String(req.body.slot).trim() : "1";
       /* Sıradaki versiyon numarası SUNUCUDA hesaplanır — tarayıcıdan gelen sayıya güvenilmez,
-       * iki kişi aynı anda yüklerse aynı numarayı gönderirdi. */
-      const versiyon = ((is.medya || []).reduce((e, m) => Math.max(e, Number(m.versiyon) || 0), 0)) + 1;
+       * iki kişi aynı anda yüklerse aynı numarayı gönderirdi.
+       * Versiyon SLOT İÇİNDE sayılıyor: 3. slaydın revizyonu 5. slaydın numarasını atlatmasın. */
+      const versiyon = slotSonrakiVersiyon(is, slot);
       const sonuc = await yuklemeOturumuAc({
         markaKlasoru: marka.driveOnayKlasoru || "", markaAdi: is.marka,
-        icerikAdi: is.icerikTuru || "", versiyon, orijinalAd: dosyaAdi, mimeTur, boyut,
+        icerikAdi: is.icerikTuru || "", versiyon, orijinalAd: dosyaAdi, mimeTur, boyut, slot,
         /* Tarayıcının kökeni Google'a iletilmeli. İletilmezse Google, yükleme yanıtına
          * izin başlığı koymuyor; dosya yükleniyor ama tarayıcı yanıtı okuyamayıp hata
          * veriyor. Safari buna sadece "Load failed" diyor. */
         origin: req.headers.origin || "",
       });
       if (!sonuc.ok) return res.status(400).json({ error: sonuc.sebep });
-      return res.status(200).json({ ok: true, ...sonuc, versiyon });
+      return res.status(200).json({ ok: true, ...sonuc, versiyon, slot });
     }
 
     if (driveAction === "yuklemeBitti") {
