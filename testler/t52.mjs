@@ -273,5 +273,83 @@ t("ayrıldıktan sonra iki parça oluyor", guncelMedyalar(ayrilmis).length === 2
   guncelMedyalar(ayrilmis).map((m) => m.slot + "/" + m.dosyaId).join("  "));
 t("ayrılan dosya taşımaya da giriyor", tasinacakDosyalar(ayrilmis).length === 2);
 
+
+/* ---------------------------------------------------------------- */
+console.log("\n8) PARÇA SİLME — karttan VE Drive'dan");
+
+/* Karttan çıkarılan slaydın Drive'daki karşılığı da gitmeli, yoksa marka klasörü kimsenin
+ * kullanmadığı dosyalarla dolar. Ama KALICI silinmiyor: yanlış slaydı silmek bir tıklık iş,
+ * geri getirmek imkânsız olurdu. Çöp kutusunda 30 gün duruyor. */
+
+await kv.set("marcus-os-data", {
+  _v: 1, clients: [{ id: 1, ad: "VIZZ" }],
+  cekimIsleri: [{ ...KAROSEL, asama: "Kontrol Bekliyor" }],
+  personelHesaplari: [{ id: "p1", ad: "Ed", kullaniciAdi: "ed",
+    sifreHash: crypto.scryptSync("1", "s", 64).toString("hex"), sifreSalt: "s",
+    izinler: { cekimEdit: false, paylasimlar: true }, markalar: [] }],
+  musteriHesaplari: [], stoklar: {},
+});
+
+const istekler = [];
+globalThis.fetch = async (url, secenekler) => {
+  const adres = String(url);
+  const yontem = (secenekler && secenekler.method) || "GET";
+  if (adres.includes("oauth2.googleapis.com/token")) {
+    return { ok: true, status: 200, json: async () => ({ access_token: "t" }), text: async () => "{}" };
+  }
+  const m = adres.match(/\/drive\/v3\/files\/([^/?]+)/);
+  if (m && yontem === "PATCH") {
+    istekler.push({ dosyaId: m[1], govde: secenekler && secenekler.body });
+    return { ok: true, status: 200, json: async () => ({ id: m[1] }), text: async () => "{}" };
+  }
+  return { ok: false, status: 404, json: async () => ({}), text: async () => "yok" };
+};
+
+const sil = (slot, headers) => cagir(veriUcu, { method: "POST", headers: headers || OWNER, query: {},
+  body: { driveAction: "medyaSil", isId: 5, slot } });
+
+let sr = await sil("2");
+t("silme isteği kabul edildi", sr.kod === 200 && sr.govde.ok === true, JSON.stringify(sr.govde));
+t("o slotun TÜM versiyonları çöpe atıldı", sr.govde.silinen.length === 2, JSON.stringify(sr.govde.silinen));
+t("güncel ve eski versiyon birlikte", sr.govde.silinen.includes("SLOT2VER2BB") && sr.govde.silinen.includes("SLOT2VER1AA"));
+t("BAŞKA slotun dosyasına dokunulmadı",
+  !sr.govde.silinen.includes("ESKIDOSYA01") && !sr.govde.silinen.includes("STORYVER1CC"));
+t("KALICI SİLME DEĞİL — çöpe atılıyor",
+  istekler.length > 0 && istekler.every((x) => String(x.govde).includes('"trashed":true')),
+  JSON.stringify(istekler.map((x) => x.govde)));
+t("DELETE yöntemi kullanılmıyor", istekler.every((x) => x.dosyaId));
+
+sr = await sil("7");
+t("dosyası olmayan parça hata vermiyor", sr.kod === 200 && sr.govde.silinen.length === 0, JSON.stringify(sr.govde));
+sr = await sil("__proto__");
+t("uydurma slot reddediliyor", sr.kod === 400, `${sr.kod} ${JSON.stringify(sr.govde)}`);
+
+const DAR = { "x-staff-username-b64": Buffer.from("ed").toString("base64"),
+              "x-staff-password-b64": Buffer.from("1").toString("base64"), "content-type": "application/json" };
+sr = await sil("1", DAR);
+t("cekimEdit izni olmayan personel silemiyor", sr.kod === 403, `${sr.kod} ${JSON.stringify(sr.govde)}`);
+
+/* Drive silinemezse kart TEMİZLENMEMELİ — "silindi" sanılan ama duran dosya üretirdi. */
+globalThis.fetch = async (url) => {
+  if (String(url).includes("oauth2.googleapis.com/token")) {
+    return { ok: true, status: 200, json: async () => ({ access_token: "t" }), text: async () => "{}" };
+  }
+  return { ok: false, status: 403, json: async () => ({ error: { message: "izin yok" } }), text: async () => "yok" };
+};
+sr = await sil("1");
+t("Drive silemezse istek HATA dönüyor", sr.kod === 400, `${sr.kod} ${JSON.stringify(sr.govde)}`);
+t("hata sebebi görünüyor", String(sr.govde.error || "").includes("izin yok"), JSON.stringify(sr.govde));
+globalThis.fetch = gercekFetch;
+
+t("kayıt sunucuda KV'ye yazılmadı (sürüm sayacı korunuyor)",
+  (await kv.get("marcus-os-data"))._v === 1, String((await kv.get("marcus-os-data"))._v));
+t("kart hâlâ bütün medyasıyla duruyor (temizlik tarayıcı kaydıyla oluyor)",
+  (await kv.get("marcus-os-data")).cekimIsleri[0].medya.length === 4);
+
+t("arayüzde silme düğmesi var", cekim.includes("Bu parçayı sil"));
+t("silmeden önce onay soruluyor", cekim.includes("çöp kutusuna taşınacak. Devam edilsin mi?"));
+t("önce Drive sonra kart sırası korunuyor", cekim.includes("SIRA ÖNEMLİ: önce Drive, sonra kart"));
+t("kalan slaytlar yeniden numaralanıyor", cekim.includes("KALAN SLAYTLAR YENİDEN NUMARALANIYOR"));
+
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);
 if (k > 0) process.exitCode = 1;

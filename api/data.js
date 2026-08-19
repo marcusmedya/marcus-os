@@ -5,7 +5,8 @@ import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, t
 import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, trKucult, markaEslestirici } from "../lib/marka-kilidi.js";
 import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
 import { epostaGonder, revizeBildirimHtml } from "../lib/eposta.js";
-import { onaylananiTasi, DURUM_KLASORLERI, klasorDurumu, driveDosyaIdCikar, videoAkisi } from "../lib/drive-tasima.js";
+import { onaylananiTasi, DURUM_KLASORLERI, klasorDurumu, driveDosyaIdCikar, videoAkisi,
+         dosyayiCopeAt } from "../lib/drive-tasima.js";
 import { jetonUret, jetonCoz } from "../lib/video-jeton.js";
 import { Readable } from "stream";
 import { dosyasizKontroleGirenleriGeriAl, medyaVarMi, asamalariDuzelt,
@@ -963,6 +964,43 @@ export default async function handler(req, res) {
     if (driveAction === "yuklemeIptal") {
       if (dosyaId) await yuklenenDosyayiSil(dosyaId);
       return res.status(200).json({ ok: true });
+    }
+
+    /* BİR PARÇAYI KARTTAN VE DRIVE'DAN KALDIR.
+     *
+     * Karttan silinen slaydın Drive'daki karşılığı da gitmeli, yoksa marka klasörü kimsenin
+     * kullanmadığı dosyalarla dolar ve hangisinin geçerli olduğu anlaşılmaz.
+     *
+     * ÇÖPE ATILIYOR, KALICI SİLİNMİYOR: yanlış slaydı silmek bir tıklık iş, geri getirmek
+     * imkânsız olurdu. Drive'ın çöp kutusunda 30 gün duruyor.
+     *
+     * O SLOTUN ESKİ VERSİYONLARI DA GİDİYOR: slayt kartta yoksa versiyonları da anlamsız;
+     * bırakılsalar klasörde sahipsiz kalırlardı.
+     *
+     * KV'YE BURADA YAZILMIYOR — yuklemeBitti ile aynı gerekçe: sunucu ikinci bir yazma
+     * yaparsa sürüm sayacı artar, tarayıcı geride kalır ve sonraki kayıt sahte çakışmayla
+     * kullanıcının düzenlemesini siler. Kart, uygulamanın normal kayıt akışından güncellenir. */
+    if (driveAction === "medyaSil") {
+      const silSlot = slotGecerliMi(req.body.slot) ? String(req.body.slot).trim() : null;
+      if (!silSlot) return res.status(400).json({ error: "Geçersiz parça." });
+
+      const hedefler = (Array.isArray(is.medya) ? is.medya : [])
+        .filter((m) => m && medyaSlotu(m) === silSlot && m.dosyaId);
+      if (hedefler.length === 0) return res.status(200).json({ ok: true, silinen: [], sebep: "Bu parçada Drive dosyası yok." });
+
+      const silinen = [];
+      const basarisiz = [];
+      for (const m of hedefler) {
+        const sonuc = await dosyayiCopeAt(m.dosyaId);
+        if (sonuc.ok) silinen.push(m.dosyaId);
+        else basarisiz.push({ dosyaId: m.dosyaId, sebep: sonuc.sebep });
+      }
+      /* Hiçbiri silinemediyse HATA döndürülüyor: kartı temizleyip Drive'ı dolu bırakmak
+       * "silindi" sanılan ama duran dosyalar üretirdi. */
+      if (silinen.length === 0) {
+        return res.status(400).json({ error: `Drive'dan silinemedi: ${basarisiz.map((x) => x.sebep).join("; ")}` });
+      }
+      return res.status(200).json({ ok: true, silinen, basarisiz });
     }
 
     return res.status(400).json({ error: "Geçersiz işlem." });
