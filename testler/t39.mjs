@@ -44,7 +44,11 @@ await kv.set("marcus-os-data", {
     { id: 12, marka: "VIZZ", icerikTuru: "Dosyasız", asama: "Çekim Planlandı", gecmis: [] },
   ],
   musteriIcerikleri: [
-    { id: "i1", clientId: 1, tur: "gorsel", driveLinki: LINK("VIZZ_ICERIK") },
+    { id: "i1", clientId: 1, tur: "gorsel", driveLinki: LINK("VIZZ_ICERIK"),
+      referansLink: LINK("VIZZ_REFERANS"),
+      /* Beyaz listede OLMAYAN, bağlantı taşıyan bir alan: serbest alan adı kabul edilirse
+       * bu uç kaydın her alanını okuyan bir kapıya döner. */
+      gizliNot: LINK("OKUNMAMALI_DOSYA") },
     { id: "i2", clientId: 2, tur: "gorsel", driveLinki: LINK("GIZLI_ICERIK") },
   ],
   personelHesaplari: [
@@ -166,6 +170,61 @@ console.log("\n Kimlik sırası");
   } finally {
     globalThis.fetch = gercekFetch;
   }
+}
+
+/* ---- 6. İÇERİĞİN HANGİ ALANI ----
+ *
+ * Müşteri panelinde asıl dosyanın yanında REFERANS VİDEO da gösteriliyor; o ayrı bir alanda
+ * duruyor. Alan adı serbest bırakılsaydı bu uç, kaydın herhangi bir alanındaki bağlantıyı
+ * okuyan bir kapı olurdu — beyaz liste bu yüzden var. */
+console.log("\n İçeriğin hangi alanı");
+{
+  r = await cagri(MUSTERI_A, { onizlemeAction: "gorsel", icerikId: "i1", alan: "referansLink" });
+  t("referans video alanı istenebiliyor", r.kod === 200, `HTTP ${r.kod}`);
+
+  /* HANGİ DOSYANIN İSTENDİĞİNİ GÖRMEK ŞART. Yalnızca yanıta bakmak yetmiyor: Drive kurulu
+   * değilken her iki durumda da aynı hata dönüyor ve test hiçbir şey ayırt etmiyor —
+   * ilk yazdığım hâl tam olarak böyleydi ve beyaz liste kaldırılınca yine "geçti" diyordu. */
+  {
+    const gercekFetch = globalThis.fetch;
+    const { generateKeyPairSync } = await import("crypto");
+    const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048,
+      privateKeyEncoding: { type: "pkcs8", format: "pem" }, publicKeyEncoding: { type: "spki", format: "pem" } });
+    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = "sa@x.iam.gserviceaccount.com";
+    process.env.GOOGLE_PRIVATE_KEY = privateKey;
+
+    let istenenDosya = null;
+    globalThis.fetch = async (url) => {
+      const u = String(url);
+      if (u.includes("oauth2.googleapis.com")) return { ok: true, json: async () => ({ access_token: "j" }) };
+      const m = u.match(/drive\/v3\/files\/([^?]+)\?/);
+      if (m) { istenenDosya = m[1]; return { ok: false, json: async () => ({ error: { message: "dur" } }) }; }
+      return { ok: false, json: async () => ({}) };
+    };
+    try {
+      istenenDosya = null;
+      await cagri(MUSTERI_A, { onizlemeAction: "gorsel", icerikId: "i1", alan: "gizliNot" });
+      t("beyaz listede olmayan alandaki dosya İSTENMİYOR",
+        istenenDosya === "VIZZ_ICERIK", `istenen: ${istenenDosya}`);
+
+      istenenDosya = null;
+      await cagri(MUSTERI_A, { onizlemeAction: "gorsel", icerikId: "i1", alan: "referansLink" });
+      t("izinli alan istendiğinde O dosya getiriliyor", istenenDosya === "VIZZ_REFERANS", `istenen: ${istenenDosya}`);
+    } finally {
+      globalThis.fetch = gercekFetch;
+      delete process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+      delete process.env.GOOGLE_PRIVATE_KEY;
+    }
+  }
+
+  r = await cagri(MUSTERI_A, { onizlemeAction: "gorsel", icerikId: "i1" });
+  t("alan verilmezse asıl dosya kullanılıyor", r.kod === 200, `HTTP ${r.kod}`);
+
+  r = await cagri(MUSTERI_A, { onizlemeAction: "videoJetonu", icerikId: "i1", alan: "referansLink" });
+  t("referans video için jeton da alınabiliyor", r.kod === 200 && r.govde.ok === true, `HTTP ${r.kod}`);
+
+  r = await cagri(MUSTERI_B, { onizlemeAction: "gorsel", icerikId: "i1", alan: "referansLink" });
+  t("başka müşteri referans videoyu da göremiyor", r.kod === 403, `HTTP ${r.kod}`);
 }
 
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);

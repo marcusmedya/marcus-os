@@ -890,7 +890,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                         * başlıktan cevaplamak mümkün değil. Müşteri panelinde de aynısı var. */}
                       <span style={{ width: 34, height: 34, borderRadius: 6, overflow: "hidden", flexShrink: 0, background: T.surface, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                         {i.tur === "gorsel" && i.driveLinki
-                          ? <DriveKucukGorsel link={i.driveLinki} />
+                          ? <DriveKucukGorsel link={i.driveLinki} icerikId={i.id} />
                           : i.gorselUrl && String(i.gorselUrl).startsWith("data:")
                             ? <img src={i.gorselUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                             : <span style={{ fontSize: 13 }}>{i.tur === "cekim" ? "🎬" : i.tur === "video" ? "▶" : "🖼"}</span>}

@@ -94,9 +94,9 @@ export const GOMULU_ACIKLAMA = gomuluEngelliMi()
  * <video> etiketi kullanılabiliyor: kendi kontrolleri, tam ekranı ve — önemlisi — videonun
  * kendi en-boy oranı. Dikey bir Reels dikey görünüyor, çerçeveye yön ayarı girmek gerekmiyor.
  */
-export function useVideoAdresi({ isId, icerikId }) {
+export function useVideoAdresi({ isId, icerikId, alan }) {
   const anahtar = isId !== undefined && isId !== null ? `is:${isId}`
-                : icerikId !== undefined && icerikId !== null ? `icerik:${icerikId}` : null;
+                : icerikId !== undefined && icerikId !== null ? `icerik:${icerikId}:${alan || ""}` : null;
   const [adres, setAdres] = useState(null);
   const [durum, setDurum] = useState(anahtar ? "yukleniyor" : "yok");
 
@@ -107,7 +107,7 @@ export function useVideoAdresi({ isId, icerikId }) {
     fetch("/api/data", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ onizlemeAction: "videoJetonu", isId, icerikId }),
+      body: JSON.stringify({ onizlemeAction: "videoJetonu", isId, icerikId, alan }),
     })
       .then((r) => r.json())
       .then((r) => {
@@ -116,14 +116,14 @@ export function useVideoAdresi({ isId, icerikId }) {
       })
       .catch(() => { if (!iptal) setDurum("olmadi"); });
     return () => { iptal = true; };
-  }, [anahtar, isId, icerikId]);
+  }, [anahtar, isId, icerikId, alan]);
 
   return { durum, adres };
 }
 
-export function useSunucuOnizleme({ isId, icerikId, boyut = 800 }) {
+export function useSunucuOnizleme({ isId, icerikId, alan, boyut = 800 }) {
   const anahtar = isId !== undefined && isId !== null ? `is:${isId}:${boyut}`
-                : icerikId !== undefined && icerikId !== null ? `icerik:${icerikId}:${boyut}` : null;
+                : icerikId !== undefined && icerikId !== null ? `icerik:${icerikId}:${alan || ""}:${boyut}` : null;
   const [veri, setVeri] = useState(() => (anahtar ? onizlemeBellegi.get(anahtar) || null : null));
   const [durum, setDurum] = useState(() => {
     if (!anahtar) return "yok";
@@ -139,7 +139,7 @@ export function useSunucuOnizleme({ isId, icerikId, boyut = 800 }) {
     siradaCalistir(() => fetch("/api/data", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ onizlemeAction: "gorsel", isId, icerikId, boyut }),
+      body: JSON.stringify({ onizlemeAction: "gorsel", isId, icerikId, alan, boyut }),
     })
       .then((r) => r.json())
       .then((r) => {
@@ -149,7 +149,7 @@ export function useSunucuOnizleme({ isId, icerikId, boyut = 800 }) {
       })
       .catch(() => { if (!iptal) setDurum("olmadi"); }));
     return () => { iptal = true; };
-  }, [anahtar, isId, icerikId, boyut]);
+  }, [anahtar, isId, icerikId, alan, boyut]);
 
   return { durum, veri };
 }
@@ -188,8 +188,8 @@ export function driveGorselAdaylari(link) {
  * Drive görselini gösterir. Aday adresleri sırayla dener; hiçbiri açılmazsa SESSİZCE
  * KAYBOLMAK YERİNE nedenini yazar (klasör mü, tanınmayan bağlantı mı, paylaşım kapalı mı).
  */
-export function DriveGorsel({ link, yukseklik = 420, kapak = false, radius = 10, isId, icerikId, boyut = 1200 }) {
-  const sunucu = useSunucuOnizleme({ isId, icerikId, boyut });
+export function DriveGorsel({ link, yukseklik = 420, kapak = false, radius = 10, isId, icerikId, alan, boyut = 1200 }) {
+  const sunucu = useSunucuOnizleme({ isId, icerikId, alan, boyut });
   const adaylar = driveGorselAdaylari(link);
   const [sira, setSira] = useState(0);
   useEffect(() => { setSira(0); }, [link]);
@@ -280,11 +280,11 @@ export function videoEni(oran) {
   return 680;                     // yatay
 }
 
-export function DriveVideo({ link, yon, baslik, isId, icerikId }) {
+export function DriveVideo({ link, yon, baslik, isId, icerikId, alan }) {
   const embed = driveEmbedUrl(link);
   const y = videoYonuBul(yon);
-  const video = useVideoAdresi({ isId, icerikId });
-  const kapak = useSunucuOnizleme({ isId, icerikId, boyut: 800 });
+  const video = useVideoAdresi({ isId, icerikId, alan });
+  const kapak = useSunucuOnizleme({ isId, icerikId, alan, boyut: 800 });
   const [gomulu, setGomulu] = useState(false);
   const [oran, setOran] = useState(null);
   if (!embed && !video.adres) return null;
@@ -365,8 +365,8 @@ export function DriveVideo({ link, yon, baslik, isId, icerikId }) {
  * bir simge gösterir — küçük bir karede hata metni okunamayacağı için burada sessiz kalmak
  * doğru: kullanıcı satırı açtığında büyük görünümde gerçek sebep zaten yazıyor.
  */
-export function DriveKucukGorsel({ link, isId, icerikId }) {
-  const sunucu = useSunucuOnizleme({ isId, icerikId, boyut: 200 });
+export function DriveKucukGorsel({ link, isId, icerikId, alan }) {
+  const sunucu = useSunucuOnizleme({ isId, icerikId, alan, boyut: 200 });
   const adaylar = driveGorselAdaylari(link);
   const [sira, setSira] = useState(0);
   useEffect(() => { setSira(0); }, [link]);

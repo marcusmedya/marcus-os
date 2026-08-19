@@ -704,7 +704,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
                       {cekimEmbed && (
                         <div style={{ marginBottom: 10 }}>
                           <div style={{ fontSize: 11, color: MT.soluk, fontFamily: "Inter", fontWeight: 600, marginBottom: 5 }}>REFERANS VİDEO</div>
-                          <DriveVideo link={icerik.referansLink} yon={icerik.videoYonu} baslik="Referans video" />
+                          <DriveVideo link={icerik.referansLink} yon={icerik.videoYonu} baslik="Referans video" icerikId={icerik.id} alan="referansLink" />
                         </div>
                       )}
                       {!cekimEmbed && icerik.referansLink && (
@@ -910,7 +910,7 @@ function DurumListesi({ liste, hazirListe, acikId, setAcikId, baslik, bosMetin }
                     >
                       <span style={{ width: 46, height: 46, borderRadius: 7, overflow: "hidden", flexShrink: 0, background: MT.kagit, border: `1px solid ${MT.cizgi}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                         {icerik.tur === "gorsel" && icerik.driveLinki
-                          ? <DriveKucukGorsel link={icerik.driveLinki} />
+                          ? <DriveKucukGorsel link={icerik.driveLinki} icerikId={icerik.id} />
                           : icerik.gorselUrl && String(icerik.gorselUrl).startsWith("data:")
                             ? <img src={icerik.gorselUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                             : <span style={{ fontSize: 15 }}>{icerik.tur === "cekim" ? "🎬" : icerik.tur === "video" ? "▶" : "🖼"}</span>}
@@ -947,7 +947,7 @@ function DurumListesi({ liste, hazirListe, acikId, setAcikId, baslik, bosMetin }
                         )}
                         {icerik.tur === "cekim" && (
                           <>
-                            {icerik.referansLink && <div style={{ marginBottom: 10 }}><DriveVideo link={icerik.referansLink} yon={icerik.videoYonu} baslik="Referans video" /></div>}
+                            {icerik.referansLink && <div style={{ marginBottom: 10 }}><DriveVideo link={icerik.referansLink} yon={icerik.videoYonu} baslik="Referans video" icerikId={icerik.id} alan="referansLink" /></div>}
                             {icerik.konusmaMetni && (
                               <div style={{ background: MT.kagit, borderRadius: 9, padding: "12px 15px", fontSize: 13, color: MT.murekkep, fontFamily: "Inter", whiteSpace: "pre-wrap", lineHeight: 1.7 }}>
                                 {icerik.konusmaMetni}

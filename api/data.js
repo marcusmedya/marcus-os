@@ -619,7 +619,12 @@ export default async function handler(req, res) {
     if (icerikId !== undefined && icerikId !== null) {
       const icerik = (veriO.musteriIcerikleri || []).find((x) => String(x.id) === String(icerikId));
       if (!icerik) return res.status(404).json({ error: "İçerik bulunamadı." });
-      link = icerik.driveLinki || null;
+      /* Kaydın HANGİ alanı isteniyor — beyaz listeyle. Referans video ayrı bir alanda
+       * duruyor ve müşteri panelinde gösteriliyor; adı serbest bırakılsaydı bu uç,
+       * kaydın herhangi bir alanındaki bağlantıyı okuyan bir kapı olurdu. */
+      const ICERIK_ALANLARI = ["driveLinki", "referansLink"];
+      const istenenAlan = ICERIK_ALANLARI.includes(req.body.alan) ? req.body.alan : "driveLinki";
+      link = icerik[istenenAlan] || null;
       markaAdi = markaAdiCoz(icerik.clientId);
       if (role === "musteri" && String(icerik.clientId) !== String(musteriClientId)) {
         return res.status(403).json({ error: "Bu içeriğe erişimin yok." });
