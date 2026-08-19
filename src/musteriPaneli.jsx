@@ -984,6 +984,56 @@ function DurumListesi({ liste, hazirListe, acikId, setAcikId, baslik, bosMetin }
  * Dosya linki olmayan kartlar da gösterilir (kullanıcının tercihi): ekip bir işi kontrole
  * göndermişse müşteri onu görmeli, dosya henüz eklenmemişse bu da açıkça yazılır.
  */
+/**
+ * KARTIN PARÇALARI — karosel gönderide 8 slayt, artı story boyutu.
+ *
+ * Tek bir önizleme göstermek yanlıştı: müşteri yalnızca ilk slayda bakıp kaydırmalı
+ * gönderinin tamamını onaylıyordu. Parçalar arasında geçiş yapılabiliyor; hangi parçaya
+ * bakıldığı üstteki şeritten okunuyor.
+ *
+ * Eski kartlarda `parcalar` yok — o zaman tek dosyalı eski görünüme düşülüyor.
+ */
+function IcerikParcalari({ h, varsayilanVideo }) {
+  const parcalar = Array.isArray(h.parcalar) ? h.parcalar : [];
+  const [secili, setSecili] = useState(0);
+
+  if (parcalar.length === 0) {
+    return varsayilanVideo
+      ? <DriveVideo link={h.dosyaLinki} yon={h.videoYonu} baslik={h.baslik} isId={h.isId} />
+      : <DriveGorsel link={h.dosyaLinki} yukseklik={460} isId={h.isId} />;
+  }
+
+  const p = parcalar[Math.min(secili, parcalar.length - 1)];
+  const etiket = (x) => (x.slot === "story" ? "Story" : `${x.slot}`);
+
+  return (
+    <div>
+      {parcalar.length > 1 && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <span style={{ fontSize: 11, color: MT.soluk, fontFamily: "Inter", marginRight: 2 }}>
+            {parcalar.filter((x) => x.slot !== "story").length > 1 ? "Kaydırmalı gönderi ·" : ""} {parcalar.length} parça
+          </span>
+          {parcalar.map((x, i) => (
+            <button
+              key={x.slot}
+              onClick={() => setSecili(i)}
+              style={{ padding: "5px 10px", borderRadius: 7, border: "none", cursor: "pointer",
+                       fontFamily: "Inter", fontSize: 12, fontWeight: 600,
+                       background: i === secili ? MT.morSoluk : MT.kagit,
+                       color: i === secili ? MT.mor : MT.soluk }}
+            >
+              {etiket(x)}
+            </button>
+          ))}
+        </div>
+      )}
+      {p.video
+        ? <DriveVideo link={h.dosyaLinki} yon={h.videoYonu} baslik={h.baslik} isId={h.isId} slot={p.slot} />
+        : <DriveGorsel link={h.dosyaLinki} yukseklik={460} isId={h.isId} slot={p.slot} />}
+    </div>
+  );
+}
+
 function HazirIcerikler({ liste, gonderiliyor, onIslem, basliksiz = false, saltOkunur = false, baslangic = 0, ortakModu = false, onOrtakIslem }) {
   const [acikId, setAcikId] = useState(null);
   const [revizeAcik, setRevizeAcik] = useState(null);
@@ -1034,9 +1084,7 @@ function HazirIcerikler({ liste, gonderiliyor, onIslem, basliksiz = false, saltO
                 <div style={{ padding: "0 16px 16px" }}>
                   {h.dosyaLinki ? (
                     <div style={{ marginBottom: 14 }}>
-                      {video
-                        ? <DriveVideo link={h.dosyaLinki} yon={h.videoYonu} baslik={h.baslik} isId={h.isId} />
-                        : <DriveGorsel link={h.dosyaLinki} yukseklik={460} isId={h.isId} />}
+                      <IcerikParcalari h={h} varsayilanVideo={video} />
                     </div>
                   ) : (
                     <div style={{ marginBottom: 14, background: MT.kagit, border: `1px dashed ${MT.cizgiKoyu}`, borderRadius: 9, padding: "12px 15px", fontSize: 13, color: MT.soluk, fontFamily: "Inter", lineHeight: 1.6 }}>

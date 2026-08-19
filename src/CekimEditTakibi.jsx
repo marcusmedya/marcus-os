@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { medyaVarMi, asamalariDuzelt } from "../lib/asamalar.js";
+import { medyaVarMi, asamalariDuzelt, guncelMedyalar, slotGecmisi, slotEtiketi,
+         STORY_SLOT, EN_FAZLA_SLAYT } from "../lib/asamalar.js";
 import { useSunucuOnizleme, useVideoAdresi, videoEni, gomuluEngelliMi, GOMULU_ACIKLAMA } from "./drive.jsx";
 // Para gösterimleri Gizlilik Modu'na uymalı — aksi halde ücretler gizliyken de görünür kalırdı.
 import { fmt, T, authHeaders } from "./tema.jsx";
@@ -508,12 +509,14 @@ function YeniIsFormu({ clients, personelRosteri, varsayilanKategori, onSubmit, o
  * Google kendi oturumunu kullanabildiği için orada sorun çıkmıyor. Gömülü oynatıcı isteyen
  * için ayrıca bir düğme var; Chrome'da çalışıyor.
  */
-function SunucuOnizleme({ isId, versiyon, video, drivedeAc, gomuluUrl }) {
-  const { durum, veri } = useSunucuOnizleme({ isId, boyut: 1200 });
-  const akis = useVideoAdresi(video ? { isId } : {});
+function SunucuOnizleme({ isId, slot, versiyon, video, drivedeAc, gomuluUrl }) {
+  const { durum, veri } = useSunucuOnizleme({ isId, slot, boyut: 1200 });
+  const akis = useVideoAdresi(video ? { isId, slot } : {});
   const [gomulu, setGomulu] = useState(false);
   const [oran, setOran] = useState(null);
-  useEffect(() => { setGomulu(false); }, [isId, versiyon]);
+  /* Slot değişince gömülü oynatıcı tercihi sıfırlanır — 3. slayttan story boyutuna
+   * geçildiğinde önceki karenin durumu taşınmasın. */
+  useEffect(() => { setGomulu(false); }, [isId, slot, versiyon]);
 
   /* VİDEO: gerçek <video> etiketi. Gömülü Drive oynatıcısı üçüncü taraf çerezi istiyor ve
    * Safari'de siyah kalıyordu; kendi sunucumuzdan akıtınca o sorun yok. Ayrıca oynatıcı
@@ -615,148 +618,188 @@ function SunucuOnizleme({ isId, versiyon, video, drivedeAc, gomuluUrl }) {
   );
 }
 
+/**
+ * KART İÇİ MEDYA — ÇOK SLOTLU.
+ *
+ * Bir kart artık birden çok dosya taşıyabiliyor. İki eksen ayrı:
+ *   slot     -> aynı gönderinin parçaları ("1".."10" karosel slaytları, "story" boyutu)
+ *   versiyon -> aynı parçanın revizyon geçmişi
+ *
+ * Eskiden ikinci dosya yüklendiğinde birincisi "eski versiyon" oluyordu; karosel gönderide
+ * 8 slayt birbirini eziyordu. Artık her slaydın kendi versiyon geçmişi var.
+ */
 function MedyaYukleyici({ job, onYuklendi, duzenlenebilir }) {
-  const medya = useMemo(
-    () => [...(job.medya || [])].sort((a, b) => (Number(b.versiyon) || 0) - (Number(a.versiyon) || 0)),
-    [job.medya],
-  );
-  const guncel = medya[0] || null;
-  const eskiler = medya.slice(1);
+  const slotlar = useMemo(() => guncelMedyalar(job), [job]);
+  const [acikSlot, setAcikSlot] = useState(null);      // büyük önizlemesi açık olan slot
+  const [gecmisSlot, setGecmisSlot] = useState(null);  // versiyon geçmişi açık olan slot
 
   const [durum, setDurum] = useState("bos");      // bos | hazirlaniyor | yukleniyor | bitiyor | hata
   const [yuzde, setYuzde] = useState(0);
   const [hata, setHata] = useState("");
-  const [gecmisAcik, setGecmisAcik] = useState(false);
+  const [sira, setSira] = useState(null);         // çoklu yüklemede "3/8" göstergesi
   const girdiRef = React.useRef(null);
+  const hedefSlotRef = React.useRef(null);        // null = boş slotlara sırayla dağıt
 
   const meshgul = durum === "hazirlaniyor" || durum === "yukleniyor" || durum === "bitiyor";
 
+  /** Tek bir dosyayı verilen slota yükler. Yeni medya kaydını döndürür. */
+  async function dosyayiYukle(dosya, slot) {
+    // 1) Sunucudan yükleme adresi al (hedef klasörü ve versiyon numarasını o belirliyor)
+    const istekGovdesi = {
+      driveAction: "yuklemeBasla", isId: job.id, slot,
+      dosyaAdi: dosya.name, mimeTur: dosya.type, boyut: dosya.size,
+    };
+    const yanit = await fetch("/api/data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(istekGovdesi),
+    });
+    /* Oturum düşmüşse sunucu "Yetkisiz. Şifre gerekli." diyor. Bu cümle geliştirici
+     * diliyle yazılmış; dosya yüklemeye çalışan personele bir şey anlatmıyor. */
+    if (yanit.status === 401 || yanit.status === 403) {
+      throw new Error("Oturumun düşmüş görünüyor. Çıkıp tekrar giriş yap, sonra dosyayı yeniden seç.");
+    }
+    const basla = await yanit.json();
+    if (!basla.ok) throw new Error(basla.error || "Yükleme başlatılamadı.");
+
+    // 2) Baytları DOĞRUDAN Google'a gönder.
+    //
+    //    İKİ YÖNTEM DENENİYOR. XMLHttpRequest tercih ediliyor çünkü ilerlemeyi bildiren tek
+    //    yol o — fetch ile 80 MB'lık bir videoda kullanıcı donmuş sanıyor. Ama XHR bazı
+    //    tarayıcı/eklenti kurulumlarında sebep söylemeden düşebiliyor; o durumda fetch ile
+    //    bir kez daha deneniyor.
+    setDurum("yukleniyor");
+
+    const xhrIleGonder = (url) => new Promise((coz, red) => {
+      const x = new XMLHttpRequest();
+      x.open("PUT", url, true);
+      x.setRequestHeader("Content-Type", dosya.type || "application/octet-stream");
+      x.upload.onprogress = (ev) => {
+        if (ev.lengthComputable) setYuzde(Math.round((ev.loaded / ev.total) * 100));
+      };
+      x.onload = () => {
+        if (x.status >= 200 && x.status < 300) {
+          try { coz(JSON.parse(x.responseText).id); }
+          catch (err) { red(new Error(`Google beklenmedik yanıt verdi: ${String(x.responseText).slice(0, 120)}`)); }
+        } else {
+          red(new Error(`Google reddetti (HTTP ${x.status}): ${String(x.responseText).slice(0, 160)}`));
+        }
+      };
+      x.onerror = () => red(new Error("XHR-AGHATASI"));
+      x.onabort = () => red(new Error("Yükleme iptal edildi."));
+      x.send(dosya);
+    });
+
+    /* Ok işlevi yerine `async function`: denetleyici `= async (` kalıbını çağrı sanıp
+     * yanlış alarm veriyor. Davranış aynı. */
+    async function fetchIleGonder(url) {
+      const y = await fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": dosya.type || "application/octet-stream" },
+        body: dosya,
+      });
+      const metin = await y.text();
+      if (!y.ok) throw new Error(`Google reddetti (HTTP ${y.status}): ${metin.slice(0, 160)}`);
+      try { return JSON.parse(metin).id; }
+      catch (err) { throw new Error(`Google beklenmedik yanıt verdi: ${metin.slice(0, 120)}`); }
+    }
+
+    let dosyaId;
+    try {
+      dosyaId = await xhrIleGonder(basla.yuklemeUrl);
+    } catch (e1) {
+      if (String(e1.message) !== "XHR-AGHATASI") throw e1;
+      /* XHR sebep söylemeden düştü. Yükleme oturumu tek kullanımlık olduğu için YENİSİNİ
+       * alıp fetch ile deniyoruz; fetch'in hata metni neyin engellediğini söyler. */
+      setYuzde(0);
+      const tekrar = await fetch("/api/data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify(istekGovdesi),
+      }).then((r) => r.json());
+      if (!tekrar.ok) throw new Error(tekrar.error || "Yükleme başlatılamadı.");
+      try {
+        dosyaId = await fetchIleGonder(tekrar.yuklemeUrl);
+      } catch (e2) {
+        throw new Error(`Tarayıcı Google'a ulaşamadı. ${e2.message || e2}`);
+      }
+    }
+
+    // 3) Sunucuya bildir: servis hesabına yetki verilir
+    setDurum("bitiyor"); setYuzde(100);
+    const bitti = await fetch("/api/data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ driveAction: "yuklemeBitti", isId: job.id, dosyaId }),
+    }).then((r) => r.json());
+    if (!bitti.ok) throw new Error(bitti.error || "Kayıt tamamlanamadı.");
+
+    /* Kayıt uygulamanın NORMAL akışından geçiyor (onYuklendi -> onUpdate), sunucu kendi
+     * başına yazmıyor. Sebebi: sunucu ikinci bir yazma yaparsa sürüm sayacı artar, tarayıcı
+     * geride kalır ve sonraki kayıt sahte çakışmayla kullanıcının düzenlemesini siler. */
+    return {
+      slot: basla.slot || slot,
+      versiyon: basla.versiyon,
+      dosyaId: bitti.dosya.dosyaId,
+      ad: bitti.dosya.ad,
+      mimeTur: bitti.dosya.mimeTur,
+      boyut: bitti.dosya.boyut,
+      url: bitti.dosya.url,
+      tarih: new Date().toISOString(),
+    };
+  }
+
   async function dosyaSecildi(e) {
-    const dosya = e.target.files && e.target.files[0];
+    const dosyalar = Array.from((e.target && e.target.files) || []);
     e.target.value = "";                            // aynı dosya tekrar seçilebilsin
-    if (!dosya) return;
+    const hedef = hedefSlotRef.current;
+    hedefSlotRef.current = null;
+    if (dosyalar.length === 0) return;
     setHata(""); setYuzde(0); setDurum("hazirlaniyor");
 
+    /* SLOT DAĞITIMI TARAYICIDA YAPILIYOR ama sunucu da doğruluyor. Belirli bir slota
+     * yükleniyorsa (yeni versiyon / story) hepsi oraya gider; değilse boş slotlara sırayla.
+     *
+     * `dolu` yerel olarak ilerletiliyor: kayıt tek seferde sonda yapıldığı için `job` bu
+     * döngü boyunca güncellenmiyor; bosSlot(job) her turda AYNI slotu döndürürdü ve
+     * dosyalar birbirinin üstüne yazılırdı. */
+    const dolu = new Set(slotlar.map((m) => m.slot));
+    const yeniler = [];
     try {
-      // 1) Sunucudan yükleme adresi al (hedef klasörü o hazırlıyor)
-      const yanit = await fetch("/api/data", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({
-          driveAction: "yuklemeBasla", isId: job.id,
-          dosyaAdi: dosya.name, mimeTur: dosya.type, boyut: dosya.size,
-        }),
-      });
-      /* Oturum düşmüşse sunucu "Yetkisiz. Şifre gerekli." diyor. Bu cümle geliştirici
-       * diliyle yazılmış; dosya yüklemeye çalışan personele bir şey anlatmıyor, üstelik
-       * "şifre gerekli" yükleme ekranında şifre isteniyor gibi duruyor. Ne yapılacağını
-       * söyleyen bir cümleye çeviriyoruz. */
-      if (yanit.status === 401 || yanit.status === 403) {
-        throw new Error("Oturumun düşmüş görünüyor. Çıkıp tekrar giriş yap, sonra dosyayı yeniden seç.");
-      }
-      const basla = await yanit.json();
-      if (!basla.ok) throw new Error(basla.error || "Yükleme başlatılamadı.");
-
-      // 2) Baytları DOĞRUDAN Google'a gönder.
-      //
-      //    İKİ YÖNTEM DENENİYOR. XMLHttpRequest tercih ediliyor çünkü ilerlemeyi bildiren tek
-      //    yol o — fetch ile 80 MB'lık bir videoda kullanıcı donmuş sanıyor. Ama XHR bazı
-      //    tarayıcı/eklenti kurulumlarında sebep söylemeden düşebiliyor; o durumda fetch ile
-      //    bir kez daha deneniyor. Fetch daha açıklayıcı hata veriyor, üstelik bazen sırf
-      //    farklı bir kod yolu olduğu için çalışıyor.
-      setDurum("yukleniyor");
-
-      const xhrIleGonder = (url) => new Promise((coz, red) => {
-        const x = new XMLHttpRequest();
-        x.open("PUT", url, true);
-        x.setRequestHeader("Content-Type", dosya.type || "application/octet-stream");
-        x.upload.onprogress = (ev) => {
-          if (ev.lengthComputable) setYuzde(Math.round((ev.loaded / ev.total) * 100));
-        };
-        x.onload = () => {
-          if (x.status >= 200 && x.status < 300) {
-            try { coz(JSON.parse(x.responseText).id); }
-            catch (err) { red(new Error(`Google beklenmedik yanıt verdi: ${String(x.responseText).slice(0, 120)}`)); }
-          } else {
-            red(new Error(`Google reddetti (HTTP ${x.status}): ${String(x.responseText).slice(0, 160)}`));
+      for (let i = 0; i < dosyalar.length; i += 1) {
+        let slot = hedef;
+        if (!slot) {
+          slot = null;
+          for (let n = 1; n <= EN_FAZLA_SLAYT; n += 1) {
+            if (!dolu.has(String(n))) { slot = String(n); break; }
           }
-        };
-        x.onerror = () => red(new Error("XHR-AGHATASI"));
-        x.onabort = () => red(new Error("Yükleme iptal edildi."));
-        x.send(dosya);
-      });
-
-      /* Ok işlevi yerine `async function`: denetleyici `= async (` kalıbını çağrı sanıp
-       * yanlış alarm veriyor. Davranış aynı. */
-      async function fetchIleGonder(url) {
-        const y = await fetch(url, {
-          method: "PUT",
-          headers: { "Content-Type": dosya.type || "application/octet-stream" },
-          body: dosya,
-        });
-        const metin = await y.text();
-        if (!y.ok) throw new Error(`Google reddetti (HTTP ${y.status}): ${metin.slice(0, 160)}`);
-        try { return JSON.parse(metin).id; }
-        catch (err) { throw new Error(`Google beklenmedik yanıt verdi: ${metin.slice(0, 120)}`); }
-      }
-
-      let dosyaId;
-      try {
-        dosyaId = await xhrIleGonder(basla.yuklemeUrl);
-      } catch (e1) {
-        if (String(e1.message) !== "XHR-AGHATASI") throw e1;
-        /* XHR sebep söylemeden düştü. Yükleme oturumu tek kullanımlık olduğu için YENİSİNİ
-         * alıp fetch ile deniyoruz; fetch'in hata metni neyin engellediğini söyler. */
-        setYuzde(0);
-        const tekrar = await fetch("/api/data", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders() },
-          body: JSON.stringify({
-            driveAction: "yuklemeBasla", isId: job.id,
-            dosyaAdi: dosya.name, mimeTur: dosya.type, boyut: dosya.size,
-          }),
-        }).then((r) => r.json());
-        if (!tekrar.ok) throw new Error(tekrar.error || "Yükleme başlatılamadı.");
-        try {
-          dosyaId = await fetchIleGonder(tekrar.yuklemeUrl);
-        } catch (e2) {
-          throw new Error(`Tarayıcı Google'a ulaşamadı. ${e2.message || e2}`);
+          if (!slot) throw new Error(`En fazla ${EN_FAZLA_SLAYT} görsel eklenebilir.`);
+          dolu.add(slot);
         }
+        setSira(dosyalar.length > 1 ? `${i + 1}/${dosyalar.length}` : null);
+        setYuzde(0); setDurum("hazirlaniyor");
+        yeniler.push(await dosyayiYukle(dosyalar[i], slot));
       }
-
-      // 3) Sunucuya bildir: servis hesabına yetki verilir, kart güncellenir
-      setDurum("bitiyor"); setYuzde(100);
-      const bitti = await fetch("/api/data", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ driveAction: "yuklemeBitti", isId: job.id, dosyaId }),
-      }).then((r) => r.json());
-      if (!bitti.ok) throw new Error(bitti.error || "Kayıt tamamlanamadı.");
-
-      /* Kayıt uygulamanın NORMAL akışından geçiyor (onUpdate), sunucu kendi başına yazmıyor.
-       * Sebebi: sunucu ikinci bir yazma yaparsa sürüm sayacı artar, tarayıcı geride kalır ve
-       * sonraki kayıt sahte çakışmayla kullanıcının düzenlemesini siler. Bu hata bu projede
-       * bir kez yaşandı. */
-      const yeniKayit = {
-        versiyon: basla.versiyon,
-        dosyaId: bitti.dosya.dosyaId,
-        ad: bitti.dosya.ad,
-        mimeTur: bitti.dosya.mimeTur,
-        boyut: bitti.dosya.boyut,
-        url: bitti.dosya.url,
-        tarih: new Date().toISOString(),
-      };
-      setDurum("bos"); setYuzde(0);
-      if (onYuklendi) onYuklendi(yeniKayit);
-    } catch (e) {
-      setDurum("hata");
-      setHata(String(e.message || e));
+      setDurum("bos"); setYuzde(0); setSira(null);
+      if (onYuklendi) onYuklendi(yeniler);
+    } catch (err) {
+      setDurum("hata"); setSira(null);
+      /* YARIM KALAN YÜKLEMELER KAYBOLMASIN: 8 dosyanın 5'i yüklendikten sonra hata olursa,
+       * o beşi karta işlenir ve kullanıcı yalnızca kalanları tekrar dener. Hepsini çöpe
+       * atmak, dosyaları Drive'da öksüz bırakırdı. */
+      if (yeniler.length > 0 && onYuklendi) onYuklendi(yeniler);
+      setHata(String(err.message || err));
     }
   }
 
-  const videoMu = (m) => String(m && m.mimeTur || "").startsWith("video/");
-  const gorselMi = (m) => String(m && m.mimeTur || "").startsWith("image/");
-  const onizlemeUrl = (m) => `https://drive.google.com/file/d/${m.dosyaId}/preview`;
+  const videoMu = (m) => String((m && m.mimeTur) || "").startsWith("video/");
+  const dosyaSec = (slot) => {
+    hedefSlotRef.current = slot || null;
+    if (girdiRef.current) {
+      girdiRef.current.multiple = !slot;            // belirli bir slota tek dosya
+      girdiRef.current.click();
+    }
+  };
 
   const etiket = {
     hazirlaniyor: "Hazırlanıyor…",
@@ -764,27 +807,110 @@ function MedyaYukleyici({ job, onYuklendi, duzenlenebilir }) {
     bitiyor: "Tamamlanıyor…",
   }[durum];
 
+  const slaytSayisi = slotlar.filter((m) => m.slot !== STORY_SLOT).length;
+  const storyVar = slotlar.some((m) => m.slot === STORY_SLOT);
+
   return (
     <div style={{ marginBottom: 16 }}>
-      {/* ---- GÜNCEL MEDYA ---- */}
-      {guncel ? (
+      {/* ---- SLOT IZGARASI ---- */}
+      {slotlar.length > 0 ? (
         <div style={{ background: C.panelAlt, borderRadius: 10, padding: 12, marginBottom: 10 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
-            {videoMu(guncel) ? <Film size={14} color={C.accentText} /> : <ImageIcon size={14} color={C.accentText} />}
-            <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Güncel Versiyon: V{guncel.versiyon}</span>
-            <span style={{ fontSize: 12, color: C.textDim }}>{guncel.ad}</span>
-            <a href={guncel.url} target="_blank" rel="noreferrer"
-               style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: C.textDim, textDecoration: "none" }}>
-              <ExternalLink size={12} /> Drive'da Aç
-            </a>
+          <div style={{ fontSize: 12, color: C.textDim, marginBottom: 8 }}>
+            {slaytSayisi > 0 ? `${slaytSayisi} görsel/video` : ""}
+            {slaytSayisi > 0 && storyVar ? " · " : ""}
+            {storyVar ? "story boyutu var" : ""}
+            {slaytSayisi > 1 ? " · kaydırmalı gönderi" : ""}
           </div>
-          <SunucuOnizleme
-            isId={job.id}
-            versiyon={guncel.versiyon}
-            video={videoMu(guncel)}
-            drivedeAc={guncel.url}
-            gomuluUrl={onizlemeUrl(guncel)}
-          />
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {slotlar.map((m) => {
+              const acik = acikSlot === m.slot;
+              return (
+                <button
+                  key={m.slot}
+                  onClick={() => setAcikSlot(acik ? null : m.slot)}
+                  title={`${slotEtiketi(m.slot)} — ${m.ad || ""}`}
+                  style={{
+                    position: "relative", width: 74, height: 74, borderRadius: 8, overflow: "hidden",
+                    padding: 0, cursor: "pointer", background: "#000",
+                    border: `2px solid ${acik ? C.accentText : C.border}`,
+                  }}
+                >
+                  <SlotKucukOnizleme isId={job.id} slot={m.slot} video={videoMu(m)} />
+                  <span style={{ position: "absolute", top: 3, left: 3, background: "rgba(0,0,0,.7)", color: "#fff",
+                                 fontSize: 10, fontWeight: 700, padding: "2px 5px", borderRadius: 4 }}>
+                    {m.slot === STORY_SLOT ? "STORY" : m.slot}
+                  </span>
+                  {Number(m.versiyon) > 1 && (
+                    <span style={{ position: "absolute", bottom: 3, right: 3, background: "rgba(0,0,0,.7)", color: "#fff",
+                                   fontSize: 10, fontWeight: 700, padding: "2px 5px", borderRadius: 4 }}>
+                      V{m.versiyon}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* ---- SEÇİLİ SLOTUN BÜYÜK GÖRÜNÜMÜ ---- */}
+          {acikSlot && (() => {
+            const m = slotlar.find((x) => x.slot === acikSlot);
+            if (!m) return null;
+            const gecmis = slotGecmisi(job, acikSlot).slice(1);
+            return (
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${C.border}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, flexWrap: "wrap" }}>
+                  {videoMu(m) ? <Film size={14} color={C.accentText} /> : <ImageIcon size={14} color={C.accentText} />}
+                  <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{slotEtiketi(m.slot)} · V{m.versiyon}</span>
+                  <span style={{ fontSize: 12, color: C.textDim }}>{m.ad}</span>
+                  <a href={m.url} target="_blank" rel="noreferrer"
+                     style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: C.textDim, textDecoration: "none" }}>
+                    <ExternalLink size={12} /> Drive'da Aç
+                  </a>
+                </div>
+                <SunucuOnizleme
+                  isId={job.id}
+                  slot={m.slot}
+                  versiyon={m.versiyon}
+                  video={videoMu(m)}
+                  drivedeAc={m.url}
+                  gomuluUrl={`https://drive.google.com/file/d/${m.dosyaId}/preview`}
+                />
+                {duzenlenebilir && !meshgul && (
+                  <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                    <button style={{ ...btnGhost, fontSize: 12 }} onClick={() => dosyaSec(m.slot)}>
+                      Bu parçanın yeni versiyonunu yükle
+                    </button>
+                    {gecmis.length > 0 && (
+                      <button style={{ ...btnGhost, fontSize: 12 }}
+                              onClick={() => setGecmisSlot(gecmisSlot === m.slot ? null : m.slot)}>
+                        Versiyon geçmişi ({gecmis.length})
+                      </button>
+                    )}
+                  </div>
+                )}
+                {gecmisSlot === m.slot && gecmis.length > 0 && (
+                  <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+                    {gecmis.map((eski) => (
+                      <div key={eski.dosyaId}
+                           style={{ display: "flex", alignItems: "center", gap: 8, background: C.panel,
+                                    borderRadius: 8, padding: "8px 10px", fontSize: 12, flexWrap: "wrap" }}>
+                        <span style={{ fontWeight: 600, color: C.text }}>V{eski.versiyon}</span>
+                        <span style={{ color: C.textDim }}>{eski.ad}</span>
+                        <span style={{ color: C.textDim }}>
+                          {eski.tarih ? new Date(eski.tarih).toLocaleDateString("tr-TR") : ""}
+                          {eski.yukleyen ? ` · ${eski.yukleyen}` : ""}
+                        </span>
+                        <a href={eski.url} target="_blank" rel="noreferrer"
+                           style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, color: C.accentText, textDecoration: "none" }}>
+                          <ExternalLink size={12} /> Aç
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
       ) : (
         <div style={{ background: C.panelAlt, borderRadius: 10, padding: 16, marginBottom: 10, textAlign: "center" }}>
@@ -795,12 +921,12 @@ function MedyaYukleyici({ job, onYuklendi, duzenlenebilir }) {
       {/* ---- YÜKLEME ---- */}
       {duzenlenebilir && (
         <div>
-          <input ref={girdiRef} type="file" accept="video/*,image/*" onChange={dosyaSecildi} style={{ display: "none" }} />
+          <input ref={girdiRef} type="file" accept="video/*,image/*" multiple onChange={dosyaSecildi} style={{ display: "none" }} />
           {meshgul ? (
             <div style={{ background: C.panelAlt, borderRadius: 10, padding: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                 <Loader2 size={14} color={C.accentText} />
-                <span style={{ fontSize: 13, color: C.text }}>{etiket}</span>
+                <span style={{ fontSize: 13, color: C.text }}>{etiket}{sira ? ` (${sira})` : ""}</span>
               </div>
               <div style={{ height: 6, background: C.border, borderRadius: 3, overflow: "hidden" }}>
                 <div style={{ height: "100%", width: `${yuzde}%`, background: C.accentText, transition: "width .2s" }} />
@@ -810,10 +936,24 @@ function MedyaYukleyici({ job, onYuklendi, duzenlenebilir }) {
               </div>
             </div>
           ) : (
-            <button style={{ ...btnPrimary, display: "flex", alignItems: "center", gap: 6 }}
-                    onClick={() => girdiRef.current && girdiRef.current.click()}>
-              <UploadCloud size={14} /> {guncel ? "Yeni Versiyon Yükle" : "Video / Görsel Yükle"}
-            </button>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button style={{ ...btnPrimary, display: "flex", alignItems: "center", gap: 6 }}
+                      onClick={() => dosyaSec(null)}>
+                <UploadCloud size={14} /> {slotlar.length ? "Görsel / Video Ekle" : "Video / Görsel Yükle"}
+              </button>
+              {!storyVar && (
+                <button style={{ ...btnGhost, display: "flex", alignItems: "center", gap: 6 }}
+                        onClick={() => dosyaSec(STORY_SLOT)}>
+                  + Story boyutu
+                </button>
+              )}
+            </div>
+          )}
+          {!meshgul && slotlar.length > 0 && (
+            <div style={{ fontSize: 11, color: C.textFaint, marginTop: 6, lineHeight: 1.5 }}>
+              Kaydırmalı (karosel) gönderi için birden çok dosya seçebilirsin — sırayla eklenir.
+              Bir parçayı değiştirmek için karesine tıklayıp "yeni versiyonunu yükle" de.
+            </div>
           )}
           {durum === "hata" && (
             <div style={{ marginTop: 8, background: C.dangerSoft, border: `1px solid ${C.danger}`, borderRadius: 8, padding: 10 }}>
@@ -824,35 +964,19 @@ function MedyaYukleyici({ job, onYuklendi, duzenlenebilir }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
 
-      {/* ---- VERSİYON GEÇMİŞİ ---- */}
-      {eskiler.length > 0 && (
-        <div style={{ marginTop: 10 }}>
-          <button style={{ ...btnGhost, fontSize: 12 }} onClick={() => setGecmisAcik((a) => !a)}>
-            Versiyon Geçmişi ({eskiler.length})
-          </button>
-          {gecmisAcik && (
-            <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
-              {eskiler.map((m) => (
-                <div key={m.dosyaId}
-                     style={{ display: "flex", alignItems: "center", gap: 8, background: C.panelAlt,
-                              borderRadius: 8, padding: "8px 10px", fontSize: 12, flexWrap: "wrap" }}>
-                  <span style={{ fontWeight: 600, color: C.text }}>V{m.versiyon}</span>
-                  <span style={{ color: C.textDim }}>{m.ad}</span>
-                  <span style={{ color: C.textDim }}>
-                    {m.tarih ? new Date(m.tarih).toLocaleDateString("tr-TR") : ""}
-                    {m.yukleyen ? ` · ${m.yukleyen}` : ""}
-                  </span>
-                  <a href={m.url} target="_blank" rel="noreferrer"
-                     style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, color: C.accentText, textDecoration: "none" }}>
-                    <ExternalLink size={12} /> Aç
-                  </a>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+/** Slot ızgarasındaki küçük kare — sunucudan kapak görseli çeker. */
+function SlotKucukOnizleme({ isId, slot, video }) {
+  const sunucu = useSunucuOnizleme({ isId, slot, boyut: 200 });
+  if (sunucu.durum === "hazir" && sunucu.veri) {
+    return <img src={sunucu.veri} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />;
+  }
+  return (
+    <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center", color: "#888", fontSize: 16 }}>
+      {video ? "▶" : "🖼"}
     </div>
   );
 }
@@ -1113,13 +1237,26 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
             <MedyaYukleyici
               job={job}
               duzenlenebilir={duzenleyebilirMi(job, role, staffName) && !kilitleyen}
-              onYuklendi={(yeni) => onUpdate(job.id, {
-                medya: [...(job.medya || []), yeni],
-                /* Güncel versiyonun bağlantısı burada da tutuluyor: taşıma, müşteri paneli ve
-                 * eski önizlemeler hâlâ bu alana bakıyor. */
-                editliDosyaLink: yeni.url,
-                gecmis: logKaydet(`V${yeni.versiyon} yüklendi: ${yeni.ad}`),
-              })}
+              onYuklendi={(yeniler) => {
+                /* Çoklu yükleme: tek seferde birden çok kayıt gelebiliyor (karosel).
+                 * Tek nesne de kabul ediliyor — eski çağrı biçimi bozulmasın. */
+                const liste = Array.isArray(yeniler) ? yeniler : [yeniler];
+                if (liste.length === 0) return;
+                /* `editliDosyaLink` BİRİNCİ SLAYTA bağlanıyor, son yüklenene değil.
+                 * Bu alan kartın "kapağı" gibi davranıyor (eski önizlemeler ve Drive'ı
+                 * kullanmayan yollar hâlâ buna bakıyor); story boyutunu yükleyince kapağın
+                 * story'ye dönmesi yanlış olurdu. */
+                const hepsi = [...(job.medya || []), ...liste];
+                const kapak = guncelMedyalar({ medya: hepsi })[0];
+                const ozet = liste.length > 1
+                  ? `${liste.length} dosya yüklendi: ${liste.map((x) => slotEtiketi(x.slot)).join(", ")}`
+                  : `${slotEtiketi(liste[0].slot)} V${liste[0].versiyon} yüklendi: ${liste[0].ad}`;
+                onUpdate(job.id, {
+                  medya: hepsi,
+                  editliDosyaLink: (kapak && kapak.url) || liste[0].url,
+                  gecmis: logKaydet(ozet),
+                });
+              }}
             />
 
             <div style={{ marginBottom: 16 }}>
