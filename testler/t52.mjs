@@ -247,5 +247,31 @@ const notlar = (sonKart.gecmis || []).filter((x) => x.yazan === "Sistem");
 t("geçmişe TEK not düşüldü (8 slayt = 8 not değil)", notlar.length === 1, JSON.stringify(notlar.map((x) => x.aciklama)));
 t("not kaç dosya taşındığını yazıyor", notlar.length === 1 && /3 dosya/.test(notlar[0].aciklama), notlar[0] && notlar[0].aciklama);
 
+
+/* ---------------------------------------------------------------- */
+console.log("\n7) ESKİ KARTLARI KURTARMA — versiyonu ayrı parçaya taşıma");
+
+/* Slot düzeni gelmeden önce karosel slaytları "yeni versiyon" diye yükleniyordu; o kartlarda
+ * 8 slayt tek slotta V1..V8 olarak yığılı. Hangisinin gerçek revizyon, hangisinin ayrı slayt
+ * olduğunu sistem BİLEMEZ — otomatik dönüştürme yapılmıyor, karar kullanıcıya bırakılıyor. */
+const cekim = fs.readFileSync(path.join(kok, "src", "CekimEditTakibi.jsx"), "utf8");
+t("versiyon geçmişinde 'Ayrı parça yap' düğmesi var", cekim.includes("Ayrı parça yap"));
+t("taşıma yalnızca boş slot varken açılıyor", /const parcaYapilabilir = bosSlotVar/.test(cekim));
+t("taşınan kayıt yeni slotta V1 oluyor", /\{ \.\.\.m, slot: hedefSlot, versiyon: 1 \}/.test(cekim));
+t("işlem kart geçmişine yazılıyor", cekim.includes("ayrı parçaya taşındı"));
+t("otomatik dönüştürme YAPILMIYOR (karar kullanıcıda)", cekim.includes("karar\n   * kullanıcıya bırakılıyor") || cekim.includes("karar\n   * kullanıcıya"));
+
+/* Taşıma sonrası modelin ne dediğini ölç: tek slotta yığılı iki dosya, ayrıldıktan sonra
+ * iki AYRI parça olarak görünmeli. */
+const yigili = { medya: [
+  { slot: "1", versiyon: 1, dosyaId: "SLAYT1AAAAA", mimeTur: "image/jpeg" },
+  { slot: "1", versiyon: 2, dosyaId: "SLAYT2BBBBB", mimeTur: "image/jpeg" },
+] };
+t("yığılı kartta tek parça görünüyor (sorunun kendisi)", guncelMedyalar(yigili).length === 1);
+const ayrilmis = { medya: yigili.medya.map((m) => (m.dosyaId === "SLAYT1AAAAA" ? { ...m, slot: "2", versiyon: 1 } : m)) };
+t("ayrıldıktan sonra iki parça oluyor", guncelMedyalar(ayrilmis).length === 2,
+  guncelMedyalar(ayrilmis).map((m) => m.slot + "/" + m.dosyaId).join("  "));
+t("ayrılan dosya taşımaya da giriyor", tasinacakDosyalar(ayrilmis).length === 2);
+
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);
 if (k > 0) process.exitCode = 1;

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { medyaVarMi, asamalariDuzelt, guncelMedyalar, slotGecmisi, slotEtiketi,
-         STORY_SLOT, EN_FAZLA_SLAYT } from "../lib/asamalar.js";
+         bosSlot, medyaSlotu, STORY_SLOT, EN_FAZLA_SLAYT } from "../lib/asamalar.js";
 import { useSunucuOnizleme, useVideoAdresi, videoEni, gomuluEngelliMi, GOMULU_ACIKLAMA } from "./drive.jsx";
 // Para gösterimleri Gizlilik Modu'na uymalı — aksi halde ücretler gizliyken de görünür kalırdı.
 import { fmt, T, authHeaders } from "./tema.jsx";
@@ -628,7 +628,7 @@ function SunucuOnizleme({ isId, slot, versiyon, video, drivedeAc, gomuluUrl }) {
  * Eskiden ikinci dosya yüklendiğinde birincisi "eski versiyon" oluyordu; karosel gönderide
  * 8 slayt birbirini eziyordu. Artık her slaydın kendi versiyon geçmişi var.
  */
-function MedyaYukleyici({ job, onYuklendi, duzenlenebilir }) {
+function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
   const slotlar = useMemo(() => guncelMedyalar(job), [job]);
   const [acikSlot, setAcikSlot] = useState(null);      // büyük önizlemesi açık olan slot
   const [gecmisSlot, setGecmisSlot] = useState(null);  // versiyon geçmişi açık olan slot
@@ -793,6 +793,27 @@ function MedyaYukleyici({ job, onYuklendi, duzenlenebilir }) {
   }
 
   const videoMu = (m) => String((m && m.mimeTur) || "").startsWith("video/");
+
+  /* BİR VERSİYONU AYRI PARÇAYA TAŞI.
+   *
+   * Slot düzeni gelmeden önce karosel slaytları "yeni versiyon" diye yükleniyordu; o kartlarda
+   * 8 slayt tek slotta V1..V8 olarak yığılı duruyor. Hangisinin gerçek revizyon, hangisinin
+   * ayrı slayt olduğunu sistem BİLEMEZ — bu yüzden otomatik dönüştürme yapılmıyor, karar
+   * kullanıcıya bırakılıyor. Dosya Drive'da yerinde kalıyor; değişen yalnızca kartın içindeki
+   * etiket. */
+  const bosSlotVar = Boolean(bosSlot(job));
+  const parcaYapilabilir = bosSlotVar && typeof onMedyaDegis === "function";
+  const parcaYap = (kayit) => {
+    const hedefSlot = bosSlot(job);
+    if (!hedefSlot) { window.alert(`En fazla ${EN_FAZLA_SLAYT} parça olabilir.`); return; }
+    const yeniMedya = (job.medya || []).map((m) =>
+      (m === kayit || (m.dosyaId && m.dosyaId === kayit.dosyaId && medyaSlotu(m) === medyaSlotu(kayit)))
+        ? { ...m, slot: hedefSlot, versiyon: 1 }
+        : m);
+    onMedyaDegis(yeniMedya, `${kayit.ad || "Dosya"} ayrı parçaya taşındı: ${slotEtiketi(hedefSlot)}`);
+    setGecmisSlot(null);
+  };
+
   const dosyaSec = (slot) => {
     hedefSlotRef.current = slot || null;
     if (girdiRef.current) {
@@ -904,6 +925,20 @@ function MedyaYukleyici({ job, onYuklendi, duzenlenebilir }) {
                            style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, color: C.accentText, textDecoration: "none" }}>
                           <ExternalLink size={12} /> Aç
                         </a>
+                        {/* ESKİ KARTLARI KURTARAN DÜĞME.
+                          * Slot düzeni gelmeden önce karosel slaytları "yeni versiyon" olarak
+                          * yükleniyordu — 8 slayt tek slotta V1..V8 diye üst üste yığılmış
+                          * durumda. Hangisinin revizyon hangisinin ayrı slayt olduğunu sistem
+                          * bilemez; kararı veren sensin. */}
+                        {duzenlenebilir && parcaYapilabilir && (
+                          <button
+                            style={{ ...btnGhost, fontSize: 11, padding: "4px 8px" }}
+                            onClick={() => parcaYap(eski)}
+                            title="Bu dosya aslında ayrı bir slayt ise, kendi parçasına taşı"
+                          >
+                            Ayrı parça yap
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1237,6 +1272,10 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
             <MedyaYukleyici
               job={job}
               duzenlenebilir={duzenleyebilirMi(job, role, staffName) && !kilitleyen}
+              onMedyaDegis={(yeniMedya, aciklama) => onUpdate(job.id, {
+                medya: yeniMedya,
+                gecmis: logKaydet(aciklama),
+              })}
               onYuklendi={(yeniler) => {
                 /* Çoklu yükleme: tek seferde birden çok kayıt gelebiliyor (karosel).
                  * Tek nesne de kabul ediliyor — eski çağrı biçimi bozulmasın. */
