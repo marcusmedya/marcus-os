@@ -402,5 +402,20 @@ t("silmeden önce onay soruluyor", cekim.includes("çöp kutusuna taşınacak. D
 t("önce Drive sonra kart sırası korunuyor", cekim.includes("SIRA ÖNEMLİ: önce Drive, sonra kart"));
 t("kalan slaytlar yeniden numaralanıyor", cekim.includes("KALAN SLAYTLAR YENİDEN NUMARALANIYOR"));
 
+
+/* KART SİLİNMEDEN ÖNCE DOSYALARI TEMİZLENMELİ. */
+t("dosyası olan kart silinemiyor", cekim.includes("KART SİLİNMEDEN ÖNCE DOSYALARI TEMİZLENMELİ"));
+t("silme düğmesi doğrudan onDelete çağırmıyor", !/onClick=\{\(\) => \{ if \(window\.confirm\("Bu iş silinsin mi\?"\)\) onDelete\(job\.id\); \}\}/.test(cekim));
+t("engel mesajı ne yapılacağını söylüyor", cekim.includes("Önce dosyaları kaldır"));
+t("dosya kalmayınca kart silinebiliyor", /if \(window\.confirm\("Bu iş silinsin mi\?"\)\) onDelete\(job\.id\);/.test(cekim));
+t("toplu silme var (8 slayt = 8 onay olmasın)", cekim.includes("TÜM DOSYALARI BİRDEN SİL"));
+t("toplu silme yarıda kalırsa silinenler karttan düşüyor", cekim.includes("YARIDA KALIRSA KALDIĞI YER KAYDEDİLİYOR"));
+
+/* KAÇIŞ YOLU: dosya Drive'dan elle silinmişse kart kilitlenmemeli. */
+const tasima = fs.readFileSync(path.join(kok, "lib", "drive-tasima.js"), "utf8");
+t("servis hesabının 404'ü başarı sayılıyor", /if \(y\.status === 404\) return \{ ok: true, nasil: "zaten-yok" \}/.test(tasima));
+t("OAuth'un 404'ü başarı SAYILMIYOR (kapsam sorunu olabilir)",
+  tasima.includes("OAuth'un 404'ü \"yok\" demek değil") || tasima.includes('OAuth\'un 404\'ü "yok" demek değil'));
+
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);
 if (k > 0) process.exitCode = 1;

@@ -827,6 +827,32 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
    * olur, dosya klasörde kalır ve kimse fark etmezdi. */
   /* Ok işlevi yerine `async function`: denetleyici `= async (` kalıbını çağrı sanıp
    * yanlış alarm veriyor. Davranış aynı. */
+  /** Bir slotun dosyalarını Drive'da çöpe atar. Hata olursa fırlatır — çağıran karar verir. */
+  async function slotuDriveDanKaldir(slot) {
+    const yanit = await fetch("/api/data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ driveAction: "medyaSil", isId: job.id, slot }),
+    }).then((r) => r.json());
+    if (!yanit.ok) throw new Error(yanit.error || "Silinemedi.");
+    return yanit;
+  }
+
+  /* KALAN SLAYTLAR YENİDEN NUMARALANIYOR: 5 slayttan 2'si silinince "1, 3, 4, 5" diye
+   * boşluklu kalması hem okunmaz hem de kaydırmalı gönderinin sırasıyla uyuşmaz.
+   * Story kendi adını koruyor — o bir sıra değil, ayrı bir boyut. */
+  const kalaniYenidenNumarala = (kalan) => {
+    const sayisalSira = guncelMedyalar({ medya: kalan })
+      .map((x) => x.slot)
+      .filter((x) => x !== STORY_SLOT);
+    const yeniAd = new Map(sayisalSira.map((eskiSlot, i) => [eskiSlot, String(i + 1)]));
+    return kalan.map((x) => {
+      const eskiSlot = medyaSlotu(x);
+      const ad = yeniAd.get(eskiSlot);
+      return ad && ad !== eskiSlot ? { ...x, slot: ad } : x;
+    });
+  };
+
   async function parcaSil(m) {
     const gecmisAdet = slotGecmisi(job, m.slot).length;
     const soru = gecmisAdet > 1
@@ -836,37 +862,59 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
 
     setHata(""); setDurum("siliniyor");
     try {
-      const yanit = await fetch("/api/data", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ driveAction: "medyaSil", isId: job.id, slot: m.slot }),
-      }).then((r) => r.json());
-      if (!yanit.ok) throw new Error(yanit.error || "Silinemedi.");
-
-      /* KALAN SLAYTLAR YENİDEN NUMARALANIYOR: 5 slayttan 2'si silinince "1, 3, 4, 5" diye
-       * boşluklu kalması hem okunmaz hem de kaydırmalı gönderinin sırasıyla uyuşmaz.
-       * Story kendi adını koruyor — o bir sıra değil, ayrı bir boyut. */
+      const yanit = await slotuDriveDanKaldir(m.slot);
       const kalan = (job.medya || []).filter((x) => medyaSlotu(x) !== m.slot);
-      const sayisalSira = guncelMedyalar({ medya: kalan })
-        .map((x) => x.slot)
-        .filter((x) => x !== STORY_SLOT);
-      const yeniAd = new Map(sayisalSira.map((eskiSlot, i) => [eskiSlot, String(i + 1)]));
-      const yeniMedya = kalan.map((x) => {
-        const eskiSlot = medyaSlotu(x);
-        const ad = yeniAd.get(eskiSlot);
-        return ad && ad !== eskiSlot ? { ...x, slot: ad } : x;
-      });
-
       setDurum("bos");
       setAcikSlot(null);
       setGecmisSlot(null);
       if (onMedyaDegis) {
-        onMedyaDegis(yeniMedya, `${slotEtiketi(m.slot)} silindi — Drive'da çöp kutusuna taşındı (${yanit.silinen.length} dosya).`);
+        onMedyaDegis(kalaniYenidenNumarala(kalan),
+          `${slotEtiketi(m.slot)} silindi — Drive'da çöp kutusuna taşındı (${yanit.silinen.length} dosya).`);
       }
     } catch (e) {
       setDurum("hata");
       setHata(String((e && e.message) || e));
     }
+  }
+
+  /* TÜM DOSYALARI BİRDEN SİL.
+   *
+   * Kart silinmeden önce dosyalarının kaldırılması gerekiyor; 8 slaytlık bir karosel için
+   * bunu tek tek yapmak 8 ayrı onay demekti. Tek onayla hepsi kaldırılıyor.
+   *
+   * YARIDA KALIRSA KALDIĞI YER KAYDEDİLİYOR: 8 dosyanın 5'i silindikten sonra hata olursa,
+   * o beşi karttan düşülüyor ve hata yazılıyor. Aksi halde Drive'da silinmiş ama kartta
+   * duran dosyalar kalırdı — kart ile Drive ayrışırdı. */
+  async function tumDosyalariSil() {
+    const hepsi = guncelMedyalar(job);
+    if (hepsi.length === 0) return;
+    const toplamDosya = hepsi.reduce((t, m) => t + slotGecmisi(job, m.slot).length, 0);
+    if (!window.confirm(
+      `Bu karttaki ${hepsi.length} parça (toplam ${toplamDosya} dosya, eski versiyonlar dahil) ` +
+      `karttan kaldırılacak ve Drive'da çöp kutusuna taşınacak. Devam edilsin mi?`,
+    )) return;
+
+    setHata(""); setDurum("siliniyor");
+    const silinenSlotlar = [];
+    let sonHata = null;
+    for (const m of hepsi) {
+      try {
+        await slotuDriveDanKaldir(m.slot);
+        silinenSlotlar.push(m.slot);
+      } catch (e) {
+        sonHata = String((e && e.message) || e);
+        break;
+      }
+    }
+
+    setAcikSlot(null);
+    setGecmisSlot(null);
+    if (silinenSlotlar.length > 0 && onMedyaDegis) {
+      const kalan = (job.medya || []).filter((x) => !silinenSlotlar.includes(medyaSlotu(x)));
+      onMedyaDegis(kalaniYenidenNumarala(kalan),
+        `${silinenSlotlar.length} parça silindi — Drive'da çöp kutusuna taşındı.`);
+    }
+    if (sonHata) { setDurum("hata"); setHata(sonHata); } else { setDurum("bos"); }
   }
 
   const dosyaSec = (slot) => {
@@ -892,11 +940,19 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
       {/* ---- SLOT IZGARASI ---- */}
       {slotlar.length > 0 ? (
         <div style={{ background: C.panelAlt, borderRadius: 10, padding: 12, marginBottom: 10 }}>
-          <div style={{ fontSize: 12, color: C.textDim, marginBottom: 8 }}>
-            {slaytSayisi > 0 ? `${slaytSayisi} görsel/video` : ""}
-            {slaytSayisi > 0 && storyVar ? " · " : ""}
-            {storyVar ? "story boyutu var" : ""}
-            {slaytSayisi > 1 ? " · kaydırmalı gönderi" : ""}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+            <span style={{ fontSize: 12, color: C.textDim }}>
+              {slaytSayisi > 0 ? `${slaytSayisi} görsel/video` : ""}
+              {slaytSayisi > 0 && storyVar ? " · " : ""}
+              {storyVar ? "story boyutu var" : ""}
+              {slaytSayisi > 1 ? " · kaydırmalı gönderi" : ""}
+            </span>
+            {duzenlenebilir && !meshgul && typeof onMedyaDegis === "function" && slotlar.length > 1 && (
+              <button style={{ ...btnGhost, fontSize: 11, padding: "4px 8px", color: C.danger, borderColor: C.danger, marginLeft: "auto" }}
+                      onClick={tumDosyalariSil}>
+                Tüm dosyaları sil
+              </button>
+            )}
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {slotlar.map((m) => {
@@ -1116,6 +1172,28 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
   const logKaydet = (aciklama) => {
     const kayit = { id: nid(), tarih: new Date().toLocaleString("tr-TR"), yazan: role === "owner" ? "Yönetici" : (staffName || "Personel"), aciklama };
     return [...(job.gecmis || []), kayit];
+  };
+
+  /* KART SİLİNMEDEN ÖNCE DOSYALARI TEMİZLENMELİ.
+   *
+   * Kart silindiğinde Drive'daki dosyaları öksüz kalıyordu: hiçbir kart onlara işaret etmiyor,
+   * kimse hangi işe ait olduklarını bilmiyor, marka klasörü zamanla kimsenin dokunmadığı
+   * dosyalarla doluyordu. Kartı silmek dosyayı da silmiş SAYILIYOR ama gerçekte silmiyordu.
+   *
+   * ENGELLEME, OTOMATİK SİLME DEĞİL: kartın dosyalarını sessizce çöpe atmak, "kartı yanlışlıkla
+   * sildim" durumunu geri dönülmez hale getirirdi. Kullanıcı önce dosyaları eliyle kaldırıyor —
+   * o sırada her birinin önizlemesini görüyor ve gerçekten gitmesini istediğine karar veriyor. */
+  const kartiSil = () => {
+    const dosyalar = guncelMedyalar(job);
+    if (dosyalar.length > 0) {
+      window.alert(
+        `Bu kartta ${dosyalar.length} dosya var. Kart silinirse bu dosyalar Drive'da sahipsiz kalır.\n\n` +
+        `Önce dosyaları kaldır: her karenin sağ üstündeki × ile sil (ya da "Tüm dosyaları sil"), ` +
+        `sonra kartı silebilirsin.`,
+      );
+      return;
+    }
+    if (window.confirm("Bu iş silinsin mi?")) onDelete(job.id);
   };
 
   const dosyaLinkleriniKaydet = () => {
@@ -1483,7 +1561,7 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
                 {role === "owner" && job.asama === "Kontrol Bekliyor" && <button style={{ ...btnPrimary, background: C.success }} onClick={onayla}>Onayla</button>}
                 {role === "owner" && job.asama === "Onaylandı" && <button style={{ ...btnPrimary, background: C.success }} onClick={teslimEt}>Teslim Edildi Olarak İşaretle</button>}
                 {role === "owner" && <button style={{ ...btnGhost, color: C.danger, borderColor: C.danger }} onClick={() => setDuzenle(true)}><Pencil size={13} /> Düzenle</button>}
-                {role === "owner" && <button style={{ ...btnGhost, color: C.danger, borderColor: C.danger }} onClick={() => { if (window.confirm("Bu iş silinsin mi?")) onDelete(job.id); }}><Trash2 size={13} /> Sil</button>}
+                {role === "owner" && <button style={{ ...btnGhost, color: C.danger, borderColor: C.danger }} onClick={kartiSil}><Trash2 size={13} /> Sil</button>}
               </div>
             )}
 
