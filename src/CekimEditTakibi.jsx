@@ -640,7 +640,7 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
   const girdiRef = React.useRef(null);
   const hedefSlotRef = React.useRef(null);        // null = boş slotlara sırayla dağıt
 
-  const meshgul = durum === "hazirlaniyor" || durum === "yukleniyor" || durum === "bitiyor";
+  const meshgul = durum === "hazirlaniyor" || durum === "yukleniyor" || durum === "bitiyor" || durum === "siliniyor";
 
   /** Tek bir dosyayı verilen slota yükler. Yeni medya kaydını döndürür. */
   async function dosyayiYukle(dosya, slot) {
@@ -814,6 +814,61 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
     setGecmisSlot(null);
   };
 
+  /* BİR PARÇAYI KARTTAN VE DRIVE'DAN KALDIR.
+   *
+   * Drive'dan da silinmesi kullanıcının açık isteği: karttan çıkardığı dosya klasörde
+   * kalınca marka klasörü kimsenin kullanmadığı dosyalarla doluyor ve hangisinin geçerli
+   * olduğu anlaşılmıyordu.
+   *
+   * ÇÖPE ATILIYOR, KALICI SİLİNMİYOR — Drive'ın çöp kutusunda 30 gün duruyor. Yanlış
+   * slaydı silmek bir tıklık iş; geri getirmenin bir yolu olmalı.
+   *
+   * SIRA ÖNEMLİ: önce Drive, sonra kart. Ters olsaydı Drive silinemediğinde kart temizlenmiş
+   * olur, dosya klasörde kalır ve kimse fark etmezdi. */
+  /* Ok işlevi yerine `async function`: denetleyici `= async (` kalıbını çağrı sanıp
+   * yanlış alarm veriyor. Davranış aynı. */
+  async function parcaSil(m) {
+    const gecmisAdet = slotGecmisi(job, m.slot).length;
+    const soru = gecmisAdet > 1
+      ? `${slotEtiketi(m.slot)} karttan kaldırılacak ve Drive'daki ${gecmisAdet} dosyası (eski versiyonlar dahil) çöp kutusuna taşınacak. Devam edilsin mi?`
+      : `${slotEtiketi(m.slot)} karttan kaldırılacak ve Drive'daki dosyası çöp kutusuna taşınacak. Devam edilsin mi?`;
+    if (!window.confirm(soru)) return;
+
+    setHata(""); setDurum("siliniyor");
+    try {
+      const yanit = await fetch("/api/data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ driveAction: "medyaSil", isId: job.id, slot: m.slot }),
+      }).then((r) => r.json());
+      if (!yanit.ok) throw new Error(yanit.error || "Silinemedi.");
+
+      /* KALAN SLAYTLAR YENİDEN NUMARALANIYOR: 5 slayttan 2'si silinince "1, 3, 4, 5" diye
+       * boşluklu kalması hem okunmaz hem de kaydırmalı gönderinin sırasıyla uyuşmaz.
+       * Story kendi adını koruyor — o bir sıra değil, ayrı bir boyut. */
+      const kalan = (job.medya || []).filter((x) => medyaSlotu(x) !== m.slot);
+      const sayisalSira = guncelMedyalar({ medya: kalan })
+        .map((x) => x.slot)
+        .filter((x) => x !== STORY_SLOT);
+      const yeniAd = new Map(sayisalSira.map((eskiSlot, i) => [eskiSlot, String(i + 1)]));
+      const yeniMedya = kalan.map((x) => {
+        const eskiSlot = medyaSlotu(x);
+        const ad = yeniAd.get(eskiSlot);
+        return ad && ad !== eskiSlot ? { ...x, slot: ad } : x;
+      });
+
+      setDurum("bos");
+      setAcikSlot(null);
+      setGecmisSlot(null);
+      if (onMedyaDegis) {
+        onMedyaDegis(yeniMedya, `${slotEtiketi(m.slot)} silindi — Drive'da çöp kutusuna taşındı (${yanit.silinen.length} dosya).`);
+      }
+    } catch (e) {
+      setDurum("hata");
+      setHata(String((e && e.message) || e));
+    }
+  }
+
   const dosyaSec = (slot) => {
     hedefSlotRef.current = slot || null;
     if (girdiRef.current) {
@@ -826,6 +881,7 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
     hazirlaniyor: "Hazırlanıyor…",
     yukleniyor: `Yükleniyor… %${yuzde}`,
     bitiyor: "Tamamlanıyor…",
+    siliniyor: "Siliniyor…",
   }[durum];
 
   const slaytSayisi = slotlar.filter((m) => m.slot !== STORY_SLOT).length;
@@ -905,6 +961,12 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
                       <button style={{ ...btnGhost, fontSize: 12 }}
                               onClick={() => setGecmisSlot(gecmisSlot === m.slot ? null : m.slot)}>
                         Versiyon geçmişi ({gecmis.length})
+                      </button>
+                    )}
+                    {typeof onMedyaDegis === "function" && (
+                      <button style={{ ...btnGhost, fontSize: 12, color: C.danger, borderColor: C.danger }}
+                              onClick={() => parcaSil(m)}>
+                        Bu parçayı sil
                       </button>
                     )}
                   </div>
