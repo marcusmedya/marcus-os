@@ -1148,6 +1148,7 @@ export function MusteriPaylasimPlani({ plan, marka }) {
           gorselUrl={p.gorselUrl}
           altMetin={p.altMetin}
           yapildi={p.yapildi}
+          isId={p.isId}
         />
       ))}
     </div>
@@ -1177,7 +1178,7 @@ export function MusteriPaylasimPlani({ plan, marka }) {
           {secili && (
             <div style={{ marginTop: 20, display: "flex", justifyContent: "center" }}>
               <div>
-                <InstagramOnizleme marka={marka} tur={secili.tur} gun={secili.gun} gorselUrl={secili.gorselUrl} altMetin={secili.altMetin} yapildi={secili.yapildi} />
+                <InstagramOnizleme marka={marka} tur={secili.tur} gun={secili.gun} gorselUrl={secili.gorselUrl} altMetin={secili.altMetin} yapildi={secili.yapildi} isId={secili.isId} />
                 <button style={{ ...cancelBtnStyle, width: "100%", justifyContent: "center", marginTop: 8 }} onClick={() => setSecili(null)}>Kapat</button>
               </div>
             </div>

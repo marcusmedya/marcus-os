@@ -39,6 +39,8 @@ import { DriveGorsel, DriveVideo, driveEmbedUrl, VIDEO_YONLERI, DriveKucukGorsel
 import { surumDinle, surumBildir } from "./surum.js";
 import { InstagramOnizleme, InstagramIzgara, aylikRaporAc } from "./instagram.jsx";
 import { MusteriPaneli } from "./musteriPaneli.jsx";
+import { hazirIcerikleriUret, musteriKayitlariniSuz } from "../lib/musteri-gorunumu.js";
+import { markaEslestirici } from "../lib/marka-kilidi.js";
 import { Finans, HesapBakiyeleri, MiniList, hesapBakiyesi } from "./finans.jsx";
 import { HataYakalayici } from "./hataYakalayici.jsx";
 import { Personel, avansToplami, avansKisiyeAitMi, odemeToplami, odemeKisiyeAitMi, AvansVerFormu, AvansListesi } from "./personel.jsx";
@@ -4112,6 +4114,7 @@ function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
                   gorselUrl={p.gorselUrl}
                   altMetin={p.altMetin}
                   yapildi={p.yapildi}
+                  isId={p.isId}
                   kompakt
                 />
                 {duzenlenen === p.id ? (
@@ -4297,6 +4300,57 @@ function OrtakMarkaPaneli({ firmaAdi }) {
   );
 }
 
+/**
+ * OPERASYON'DAN YANSIYAN KARTLAR.
+ *
+ * Müşteri paneli iki kaynaktan besleniyor: buradan gönderdiğin içerik kayıtları ve
+ * Operasyon'daki işlerin CANLI YANSIMASI. İkincisi bu ekranda hiç görünmüyordu; müşteri
+ * "12 onay bekleyen" görürken burada "onay bekleyen içerik yok" yazıyordu.
+ *
+ * Bunlar salt okunur: kaydın kendisi Operasyon'da yaşıyor, aşaması oradan değişiyor.
+ * Burada durmalarının sebebi tek — müşterinin ne gördüğünü senin de görmen.
+ */
+function YansiyanKartlar({ liste }) {
+  if (!liste || liste.length === 0) return null;
+
+  const ETIKET = {
+    bekliyor: { yazi: "onay bekliyor", renk: T.warning },
+    revize: { yazi: "revize istendi", renk: T.danger },
+    onaylandi: { yazi: "onaylandı", renk: T.success },
+  };
+
+  return (
+    <div style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 15px", marginBottom: 14 }}>
+      <div style={{ fontSize: 13, fontWeight: 700, color: T.text, fontFamily: "Inter", marginBottom: 4 }}>
+        Operasyon'dan yansıyan {liste.length} kart
+      </div>
+      <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", lineHeight: 1.6, marginBottom: 10 }}>
+        Müşteri bunları kendi panelinde görüyor. Kayıt Operasyon'da yaşıyor — aşaması orada
+        değişince buradan da düşer, buradan düzenlenmez.
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+        {liste.map((h) => {
+          const e = ETIKET[h.durum] || ETIKET.bekliyor;
+          return (
+            <div key={h.isId} style={{ display: "flex", alignItems: "center", gap: 10, background: T.surface, borderRadius: 7, padding: "6px 10px" }}>
+              <span style={{ width: 34, height: 34, borderRadius: 6, overflow: "hidden", flexShrink: 0, background: T.surfaceRaised, border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {h.dosyaLinki
+                  ? <DriveKucukGorsel link={h.dosyaLinki} isId={h.isId} />
+                  : <span style={{ fontSize: 13 }}>🗒</span>}
+              </span>
+              <span style={{ minWidth: 0, flex: 1, fontSize: 13, color: T.text, fontFamily: "Inter", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {h.baslik}
+                {h.teslimTarihi ? <span style={{ color: T.textFaint }}> · {tarihGoster(h.teslimTarihi)}</span> : null}
+              </span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: e.renk, fontFamily: "Inter", flexShrink: 0 }}>{e.yazi}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function MusteriPaneliYonetimi({ saltOkunur = false, hedef, clients, icerikler, onAdd, onUpdate, onDelete, onOnayla, onBildir, onCekildi, onMarkaDuzelt, onIsOlustur, plan, reklamlar, isler, onAltMetin, firmaAdi, logo, olcumler }) {
   const [secili, setSecili] = useState(null);
 
@@ -4307,12 +4361,45 @@ function MusteriPaneliYonetimi({ saltOkunur = false, hedef, clients, icerikler, 
   }, [hedef && hedef.damga]);
 
   const aktifler = (clients || []).filter((c) => c.durum !== "ayrildi");
-  const listesi = (id) => (icerikler || []).filter((i) => String(i.clientId) === String(id));
-  const sayac = (id, durum) => listesi(id).filter((i) => i.durum === durum).length;
 
-  const toplamBekleyen = (icerikler || []).filter((i) => i.durum === "bekliyor").length;
-  const toplamRevize = (icerikler || []).filter((i) => i.durum === "revize").length;
-  const toplamPlan = (icerikler || []).filter((i) => i.tur === "cekim").length;
+  /* SENKRON — BU EKRAN MÜŞTERİNİN GÖRDÜĞÜNÜ GÖSTERMELİ.
+   *
+   * Yaşanan sorun: müşteri panelinde "Onay Bekleyenler 12" yazarken bu ekranda aynı marka
+   * için "Onay bekleyen içerik yok" yazıyordu. Sebep, iki tarafın AYRI kural yazması:
+   *
+   *   müşteri paneli -> musteriIcerikleri + Operasyon kartlarının CANLI YANSIMASI
+   *   bu ekran       -> yalnızca musteriIcerikleri
+   *
+   * Bir iş "Kontrol Bekliyor"a geçtiğinde müşteri panelinde beliriyor ama burada hiç
+   * görünmüyordu. Rozetler de aynı sebeple boş kalıyordu — yani bu ekrandaki sayılara
+   * bakarak "bu markada bekleyen yok" demek yanlış oluyordu.
+   *
+   * Artık iki taraf da lib/musteri-gorunumu.js'teki AYNI iki fonksiyonu çağırıyor. */
+  const yansiyanlar = useMemo(() => {
+    const harita = new Map();
+    for (const c of (clients || [])) {
+      harita.set(String(c.id), hazirIcerikleriUret(isler, markaEslestirici(clients || [], c.ad)));
+    }
+    return harita;
+  }, [clients, isler]);
+  const yansiyan = (id) => yansiyanlar.get(String(id)) || [];
+
+  /* Kayıt listesi de müşterinin gördüğü süzgeçten geçiyor: bir Operasyon işine bağlı
+   * kopyalar müşteriye gitmiyor, o yüzden burada da sayılmamalı — yoksa aynı iş iki kez
+   * sayılırdı. */
+  const listesi = (id) => musteriKayitlariniSuz(icerikler, isler, id);
+  const sayac = (id, durum) =>
+    listesi(id).filter((i) => i.durum === durum).length +
+    yansiyan(id).filter((h) => h.durum === durum).length;
+
+  const tumYansiyanlar = useMemo(() => [...yansiyanlar.values()].flat(), [yansiyanlar]);
+  const gorunenKayitlar = useMemo(() => musteriKayitlariniSuz(icerikler, isler), [icerikler, isler]);
+
+  const toplamBekleyen = gorunenKayitlar.filter((i) => i.durum === "bekliyor").length
+    + tumYansiyanlar.filter((h) => h.durum === "bekliyor").length;
+  const toplamRevize = gorunenKayitlar.filter((i) => i.durum === "revize").length
+    + tumYansiyanlar.filter((h) => h.durum === "revize").length;
+  const toplamPlan = gorunenKayitlar.filter((i) => i.tur === "cekim").length;
 
   const seciliMarka = aktifler.find((c) => String(c.id) === String(secili));
 
@@ -4423,6 +4510,7 @@ function MusteriPaneliYonetimi({ saltOkunur = false, hedef, clients, icerikler, 
       {seciliMarka ? (
         <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
           <div style={{ fontSize: 15, color: T.text, fontWeight: 700, fontFamily: "Inter", marginBottom: 14 }}>{seciliMarka.ad}</div>
+          <YansiyanKartlar liste={yansiyan(seciliMarka.id)} />
           <IcerikYonetimMotoru
             clientId={seciliMarka.id}
             icerikler={icerikler}
