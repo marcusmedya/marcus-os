@@ -409,9 +409,12 @@ t("dosyası olan kart silinemiyor", cekim.includes("KART SİLİNMEDEN ÖNCE DOSY
  * diğer her şey (Onayla, Revize İste, Düzenle, Sil, aşama değiştir) kilit varken de
  * çalışıyor. Bu tutarsızlık kullanıcıyı iki kapının arasında bırakıyordu: kilit varken
  * dosya silinemiyor, dosya varken de kart silinemiyor. */
+/* Argüman ADINA değil, KURALIN kendisine bakıyor: medya yükleyici kartın normal
+ * düzenleme kapısından geçiyor ve kilit o kapıya ek bir şart koymuyor. İmza
+ * değiştiğinde (staffName -> islemYetkisi) bu kontrol boşuna kırılmıştı. */
 t("düzenleme kilidi medyayı da kapatmıyor",
-  /duzenlenebilir=\{duzenleyebilirMi\(job, role, staffName\)\}/.test(cekim));
-t("kilit artık hiçbir yerde duvar değil", !/duzenleyebilirMi\(job, role, staffName\) && !kilitleyen/.test(cekim));
+  /duzenlenebilir=\{duzenleyebilirMi\([^)]*\)\}/.test(cekim));
+t("kilit artık hiçbir yerde duvar değil", !/duzenleyebilirMi\([^)]*\) && !kilitleyen/.test(cekim));
 t("kilit uyarısı yerinde duruyor (bilgi olarak)", cekim.includes("<KilitUyarisi kisi={kilitleyen} />"));
 t("silme düğmesi doğrudan onDelete çağırmıyor", !/onClick=\{\(\) => \{ if \(window\.confirm\("Bu iş silinsin mi\?"\)\) onDelete\(job\.id\); \}\}/.test(cekim));
 t("engel mesajı ne yapılacağını söylüyor", cekim.includes("Önce dosyaları kaldır"));

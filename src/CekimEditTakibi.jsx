@@ -3,6 +3,7 @@ import { medyaVarMi, asamalariDuzelt, guncelMedyalar, slotGecmisi, slotEtiketi,
          bosSlot, medyaSlotu, STORY_SLOT, EN_FAZLA_SLAYT } from "../lib/asamalar.js";
 import { useSunucuOnizleme, useVideoAdresi, videoEni, gomuluEngelliMi, GOMULU_ACIKLAMA, onizlemeyiTazele } from "./drive.jsx";
 import { isBasladi, isBitti } from "../lib/suren-isler.js";
+import { kartiIsleyebilirMi } from "../lib/is-yetkisi.js";
 // Para gösterimleri Gizlilik Modu'na uymalı — aksi halde ücretler gizliyken de görünür kalırdı.
 import { fmt, T, authHeaders, tarihIso } from "./tema.jsx";
 import {
@@ -287,12 +288,10 @@ const STAFF_NAME_KEY = "marcusStaffName";
 export const getStaffName = () => { try { return localStorage.getItem(STAFF_NAME_KEY) || ""; } catch { return ""; } };
 export const setStaffName = (n) => { try { localStorage.setItem(STAFF_NAME_KEY, n); } catch {} };
 
-/** Bir kullanıcının bu işi değiştirme yetkisi var mı (kendi işi mi, yoksa yönetici mi). */
-function duzenleyebilirMi(job, role, staffName) {
-  if (role === "owner") return true;
-  if (!staffName) return false;
-  const n = staffName.trim().toLocaleLowerCase("tr");
-  return (job.kameraman || "").trim().toLocaleLowerCase("tr") === n || (job.editor || "").trim().toLocaleLowerCase("tr") === n;
+/* Kural lib/is-yetkisi.js'de — tek kaynak, ayrıca Node testinden çağrılabiliyor.
+ * Buradaki sarmalayıcı yalnızca çağrı biçimini koruyor. */
+function duzenleyebilirMi(job, role, islemYetkisi) {
+  return kartiIsleyebilirMi(role, islemYetkisi);
 }
 
 const inputStyle = { width: "100%", background: C.panelAlt, border: `1px solid ${C.border}`, borderRadius: 9, padding: "6px 10px", color: C.text, fontSize: 13, fontFamily: "inherit", outline: "none" };
@@ -1184,7 +1183,7 @@ function SlotKucukOnizleme({ isId, slot, video }) {
   );
 }
 
-function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose, onUpdate, onDelete, kilitleyen, markaYoneticisiMi, firmaAdi, ucretDetayi, onSaveUcretDetayi }) {
+function IsDetayModal({ job, clients, role, staffName, islemYetkisi, personelRosteri, onClose, onUpdate, onDelete, kilitleyen, markaYoneticisiMi, firmaAdi, ucretDetayi, onSaveUcretDetayi }) {
   const [yorum, setYorum] = useState("");
   const [revizeMetni, setRevizeMetni] = useState("");
   const [revizeAciliyor, setRevizeAciliyor] = useState(false);
@@ -1193,7 +1192,7 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
   const [dosyaDuzenle, setDosyaDuzenle] = useState(false);
   const [dosyaTaslak, setDosyaTaslak] = useState({ hamDosyaLink: job.hamDosyaLink || "", editliDosyaLink: job.editliDosyaLink || "" });
 
-  const yetkili = duzenleyebilirMi(job, role, staffName);
+  const yetkili = duzenleyebilirMi(job, role, islemYetkisi);
   const aciliyet = aciliyetDurumu(job);
   const stil = ACILIYET_STIL[aciliyet];
 
@@ -1358,7 +1357,7 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
 
         {!yetkili && (
           <div style={{ fontSize: 13, color: C.textFaint, background: C.panelAlt, borderRadius: 9, padding: "6px 10px", marginBottom: 14 }}>
-            Bu iş sana atanmadığı için sadece görüntüleyebiliyorsun.
+            Operasyon yetkin olmadığı için bu kartı sadece görüntüleyebiliyorsun.
           </div>
         )}
 
@@ -1478,7 +1477,7 @@ function IsDetayModal({ job, clients, role, staffName, personelRosteri, onClose,
                *
                * Eşzamanlı kayıt riski zaten _v sayacıyla karşılanıyor: araya başka bir kayıt
                * girerse istek 409 alıyor ve üzerine yazılmıyor. */
-              duzenlenebilir={duzenleyebilirMi(job, role, staffName)}
+              duzenlenebilir={duzenleyebilirMi(job, role, islemYetkisi)}
               onMedyaDegis={(yeniMedya, aciklama) => onUpdate(job.id, {
                 medya: yeniMedya,
                 gecmis: logKaydet(aciklama),
@@ -2317,7 +2316,7 @@ export function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onS
 /* ------------------------------------------------------------------ */
 /* ANA BİLEŞEN                                                           */
 /* ------------------------------------------------------------------ */
-export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, onRefreshRoster, onAddJob, onUpdateJob, onDeleteJob, girisYapanAd, isUcretleri, onSaveIsUcreti, isUcretDetaylari, onSaveIsUcretDetayi, avanslar, hesaplar, onAddAvans, onDeleteAvans, markalasmaSurecleri, onToggleMarkalasmaGorev, onSetMarkalasmaYonetici, onAddMarkalasmaGorev, onCompleteMarkalasmaSureci, onDeleteMarkalasmaSureci, markaYoneticisiMi, firmaAdi }) {
+export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, onRefreshRoster, onAddJob, onUpdateJob, onDeleteJob, girisYapanAd, islemYetkisi = true, isUcretleri, onSaveIsUcreti, isUcretDetaylari, onSaveIsUcretDetayi, avanslar, hesaplar, onAddAvans, onDeleteAvans, markalasmaSurecleri, onToggleMarkalasmaGorev, onSetMarkalasmaYonetici, onAddMarkalasmaGorev, onCompleteMarkalasmaSureci, onDeleteMarkalasmaSureci, markaYoneticisiMi, firmaAdi }) {
   const [staffName, setStaffNameState] = useState(girisYapanAd || getStaffName());
   const [view, setView] = useState(role === "staff" ? "panom" : "pano");
   const [panoKategori, setPanoKategori] = useState("Video");
@@ -2438,6 +2437,7 @@ export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, 
           clients={clients}
           role={role}
           staffName={staffName}
+          islemYetkisi={islemYetkisi}
           personelRosteri={personelRosteri}
           onClose={() => setAcikIs(null)}
           onUpdate={onUpdateJob}

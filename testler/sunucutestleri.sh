@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SUNUCU TESTLERİ — t1…t32
+# SUNUCU TESTLERİ — t1…tN (dosyalardan sayılır)
 #
 # Testler gerçek Redis'e bağlanmamalı. Bu betik @vercel/kv paketini geçici olarak
 # testler/taklit-kv ile değiştirir, testleri çalıştırır ve SONUNDA GERÇEĞİNİ GERİ KOYAR
@@ -22,7 +22,11 @@ trap geri_koy EXIT INT TERM
 mkdir -p "$KV" && cp "$KOK/testler/taklit-kv/"* "$KV/"
 
 GECEN=0; KALAN=0; SORUNLU=""
-for i in $(seq 1 60); do
+# Sabit üst sınır yerine dosyalardan sayılıyor: yeni bir test eklendiğinde koşucuyu
+# güncellemeyi unutmak, testin sessizce hiç çalışmaması demekti — bu yaşandı (t61).
+SON=$(ls "$KOK"/testler/t*.mjs 2>/dev/null | sed 's/.*\/t//; s/\.mjs//' | sort -n | tail -1)
+SON=${SON:-0}
+for i in $(seq 1 "$SON"); do
   DOSYA="$KOK/testler/t$i.mjs"
   [ -f "$DOSYA" ] || continue
   CIKTI="$(cd "$KOK" && node "$DOSYA" 2>&1)"
