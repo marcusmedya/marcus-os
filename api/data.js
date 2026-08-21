@@ -1,9 +1,9 @@
 import { kv } from "@vercel/kv";
 import crypto from "crypto";
 import { KEY, guvenliGuncelle, kilitAl, kilitBirak, guvenliYaz, deftereYaz, defteriOku,
-         catisanAlanlar, bugunISO } from "../lib/kv-yaz.js";
+         catisanAlanlar, bugunISO, mesgulYanit } from "../lib/kv-yaz.js";
 import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, tumOturumlariIptalEt, ikiAdimliAktifMi, esitMi, baslikOku } from "../lib/oturum.js";
-import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, trKucult, markaEslestirici } from "../lib/marka-kilidi.js";
+import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, birlestirmedeDusenler, trKucult, markaEslestirici } from "../lib/marka-kilidi.js";
 import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
 import { epostaGonder, revizeBildirimHtml } from "../lib/eposta.js";
 import { onaylananiTasi, DURUM_KLASORLERI, klasorDurumu, driveDosyaIdCikar, videoAkisi } from "../lib/drive-tasima.js";
@@ -870,6 +870,10 @@ export default async function handler(req, res) {
         },
       }));
 
+      /* Yazma yapılamadıysa "ok: true" dönmek yanıltıcı olur: ön yüz taşımanın
+       * kaydedildiğini sanır. Sistem yoğunsa 503 dönülür, aynı istek tekrar denenebilir
+       * (bu göç idempotent — ikinci kez çalıştırmak zarar vermez). */
+      if (yazma && yazma.mesgul) return mesgulYanit(res);
       return res.status(200).json({
         ok: true, sonuclar,
         kalan: Math.max(0, adaylar.length - sonuclar.length),
@@ -1366,6 +1370,24 @@ export default async function handler(req, res) {
         // personel sekmesi, arada yapılan değişikliklerin üzerine yazabiliyordu.
         const restricted = { staffPermissions: perms, firmaAdi: (data && data.firmaAdi) || "Marcus Medya", _v: (data && typeof data._v === "number") ? data._v : 0 };
 
+        /* ALAN SÜRÜM SAYAÇLARI PERSONELE DE GİDİYOR — GİTMEZSE HİÇBİR ŞEY KAYDEDEMİYORLAR.
+         *
+         * Çakışma kontrolü alan bazlı: istemci dokunduğu alanların SON GÖRDÜĞÜ sayacını
+         * gönderiyor, sunucu onunla karşılaştırıyor. "Tabanı bilmiyorum" demek, üzerine
+         * körlemesine yazma isteği demektir ve reddediliyor — doğrusu da bu.
+         *
+         * Ama bu sayaçlar personel/çözüm ortağı yanıtına hiç konmuyordu. Tarayıcı boş bir
+         * harita gönderiyor, sunucu her alanı "tabanı bilinmiyor" sayıp 409 dönüyordu:
+         * personel ve çözüm ortakları normal yoldan HİÇBİR ŞEY kaydedemiyordu. Oluşturulan
+         * kart tarayıcıda görünüyor ama sunucuya hiç ulaşmıyor; o karta dosya yüklenmek
+         * istendiğinde "İş kartı bulunamadı" çıkıyor ve ilk tazelemede kart kayboluyordu.
+         *
+         * Sayaçlar yalnızca sayı — içerik taşımıyorlar. Gizli alan ADLARI zaten
+         * lib/kv-yaz.js'teki SAYACA_GIRMEYEN listesiyle sayaca hiç girmiyor. */
+        if (data && data._alanSurumleri && typeof data._alanSurumleri === "object") {
+          restricted._alanSurumleri = { ...data._alanSurumleri };
+        }
+
         /* MARKA KİLİDİ: hesaba marka listesi tanımlıysa, veri daha izinlere dağıtılmadan
          * ÖNCE süzülür. Böylece hangi izin açık olursa olsun, o hesap başka markanın
          * verisini asla göremez. Kilitli hesaplardan reklam bütçesi ve müşteri finansalları
@@ -1425,6 +1447,14 @@ export default async function handler(req, res) {
           /* Yönetici şifresi tanımlı mı — tanımlı DEĞİLSE hiç kimse giremez.
            * Eskiden tam tersiydi: tanımsızken HERKES yönetici oluyordu. */
           sitePasswordVar: !!process.env.SITE_PASSWORD,
+          /* Cron uçlarını koruyan sır. Tanımlı değilse gece yedeği ve günlük özet
+           * ÇALIŞMAZ — ama hiçbir hata da vermez, bu yüzden ekranda söylenmesi gerekiyor. */
+          cronSecretVar: !!process.env.CRON_SECRET,
+          /* HANGİ ORTAMDAYIZ. Denetimde çıkan asıl sorun buydu: değişkenler Production'da
+           * tanımlıydı ama Preview'da değildi ve bunu görmenin bir yolu yoktu. Artık
+           * hangi ortama bakıldığı ekranda yazıyor — önizleme dağıtımını açan biri
+           * eksikliği anında görüyor. */
+          ortam: process.env.VERCEL_ENV || "yerel",
         },
       });
     }
@@ -1532,6 +1562,9 @@ export default async function handler(req, res) {
         // Personel kaydı da artık kilit altında, EN GÜNCEL veri okunarak yapılıyor ve
         // versiyon sayacını artırıyor. Ayrıca çakışma kontrolü personel için de geçerli:
         // iki editör aynı anda çalışırken biri diğerinin işini geri alamıyor.
+        /* Marka kilidi yüzünden elenen kayıtlar. Kilit içinde dolduruluyor, yanıtta
+         * kullanıcıya bildiriliyor. */
+        const dusenKayitlar = [];
         const sonuc = await guvenliGuncelle(async (existing) => {
           /* Personelde de çakışma yalnızca DOKUNULAN alanlara bakıyor — yöneticideki
            * gerekçenin aynısı: başka bir bölümde çalışan biri herkesi bayat yapmasın. */
@@ -1581,6 +1614,11 @@ export default async function handler(req, res) {
                * sadece bu hesabın markalarına ait olanlar güncellenir. Dizi ve nesne
                * (stoklar, gunlukKontrol, musteriGirisleri) alanları ayrı ayrı ele alınır. */
               if (yaziKilitli) {
+                /* Elenen kayıtlar TOPLANIYOR — sessizce düşmesinler. Kullanıcı kartı
+                 * ekranında görmeye devam edip sunucuda olmadığını ancak dosya
+                 * yüklemeye çalışınca anlıyordu. */
+                dusenKayitlar.push(...birlestirmedeDusenler(existing, data, f, yaziMarkalari)
+                  .map((x) => ({ ...x, alan: f })));
                 merged[f] = yazmayiBirlestir(existing, data, f, yaziMarkalari);
                 return;
               }
@@ -1671,6 +1709,10 @@ export default async function handler(req, res) {
           ok: true, _v: staffSonHal._v,
           alanSurumleri: (staffSonHal && staffSonHal._alanSurumleri) || {},
           ...(stokBildirimi ? { stok: stokBildirimi } : {}),
+          /* KAYDEDİLEMEYEN KAYITLAR AÇIKÇA BİLDİRİLİYOR.
+           * Marka kilidi yüzünden elenen kayıt, "ok: true" ile birlikte sessizce yok
+           * oluyordu. Kullanıcı kartı ekranında görmeye devam ediyor, sunucuda yok. */
+          ...(dusenKayitlar.length > 0 ? { kaydedilmeyenler: dusenKayitlar } : {}),
         });
       }
 
@@ -1678,6 +1720,9 @@ export default async function handler(req, res) {
       // yazma tek bir bölünmez blok halinde yapılıyor. Eskiden bu adımlar arasında başka
       // bir isteğin araya girip yazdığı değişiklik fark edilmeden siliniyordu.
       const ownerKilidi = await kilitAl();
+      /* Kilit alınamadıysa kayıt REDDEDİLİR. Kilitsiz yazmak, o an kaydeden diğer
+       * kullanıcıların değişikliğini fark edilmeden silmek demekti. */
+      if (!ownerKilidi) return mesgulYanit(res);
       /* Drive taşıma, kilit BIRAKILDIKTAN SONRA yapılacağı için kaydın öncesi/sonrası
        * buraya taşınır. Kilit içinde taşıma yapılamaz: not düşen guvenliGuncelle kendi
        * kilidini almak ister ve alamaz. */

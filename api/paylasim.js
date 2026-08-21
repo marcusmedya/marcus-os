@@ -1,5 +1,5 @@
 import { kv } from "@vercel/kv";
-import { KEY, guvenliYaz, kilitAl, kilitBirak, bugunISO } from "../lib/kv-yaz.js";
+import { KEY, guvenliYaz, kilitAl, kilitBirak, bugunISO, mesgulYanit } from "../lib/kv-yaz.js";
 import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
 import { markaErisimiVarMi } from "../lib/marka-kilidi.js";
 import { onaylananiTasi, DURUM_KLASORLERI } from "../lib/drive-tasima.js";
@@ -187,6 +187,9 @@ export default async function handler(req, res) {
   // Tüm işlem (oku → değiştir → yaz) kilit altında yapılır: iki personel aynı anda
   // stok işaretlediğinde birinin değişikliği diğerini silmesin.
   let kilitAlindi = await kilitAl();
+  /* Kilit alınamadıysa yazma yapılmaz — iki personel aynı anda stok işaretlediğinde
+   * birinin değişikliğinin diğerini silmesi, tam olarak bu anda oluyordu. */
+  if (!kilitAlindi) return mesgulYanit(res);
   try {
     const body = req.body || {};
     const { action } = body;

@@ -48,6 +48,7 @@ import { PAYLASIM_TURLERI, stokAnahtari, stokYanitiniUygula } from "../lib/stok.
 import { Finans, HesapBakiyeleri, MiniList, hesapBakiyesi } from "./finans.jsx";
 import { HataYakalayici } from "./hataYakalayici.jsx";
 import { Personel, avansToplami, avansKisiyeAitMi, odemeToplami, odemeKisiyeAitMi, AvansVerFormu, AvansListesi } from "./personel.jsx";
+import { surenIsVarMi } from "../lib/suren-isler.js";
 
 function Dashboard({ data }) {
   const { monthly } = data;
@@ -5684,9 +5685,25 @@ const AYAR_SEKMELERI = [
   { key: "hesap", label: "Hesaplar" },
 ];
 
+/* Vercel'in ortam adları teknik; ekranda Türkçe karşılığı görünsün. */
+const ORTAM_ADI = {
+  production: "Canlı (Production)",
+  preview: "Önizleme (Preview)",
+  development: "Geliştirme (Development)",
+  yerel: "Yerel makine",
+};
+/* Bunlar OLMADAN sistem güvenli çalışmaz: SITE_PASSWORD yoksa kimse giremez,
+ * CRON_SECRET yoksa gece yedeği ve günlük özet sessizce hiç çalışmaz. */
+const ZORUNLU_DEGISKENLER = [
+  { anahtar: "SITE_PASSWORD", bayrak: "sitePasswordVar" },
+  { anahtar: "CRON_SECRET", bayrak: "cronSecretVar" },
+];
+
 function Ayarlar({ onGit, guvenlik, silinenler, onSurumGuncelle, onGeriAl, onKaliciSil, onExport, onExportJson, onImportJson, firmaAdi, tebligSablonu, onSaveTeblig, staffPermissions, onUpdatePermissions, markaKimligiGorseli, onSaveMarkaKimligi, paylasimGorseli, onSavePaylasimGorseli, acikZeminLogosu, onSaveAcikZeminLogosu, onRosterChange, clients, gizlilikModu, onToggleGizlilik, islemGecmisi }) {
   const [ayarSekme, setAyarSekme] = useState("gorunum");
   const fileInputRef = useRef(null);
+  const eksikDegiskenler = ZORUNLU_DEGISKENLER.filter((x) => guvenlik && !guvenlik[x.bayrak]).map((x) => x.anahtar);
+  const yapilandirmaTam = Boolean(guvenlik) && eksikDegiskenler.length === 0;
   const rows = [
     { label: "İşletme Adı", value: "Marcus Medya" },
     { label: "Sektör", value: "Medya & Reklam Ajansı" },
@@ -5836,6 +5853,23 @@ function Ayarlar({ onGit, guvenlik, silinenler, onSurumGuncelle, onGeriAl, onKal
           * bu bilgi sunucudan geliyor. */}
         {guvenlik && (
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+            {/* ORTAM YAPILANDIRMA KARTI
+              * Denetimde çıkan en ciddi açık, kodun kendisinde değil yapılandırmadaydı:
+              * SITE_PASSWORD bir ortamda tanımsız kalırsa o dağıtım korumasız açılıyordu.
+              * Artık kod bu durumda kimseyi içeri almıyor — ama eksikliği GÖRMENİN de bir
+              * yolu olmalı. Bu kart, açık olan dağıtımın hangi ortam olduğunu ve orada
+              * hangi değişkenin eksik olduğunu söyler; önizleme adresini açan biri
+              * eksikliği anında görür. */}
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 9, background: yapilandirmaTam ? T.successSoft : T.dangerSoft, borderRadius: 10, padding: "12px 15px" }}>
+              <span style={{ fontSize: 15, lineHeight: 1 }}>{yapilandirmaTam ? "✓" : "⚠"}</span>
+              <div style={{ fontSize: 13, fontFamily: "Inter", lineHeight: 1.6, color: yapilandirmaTam ? T.success : T.danger }}>
+                <strong>Bu dağıtım: {ORTAM_ADI[guvenlik.ortam] || guvenlik.ortam}</strong><br />
+                {yapilandirmaTam
+                  ? <>Zorunlu ortam değişkenlerinin hepsi bu ortamda tanımlı.</>
+                  : <>Eksik: {eksikDegiskenler.map((x) => <code key={x} style={{ marginRight: 6 }}>{x}</code>)}<br />
+                      Vercel → Settings → Environment Variables → bu ortamı işaretleyerek ekle → <strong>Redeploy</strong>.</>}
+              </div>
+            </div>
             <div style={{ display: "flex", alignItems: "flex-start", gap: 9, background: guvenlik.ikiAdimliAktif ? T.successSoft : T.dangerSoft, borderRadius: 10, padding: "12px 15px" }}>
               <span style={{ fontSize: 15, lineHeight: 1 }}>{guvenlik.ikiAdimliAktif ? "✓" : "⚠"}</span>
               <div style={{ fontSize: 13, fontFamily: "Inter", lineHeight: 1.6, color: guvenlik.ikiAdimliAktif ? T.success : T.danger }}>
@@ -6914,6 +6948,16 @@ export default function MarcusOS() {
   // uygular. Bekleyen/aktif bir kayıt varsa üzerine yazmaz (kendi değişikliğini kaybetmesin).
   const veriyiYenile = () => {
     if (saveTimer.current || saveStatusRef.current === "saving") return Promise.resolve(false);
+    /* SÜREN UZUN BİR İŞ VARSA DOKUNMA.
+     *
+     * Yukarıdaki iki koşul yalnızca "bekleyen bir KAYIT var mı" diye bakıyor. Drive'a
+     * dosya yüklemek bir kayıt değil — baytlar doğrudan Google'a gidiyor ve 80 MB'lık bir
+     * videoda dakikalarca sürüyor. O süre boyunca uygulama kendini boşta sanıp bu
+     * tazelemeyi çalıştırıyor ve kartların tamamını sunucudaki hâliyle değiştiriyordu.
+     *
+     * Dahası: dosya seçme penceresi kapandığında pencere odağı geri alıyor ve `focus`
+     * olayı bu tazelemeyi tetikliyor. Yani HER yüklemenin başında bir tazeleme vardı. */
+    if (surenIsVarMi()) return Promise.resolve(false);
     return fetch("/api/data", { headers: authHeaders() })
       .then(async (r) => {
         if (!r.ok) return false;
@@ -7140,6 +7184,27 @@ export default function MarcusOS() {
           otomatikBirlestirmeSayisi.current = 0;
           setSaveStatus("saved");
           setLastSavedAt(new Date());
+
+          /* SUNUCUNUN KAYDETMEDİĞİ KAYITLAR SÖYLENİYOR.
+           *
+           * Marka kilitli bir hesap yetkisi olmayan (ya da markası hiç seçilmemiş) bir
+           * kayıt gönderdiğinde sunucu onu eliyor — bu doğru. Ama eskiden bunu "ok: true"
+           * ile birlikte SESSİZCE yapıyordu: kart tarayıcıda duruyor, sunucuda yok.
+           * Kullanıcı bunu ancak o karta dosya yüklemeye çalışınca "İş kartı bulunamadı"
+           * hatasıyla öğreniyor, ilk tazelemede de kart ekrandan kayboluyordu. */
+          if (Array.isArray(res.kaydedilmeyenler) && res.kaydedilmeyenler.length > 0) {
+            const markasiz = res.kaydedilmeyenler.filter((x) => x.sebep === "markasiz");
+            const yetkisiz = res.kaydedilmeyenler.filter((x) => x.sebep !== "markasiz");
+            const parcalar = [];
+            if (markasiz.length > 0) {
+              parcalar.push(`${markasiz.length} kayıt MARKASIZ olduğu için kaydedilmedi — kartı açıp markasını seç.`);
+            }
+            if (yetkisiz.length > 0) {
+              const markalar = [...new Set(yetkisiz.map((x) => x.marka).filter(Boolean))];
+              parcalar.push(`${yetkisiz.length} kayıt${markalar.length ? ` (${markalar.join(", ")})` : ""} senin yetkin dışındaki bir markaya ait olduğu için kaydedilmedi.`);
+            }
+            setStaleConflictMsg(parcalar.join(" "));
+          }
         })
         .catch(() => setSaveStatus("error"));
     }, 500);

@@ -1,5 +1,5 @@
 import { kv } from "@vercel/kv";
-import { KEY as MAIN_KEY, guvenliYaz, kilitAl, kilitBirak } from "../lib/kv-yaz.js";
+import { KEY as MAIN_KEY, guvenliYaz, kilitAl, kilitBirak, mesgulYanit } from "../lib/kv-yaz.js";
 import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
 import { deftereYaz } from "../lib/kv-yaz.js";
 
@@ -86,6 +86,10 @@ export default async function handler(req, res) {
       if (!snapshot) return res.status(404).json({ error: "Bu yedek bulunamadı." });
 
       const kilitAlindi = await kilitAl();
+      /* Geri yükleme, sistemdeki en tehlikeli yazma işlemi: tüm veriyi değiştirir.
+       * Kilit alınamadıysa KESİNLİKLE yapılmaz — kilitsiz bir geri yükleme, o sırada
+       * kaydeden herkesin işini sessizce silerdi. */
+      if (!kilitAlindi) return mesgulYanit(res);
       try {
         // EN ÖNEMLİ KISIM: geri yüklemeden ÖNCE mevcut verinin tam bir kopyasını ayrı bir
         // anahtara alıyoruz. Eskiden bu yapılmıyordu — yanlış tarihe dönüp sonra biri bir

@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { medyaVarMi, asamalariDuzelt, guncelMedyalar, slotGecmisi, slotEtiketi,
          bosSlot, medyaSlotu, STORY_SLOT, EN_FAZLA_SLAYT } from "../lib/asamalar.js";
-import { useSunucuOnizleme, useVideoAdresi, videoEni, gomuluEngelliMi, GOMULU_ACIKLAMA } from "./drive.jsx";
+import { useSunucuOnizleme, useVideoAdresi, videoEni, gomuluEngelliMi, GOMULU_ACIKLAMA, onizlemeyiTazele } from "./drive.jsx";
+import { isBasladi, isBitti } from "../lib/suren-isler.js";
 // Para gösterimleri Gizlilik Modu'na uymalı — aksi halde ücretler gizliyken de görünür kalırdı.
 import { fmt, T, authHeaders, tarihIso } from "./tema.jsx";
 import {
@@ -765,6 +766,13 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
      * dosyalar birbirinin üstüne yazılırdı. */
     const dolu = new Set(slotlar.map((m) => m.slot));
     const yeniler = [];
+    /* YÜKLEME SÜRERKEN ARKA PLAN TAZELEMESİ DURSUN.
+     * Uygulama 25 saniyede bir sunucudaki veriyi çekip yerel duruma yazıyor ve bunu
+     * yalnızca "bekleyen bir kayıt var mı" diye kontrol ediyordu. Dosya yüklemek bir
+     * kayıt değil — baytlar doğrudan Google'a gidiyor ve dakikalarca sürebiliyor.
+     * O sırada gelen tazeleme, kartların tamamını sunucudaki hâliyle değiştiriyordu. */
+    const isKimligi = `medya-yukleme-${job.id}`;
+    isBasladi(isKimligi);
     try {
       for (let i = 0; i < dosyalar.length; i += 1) {
         let slot = hedef;
@@ -782,13 +790,19 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
       }
       setDurum("bos"); setYuzde(0); setSira(null);
       if (onYuklendi) onYuklendi(yeniler);
+      /* Kartın önizlemeleri geçersiz: kart açılırken dosya henüz yoktu ve o "dosya yok"
+       * sonucu tekrar sorulmadığı için yüklenen dosya hiç görünmüyordu. */
+      onizlemeyiTazele(job.id);
     } catch (err) {
       setDurum("hata"); setSira(null);
       /* YARIM KALAN YÜKLEMELER KAYBOLMASIN: 8 dosyanın 5'i yüklendikten sonra hata olursa,
        * o beşi karta işlenir ve kullanıcı yalnızca kalanları tekrar dener. Hepsini çöpe
        * atmak, dosyaları Drive'da öksüz bırakırdı. */
       if (yeniler.length > 0 && onYuklendi) onYuklendi(yeniler);
+      if (yeniler.length > 0) onizlemeyiTazele(job.id);
       setHata(String(err.message || err));
+    } finally {
+      isBitti(isKimligi);
     }
   }
 
@@ -811,6 +825,8 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
         ? { ...m, slot: hedefSlot, versiyon: 1 }
         : m);
     onMedyaDegis(yeniMedya, `${kayit.ad || "Dosya"} ayrı parçaya taşındı: ${slotEtiketi(hedefSlot)}`);
+    /* Dosya başka slota geçti: hem eski hem yeni slotun önizlemesi artık yanlış. */
+    onizlemeyiTazele(job.id);
     setGecmisSlot(null);
   };
 
@@ -861,6 +877,10 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
     if (!window.confirm(soru)) return;
 
     setHata(""); setDurum("siliniyor");
+    /* Silme de uzun bir iş: arka plan tazelemesi araya girip kartı eski hâline
+     * döndürmesin (yükleme ile aynı gerekçe). */
+    const isKimligi = `medya-silme-${job.id}`;
+    isBasladi(isKimligi);
     try {
       const yanit = await slotuDriveDanKaldir(m.slot);
       const kalan = (job.medya || []).filter((x) => medyaSlotu(x) !== m.slot);
@@ -874,6 +894,10 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
     } catch (e) {
       setDurum("hata");
       setHata(String((e && e.message) || e));
+    } finally {
+      isBitti(isKimligi);
+      /* Silinen parçanın önizlemesi önbellekte kalırsa kartta duruyormuş gibi görünür. */
+      onizlemeyiTazele(job.id);
     }
   }
 
@@ -895,6 +919,8 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
     )) return;
 
     setHata(""); setDurum("siliniyor");
+    const isKimligi = `medya-toplu-silme-${job.id}`;
+    isBasladi(isKimligi);
     const silinenSlotlar = [];
     let sonHata = null;
     for (const m of hepsi) {
@@ -915,6 +941,8 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
         `${silinenSlotlar.length} parça silindi — Drive'da çöp kutusuna taşındı.`);
     }
     if (sonHata) { setDurum("hata"); setHata(sonHata); } else { setDurum("bos"); }
+    isBitti(isKimligi);
+    onizlemeyiTazele(job.id);
   }
 
   const dosyaSec = (slot) => {
