@@ -49,6 +49,7 @@ import { Finans, HesapBakiyeleri, MiniList, hesapBakiyesi } from "./finans.jsx";
 import { HataYakalayici } from "./hataYakalayici.jsx";
 import { Personel, avansToplami, avansKisiyeAitMi, odemeToplami, odemeKisiyeAitMi, AvansVerFormu, AvansListesi } from "./personel.jsx";
 import { surenIsVarMi } from "../lib/suren-isler.js";
+import { yeniKayitlariKoru } from "../lib/kimlik.js";
 
 function Dashboard({ data }) {
   const { monthly } = data;
@@ -7103,6 +7104,19 @@ export default function MarcusOS() {
         ? Object.keys(data).filter((a) => a !== "_v" && a !== "_alanSurumleri" && data[a] !== taban[a])
         : null;
       const alanSurumleri = taban ? (taban._alanSurumleri || {}) : null;
+      /* DEĞİŞEN ALAN YOKSA KAYIT GÖNDERİLMEZ.
+       *
+       * Karşılaştırma "hiçbir alan değişmedi" derse eskiden kayıt yine de gidiyordu — ama
+       * alan bildirimi olmadan. Sunucu bunu "hepsi değişti" sayıp ON BİR alanın sayacını
+       * birden artırıyordu; o anda uygulamada olan HERKES bir sonraki kaydında sahte
+       * çakışma alıyor ve o çakışma onların düzenlemesine mal oluyordu.
+       *
+       * Kaydedilecek bir şey yokken kaydetmenin zaten bir anlamı yok. Taban henüz
+       * oturmadıysa (ilk yükleme) eski davranış sürüyor — orada gerçekten yazmak gerekir. */
+      if (taban && Array.isArray(degisenAlanlar) && degisenAlanlar.length === 0) {
+        setSaveStatus("saved");
+        return;
+      }
       const govde = (degisenAlanlar && degisenAlanlar.length > 0 && alanSurumleri)
         ? { data, _v: data._v, degisenAlanlar, alanSurumleri }
         : { data, _v: data._v };
@@ -7141,14 +7155,43 @@ export default function MarcusOS() {
                 .then((r2) => r2.json())
                 .then((res2) => {
                   if (!res2.data) return;
+                  /* Taban ÜZERİNE YAZILMADAN önce alınıyor: "bu kaydı kullanıcı mı oluşturdu,
+                   * yoksa başkası mı sildi" sorusunun cevabı yalnızca eski tabanda var. */
+                  const onceki = sonSunucuVerisi.current;
                   sonSunucuVerisi.current = res2.data;
                   if (catisanlar && !cokTekrarladi) {
-                    /* Yalnızca çakışan alanları tazele; gerisi kullanıcıda kalsın. */
+                    /* Yalnızca çakışan alanları tazele; gerisi kullanıcıda kalsın.
+                     *
+                     * AMA TAZELEME KULLANICININ YENİ KAYDINI SİLMESİN. Eskiden listenin
+                     * tamamı sunucudakiyle değiştiriliyordu; az önce açılan kart o listede
+                     * olmadığı için ekrandan siliniyor, üstelik uyarı "diğer değişikliklerin
+                     * korundu" diyerek kaybı gizliyordu. Ölçüldü: iki kişi aynı dakikada kart
+                     * eklediğinde ikincisininki yok oluyordu.
+                     *
+                     * Kullanıcının bu tur oluşturduğu (tabanda olmayan) kayıtlar geri
+                     * ekleniyor; numarası kapılmışsa yenisi veriliyor. Başkasının SİLDİĞİ
+                     * kayıt diriltilmiyor — taban kontrolü tam da bunun için. */
+                    const korunanlar = [];
                     setData((d) => {
                       const birlesik = { ...d, _v: res2.data._v, _alanSurumleri: res2.data._alanSurumleri };
-                      for (const alan of catisanlar) birlesik[alan] = res2.data[alan];
+                      for (const alan of catisanlar) {
+                        const sunucu = res2.data[alan];
+                        const birlestirilmis = yeniKayitlariKoru(sunucu, d[alan], onceki && onceki[alan]);
+                        if (Array.isArray(birlestirilmis) && Array.isArray(sunucu)
+                            && birlestirilmis.length > sunucu.length) {
+                          korunanlar.push(`${alan}: ${birlestirilmis.length - sunucu.length}`);
+                        }
+                        birlesik[alan] = birlestirilmis;
+                      }
                       return birlesik;
                     });
+                    if (korunanlar.length > 0) {
+                      setStaleConflictMsg(
+                        `"${catisanlar.join(", ")}" bölümü başka bir cihazdan/sekmeden değişmiş. `
+                        + `Güncel hâli alındı ve az önce eklediğin kayıt korundu (${korunanlar.join(", ")}) — `
+                        + `kaydedilmesi için bir kez daha kontrol et.`,
+                      );
+                    }
                   } else {
                     setData(res2.data);
                   }
@@ -7192,6 +7235,28 @@ export default function MarcusOS() {
            * ile birlikte SESSİZCE yapıyordu: kart tarayıcıda duruyor, sunucuda yok.
            * Kullanıcı bunu ancak o karta dosya yüklemeye çalışınca "İş kartı bulunamadı"
            * hatasıyla öğreniyor, ilk tazelemede de kart ekrandan kayboluyordu. */
+          /* SUNUCU NUMARA ÇAKIŞMASI ONARDIYSA TARAYICI TAZELENMELİ.
+           *
+           * Marka kilitli hesap eksik liste gördüğü için var olan bir kaydın numarasını
+           * üretebiliyor; sunucu bunu yazmadan önce onarıyor. Ama tarayıcıdaki kopya hâlâ
+           * ESKİ numarayla duruyor: haber verilmezse bir sonraki düzenleme, dosya yüklemesi
+           * ya da silme var olmayan bir kayda gider. */
+          if (Array.isArray(res.kimlikOnarildi) && res.kimlikOnarildi.length > 0) {
+            skipNextSave.current = true;
+            fetch("/api/data", { headers: authHeaders() })
+              .then((r3) => r3.json())
+              .then((res3) => {
+                if (!res3.data) return;
+                sonSunucuVerisi.current = res3.data;
+                setData(res3.data);
+              })
+              .catch(() => {});
+            setStaleConflictMsg(
+              `${res.kimlikOnarildi.length} kaydın numarası başka bir kayıtla çakışıyordu, `
+              + `sunucu yeni numara verdi. Güncel liste çekildi — kayıtlar yerinde.`,
+            );
+          }
+
           if (Array.isArray(res.kaydedilmeyenler) && res.kaydedilmeyenler.length > 0) {
             const markasiz = res.kaydedilmeyenler.filter((x) => x.sebep === "markasiz");
             const yetkisiz = res.kaydedilmeyenler.filter((x) => x.sebep !== "markasiz");

@@ -4,6 +4,7 @@ import { KEY, guvenliGuncelle, kilitAl, kilitBirak, guvenliYaz, deftereYaz, deft
          catisanAlanlar, bugunISO, mesgulYanit } from "../lib/kv-yaz.js";
 import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, tumOturumlariIptalEt, ikiAdimliAktifMi, esitMi, baslikOku } from "../lib/oturum.js";
 import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, birlestirmedeDusenler, trKucult, markaEslestirici } from "../lib/marka-kilidi.js";
+import { belgedekiCakismalariOnar, turetilmisleriAyikla } from "../lib/kimlik.js";
 import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
 import { epostaGonder, revizeBildirimHtml } from "../lib/eposta.js";
 import { onaylananiTasi, DURUM_KLASORLERI, klasorDurumu, driveDosyaIdCikar, videoAkisi } from "../lib/drive-tasima.js";
@@ -1565,6 +1566,7 @@ export default async function handler(req, res) {
         /* Marka kilidi yüzünden elenen kayıtlar. Kilit içinde dolduruluyor, yanıtta
          * kullanıcıya bildiriliyor. */
         const dusenKayitlar = [];
+        const onarilanKimlikler = [];
         const sonuc = await guvenliGuncelle(async (existing) => {
           /* Personelde de çakışma yalnızca DOKUNULAN alanlara bakıyor — yöneticideki
            * gerekçenin aynısı: başka bir bölümde çalışan biri herkesi bayat yapmasın. */
@@ -1677,7 +1679,16 @@ export default async function handler(req, res) {
           }
           if (stokSonuc) yazilanAlanlar.add("stoklar");
           if (yeniKayitlar.length > 0) yazilanAlanlar.add("islemGecmisi");
-          return { veri: merged, degisenAlanlar: [...yazilanAlanlar] };
+
+          /* NUMARA ÇAKIŞMASI ONARIMI — asıl ihtiyaç burada.
+           * Marka kilitli hesap eksik liste gördüğü için "en büyük + 1" hesabı var olan bir
+           * kaydın numarasını üretebiliyor; ölçüldü, üretiyor. Son sözü sunucu söylesin. */
+          const onarim = belgedekiCakismalariOnar(existing, merged);
+          if (onarim.onarilanlar.length > 0) {
+            onarim.onarilanlar.forEach((x) => { yazilanAlanlar.add(x.alan); onarilanKimlikler.push(x); });
+            return { veri: turetilmisleriAyikla(onarim.belge), degisenAlanlar: [...yazilanAlanlar] };
+          }
+          return { veri: turetilmisleriAyikla(merged), degisenAlanlar: [...yazilanAlanlar] };
         });
 
         /* Kayıt başarılıysa "Teslim Edildi"ye yeni geçen işlerin dosyalarını taşı.
@@ -1713,6 +1724,9 @@ export default async function handler(req, res) {
            * Marka kilidi yüzünden elenen kayıt, "ok: true" ile birlikte sessizce yok
            * oluyordu. Kullanıcı kartı ekranında görmeye devam ediyor, sunucuda yok. */
           ...(dusenKayitlar.length > 0 ? { kaydedilmeyenler: dusenKayitlar } : {}),
+          /* Numarası değiştirilen kayıtlar bildiriliyor: tarayıcıdaki kopya eski numarayla
+           * duruyor ve haber verilmezse bir sonraki düzenleme var olmayan bir kayda gider. */
+          ...(onarilanKimlikler.length > 0 ? { kimlikOnarildi: onarilanKimlikler } : {}),
         });
       }
 
@@ -1729,6 +1743,9 @@ export default async function handler(req, res) {
       let ownerOncekiVeri = null;
       let ownerYazilanVeri = null;
       let ownerStokBildirimi = null;
+      /* Yanıt kilit BIRAKILDIKTAN sonra, yani bu try bloğunun DIŞINDA üretiliyor —
+       * onarım bilgisi de buraya, dışarıda görünen bir değişkene yazılmalı. */
+      let onarilanKimlikler = [];
       try {
       // Owner'ın yerel kopyasında personelHesaplari hiç yok (GET'te hiç gönderilmiyor) —
       // bu yüzden her kayıtta mevcut hesapları sunucudan alıp geri ekliyoruz, yoksa
@@ -1865,7 +1882,17 @@ export default async function handler(req, res) {
       // Versiyonu artırır, günlük + saatlik yedeği yazar, yetim müşteri hesaplarını temizler.
       /* Yalnızca dokunulan alanların sayacı artsın — herkesin bayat olmaması için.
        * Bildirilmezse hepsi artar (eski davranış). */
-      const yazilan = await guvenliYaz(finalData, alanBazliMi ? bildirilenAlanlar : undefined);
+      /* NUMARA ÇAKIŞMASI ONARIMI + TÜRETİLMİŞ ALANLARIN AYIKLANMASI.
+       * Yöneticide çakışma nadir (tam listeyi görüyor) ama imkânsız değil: aynı anda kart
+       * açan iki yönetici sekmesi ya da eski bir sekmeden gelen kayıt aynı numarayı
+       * gönderebiliyor. Kontrol tek yerde olsun ki kural role göre değişmesin. */
+      const onarim = belgedekiCakismalariOnar(existingFull, finalData);
+      const yazilacak = turetilmisleriAyikla(onarim.belge);
+      onarilanKimlikler = onarim.onarilanlar;
+      const yazilacakAlanlar = alanBazliMi
+        ? [...new Set([...bildirilenAlanlar, ...onarilanKimlikler.map((x) => x.alan)])]
+        : undefined;
+      const yazilan = await guvenliYaz(yazilacak, yazilacakAlanlar);
 
       if (Math.random() < 0.08) {
         try {
@@ -1898,6 +1925,9 @@ export default async function handler(req, res) {
          * değişiklik yüzünden çakışma sanardı. */
         alanSurumleri: (ownerSonHal && ownerSonHal._alanSurumleri) || {},
         ...(ownerStokBildirimi ? { stok: ownerStokBildirimi } : {}),
+        /* Numarası değiştirilen kayıtlar bildiriliyor: tarayıcıdaki kopya eski numarayla
+         * duruyor ve haber verilmezse bir sonraki düzenleme var olmayan bir kayda gider. */
+        ...(onarilanKimlikler.length > 0 ? { kimlikOnarildi: onarilanKimlikler } : {}),
       });
     }
 
