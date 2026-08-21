@@ -44,7 +44,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     56 test dosyası (t1…t56) + 18 statik denetim betiği
+testler/     60 test dosyası (t1…t60) + 18 statik denetim betiği
 ```
 
 ---
@@ -74,6 +74,16 @@ eklerken yeni dosya AÇMA** — mevcut bir uca yeni bir `action` ekle. Örnek:
   sayaca dönmek, üç kişi aynı anda çalıştığında sistemi kilitler — bu yaşandı.
 - **Stok sunucu otoritesidir.** Tarayıcının gönderdiği stok kopyası kullanılmaz;
   taban her zaman sunucudaki `stoklar` alanıdır.
+- **Kayıt numarasının son sözü sunucudadır** (`lib/kimlik.js`). Tarayıcı numarayı
+  "gördüğüm en büyük + 1" diye üretiyor; marka kilitli hesap eksik liste gördüğü için
+  var olan bir kaydın numarasını üretebiliyor. Sunucu yazmadan önce çakışmaları onarır,
+  **ilk gelen numarasını korur** ve onarımı yanıtta `kimlikOnarildi` ile bildirir.
+- **Türetilmiş alanlar kalıcı belgeye yazılmaz** — `personelRosteri`, `musteriRosteri`
+  yalnızca yanıtta üretilir (`TURETILMIS_ALANLAR`).
+- **Çakışma tazelemesi kullanıcının yeni kaydını silmez** (`yeniKayitlariKoru`).
+  Tabanda olmayan kayıt kullanıcının o tur oluşturduğudur; geri eklenir, numarası
+  kapılmışsa yenisi verilir. Tabanda olup sunucuda olmayan kayıt **başkası tarafından
+  silinmiştir** — diriltilmez.
 
 ### 3. Google Drive — iki ayrı kimlik, ikisi de eksik yetkili
 
@@ -115,7 +125,7 @@ geçince düşer. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI`).
 
 ```bash
 bash testler/hepsinidenetle.sh     # 17 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t56, ~1029 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t60, ~1126 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
