@@ -7184,6 +7184,27 @@ export default function MarcusOS() {
           otomatikBirlestirmeSayisi.current = 0;
           setSaveStatus("saved");
           setLastSavedAt(new Date());
+
+          /* SUNUCUNUN KAYDETMEDİĞİ KAYITLAR SÖYLENİYOR.
+           *
+           * Marka kilitli bir hesap yetkisi olmayan (ya da markası hiç seçilmemiş) bir
+           * kayıt gönderdiğinde sunucu onu eliyor — bu doğru. Ama eskiden bunu "ok: true"
+           * ile birlikte SESSİZCE yapıyordu: kart tarayıcıda duruyor, sunucuda yok.
+           * Kullanıcı bunu ancak o karta dosya yüklemeye çalışınca "İş kartı bulunamadı"
+           * hatasıyla öğreniyor, ilk tazelemede de kart ekrandan kayboluyordu. */
+          if (Array.isArray(res.kaydedilmeyenler) && res.kaydedilmeyenler.length > 0) {
+            const markasiz = res.kaydedilmeyenler.filter((x) => x.sebep === "markasiz");
+            const yetkisiz = res.kaydedilmeyenler.filter((x) => x.sebep !== "markasiz");
+            const parcalar = [];
+            if (markasiz.length > 0) {
+              parcalar.push(`${markasiz.length} kayıt MARKASIZ olduğu için kaydedilmedi — kartı açıp markasını seç.`);
+            }
+            if (yetkisiz.length > 0) {
+              const markalar = [...new Set(yetkisiz.map((x) => x.marka).filter(Boolean))];
+              parcalar.push(`${yetkisiz.length} kayıt${markalar.length ? ` (${markalar.join(", ")})` : ""} senin yetkin dışındaki bir markaya ait olduğu için kaydedilmedi.`);
+            }
+            setStaleConflictMsg(parcalar.join(" "));
+          }
         })
         .catch(() => setSaveStatus("error"));
     }, 500);

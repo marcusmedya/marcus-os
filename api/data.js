@@ -3,7 +3,7 @@ import crypto from "crypto";
 import { KEY, guvenliGuncelle, kilitAl, kilitBirak, guvenliYaz, deftereYaz, defteriOku,
          catisanAlanlar, bugunISO, mesgulYanit } from "../lib/kv-yaz.js";
 import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, tumOturumlariIptalEt, ikiAdimliAktifMi, esitMi, baslikOku } from "../lib/oturum.js";
-import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, trKucult, markaEslestirici } from "../lib/marka-kilidi.js";
+import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, birlestirmedeDusenler, trKucult, markaEslestirici } from "../lib/marka-kilidi.js";
 import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
 import { epostaGonder, revizeBildirimHtml } from "../lib/eposta.js";
 import { onaylananiTasi, DURUM_KLASORLERI, klasorDurumu, driveDosyaIdCikar, videoAkisi } from "../lib/drive-tasima.js";
@@ -1370,6 +1370,24 @@ export default async function handler(req, res) {
         // personel sekmesi, arada yapılan değişikliklerin üzerine yazabiliyordu.
         const restricted = { staffPermissions: perms, firmaAdi: (data && data.firmaAdi) || "Marcus Medya", _v: (data && typeof data._v === "number") ? data._v : 0 };
 
+        /* ALAN SÜRÜM SAYAÇLARI PERSONELE DE GİDİYOR — GİTMEZSE HİÇBİR ŞEY KAYDEDEMİYORLAR.
+         *
+         * Çakışma kontrolü alan bazlı: istemci dokunduğu alanların SON GÖRDÜĞÜ sayacını
+         * gönderiyor, sunucu onunla karşılaştırıyor. "Tabanı bilmiyorum" demek, üzerine
+         * körlemesine yazma isteği demektir ve reddediliyor — doğrusu da bu.
+         *
+         * Ama bu sayaçlar personel/çözüm ortağı yanıtına hiç konmuyordu. Tarayıcı boş bir
+         * harita gönderiyor, sunucu her alanı "tabanı bilinmiyor" sayıp 409 dönüyordu:
+         * personel ve çözüm ortakları normal yoldan HİÇBİR ŞEY kaydedemiyordu. Oluşturulan
+         * kart tarayıcıda görünüyor ama sunucuya hiç ulaşmıyor; o karta dosya yüklenmek
+         * istendiğinde "İş kartı bulunamadı" çıkıyor ve ilk tazelemede kart kayboluyordu.
+         *
+         * Sayaçlar yalnızca sayı — içerik taşımıyorlar. Gizli alan ADLARI zaten
+         * lib/kv-yaz.js'teki SAYACA_GIRMEYEN listesiyle sayaca hiç girmiyor. */
+        if (data && data._alanSurumleri && typeof data._alanSurumleri === "object") {
+          restricted._alanSurumleri = { ...data._alanSurumleri };
+        }
+
         /* MARKA KİLİDİ: hesaba marka listesi tanımlıysa, veri daha izinlere dağıtılmadan
          * ÖNCE süzülür. Böylece hangi izin açık olursa olsun, o hesap başka markanın
          * verisini asla göremez. Kilitli hesaplardan reklam bütçesi ve müşteri finansalları
@@ -1544,6 +1562,9 @@ export default async function handler(req, res) {
         // Personel kaydı da artık kilit altında, EN GÜNCEL veri okunarak yapılıyor ve
         // versiyon sayacını artırıyor. Ayrıca çakışma kontrolü personel için de geçerli:
         // iki editör aynı anda çalışırken biri diğerinin işini geri alamıyor.
+        /* Marka kilidi yüzünden elenen kayıtlar. Kilit içinde dolduruluyor, yanıtta
+         * kullanıcıya bildiriliyor. */
+        const dusenKayitlar = [];
         const sonuc = await guvenliGuncelle(async (existing) => {
           /* Personelde de çakışma yalnızca DOKUNULAN alanlara bakıyor — yöneticideki
            * gerekçenin aynısı: başka bir bölümde çalışan biri herkesi bayat yapmasın. */
@@ -1593,6 +1614,11 @@ export default async function handler(req, res) {
                * sadece bu hesabın markalarına ait olanlar güncellenir. Dizi ve nesne
                * (stoklar, gunlukKontrol, musteriGirisleri) alanları ayrı ayrı ele alınır. */
               if (yaziKilitli) {
+                /* Elenen kayıtlar TOPLANIYOR — sessizce düşmesinler. Kullanıcı kartı
+                 * ekranında görmeye devam edip sunucuda olmadığını ancak dosya
+                 * yüklemeye çalışınca anlıyordu. */
+                dusenKayitlar.push(...birlestirmedeDusenler(existing, data, f, yaziMarkalari)
+                  .map((x) => ({ ...x, alan: f })));
                 merged[f] = yazmayiBirlestir(existing, data, f, yaziMarkalari);
                 return;
               }
@@ -1683,6 +1709,10 @@ export default async function handler(req, res) {
           ok: true, _v: staffSonHal._v,
           alanSurumleri: (staffSonHal && staffSonHal._alanSurumleri) || {},
           ...(stokBildirimi ? { stok: stokBildirimi } : {}),
+          /* KAYDEDİLEMEYEN KAYITLAR AÇIKÇA BİLDİRİLİYOR.
+           * Marka kilidi yüzünden elenen kayıt, "ok: true" ile birlikte sessizce yok
+           * oluyordu. Kullanıcı kartı ekranında görmeye devam ediyor, sunucuda yok. */
+          ...(dusenKayitlar.length > 0 ? { kaydedilmeyenler: dusenKayitlar } : {}),
         });
       }
 
