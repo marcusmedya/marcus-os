@@ -44,7 +44,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     61 test dosyası (t1…t61) + 18 statik denetim betiği
+testler/     62 test dosyası (t1…t62) + 18 statik denetim betiği
 ```
 
 ---
@@ -72,6 +72,12 @@ eklerken yeni dosya AÇMA** — mevcut bir uca yeni bir `action` ekle. Örnek:
   sayacı var. İstemci yalnızca DOKUNDUĞU alanları `degisenAlanlar` ile bildirir;
   sunucu yalnızca onların sayacına bakar ve yalnızca onları yazar. Tek genel bir
   sayaca dönmek, üç kişi aynı anda çalıştığında sistemi kilitler — bu yaşandı.
+- **Eylem uçlarında işlem kimliği (`lib/islem-kimligi.js`).** `api/paylasim.js` gibi FARK
+  bildiren uçlar ("stoğu bir artır", "plan ekle") aynı istek iki kez gidince iki kez
+  uyguluyordu. İstemci her işleme benzersiz `islemId` takar; sunucu kilit İÇİNDE bakar,
+  daha önce gördüyse tekrar uygulamaz. **Belge kaydına eklenmedi** — o bir durum bildirimi,
+  zaten tekrara dayanıklı. İki kural: kimlik yalnızca gerçekten yazıldıysa işaretlenir
+  (503'te ASLA), kontrol yazmayla aynı kilidin içinde olur.
 - **Stok sunucu otoritesidir.** Tarayıcının gönderdiği stok kopyası kullanılmaz;
   taban her zaman sunucudaki `stoklar` alanıdır.
 - **Kayıt numarasının son sözü sunucudadır** (`lib/kimlik.js`). Tarayıcı numarayı
@@ -132,7 +138,7 @@ geçince düşer. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI`).
 
 ```bash
 bash testler/hepsinidenetle.sh     # 17 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t61, ~1153 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t62, ~1201 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
