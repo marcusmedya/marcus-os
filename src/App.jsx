@@ -6939,6 +6939,16 @@ export default function MarcusOS() {
   // değişikliğin ÜZERİNE yazmamak için, bekleyen bir kayıt varsa bu turu atlar.
   // ref'lerle takip edilir ki interval her düzenlemede sıfırlanıp gerçek periyodikliğini
   // kaybetmesin — kullanıcı sürekli düzenlese bile 25 saniyede bir tetiklenmeye devam eder.
+  /* KAYIT UÇUŞTA MI — aynı anda iki kayıt gönderilmesini engeller.
+   *
+   * Bu bayrak olmadan kullanıcı KENDİ KENDİSİYLE çakışıyordu: hızlı kart ilerletmede
+   * ikinci kayıt, birincinin cevabı gelmeden gidiyor ve tarayıcının tabanı hâlâ eski
+   * olduğu için sunucu 409 veriyordu. Sonuç: kart geriye atılıyordu.
+   *
+   * Aşama değişimi bu tuzağa en açık kayıt: sunucu o sırada Drive'da dosya taşıyor,
+   * yani uygulamanın EN YAVAŞ kaydı. Cevap ne kadar gecikirse ikinci tıklamanın araya
+   * girme ihtimali o kadar artıyor. */
+  const kayitUcusta = useRef(false);
   const dataVarMi = useRef(false);
   const saveStatusRef = useRef(saveStatus);
   useEffect(() => { dataVarMi.current = !!data; }, [data]);
@@ -7089,7 +7099,21 @@ export default function MarcusOS() {
     if (skipNextSave.current) { skipNextSave.current = false; return; }
     setSaveStatus("saving");
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
+    const kaydiGonder = () => {
+      /* ÖNCEKİ KAYIT HÂLÂ YOLDAYSA BEKLE.
+       *
+       * Cevap gelmeden ikinci kaydı göndermek, tabanı bayat gönderdiği için sunucudan
+       * 409 getiriyordu ve kullanıcının ikinci değişikliği geri alınıyordu — "hızlı kart
+       * ilerlettiğimde geriye atıyor" şikâyetinin sebebi buydu. Kullanıcı burada başka
+       * biriyle değil, KENDİ ÖNCEKİ KAYDIYLA çakışıyordu.
+       *
+       * Kısa aralıkla tekrar bakılıyor. Bu arada yeni bir değişiklik olursa etki yeniden
+       * çalışıp bu zamanlayıcıyı taze veriyle değiştiriyor — yani bekleme sırasında
+       * yapılan düzenlemeler de kaybolmuyor. */
+      if (kayitUcusta.current) {
+        saveTimer.current = setTimeout(kaydiGonder, 120);
+        return;
+      }
       /* HANGİ ALANLARI DEĞİŞTİRDİK — referans karşılaştırmasıyla.
        *
        * Bu kesin bir ölçüm, tahmin değil: uygulamadaki 87 setData çağrısının hepsi durumu
@@ -7121,6 +7145,7 @@ export default function MarcusOS() {
         ? { data, _v: data._v, degisenAlanlar, alanSurumleri }
         : { data, _v: data._v };
 
+      kayitUcusta.current = true;
       fetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(govde) })
         .then(async (r) => {
           if (r.status === 409) {
@@ -7271,8 +7296,13 @@ export default function MarcusOS() {
             setStaleConflictMsg(parcalar.join(" "));
           }
         })
-        .catch(() => setSaveStatus("error"));
-    }, 500);
+        .catch(() => setSaveStatus("error"))
+        /* BAYRAK EN SONDA BIRAKILIYOR — zincirin başında bırakılsaydı, cevap gövdesi
+         * daha okunmadan ve `sonSunucuVerisi` daha tazelenmeden bir sonraki kayıt
+         * gidebilirdi. Yani düzeltmeye çalıştığımız yarışın küçük bir hâli açık kalırdı. */
+        .finally(() => { kayitUcusta.current = false; });
+    };
+    saveTimer.current = setTimeout(kaydiGonder, 500);
     return () => clearTimeout(saveTimer.current);
     // eslint-disable-next-line
   }, [data]);
