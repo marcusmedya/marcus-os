@@ -462,6 +462,32 @@ export function clientKarMarji(c) {
  *  - ele geçse bile şifreyi ifşa etmez
  */
 export const PW_KEY = "marcus-os-pw";
+/**
+ * İŞLEM KİMLİĞİ ÜRETİCİ.
+ *
+ * Eylem uçları ("stoğu bir artır", "plan ekle") bir FARK bildirimi; aynı istek iki kez
+ * giderse iki kez uygulanıyordu. Her işleme benzersiz bir kimlik takılıyor, sunucu aynı
+ * kimliği ikinci kez görürse işlemi TEKRAR UYGULAMIYOR.
+ *
+ * KİMLİK İŞLEM BAŞINA ÜRETİLİR, oturum ya da sayfa başına değil. Daha geniş üretilseydi
+ * farklı işlemler aynı sanılır ve ikincisi sessizce kaybolurdu.
+ *
+ * Otomatik tekrar denemeler (lib/mesgul-tekrar.js) AYNI gövdeyi yeniden gönderdiği için
+ * kimlik kendiliğinden aynı kalıyor — korunan durum tam olarak bu. Kullanıcı elle tekrar
+ * tıklarsa yeni kimlik üretilir ve işlem gerçekten tekrar uygulanır; istenen de bu.
+ *
+ * Biçim sunucudaki `kimlikGecerliMi` ile uyumlu olmalı (harf/rakam/tire/alt çizgi, 8-64).
+ * Testte (t62) üretilen kimliğin o kuraldan geçtiği ayrıca doğrulanıyor.
+ */
+export const islemKimligiUret = () => {
+  try {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID().replace(/-/g, "");
+    }
+  } catch (e) { /* eski tarayıcı — aşağıdaki yedeğe düşülür */ }
+  return `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 12)}`;
+};
+
 export const OTURUM_KEY = "marcus-os-oturum";
 export const OTURUM_BITIS_KEY = "marcus-os-oturum-bitis";
 

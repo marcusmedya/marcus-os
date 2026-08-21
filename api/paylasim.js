@@ -1,5 +1,6 @@
 import { kv } from "@vercel/kv";
 import { KEY, guvenliYaz, kilitAl, kilitBirak, bugunISO, mesgulYanit } from "../lib/kv-yaz.js";
+import { kayitliYanit, yanitiSakla, yanitiYakala } from "../lib/islem-kimligi.js";
 import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
 import { markaErisimiVarMi } from "../lib/marka-kilidi.js";
 import { onaylananiTasi, DURUM_KLASORLERI } from "../lib/drive-tasima.js";
@@ -188,8 +189,39 @@ export default async function handler(req, res) {
   // stok işaretlediğinde birinin değişikliği diğerini silmesin.
   let kilitAlindi = await kilitAl();
   /* Kilit alınamadıysa yazma yapılmaz — iki personel aynı anda stok işaretlediğinde
-   * birinin değişikliğinin diğerini silmesi, tam olarak bu anda oluyordu. */
+   * birinin değişikliğinin diğerini silmesi, tam olarak bu anda oluyordu.
+   *
+   * İŞLEM KİMLİĞİ BURADA YAZILMIYOR: 503 hiçbir şey yazmadan dönüyor, dolayısıyla
+   * tarayıcının otomatik tekrarı gerçekten yeniden denemeli. İşaretlenseydi "bunu zaten
+   * yaptım" sanılır ve işlem sessizce kaybolurdu. */
   if (!kilitAlindi) return mesgulYanit(res);
+
+  /* AYNI İŞLEM İKİ KEZ UYGULANMASIN.
+   *
+   * Bu uçtaki işlemler FARK bildirimi: "stoğu bir artır", "plan ekle". Aynı isteği iki kez
+   * göndermek iki kez uyguluyordu — ölçüldü: stok 10'dan 12'ye çıkıyor, toggle ise geri
+   * alınıp sessizce iptal oluyordu.
+   *
+   * Kontrol KİLİDİN İÇİNDE: dışarıda olsaydı iki hızlı tıklama aynı anda "görmedim"
+   * cevabı alır, ikisi de uygulanırdı. İşlem kimliği gönderilmezse eski davranış sürüyor. */
+  const islemId = (req.body && req.body.islemId) || null;
+  let saklama = null;
+  if (islemId) {
+    const kayitli = await kayitliYanit(islemId);
+    if (kayitli) {
+      await kilitBirak(kilitAlindi);
+      kilitAlindi = false;
+      return res.status(kayitli.kod).json({ ...kayitli.yanit, tekrarlandi: true });
+    }
+    /* Bundan sonraki her başarılı yanıt bu kimliğe kaydedilir. Yalnızca 2xx saklanır:
+     * hata yanıtları tekrar denenebilir olmalı.
+     *
+     * Saklama sözü tutuluyor ve KİLİT BIRAKILMADAN ÖNCE bekleniyor. Beklenmeseydi
+     * işaretleme kilidin dışına taşardı; en kötü ihtimalde bugünkü davranışa düşerdik
+     * ama kuralı yarım uygulamaktansa tam uygulamak daha az sürpriz üretir. */
+    yanitiYakala(res, (kod, govde) => { saklama = yanitiSakla(islemId, kod, govde); return saklama; });
+  }
+
   try {
     const body = req.body || {};
     const { action } = body;
@@ -506,6 +538,7 @@ export default async function handler(req, res) {
   } catch (e) {
     return res.status(500).json({ error: "Sunucu hatası: " + e.message });
   } finally {
+    if (saklama) await saklama.catch(() => {});
     await kilitBirak(kilitAlindi);
   }
 }

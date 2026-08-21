@@ -20,7 +20,7 @@ import { gorseliKucult, base64Bayt, boyutYazisi } from "./gorselKucult.js";
 // Tema, stiller, ortak arayüz parçaları ve genel yardımcılar tek bir dosyada toplandı
 // (bkz. src/tema.jsx) — App.jsx'i küçültmek ve bu parçaları bulunabilir kılmak için.
 import {
-  T, FONTS, fmt, fmtShort, nextId, uyelikEfektifAktifMi,
+  T, FONTS, fmt, fmtShort, nextId, islemKimligiUret, uyelikEfektifAktifMi,
   computeLive, monthKey, monthPaidAmount, monthRemaining, isMonthPaid, clientPaymentStatus,
   clientOverdueMonths, clientOverdueBalance, DEFAULT_TEBLIG_SABLONU, renderTeblig, escapeHtml, tebligHtmlFromText,
   yazdirTebligMetni, kopyalaMetin, clientFaturaliTutar, clientKarMarji, PW_KEY, OTURUM_KEY,
@@ -7908,10 +7908,20 @@ export default function MarcusOS() {
     setData((d) => ({ ...d, ...patch }));
   };
   const paylasimIstek = (body, hataMesaji) => {
+    /* İŞLEM KİMLİĞİ — bu uçtaki on iki işlemin hepsi buradan geçiyor, tek yer yetiyor.
+     *
+     * Bu işlemler FARK bildirimi ("stoğu bir artır", "plan ekle"); aynı istek iki kez
+     * giderse iki kez uygulanıyordu. Ölçüldü: stok 10'dan 12'ye çıkıyor, toggle ise geri
+     * alınıp sessizce iptal oluyordu. Kimlik, sunucunun aynı işlemi ikinci kez
+     * uygulamasını engelliyor.
+     *
+     * Kimlik burada, ÇAĞRI ANINDA üretiliyor. Otomatik tekrar denemeler aynı gövdeyi
+     * yeniden gönderdiği için kimlik de aynı kalıyor — korunmak istenen durum bu. */
+    const govde = { ...body, islemId: islemKimligiUret() };
     fetch("/api/paylasim", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify(body),
+      body: JSON.stringify(govde),
     })
       .then((r) => r.json())
       .then((res) => { if (res.ok) mergePaylasimLocally(res); else if (res.error) window.alert(res.error); })
