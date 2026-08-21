@@ -9,6 +9,7 @@
  */
 import React, { useState, useEffect } from "react";
 import { T, authHeaders } from "./tema.jsx";
+import { onizlemeAnahtari, onizlemeOku, onizlemeYaz, onizlemeyiTazele, tazelemeyiDinle } from "../lib/onizleme-bellegi.js";
 
 /**
  * ÖNİZLEME SUNUCUDAN — TEK KAYNAK.
@@ -26,7 +27,6 @@ import { T, authHeaders } from "./tema.jsx";
  * Bu kanca hem burada hem Operasyon ekranında kullanılıyor. İki kopya yazılsaydı biri
  * düzeltilip diğeri unutulurdu.
  */
-const onizlemeBellegi = new Map();
 
 /* SIRAYA SOKMA — AYNI ANDA EN FAZLA ÜÇ ÖNİZLEME.
  *
@@ -124,18 +124,34 @@ export function useVideoAdresi({ isId, icerikId, alan, slot }) {
 }
 
 export function useSunucuOnizleme({ isId, icerikId, alan, boyut = 800, slot }) {
-  const anahtar = isId !== undefined && isId !== null ? `is:${isId}:${slot || ""}:${boyut}`
-                : icerikId !== undefined && icerikId !== null ? `icerik:${icerikId}:${alan || ""}:${boyut}` : null;
-  const [veri, setVeri] = useState(() => (anahtar ? onizlemeBellegi.get(anahtar) || null : null));
+  const anahtar = onizlemeAnahtari({ isId, icerikId, alan, slot, boyut });
+  const [veri, setVeri] = useState(() => onizlemeOku(anahtar));
   const [sebep, setSebep] = useState("");
   const [durum, setDurum] = useState(() => {
     if (!anahtar) return "yok";
-    return onizlemeBellegi.get(anahtar) ? "hazir" : "yukleniyor";
+    return onizlemeOku(anahtar) ? "hazir" : "yukleniyor";
   });
+
+  /* TAZELEME SAYACI — isteğin tekrarlanmasını sağlayan şey bu.
+   *
+   * Önbelleği silmek tek başına yetmiyordu: istek yalnızca `anahtar` değişince
+   * tekrarlanıyor, anahtar ise kart kimliği + slot + boyuttan oluşuyor ve dosya
+   * yüklenince bunların hiçbiri değişmiyor. Bu yüzden kart açıkken yüklenen dosya
+   * sayfa yenilenene kadar hiç görünmüyordu.
+   *
+   * Sayaç YALNIZCA kendi kartı için artıyor — panodaki otuz kartın hepsini birden
+   * tazelemek bir zamanlar uygulamanın kaba kuvvet korumasını tetiklemişti. */
+  const [tazeleme, setTazeleme] = useState(0);
+  useEffect(() => {
+    if (isId === undefined || isId === null) return undefined;
+    return tazelemeyiDinle((degisenIsId) => {
+      if (String(degisenIsId) === String(isId)) setTazeleme((n) => n + 1);
+    });
+  }, [isId]);
 
   useEffect(() => {
     if (!anahtar) { setDurum("yok"); setVeri(null); return undefined; }
-    const bellekte = onizlemeBellegi.get(anahtar);
+    const bellekte = onizlemeOku(anahtar);
     if (bellekte) { setVeri(bellekte); setDurum("hazir"); return undefined; }
     let iptal = false;
     setDurum("yukleniyor");
@@ -147,15 +163,19 @@ export function useSunucuOnizleme({ isId, icerikId, alan, boyut = 800, slot }) {
       .then((r) => r.json())
       .then((r) => {
         if (iptal) return;
-        if (r.ok && r.veri) { onizlemeBellegi.set(anahtar, r.veri); setVeri(r.veri); setDurum("hazir"); }
+        if (r.ok && r.veri) { onizlemeYaz(anahtar, r.veri); setVeri(r.veri); setDurum("hazir"); }
         else { setSebep(r.sebep || ""); setDurum("olmadi"); }
       })
       .catch(() => { if (!iptal) setDurum("olmadi"); }));
     return () => { iptal = true; };
-  }, [anahtar, isId, icerikId, alan, boyut, slot]);
+  }, [anahtar, isId, icerikId, alan, boyut, slot, tazeleme]);
 
   return { durum, veri, sebep };
 }
+
+/* Kartın önizlemelerini geçersiz kılmak için dışarıya açılıyor — yükleme/silme
+ * yapan bileşenler bunu çağırır. */
+export { onizlemeyiTazele };
 
 export function driveKlasorMu(link) {
   return !!link && /\/drive\/(u\/\d+\/)?folders\//.test(link);

@@ -48,6 +48,7 @@ import { PAYLASIM_TURLERI, stokAnahtari, stokYanitiniUygula } from "../lib/stok.
 import { Finans, HesapBakiyeleri, MiniList, hesapBakiyesi } from "./finans.jsx";
 import { HataYakalayici } from "./hataYakalayici.jsx";
 import { Personel, avansToplami, avansKisiyeAitMi, odemeToplami, odemeKisiyeAitMi, AvansVerFormu, AvansListesi } from "./personel.jsx";
+import { surenIsVarMi } from "../lib/suren-isler.js";
 
 function Dashboard({ data }) {
   const { monthly } = data;
@@ -6947,6 +6948,16 @@ export default function MarcusOS() {
   // uygular. Bekleyen/aktif bir kayıt varsa üzerine yazmaz (kendi değişikliğini kaybetmesin).
   const veriyiYenile = () => {
     if (saveTimer.current || saveStatusRef.current === "saving") return Promise.resolve(false);
+    /* SÜREN UZUN BİR İŞ VARSA DOKUNMA.
+     *
+     * Yukarıdaki iki koşul yalnızca "bekleyen bir KAYIT var mı" diye bakıyor. Drive'a
+     * dosya yüklemek bir kayıt değil — baytlar doğrudan Google'a gidiyor ve 80 MB'lık bir
+     * videoda dakikalarca sürüyor. O süre boyunca uygulama kendini boşta sanıp bu
+     * tazelemeyi çalıştırıyor ve kartların tamamını sunucudaki hâliyle değiştiriyordu.
+     *
+     * Dahası: dosya seçme penceresi kapandığında pencere odağı geri alıyor ve `focus`
+     * olayı bu tazelemeyi tetikliyor. Yani HER yüklemenin başında bir tazeleme vardı. */
+    if (surenIsVarMi()) return Promise.resolve(false);
     return fetch("/api/data", { headers: authHeaders() })
       .then(async (r) => {
         if (!r.ok) return false;
