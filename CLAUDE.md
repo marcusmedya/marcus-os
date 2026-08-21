@@ -44,7 +44,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     60 test dosyası (t1…t60) + 18 statik denetim betiği
+testler/     61 test dosyası (t1…t61) + 18 statik denetim betiği
 ```
 
 ---
@@ -107,6 +107,13 @@ açtı. Bir davranış değiştiğinde personel ve çözüm ortağı panellerini
 Çözüm ortağı paneli = müşteri paneli eksi "İçerik İste" sekmesi
 (`ORTAGA_KAPALI_SEKMELER`), artı kendisine atanan markaların paylaşım/stok panelleri.
 
+**Operasyon kartını kim işleyebilir: `lib/is-yetkisi.js`.** Kural yetkiye bakar,
+ATAMAYA DEĞİL — Operasyon (`cekimEdit`) izni olan personel gördüğü her kartı işler.
+Eskiden kartın "Sorumlu Kameraman/Editör" alanında adı yazması gerekiyordu; yetkisi
+açık olan personel hiçbir kartı ilerletemiyor, kendi oluşturduğu kartta bile kilitli
+kalıyordu. Marka kilidi bağımsız çalışır (kilitli hesap zaten yalnızca kendi
+markalarını görür). Kart **silme** bu kuralın dışında — yalnızca yönetici siler.
+
 ### 5. Aşamalar ve medya yuvaları
 
 `lib/asamalar.js` aşama tablolarının **tek** sahibi (Video / Fotoğraf / Tasarım).
@@ -125,7 +132,7 @@ geçince düşer. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI`).
 
 ```bash
 bash testler/hepsinidenetle.sh     # 17 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t60, ~1126 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t61, ~1153 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
