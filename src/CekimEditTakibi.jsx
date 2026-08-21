@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { medyaVarMi, asamalariDuzelt, guncelMedyalar, slotGecmisi, slotEtiketi,
-         bosSlot, medyaSlotu, STORY_SLOT, EN_FAZLA_SLAYT } from "../lib/asamalar.js";
+         bosSlot, medyaSlotu, STORY_SLOT, EN_FAZLA_SLAYT, kapakBaglantisi} from "../lib/asamalar.js";
 import { useSunucuOnizleme, useVideoAdresi, videoEni, gomuluEngelliMi, GOMULU_ACIKLAMA, onizlemeyiTazele } from "./drive.jsx";
+import { sunucuyuBekle } from "../lib/onizleme-bellegi.js";
 import { isBasladi, isBitti } from "../lib/suren-isler.js";
 import { kartiIsleyebilirMi } from "../lib/is-yetkisi.js";
 // Para gösterimleri Gizlilik Modu'na uymalı — aksi halde ücretler gizliyken de görünür kalırdı.
@@ -790,8 +791,14 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
       setDurum("bos"); setYuzde(0); setSira(null);
       if (onYuklendi) onYuklendi(yeniler);
       /* Kartın önizlemeleri geçersiz: kart açılırken dosya henüz yoktu ve o "dosya yok"
-       * sonucu tekrar sorulmadığı için yüklenen dosya hiç görünmüyordu. */
+       * sonucu tekrar sorulmadığı için yüklenen dosya hiç görünmüyordu.
+       *
+       * BİR KEZ DAHA, KAYIT SUNUCUYA ULAŞINCA: sunucu önizlemeyi veritabanından okuyor ve
+       * medya kaydı henüz oraya gitmedi (kayıt gecikmeli). Buradaki tazeleme "dosya yok"
+       * cevabı alır. `sunucuyuBekle` kartı işaretliyor, kayıt ulaştığında App tazelemeyi
+       * yeniden tetikliyor — sabit bir gecikme tahmini yerine gerçek olaya bağlı. */
       onizlemeyiTazele(job.id);
+      sunucuyuBekle(job.id);
     } catch (err) {
       setDurum("hata"); setSira(null);
       /* YARIM KALAN YÜKLEMELER KAYBOLMASIN: 8 dosyanın 5'i yüklendikten sonra hata olursa,
@@ -1478,10 +1485,18 @@ function IsDetayModal({ job, clients, role, staffName, islemYetkisi, personelRos
                * Eşzamanlı kayıt riski zaten _v sayacıyla karşılanıyor: araya başka bir kayıt
                * girerse istek 409 alıyor ve üzerine yazılmıyor. */
               duzenlenebilir={duzenleyebilirMi(job, role, islemYetkisi)}
-              onMedyaDegis={(yeniMedya, aciklama) => onUpdate(job.id, {
-                medya: yeniMedya,
-                gecmis: logKaydet(aciklama),
-              })}
+              onMedyaDegis={(yeniMedya, aciklama) => {
+                /* KAPAK DA YENİDEN HESAPLANIYOR.
+                 * Eskiden yalnızca `medya` gönderiliyordu; `editliDosyaLink` (kartın küçük
+                 * kapağı) yüklemede atanıp SİLMEDE hiç güncellenmiyordu. Sonuç: silinen
+                 * görsel kapakta kalmaya devam ediyordu. Elle yazılmış bağlantı korunur. */
+                onUpdate(job.id, {
+                  medya: yeniMedya,
+                  editliDosyaLink: kapakBaglantisi(job.medya, yeniMedya, job.editliDosyaLink),
+                  gecmis: logKaydet(aciklama),
+                });
+                sunucuyuBekle(job.id);
+              }}
               onYuklendi={(yeniler) => {
                 /* Çoklu yükleme: tek seferde birden çok kayıt gelebiliyor (karosel).
                  * Tek nesne de kabul ediliyor — eski çağrı biçimi bozulmasın. */

@@ -49,6 +49,7 @@ import { Finans, HesapBakiyeleri, MiniList, hesapBakiyesi } from "./finans.jsx";
 import { HataYakalayici } from "./hataYakalayici.jsx";
 import { Personel, avansToplami, avansKisiyeAitMi, odemeToplami, odemeKisiyeAitMi, AvansVerFormu, AvansListesi } from "./personel.jsx";
 import { surenIsVarMi } from "../lib/suren-isler.js";
+import { bekleyenleriTazele } from "../lib/onizleme-bellegi.js";
 import { yeniKayitlariKoru } from "../lib/kimlik.js";
 
 function Dashboard({ data }) {
@@ -7252,6 +7253,14 @@ export default function MarcusOS() {
           otomatikBirlestirmeSayisi.current = 0;
           setSaveStatus("saved");
           setLastSavedAt(new Date());
+
+          /* KAYIT SUNUCUYA ULAŞTI — önizleme bekleyen kartlar şimdi tazelenebilir.
+           *
+           * Sunucu önizlemeyi VERİTABANINDAN okuyor. Dosya yüklenir yüklenmez tazeleme
+           * istenirse medya kaydı henüz oraya gitmemiş oluyor ve "bu kartta dosya yok"
+           * cevabı geliyor; dosya Drive'da duruyor ama kartta görünmüyordu. Doğru an
+           * burası: veri artık sunucuda. */
+          bekleyenleriTazele();
 
           /* SUNUCUNUN KAYDETMEDİĞİ KAYITLAR SÖYLENİYOR.
            *
