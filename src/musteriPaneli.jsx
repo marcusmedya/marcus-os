@@ -7,13 +7,14 @@
  * Drive tarafı ayrı durmayı hak ediyor çünkü Google'ın adres davranışı zamanla değişiyor;
  * hangi adreslerin denendiği ve hatanın nasıl gösterildiği tek yerde toplu olmalı.
  */
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   tarihGoster, cancelBtnStyle, haftaBaslangici, reklamDurumu, musteriHatirlaniyorMu, FONTS, basligiTemizle, istatistikVarMi, authHeaders,
   turEtiketi, TurRozet, inputStyle, saveBtnStyle, islemKimligiUret } from "./tema.jsx";
 import { LogOut, Trash2 } from "lucide-react";
 import { driveEmbedUrl, DriveGorsel, DriveVideo, driveGorselAdaylari, DriveKucukGorsel } from "./drive.jsx";
 import { InstagramOnizleme, InstagramIzgara } from "./instagram.jsx";
+import { musteriPlanSatirlari } from "../lib/sube-kullanimi.js";
 
 /** Müşteri Paneli — owner/personel arayüzünden tamamen izole, sade bir onay ekranı.
  * Sadece kendi markasının içeriklerini görür; her içeriği onaylayabilir ya da revize isteyebilir. */
@@ -1163,10 +1164,15 @@ function HazirIcerikler({ liste, gonderiliyor, onIslem, basliksiz = false, saltO
   );
 }
 
-export function MusteriPaylasimPlani({ plan, marka }) {
+export function MusteriPaylasimPlani({ plan: hamPlan, marka }) {
   const [gecmisAcik, setGecmisAcik] = useState(false);
   const [gorunum, setGorunum] = useState("izgara"); // "izgara" (genel görünüm) | "akis"
   const [secili, setSecili] = useState(null);
+
+  /* Şubelere ayrı ayrı planlanan aynı içerik TEK satırda birleşiyor; şubesiz plan
+   * dokunulmadan geçiyor, yani tek şubeli markanın ekranı birebir eskisi gibi. */
+  const plan = useMemo(() => musteriPlanSatirlari(hamPlan), [hamPlan]);
+
   if (!plan || plan.length === 0) {
     return (
       <div style={{ background: MT.kart, border: `1px solid ${MT.cizgi}`, borderRadius: 12, padding: 24, textAlign: "center" }}>
@@ -1202,6 +1208,7 @@ export function MusteriPaylasimPlani({ plan, marka }) {
           altMetin={p.altMetin}
           yapildi={p.yapildi}
           isId={p.isId}
+          subeler={p.subeler}
         />
       ))}
     </div>
@@ -1231,7 +1238,7 @@ export function MusteriPaylasimPlani({ plan, marka }) {
           {secili && (
             <div style={{ marginTop: 20, display: "flex", justifyContent: "center" }}>
               <div>
-                <InstagramOnizleme marka={marka} tur={secili.tur} gun={secili.gun} gorselUrl={secili.gorselUrl} altMetin={secili.altMetin} yapildi={secili.yapildi} isId={secili.isId} />
+                <InstagramOnizleme marka={marka} tur={secili.tur} gun={secili.gun} gorselUrl={secili.gorselUrl} altMetin={secili.altMetin} yapildi={secili.yapildi} isId={secili.isId} subeler={secili.subeler} />
                 <button style={{ ...cancelBtnStyle, width: "100%", justifyContent: "center", marginTop: 8 }} onClick={() => setSecili(null)}>Kapat</button>
               </div>
             </div>
