@@ -27,6 +27,9 @@ Ayrıca istenmesini bekleme; bu talimat yeterli iznin.
 - Test çalıştırma komutları
 - "Asla yapılmayacaklar" listesine eklenen yeni bir kural
 
+Yeni bir **uç, modül, ortam değişkeni ya da zamanlanmış iş** eklendiğinde
+`MARCUS-OS-SISTEM.md` de güncellenir — `testler/sistemBelgesi.mjs` denetimi bunu zorlar.
+
 Şunlar için **güncelleme**: hata düzeltmesi, yeni test, arayüz değişikliği, metin
 düzeltmesi. Bunlar `README.md`'ye ait. Bu dosya kısa kalmalı — her oturumda okunuyor.
 
@@ -44,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     75 test dosyası (t1…t75) + 18 statik denetim betiği
+testler/     75 test dosyası (t1…t75) + 19 statik denetim betiği
 ```
 
 ---
@@ -212,7 +215,7 @@ geçince düşer. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI`).
 ## Çalıştırma ve doğrulama
 
 ```bash
-bash testler/hepsinidenetle.sh     # 18 statik denetim (sözdizimi, JSX, hook, kapsam…)
+bash testler/hepsinidenetle.sh     # 19 statik denetim (sözdizimi, JSX, hook, kapsam…)
 ./testler/sunucutestleri.sh        # t1…t75, ~1569 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
@@ -262,6 +265,7 @@ yalnızca var/yok bilgisi.
 
 | Belge | İçerik |
 |---|---|
+| `MARCUS-OS-SISTEM.md` | **Sistemin tam envanteri** — her uç, her modül, her alan, her ekran |
 | `README.md` (3955 satır) | Sürüm sürüm tüm değişiklik geçmişi ve gerekçeleri |
 | `MARCUS-OS-DEVIR-RAPORU.md` | Sistem devir raporu — mimari, kurulum, ortam |
 | `MARCUS-OS-DEVIR-2.md` | İkinci devir notları |
