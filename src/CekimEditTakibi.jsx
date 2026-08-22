@@ -433,14 +433,28 @@ function MarkaSeciciAlan({ clients, deger, onDegis }) {
   );
 }
 
-function YeniIsFormu({ clients, personelRosteri, varsayilanKategori, onSubmit, onCancel }) {
+function YeniIsFormu({ clients, subeler, personelRosteri, varsayilanKategori, onSubmit, onCancel }) {
   const [v, setV] = useState({
     kategori: varsayilanKategori || "Video",
     marka: "", icerikTuru: "", cekimTarihi: bugunISO(), teslimTarihi: bugunISO(),
     kameraman: "", editor: "", oncelik: "Normal", istenenAdet: "", uretilenAdet: "", brief: "",
+    sadeceSubeler: [],
   });
   const set = (k, val) => setV((s) => ({ ...s, [k]: val }));
   const video = cekimVarMi(v.kategori); // çekim alanları (kameraman, çekim tarihi) gösterilsin mi
+
+  /* ŞUBE KAPSAMI OLUŞTURMA ANINDA.
+   *
+   * Kapsam yalnızca düzenleme ekranında seçilebiliyordu; şubeye özel bir içerik için
+   * önce kartı açıp sonra Düzenle'ye girmek gerekiyordu. Oysa "bu iş Lara için" bilgisi
+   * işin en başında biliniyor — burada seçilirse kart daha ilk onayında doğru şubenin
+   * stoğunu artırır, sonradan düzeltme gerekmez.
+   *
+   * Marka değişince seçim sıfırlanıyor: başka markanın şube kimlikleri taşınırsa kart
+   * hiçbir şubenin kullanamadığı bir içeriğe dönüşür. */
+  const markaId = markaninIdsi(clients, v.marka);
+  const markaSubeleri = markaninSubeleri(subeler, markaId);
+  const markaSec = (x) => setV((s) => ({ ...s, marka: x, sadeceSubeler: [] }));
   return (
     <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, marginBottom: 16 }}>
       <label style={labelStyle}>Kategori</label>
@@ -456,7 +470,7 @@ function YeniIsFormu({ clients, personelRosteri, varsayilanKategori, onSubmit, o
         ))}
       </div>
       <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-        <MarkaSeciciAlan clients={clients} deger={v.marka} onDegis={(x) => set("marka", x)} />
+        <MarkaSeciciAlan clients={clients} deger={v.marka} onDegis={markaSec} />
         <div><label style={labelStyle}>İçerik / Talep Türü</label><input style={inputStyle} placeholder={video ? "örn. Reels, Ürün Fotoğrafı" : "örn. Post Tasarımı, Banner"} value={v.icerikTuru} onChange={(e) => set("icerikTuru", e.target.value)} /></div>
         {video && <div><label style={labelStyle}>Çekim Tarihi</label><input type="date" style={inputStyle} value={v.cekimTarihi} onChange={(e) => set("cekimTarihi", e.target.value)} /></div>}
         <div><label style={labelStyle}>Teslim Tarihi</label><input type="date" style={inputStyle} value={v.teslimTarihi} onChange={(e) => set("teslimTarihi", e.target.value)} /></div>
@@ -471,6 +485,29 @@ function YeniIsFormu({ clients, personelRosteri, varsayilanKategori, onSubmit, o
         <div><label style={labelStyle}>İstenen Adet</label><input style={inputStyle} value={v.istenenAdet} onChange={(e) => set("istenenAdet", e.target.value)} placeholder={video ? "örn. 6 Reels + 10 Post" : "örn. 4 Post + 2 Banner"} /></div>
         <div><label style={labelStyle}>Kaç Parça? (rapor için)</label><input type="number" min="0" style={inputStyle} value={v.uretilenAdet} onChange={(e) => set("uretilenAdet", e.target.value)} placeholder="örn. 10" /></div>
       </div>
+      {markaSubeleri.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <label style={labelStyle}>Hangi şubeler kullanabilir?</label>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {[{ id: null, ad: "Tüm şubeler" }, ...markaSubeleri].map((sb) => {
+              const hepsi = sb.id === null;
+              const aktif = hepsi ? v.sadeceSubeler.length === 0 : v.sadeceSubeler.includes(String(sb.id));
+              return (
+                <button
+                  key={hepsi ? "hepsi" : sb.id}
+                  onClick={() => setV((st) => {
+                    if (hepsi) return { ...st, sadeceSubeler: [] };
+                    const id = String(sb.id);
+                    const su = st.sadeceSubeler;
+                    return { ...st, sadeceSubeler: su.includes(id) ? su.filter((x) => x !== id) : [...su, id] };
+                  })}
+                  style={{ padding: "7px 12px", borderRadius: 999, cursor: "pointer", fontSize: 13, fontWeight: 700, border: `1.5px solid ${aktif ? C.accent : C.border}`, background: aktif ? C.accentSoft : "transparent", color: aktif ? C.accentText : C.textDim }}
+                >{sb.ad}</button>
+              );
+            })}
+          </div>
+        </div>
+      )}
       <label style={labelStyle}>Brief / Notlar</label>
       <textarea style={{ ...inputStyle, marginBottom: 12 }} rows={3} value={v.brief} onChange={(e) => set("brief", e.target.value)} />
       <datalist id="marka-listesi">{(clients || []).map((c) => <option key={c.id} value={c.ad} />)}</datalist>
@@ -2457,7 +2494,7 @@ export default function CekimEditTakibi({ role, clients, subeler, planlar, jobs,
         </div>
       )}
 
-      {adding && <YeniIsFormu clients={clients} personelRosteri={personelRosteri} varsayilanKategori={view === "pano" ? panoKategori : "Video"} onCancel={() => setAdding(false)} onSubmit={(v) => { onAddJob(v); setAdding(false); }} />}
+      {adding && <YeniIsFormu clients={clients} subeler={subeler} personelRosteri={personelRosteri} varsayilanKategori={view === "pano" ? panoKategori : "Video"} onCancel={() => setAdding(false)} onSubmit={(v) => { onAddJob(v); setAdding(false); }} />}
 
       {view === "panom" && role === "staff" && <PersonelPaneli jobs={isler} staffName={staffName} onOpen={setAcikIs} />}
 
