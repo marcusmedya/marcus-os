@@ -1,5 +1,6 @@
 import { kv } from "@vercel/kv";
 import { KEY as MAIN_KEY, guvenliYaz, kilitAl, kilitBirak, mesgulYanit } from "../lib/kv-yaz.js";
+import { yedekDegerlendir } from "../lib/yedek-dogrula.js";
 import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
 import { deftereYaz } from "../lib/kv-yaz.js";
 
@@ -60,7 +61,17 @@ export default async function handler(req, res) {
         if (!gecerliYedekAnahtari(anahtar)) return res.status(400).json({ error: "Geçersiz yedek anahtarı." });
         const snapshot = await kv.get(anahtar);
         if (!snapshot) return res.status(404).json({ error: "Bu yedek bulunamadı." });
-        if (ozet) return res.status(200).json({ ozet: ozetle(snapshot) });
+        if (ozet) {
+          /* KARARDAN ÖNCE UYARI. Özet "bu yedekte kaç müşteri var" diyordu ama "bu
+           * yedeğe dönersem NE KAYBEDERİM" sorusunu cevaplamıyordu. Değerlendirme
+           * mevcut veriyle karşılaştırıp yapı hatalarını ve kayıp kalemlerini de
+           * döndürüyor — hiçbir şey yazmadan. */
+          const mevcutVeri = await kv.get(MAIN_KEY);
+          return res.status(200).json({
+            ozet: ozetle(snapshot),
+            degerlendirme: yedekDegerlendir(snapshot, mevcutVeri),
+          });
+        }
         return res.status(200).json({ data: snapshot });
       }
 
@@ -84,6 +95,23 @@ export default async function handler(req, res) {
 
       const snapshot = await kv.get(anahtar);
       if (!snapshot) return res.status(404).json({ error: "Bu yedek bulunamadı." });
+
+      /* YAPI DOĞRULAMASI — YAZMADAN VE KİLİT ALMADAN ÖNCE.
+       *
+       * Buraya kadar yalnızca "yedek var mı" bakılıyordu. Yapısı bozuk bir yedek
+       * (`clients` metin olmuş, yanlış anahtardan gelmiş bambaşka bir belge) doğrudan
+       * üretime yazılıyordu. Kilit ve geri-alma kopyası bu durumda işe yaramıyor:
+       * kopya da alınıyor, kilit de düzgün bırakılıyor — ama veri bozuluyor.
+       *
+       * Kilitten ÖNCE, çünkü reddedilecek bir istek için kilidi tutmak diğer
+       * herkesi boşuna bekletir. */
+      const on = yedekDegerlendir(snapshot, null);
+      if (!on.gecerli) {
+        return res.status(400).json({
+          error: "Bu yedek geri yüklenemez — yapısı bozuk.",
+          hatalar: on.hatalar,
+        });
+      }
 
       const kilitAlindi = await kilitAl();
       /* Geri yükleme, sistemdeki en tehlikeli yazma işlemi: tüm veriyi değiştirir.
@@ -111,8 +139,17 @@ export default async function handler(req, res) {
         const yazilan = await guvenliYaz({ ...snapshot, _v: Math.max(mevcutV, snapshotV) });
 
         // Geri yükleme en kritik işlemlerden biri — veriyi tamamen değiştirir.
-        await deftereYaz("yedek-geri-yuklendi", { kaynak: anahtar, geriAlmaEtiketi, ozet: ozetle(yazilan) });
-        return res.status(200).json({ ok: true, _v: yazilan._v, geriAlmaEtiketi, ozet: ozetle(yazilan) });
+        /* Ne kaybedildiği DEFTERE de yazılıyor: "geri yüklendi" satırı tek başına
+         * neyin gittiğini söylemiyordu. */
+        const degerlendirme = yedekDegerlendir(snapshot, mevcut);
+        await deftereYaz("yedek-geri-yuklendi", {
+          kaynak: anahtar, geriAlmaEtiketi, ozet: ozetle(yazilan),
+          kaybolanKayit: degerlendirme.kayip ? degerlendirme.kayip.toplamKaybolanKayit : null,
+        });
+        return res.status(200).json({
+          ok: true, _v: yazilan._v, geriAlmaEtiketi, ozet: ozetle(yazilan),
+          degerlendirme,
+        });
       } finally {
         await kilitBirak(kilitAlindi);
       }

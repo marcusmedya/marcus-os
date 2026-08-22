@@ -290,6 +290,14 @@ export default async function handler(req, res) {
           const uyelik = (data.uyelikler || []).find((x) => x.id === body.uyelikId);
           return uyelik ? uyelik.clientId : undefined;
         }
+        /* YENİ KAYITTA KİMLİK İÇ NESNEDE. `uyelikEkle` markayı `body.uyelik.clientId`
+         * içinde taşıyor, üst düzeyde değil. Çözümleyici onu göremediği için hedef
+         * "belirsiz" kalıyor ve fail-close devreye giriyordu: çözüm ortağı KENDİ
+         * markasına bile üyelik ekleyemiyordu — `uyelikler` izni onun için
+         * işlevsizdi. Güvenlik tarafı doğruydu, eksik olan çözümlemeydi. */
+        if (body.uyelik && body.uyelik.clientId !== undefined && body.uyelik.clientId !== null) {
+          return body.uyelik.clientId;
+        }
         return undefined;
       })();
 
@@ -587,24 +595,35 @@ export default async function handler(req, res) {
         if (kilitliKartlar.length > 0) parcalar.push(`${kilitliKartlar.length} kart yalnızca bu şubeye açık`);
         return res.status(409).json({
           error: `Bu şubenin ${parcalar.join(", ")}. `
-               + "Şube silinirse paylaşım kayıtları geçmişte kalır; yalnızca bu şubeye açık kartlar marka geneline döner.",
+               + "Şube silinirse paylaşım kayıtları geçmişte kalır. Yalnızca bu şubeye açık kartlar "
+               + "MARKA GENELİNE DÖNMEZ — kapsamları kayıp sayılır ve siz yeni şube seçene kadar "
+               + "hiçbir şubede kullanılamaz. Böylece yanlış şubede paylaşılmazlar.",
           onayGerekli: true, planSayisi: bagliPlanlar.length, paylasilanSayisi: paylasilan,
           kilitliKartSayisi: kilitliKartlar.length,
         });
       }
       data.subeler = (data.subeler || []).filter((s) => s.id !== subeId);
 
-      /* O ŞUBEYE KİLİTLİ KARTLAR SAHİPSİZ KALMASIN.
+      /* O ŞUBEYE KİLİTLİ KARTLAR — KAPSAM AÇILMAZ.
        *
-       * `sadeceSubeler` silinen şubenin kimliğini taşımaya devam ederse, kart hiçbir
-       * şubenin kullanamadığı bir içeriğe dönüşür: her şubenin kart seçicisinden
-       * kaybolur, üç listenin hiçbirinde çıkmaz, hata da vermez. Kimliği çıkarıyoruz;
-       * geriye şube kalmıyorsa kart MARKA GENELİ oluyor. Güvenli taraf bu: her yerde
-       * görünen içerik fark edilir, hiçbir yerde görünmeyen içerik kaybolur. */
+       * Kart birden çok şubeye kilitliyse silinen kimlik çıkarılır; kart kalan
+       * şubelerde kullanılmaya devam eder. Doğru davranış bu.
+       *
+       * AMA LİSTE BOŞALACAKSA KİMLİK BIRAKILIR. Önce çıkarılıyordu ve
+       * `sadeceSubeler: []` "marka geneli" anlamına geldiği için "yalnızca Lara için
+       * hazırlanmış içerik" bir anda BÜTÜN şubelerde kullanılabilir hale geliyordu —
+       * ölçüldü, iki şubeli markada kart Merkez'de kullanılabilir oluyordu. İş
+       * mantığı açısından tehlikeli: içerik yanlış şubede paylaşılabilir.
+       *
+       * Kimlik kalınca kart hiçbir şubede kullanılamaz — kasıtlı ve güvenli durum.
+       * Sessiz de değil: `kapsamiKayipMi` bunu ADI OLAN bir hale çeviriyor ve
+       * Operasyon kartında uyarı olarak görünüyor. Kullanıcı kapsamı yeniden
+       * seçince kart normale döner. Yeni bir alan eklenmedi. */
       data.cekimIsleri = (data.cekimIsleri || []).map((j) => {
         if (!j || !Array.isArray(j.sadeceSubeler)) return j;
         const kalan = j.sadeceSubeler.filter((x) => String(x) !== String(subeId));
-        if (kalan.length === j.sadeceSubeler.length) return j;
+        if (kalan.length === j.sadeceSubeler.length) return j;   // bu kartta yok
+        if (kalan.length === 0) return j;                        // boşalacak — kimlik BIRAKILIR
         return { ...j, sadeceSubeler: kalan };
       });
 
@@ -614,8 +633,22 @@ export default async function handler(req, res) {
 
     if (action === "subeStokDegistir") {
       const { clientId, subeId, tur, delta } = body;
-      const sube = (data.subeler || []).find((s) => s.id === subeId);
-      const subeAdi = sube ? sube.ad : "";
+      /* ŞUBE, VERİLEN MARKAYA AİT OLMALI.
+       *
+       * Şube TÜM şubeler arasında aranıyordu. Marka kilidi `clientId`'yi ilk sırada
+       * çözdüğü için, kilitli bir hesap kendi `clientId`'sini ve BAŞKA markanın
+       * `subeId`'sini gönderdiğinde istek geçiyordu — ölçüldü. İki sonucu vardı:
+       * `1_onun_Video` gibi hiçbir şubeye karşılık gelmeyen çöp bir stok anahtarı
+       * oluşuyor, ve BAŞKA MARKANIN ŞUBE ADI geçmişe yazılıyordu.
+       *
+       * Kural yalnızca yetki değil VERİ BÜTÜNLÜĞÜ meselesi: yöneticide de geçerli,
+       * çünkü çöp anahtar stok sayılarını bozar. `haftalikEkle` bu doğrulamayı zaten
+       * yapıyordu; burada eksikti. */
+      const sube = markaninSubeleri(data.subeler, clientId).find((s) => String(s.id) === String(subeId));
+      if (!sube) {
+        return res.status(400).json({ error: "Şube bu markaya ait değil — sayfayı yenileyip tekrar dene." });
+      }
+      const subeAdi = sube.ad || "";
       const subeKey = `${clientId}_${subeId}_${tur}`;
       const mevcutSube = (data.stoklar || {})[subeKey] || 0;
       const yeniSube = Math.max(0, mevcutSube + delta);

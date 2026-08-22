@@ -6,7 +6,8 @@ import { sunucuyuBekle } from "../lib/onizleme-bellegi.js";
 import { isBasladi, isBitti } from "../lib/suren-isler.js";
 import { kartiIsleyebilirMi } from "../lib/is-yetkisi.js";
 import { markaninIdsi } from "../lib/marka-kilidi.js";
-import { markaninSubeleri, kullanabilenSubeler, icerikSubeOzeti } from "../lib/sube-kullanimi.js";
+import { markaninSubeleri, kullanabilenSubeler, icerikSubeOzeti,
+         kapsamiKayipMi, gecersizSubeKimlikleri } from "../lib/sube-kullanimi.js";
 // Para gösterimleri Gizlilik Modu'na uymalı — aksi halde ücretler gizliyken de görünür kalırdı.
 import { fmt, T, authHeaders, tarihIso } from "./tema.jsx";
 import {
@@ -1260,6 +1261,13 @@ function IsDetayModal({ job, clients, subeler, planlar, role, staffName, islemYe
     () => (cokSubeli ? icerikSubeOzeti(job, subeler, planlar, markaId) : []),
     [cokSubeli, job, subeler, planlar, markaId]);
 
+  /* KAPSAM KAYIP: kart bir şubeye kilitli ama o şube artık yok (silinmiş). Kart hiçbir
+   * şubede kullanılamaz — kasıtlı, çünkü kapsamı açmak içeriği yanlış şubede
+   * paylaştırırdı. Sessiz kalmasın diye burada uyarı olarak görünüyor. */
+  const kapsamKayip = useMemo(
+    () => cokSubeli && kapsamiKayipMi(job, subeler, markaId),
+    [cokSubeli, job, subeler, markaId]);
+
   const aciliyet = aciliyetDurumu(job);
   const stil = ACILIYET_STIL[aciliyet];
 
@@ -1461,19 +1469,35 @@ function IsDetayModal({ job, clients, subeler, planlar, role, staffName, islemYe
                 <label style={labelStyle}>Hangi şubeler kullanabilir?</label>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {(() => {
-                    const secili = Array.isArray(taslak.sadeceSubeler) ? taslak.sadeceSubeler.map(String) : [];
+                    /* ÖLÜ KİMLİK TEMİZLENİR. Silinmiş şubenin kimliği listede kalırsa,
+                     * kullanıcı yeni bir şube seçse bile kart o ölü kimliği taşımaya
+                     * devam eder ve kapsam kayıp görünmeye devam ederdi. Seçim anında
+                     * bu markada karşılığı olmayan kimlikler atılıyor. */
+                    const olulerdenArindir = (liste) => {
+                      const gecerli = new Set(markaSubeleri.map((x) => String(x.id)));
+                      return (liste || []).map(String).filter((x) => gecerli.has(x));
+                    };
+                    const secili = olulerdenArindir(taslak.sadeceSubeler);
+                    const olu = gecersizSubeKimlikleri(taslak, subeler, markaId);
                     const dugme = (etiket, aktif, tikla) => (
                       <button key={etiket} onClick={tikla} style={{ padding: "7px 12px", borderRadius: 999, cursor: "pointer", fontSize: 13, fontWeight: 700, border: `1.5px solid ${aktif ? C.accent : C.border}`, background: aktif ? C.accentSoft : "transparent", color: aktif ? C.accentText : C.textDim }}>{etiket}</button>
                     );
                     return [
-                      dugme("Tüm şubeler", secili.length === 0, () => setTaslak((st) => ({ ...st, sadeceSubeler: [] }))),
+                      /* Kapsam kayıpken "Tüm şubeler" aktif GÖRÜNMEZ: seçili liste dolu
+                       * ama karşılığı yok. Kullanıcı bilerek tıklayıp açabilir. */
+                      dugme("Tüm şubeler", secili.length === 0 && olu.length === 0, () => setTaslak((st) => ({ ...st, sadeceSubeler: [] }))),
                       ...markaSubeleri.map((sb) => dugme(sb.ad, secili.includes(String(sb.id)), () => setTaslak((st) => {
-                        const su = Array.isArray(st.sadeceSubeler) ? st.sadeceSubeler.map(String) : [];
+                        const su = olulerdenArindir(st.sadeceSubeler);
                         const id = String(sb.id);
                         return { ...st, sadeceSubeler: su.includes(id) ? su.filter((x) => x !== id) : [...su, id] };
                       }))),
                     ];
                   })()}
+                  {gecersizSubeKimlikleri(taslak, subeler, markaId).length > 0 && (
+                    <div style={{ width: "100%", fontSize: 11.5, color: C.warning, fontFamily: "Inter", marginTop: 6 }}>
+                      Bu kart silinmiş bir şubeye kilitli. Bir seçim yapınca kapsam yenilenir.
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1499,6 +1523,17 @@ function IsDetayModal({ job, clients, subeler, planlar, role, staffName, islemYe
               <div><span style={{ color: C.textFaint }}>İstenen Adet:</span> <span style={{ color: C.text }}>{job.istenenAdet || "—"}</span></div>
               {job.uretilenAdet ? <div><span style={{ color: C.textFaint }}>Parça Sayısı:</span> <span style={{ color: C.text }}>{job.uretilenAdet}</span></div> : null}
             </div>
+
+            {kapsamKayip && (
+              <div style={{ marginBottom: 16, padding: "11px 14px", background: C.warningSoft, border: `1px solid ${C.warning}`, borderRadius: 10 }}>
+                <div style={{ fontSize: 11, color: C.warning, fontWeight: 700, letterSpacing: 0.3, marginBottom: 6 }}>ŞUBE KAPSAMI KAYIP</div>
+                <div style={{ fontSize: 12.5, color: C.text, fontFamily: "Inter", lineHeight: 1.6 }}>
+                  Bu içerik yalnızca silinmiş bir şube için hazırlanmıştı. Yanlış şubede paylaşılmasın diye
+                  kapsamı açılmadı — şu an hiçbir şubede kullanılamaz.
+                  {yetkili ? " Düzenle'ye girip hangi şubelerin kullanabileceğini seç." : " Yönetici kapsamı yeniden seçmeli."}
+                </div>
+              </div>
+            )}
 
             {/* ŞUBE DURUMU — salt okunur.
               * "Bu içeriği hangi şubede paylaştık, hangisi bekliyor" sorusu kartı

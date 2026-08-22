@@ -34,10 +34,10 @@ Kod ve arayüz tamamen Türkçe — değişken ve fonksiyon adları dahil.
 
 | Klasör | İçerik |
 |---|---|
-| `src/` | React arayüzü (11 dosya, 17.878 satır) |
+| `src/` | React arayüzü (Vite ile derlenir) |
 | `api/` | Serverless fonksiyonlar — **her dosya bir fonksiyon**, Hobby sınırı 12 |
 | `lib/` | Ortak mantık — hem `api/` hem `src/` buradan import eder, **fonksiyon sayılmaz** |
-| `testler/` | 75 test dosyası (t1…t75) + 19 statik denetim betiği |
+| `testler/` | 80 test dosyası (t1…t80) + 19 statik denetim betiği |
 
 En büyük dosyalar: `src/App.jsx` (9.653), `src/CekimEditTakibi.jsx` (2.734),
 `api/data.js` (2.008), `src/musteriPaneli.jsx` (1.383), `src/tema.jsx` (1.039).
@@ -74,6 +74,14 @@ denemelerinde).
 **POST `onizlemeAction`** — `gorsel` · `videoJetonu`. Müşteri ve personelin kendi
 markasının önizlemesini alması.
 
+**POST `sistemAction`** — `saglik`. **Yalnızca yönetici.** Belge ölçümü (toplam boyut,
+en çok yer kaplayan alanlar, kayıt sayıları), fonksiyon sayısı, ortam değişkenlerinin
+**var/yok** durumu ve isteğe bağlı **salt okunur** Drive sağlık kontrolü. Hiçbir şey
+yazmaz; sır değeri asla döndürmez; üretim Drive'ında deneme yapmaz.
+
+**POST `ortakAction`** — `asamaIlerlet`. Çözüm ortağının kartı ilerletmesi; şu an
+yalnızca `Kontrol Bekliyor` hedefine izin veriliyor ve marka kontrolü yapılıyor.
+
 **POST `musteriAction`** — `onayla` · `revizeIste` · `talepOlustur`. Müşteri panelinin
 yazabildiği **tek** üç işlem.
 
@@ -87,7 +95,7 @@ yazabildiği **tek** üç işlem.
 | `haftalikEkle` | Haftalık plana kayıt (opsiyonel `subeId`) |
 | `haftalikToggle` | Paylaşıldı işaretleme, stok düşümü, kart aşama geçişi |
 | `haftalikSil` · `haftalikAltMetin` | Plan silme, müşteri panelindeki alt metin |
-| `subeEkle` · `subeSil` | Şube yönetimi (aynı ad 409, kayıtlı şube onay ister) |
+| `subeEkle` · `subeSil` | Şube yönetimi (aynı ad 409, kayıtlı şube onay ister; silme kart kapsamını AÇMAZ) |
 | `uyelikEkle` · `uyelikGuncelle` · `uyelikSil` | Abonelik/üyelik takibi |
 
 **Marka kilidi tek yerde çözülür**: uç, `clientId` / `planId` / `subeId` / `uyelikId` /
@@ -105,8 +113,14 @@ kullanamaz** — veri finansal iç bilgi; izin ayarı yanlış yapılsa bile iki
 ### `api/kasa.js` (125 satır) — şifre kasası
 `dogrula` · `degistir`. Kasa şifresi ayrı; **değiştirmeyi yalnızca owner yapabilir.**
 
-### `api/backup.js` (125 satır) — elle yedek indirme
-Belgenin tamamını JSON olarak verir. Owner yetkisi şart.
+### `api/backup.js` — yedek listesi, özet ve geri yükleme
+`GET` yedekleri listeler ya da tek bir yedeğin içeriğini/özetini verir; `?ozet=1`
+ayrıca **ne kaybedileceğini** söyler (`yedekDegerlendir`). `POST` geri yükler.
+
+Geri yükleme sistemdeki en tehlikeli yazma. Üç koruma: **yapı doğrulaması** (bozuk ya
+da yabancı belge yazılmadan reddedilir), **kilit** (alınamazsa geri yükleme YAPILMAZ),
+ve **geri-alma kopyası** (mevcut veri ayrı bir anahtara 30 gün saklanır). Sürüm sayacı
+geriye gitmez — açık sekmeler bayatlıklarını anlayabilsin diye.
 
 ### `api/daily-backup.js` (112 satır) — gece yedeği
 **Cron: her gün 03:00 UTC.** `BACKUP_EMAIL` adres(ler)ine yedek gönderir.
@@ -155,6 +169,12 @@ Artık **tanımsızsa kimse giremez.**
 | `oturum.js` | İki adımlı doğrulama, oturum jetonu, owner yetkisi |
 | `eposta.js` | Resend üzerinden e-posta gönderimi ve şablonlar |
 | `video-jeton.js` | Video akışı için kısa ömürlü imzalı jeton |
+| `sistem-sagligi.js` | Belge ölçümü, büyüyen alanlar, ortam değişkeni var/yok — **yalnızca okur** |
+| `yedek-dogrula.js` | Geri yüklemeden önce yedeğin yapısı ve kayıp özeti — saf, yan etkisiz |
+
+`kv-yaz.js` ayrıca **bozuk belge korumasını** taşır (`belgeOkunabilirMi`): `kv.get`
+nesne dışında bir şey döndürürse okuma da yazma da reddedilir. Boş/`null` belge bozuk
+sayılmaz — ilk kurulumda belge henüz yoktur.
 
 ---
 
@@ -364,7 +384,7 @@ dosya hâlâ ekibin çalışma alanındadır.
 
 ```bash
 bash testler/hepsinidenetle.sh     # 19 statik denetim
-./testler/sunucutestleri.sh        # t1…t75, ~1569 kontrol — SAHTE veritabanı
+./testler/sunucutestleri.sh        # t1…t80, ~1678 kontrol — SAHTE veritabanı
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
