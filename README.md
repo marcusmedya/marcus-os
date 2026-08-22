@@ -3953,3 +3953,73 @@ Edildi" olan bir iş her kayıtta tekrar taşınmaz. `kv-yaz.js` artık `oncekiV
 ### Doğrulama
 7 aşama yakalama kontrolü (yeni geçen, zaten öyle olan, başka aşamaya geçen, yeni eklenen,
 değişiklik yok, boş veri) + 6 klasör kimliği kontrolü. 17 kod denetimi + 32 test dosyası temiz.
+
+---
+
+## Güncelleme 156: Güvenilirlik Denetimi — Şube Kapsamı, Sistem Sağlığı, Bozuk Veri Koruması
+
+Bu tur yeni özellik eklemek için değil, **mevcut sistemi daha hataya dayanıklı hale
+getirmek** için yapıldı. Dört gerçek kusur bulundu; hepsi önce testle kanıtlandı,
+sonra düzeltildi, sonra koruma bozulup testin gerçekten düştüğü ölçüldü.
+
+### 1. Şube silinince içerik kapsamı açılıyordu (en ciddi)
+
+Kart `sadeceSubeler: ["lara"]` ile **yalnızca Lara için** hazırlanmışken Lara
+silinince kimlik karttan çıkarılıyor ve liste boşalıyordu. `sadeceSubeler: []` bu
+sistemde **marka geneli** demek — yani içerik bir anda markanın **bütün şubelerinde**
+kullanılabilir hale geliyordu. İki şubeli markada kanıtlandı.
+
+Artık liste boşalacaksa kimlik **bırakılıyor**: kart hiçbir şubede kullanılamaz kalıyor.
+Kasıtlı ve güvenli durum. Sessiz değil — Operasyon kartında **ŞUBE KAPSAMI KAYIP**
+uyarısı çıkıyor, düzenlemede ölü kimlik seçim anında temizleniyor. Çok şubeli kartlar
+etkilenmedi: iki şubeye kilitli karttan biri silinince kart diğerinde çalışmaya
+devam ediyor.
+
+### 2. Marka kilidinde iki kusur
+
+**Üyelik:** `uyelikEkle` markayı `body.uyelik.clientId` içinde taşıyor. Kilit
+çözümleyicisi yalnızca üst düzeye bakıyordu, hedef "belirsiz" kalıyor ve fail-close
+devreye giriyordu — çözüm ortağı **kendi markasına bile** üyelik ekleyemiyordu.
+Sızıntı yoktu, ama izin işlevsizdi.
+
+**Şube stoğu:** `subeStokDegistir` şubeyi tüm şubeler arasında arıyordu. Kilitli hesap
+kendi `clientId`'siyle **başka markanın** `subeId`'sini gönderince istek geçiyordu:
+çöp bir stok anahtarı oluşuyor ve **başka markanın şube adı** geçmişe yazılıyordu.
+Artık şubenin o markaya ait olduğu doğrulanıyor — yöneticide de, çünkü bu bir veri
+bütünlüğü kuralı.
+
+### 3. Bozuk veri sessizce boş uygulama olarak açılıyordu
+
+`kv.get` metin, dizi ya da sayı döndürebiliyor. Eskiden bu boş bir belgeye çevriliyor
+ve sistem hiçbir şey söylemeden çalışmaya devam ediyordu: kullanıcı **bomboş** bir
+uygulama görüyor, "her şey silinmiş" sanıp kayıt giriyor ve o kayıt kurtarılabilir
+verinin **üstüne** yazılıyordu. Artık okuma da yazma da reddediliyor ve yedekten dönme
+yönlendirmesi gösteriliyor. Boş belge bozuk sayılmıyor — ilk kurulumda belge yoktur.
+
+### 4. Yedek geri yüklerken içerik hiç doğrulanmıyordu
+
+Geri yükleme kilidi ve geri-alma kopyasını zaten doğru yapıyordu, ama yedeğin
+**yapısı** hiç kontrol edilmiyordu: `clients` metin olmuş bozuk bir yedek doğrudan
+üretime yazılırdı. Artık yapı doğrulaması kilitten önce çalışıyor; ayrıca `?ozet=1`
+"bu yedeğe dönersem **ne kaybederim**" sorusunu alan alan cevaplıyor.
+
+### Yeni: Ayarlar > Sistem Sağlığı
+
+Yeni API dosyası açılmadı (Vercel sınırı 12, kullanılan 11) — mevcut uca action
+eklendi, yalnızca yönetici erişebiliyor. **Hiçbir şey yazmaz.**
+
+Gösterdikleri: JSON belge boyutu ve eşik durumu, en çok yer kaplayan on alan (sürekli
+büyüyenler işaretli), kart/müşteri/şube/plan/geçmiş/silinen sayıları, son yedek,
+fonksiyon sayısı, kritik ortam değişkenlerinin **var/yok** durumu (değerler asla
+tarayıcıya gitmez), ve isteğe bağlı **salt okunur** Drive kontrolü.
+
+Drive kontrolü üretim Drive'ında hiçbir şey oluşturmaz; yazma yeteneği denenmeden
+Google'ın `capabilities` bilgisinden okunur, okunamayan yetenek "doğrulanamadı" der.
+Yakaladığı sessiz bozulmalar: ana klasör elle çöpe atılmış, servis hesabının yetkisi
+kaldırılmış, OAuth jetonu geçersiz, Drive alanı dolmuş.
+
+### Doğrulama
+
+80 test dosyası, **1678 kontrol**, 19 statik denetim (ikisi bu turda eklendi: sistem
+belgesi envanteri ve API fonksiyon sayısı sabiti), temiz derleme, 11/12 fonksiyon.
+Veri modeli değişmedi — tek JSON belgesi, migration yok.
