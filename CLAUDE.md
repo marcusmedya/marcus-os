@@ -44,7 +44,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     72 test dosyası (t1…t72) + 18 statik denetim betiği
+testler/     73 test dosyası (t1…t73) + 18 statik denetim betiği
 ```
 
 ---
@@ -126,7 +126,17 @@ markalarını görür). Kart **silme** bu kuralın dışında — yalnızca yön
 
 ### 5. Aşamalar ve medya yuvaları
 
-`lib/asamalar.js` aşama tablolarının **tek** sahibi (Video / Fotoğraf / Grafik Tasarım).
+`lib/asamalar.js` aşama tablolarının **tek** sahibi (Video / Fotoğraf / Carousel / Grafik Tasarım).
+
+**Yeni kategori eklerken dört yer birden güncellenir**, biri unutulursa hata çıkmaz — kart
+sessizce yanlış akışa düşer: `KATEGORILER` (`src/CekimEditTakibi.jsx`), `ASAMA_TABLOSU` +
+`YAPILIYOR_ASAMASI` (`lib/asamalar.js`), `paylasimTuru` kategori düşümü (`lib/stok.js`),
+`TUR_ETIKET` (`src/tema.jsx`). Her kategori KENDİ aşama dizisinin sahibi — Carousel'in
+akışı Fotoğraf'la aynı şekilde ama ayrı bir dizi, biri değişince diğeri değişmesin.
+
+**Carousel'in dosyaları Drive'da kendi klasörüne taşınır**: `ONAYLANANLAR/#124 Bowl Karosel/`.
+Ad `kartKlasorAdi` ile üretilir (kart numarası + içerik türü), klasör DURUM klasörünün
+altında açılır. Diğer kategorilerde `null` döner ve dosya doğrudan durum klasörüne gider.
 
 **`Şubelerde Paylaşılıyor` ara aşaması** (`SUBE_PAYLASIM_ASAMASI`) yalnızca çok şubeli
 markalarda kullanılır: içerik ilk şubede paylaşılınca kart oraya geçer (Operasyon panosunda
@@ -178,7 +188,7 @@ geçince düşer. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI`).
 
 ```bash
 bash testler/hepsinidenetle.sh     # 18 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t72, ~1481 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t73, ~1512 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

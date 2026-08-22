@@ -1013,6 +1013,9 @@ export function FieldForm({ fields, initial, onSubmit, onCancel, submitLabel = "
 export const TUR_ETIKET = {
   "Video": { ad: "Reels", renk: "#7C3AED", zemin: "#F1ECFD" },
   "Fotoğraf": { ad: "Görsel", renk: "#0E7490", zemin: "#E5F4F7" },
+  /* Carousel müşterinin de kullandığı bir kelime — çeviriye gerek yok, yalnızca kendi
+   * rengi olsun ki listede Görsel'le karışmasın. */
+  "Carousel": { ad: "Karosel", renk: "#0F766E", zemin: "#E3F2F0" },
   "Grafik Tasarım": { ad: "Tasarım", renk: "#B45309", zemin: "#FDF3E7" },
   "cekim": { ad: "Çekim Planı", renk: "#5B5BD6", zemin: "#EEEEFB" },
   "video": { ad: "Reels", renk: "#7C3AED", zemin: "#F1ECFD" },
