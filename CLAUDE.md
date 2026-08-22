@@ -44,7 +44,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     66 test dosyası (t1…t66) + 18 statik denetim betiği
+testler/     68 test dosyası (t1…t68) + 18 statik denetim betiği
 ```
 
 ---
@@ -126,11 +126,32 @@ markalarını görür). Kart **silme** bu kuralın dışında — yalnızca yön
 
 ### 5. Aşamalar ve medya yuvaları
 
-`lib/asamalar.js` aşama tablolarının **tek** sahibi (Video / Fotoğraf / Tasarım).
+`lib/asamalar.js` aşama tablolarının **tek** sahibi (Video / Fotoğraf / Grafik Tasarım).
+
+**`Şubelerde Paylaşılıyor` ara aşaması** (`SUBE_PAYLASIM_ASAMASI`) yalnızca çok şubeli
+markalarda kullanılır: içerik ilk şubede paylaşılınca kart oraya geçer (Operasyon panosunda
+görünür kalır, stok orada düşer), planlanan tüm şubeler bitince `Teslim Edildi`ye. Bu
+aşamanın `ASAMA_KLASORU` karşılığı **bilerek yok** — Drive'a taşıma en sonda yapılır.
+Şubesiz markada hiç kullanılmaz.
 Sunucu, istemciden gelen aşamayı doğrular; listede olmayan aşama `asamalariDuzelt`
 ile onarılır. Bir kartta en fazla 10 slayt + 1 story yuvası olabilir.
 
-### 6. Stok kuralları — `lib/stok.js`
+### 6. Şube bazlı içerik kullanımı — `lib/sube-kullanimi.js`
+
+**1 içerik = 1 kart = 1 Drive dosyası.** Aynı dosya her şube için tekrar yüklenmez.
+Bir içeriğin bir şubede kullanımı, `haftalikPaylasimlar` kaydının kendisidir — yeni
+koleksiyon yok, o kayda `subeId` eklendi. **`subeId` yoksa marka geneli** sayılır.
+
+- Aynı kart **aynı şubede** iki kez planlanamaz, **farklı şubelerde** planlanabilir.
+- Kartta `sadeceSubeler` doluysa içerik yalnızca o şubelerde kullanılabilir; boş/yoksa hepsi.
+- Kart onaylanınca **kullanabilen her şubenin** stoğu artar; şube paylaşınca kendi stoğu düşer.
+- **Genel stok yalnızca ilk paylaşımda düşer** — dört şubede kullanılan tek video, tek içerik.
+- Stok motoru, geçişin bir ucu `Şubelerde Paylaşılıyor` ise şubelere dokunmaz: o düşümü
+  paylaşım ucu yapar. Bu ayrım olmadan bir şube paylaşınca dört şubenin stoğu birden düşüyordu.
+- Planı olan şube **sessizce silinmez** (409 + onay); şube adı kayıtta kopyalı olduğu için
+  geçmiş okunabilir kalır.
+
+### 7. Stok kuralları — `lib/stok.js`
 
 Türler: Görsel · Video · Reels · Story · Carousel · Tasarım.
 Kart onaylanınca ilgili türün stoğu artar; kart silinince veya "Tamamlandı"ya
@@ -142,7 +163,7 @@ geçince düşer. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI`).
 
 ```bash
 bash testler/hepsinidenetle.sh     # 18 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t66, ~1285 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t68, ~1376 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

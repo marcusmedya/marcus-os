@@ -1,4 +1,7 @@
 import { kv } from "@vercel/kv";
+import { planSubesi, subeStokAnahtari, planlananlarTamamlandiMi, enAzBirSubedePaylasildi,
+         markaninSubeleri } from "../lib/sube-kullanimi.js";
+import { SUBE_PAYLASIM_ASAMASI } from "../lib/asamalar.js";
 import { KEY, guvenliYaz, kilitAl, kilitBirak, bugunISO, mesgulYanit } from "../lib/kv-yaz.js";
 import { kayitliYanit, yanitiSakla, yanitiYakala } from "../lib/islem-kimligi.js";
 import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
@@ -76,22 +79,43 @@ function bagliKartiCoz(data, isId, clientId) {
  * paylaşımı işaretlemek tek hareket olsun. Kartın geçmişine kimin ne zaman paylaştığı
  * yazılıyor, sonradan "bu ne zaman yayına çıktı" sorusunun cevabı kartın üstünde duruyor.
  */
-function bagliKartiIsaretle(data, isId, paylasildi, kim) {
+/**
+ * Bağlı kartın yeni aşamasını hesaplar.
+ *
+ * ÇOK ŞUBELİ MARKA: kart, ilk şube paylaştığında "Şubelerde Paylaşılıyor"a geçer —
+ * Operasyon panosunda GÖRÜNÜR kalır ki bekleyen şubeler unutulmasın — ve stok orada
+ * düşer (stok motoru "Onaylandı"dan çıkışa bakıyor). Planlanan TÜM şubeler bitince
+ * "Teslim Edildi"ye geçer; Drive'a taşıma da o an olur.
+ *
+ * ŞUBESİZ / MARKA GENELİ: doğrudan "Teslim Edildi". Bugünkü davranış birebir aynı.
+ */
+function kartinYeniAsamasi(planlar, isId) {
+  if (!enAzBirSubedePaylasildi(isId, planlar)) return PAYLASIMA_HAZIR;
+  const subeliPlanVar = (planlar || []).some((p) =>
+    p && String(p.isId) === String(isId) && planSubesi(p) !== null);
+  if (!subeliPlanVar) return PAYLASILDI_ASAMASI;
+  return planlananlarTamamlandiMi(isId, planlar) ? PAYLASILDI_ASAMASI : SUBE_PAYLASIM_ASAMASI;
+}
+
+function bagliKartiIsaretle(data, isId, _paylasildi, kim) {
   const zaman = new Date().toLocaleString("tr-TR");
   let etkilenen = null;
+  const yeniAsama = kartinYeniAsamasi(data.haftalikPaylasimlar, isId);
   data.cekimIsleri = (data.cekimIsleri || []).map((j) => {
     if (String(j.id) !== String(isId)) return j;
-    const yeniAsama = paylasildi ? PAYLASILDI_ASAMASI : PAYLASIMA_HAZIR;
+    const paylasildi = yeniAsama !== PAYLASIMA_HAZIR;
     if (j.asama === yeniAsama) { etkilenen = j; return j; }
     const guncel = {
       ...j,
       asama: yeniAsama,
-      teslimEdilmeTarihi: paylasildi ? bugunISO() : null,
+      teslimEdilmeTarihi: yeniAsama === PAYLASILDI_ASAMASI ? bugunISO() : null,
       gecmis: [...(j.gecmis || []), {
         id: (j.gecmis || []).length + 1, tarih: zaman, yazan: kim,
-        aciklama: paylasildi
-          ? "Paylaşım panelinden PAYLAŞILDI olarak işaretlendi."
-          : "Paylaşım işareti geri alındı; kart tekrar onaylı içeriklere döndü.",
+        aciklama: yeniAsama === SUBE_PAYLASIM_ASAMASI
+          ? "Bir şubede paylaşıldı; diğer planlanan şubeler bekliyor."
+          : paylasildi
+            ? "Paylaşım panelinden PAYLAŞILDI olarak işaretlendi."
+            : "Paylaşım işareti geri alındı; kart tekrar onaylı içeriklere döndü.",
       }],
     };
     etkilenen = guncel;
@@ -145,9 +169,21 @@ function stokDegistirDahili(data, clientId, tur, delta) {
   return yeni;
 }
 
-function gecmiseEkle(data, clientId, marka, tur, tip) {
+/**
+ * Paylaşım geçmişi kaydı.
+ *
+ * `subeId` ve `isId` eklendi: "bu içerik bu şubede paylaşıldı mı?" sorusunun asıl kaynağı
+ * burası. Eski kayıtlarda bu alanlar yok — onlar marka geneli sayılır, hiçbir şubeye
+ * yazılmaz. `marka` metni eskiden şube adını parantez içinde taşıyordu; o gösterim için
+ * kalıyor ama artık ARAMA ona değil, `subeId` alanına bakıyor.
+ */
+function gecmiseEkle(data, clientId, marka, tur, tip, ek) {
   const liste = data.paylasimGecmisi || [];
-  data.paylasimGecmisi = [...liste, { id: nid(), clientId, marka, tur, tip, tarih: bugunTR() }];
+  data.paylasimGecmisi = [...liste, {
+    id: nid(), clientId, marka, tur, tip, tarih: bugunTR(),
+    ...(ek && ek.subeId ? { subeId: ek.subeId } : {}),
+    ...(ek && ek.isId ? { isId: ek.isId } : {}),
+  }];
 }
 
 /** Bu uç noktanın dokunabildiği alanlar — sayaç yalnızca bunlar için artar.
@@ -306,7 +342,16 @@ export default async function handler(req, res) {
     }
 
     if (action === "haftalikEkle") {
-      const { clientId, gun, haftaKey, tur, isId } = body;
+      const { clientId, gun, haftaKey, tur, isId, subeId } = body;
+      /* ŞUBE — isteğe bağlı. Verilmezse MARKA GENELİ kayıt olur, yani bugünkü davranış.
+       * Şube adı da kopyalanıyor: şube silinse bile geçmişte neyin nerede paylaşıldığı
+       * okunabilsin (kart adı için kullanılan `isAdi` ile aynı gerekçe). */
+      const secilenSube = subeId
+        ? markaninSubeleri(data.subeler, clientId).find((x) => String(x.id) === String(subeId))
+        : null;
+      if (subeId && !secilenSube) {
+        return res.status(400).json({ error: "Şube bulunamadı — sayfayı yenileyip tekrar dene." });
+      }
       const liste = data.haftalikPaylasimlar || [];
       /* OPERASYON KARTI BAĞLAMA (isteğe bağlı).
        * Bağlanırsa paylaşım işaretlendiğinde kart "Teslim Edildi"ye geçer ve dosyası Drive'da
@@ -316,15 +361,28 @@ export default async function handler(req, res) {
       if (isId !== undefined && isId !== null && isId !== "") {
         const coz = bagliKartiCoz(data, isId, clientId);
         if (coz.hata) return res.status(400).json({ error: coz.hata });
-        if (coz.is.asama !== PAYLASIMA_HAZIR && coz.is.asama !== PAYLASILDI_ASAMASI) {
+        if (coz.is.asama !== PAYLASIMA_HAZIR && coz.is.asama !== SUBE_PAYLASIM_ASAMASI
+            && coz.is.asama !== PAYLASILDI_ASAMASI) {
           return res.status(400).json({ error: `Bu kart henüz paylaşıma hazır değil (${coz.is.asama}). Önce müşteri onayı gerekiyor.` });
         }
-        if (liste.some((p) => String(p.isId) === String(isId))) {
-          return res.status(400).json({ error: "Bu kart zaten bir paylaşım planına bağlı." });
+        /* AYNI KART AYNI ŞUBEDE İKİ KEZ PLANLANAMAZ — ama FARKLI ŞUBELERDE PLANLANABİLİR.
+         *
+         * Eski kural "bu kart zaten bir plana bağlı" diyerek her ikinci planı reddediyordu;
+         * çok şubeli markada aynı içeriği ikinci bir şubede kullanmayı tam olarak bu
+         * kesiyordu. Kural kaldırılmadı, ŞUBE BAZINA daraltıldı. */
+        const hedefSube = secilenSube ? String(secilenSube.id) : null;
+        if (liste.some((p) => String(p.isId) === String(isId) && planSubesi(p) === hedefSube)) {
+          return res.status(400).json({
+            error: hedefSube
+              ? `Bu kart ${secilenSube.ad} şubesi için zaten planlanmış.`
+              : "Bu kart zaten bir paylaşım planına bağlı.",
+          });
         }
         bagliIs = coz.is;
       }
       const yeni = { id: nid(), clientId, gun, haftaKey, tur, yapildi: false, yapildigiTarih: null,
+        subeId: secilenSube ? secilenSube.id : null,
+        subeAdi: secilenSube ? secilenSube.ad : null,
         isId: bagliIs ? bagliIs.id : null,
         /* Kartın adı plan kaydında da tutuluyor: kart sonradan silinse bile planda neyin
          * paylaşıldığı okunabilsin. Kimlik kaybolursa geriye ad kalır. */
@@ -403,12 +461,33 @@ export default async function handler(req, res) {
        * stoktan düşerdi. Bağsız planda böyle bir kart yok; orada sayıyı plan tutar. */
       const stokTuru = tasinacakIs ? paylasimTuru(tasinacakIs) : plan.tur;
       if (tasinacakIs) {
-        const stokSonuc = onaylananlaraGoreStok(isleriOnce, data.cekimIsleri, data.stoklar, data.clients);
+        /* Şubeler stok motoruna veriliyor: kart onaya girip çıkarken şube sayaçları da
+         * birlikte hareket etsin. Verilmezse yalnızca genel stok değişir (şubesiz marka). */
+        const stokSonuc = onaylananlaraGoreStok(isleriOnce, data.cekimIsleri, data.stoklar,
+          data.clients, undefined, data.subeler);
         if (stokSonuc) { data.stoklar = stokSonuc.stoklar; data.cekimIsleri = stokSonuc.cekimIsleri; }
       } else {
         stokDegistirDahili(data, plan.clientId, plan.tur, yeniYapildi ? -1 : 1);
       }
-      gecmiseEkle(data, plan.clientId, markaAdi(plan.clientId), stokTuru, yeniYapildi ? "paylasim" : "cekim");
+
+      /* ŞUBE STOĞU — o şube paylaşınca kendi sayısı düşer.
+       *
+       * Genel stok kartın aşamasına bağlı ve yalnızca İLK paylaşımda düşüyor: dört şubede
+       * kullanılan tek bir video, yine tek bir içerik. Şube sayacı ise her şube için ayrı
+       * ilerliyor — "bu şubede kaç içerik bekliyor" sorusunun cevabı o. */
+      const planSube = planSubesi(plan);
+      if (planSube) {
+        const subeAnahtar = subeStokAnahtari(plan.clientId, planSube, stokTuru);
+        data.stoklar = {
+          ...(data.stoklar || {}),
+          [subeAnahtar]: Math.max(0, ((data.stoklar || {})[subeAnahtar] || 0) + (yeniYapildi ? -1 : 1)),
+        };
+      }
+
+      gecmiseEkle(data, plan.clientId,
+        `${markaAdi(plan.clientId)}${plan.subeAdi ? " (" + plan.subeAdi + ")" : ""}`,
+        stokTuru, yeniYapildi ? "paylasim" : "cekim",
+        { subeId: planSube, isId: plan.isId });
       // Haftalık Plan'dan bir paylaşım "yapıldı" işaretlenince/geri alınınca, Günlük Kontrol
       // paneli de bunu otomatik yansıtır. (Önceden "sadece bugüne aitse" diye ek bir kontrol
       // vardı ama saat dilimi hesaplamasına bağımlı olduğu için kırılgandı ve bazen hiç
@@ -479,6 +558,20 @@ export default async function handler(req, res) {
 
     if (action === "subeSil") {
       const { subeId } = body;
+      /* PLANI OLAN ŞUBE SESSİZCE SİLİNMEZ.
+       *
+       * Silinen şubenin planları sahipsiz kalır ve "hangi içerik nerede paylaşıldı"
+       * geçmişi okunamaz hale gelirdi. Plan kayıtları `subeAdi` kopyası taşıdığı için
+       * GEÇMİŞ silinmiyor — ama kullanıcı ne olduğunu bilerek karar vermeli. */
+      const bagliPlanlar = (data.haftalikPaylasimlar || []).filter((p) => String(p.subeId) === String(subeId));
+      if (bagliPlanlar.length > 0 && !body.onayliSil) {
+        const paylasilan = bagliPlanlar.filter((p) => p.yapildi).length;
+        return res.status(409).json({
+          error: `Bu şubenin ${bagliPlanlar.length} paylaşım kaydı var (${paylasilan} tanesi paylaşılmış). `
+               + "Şube silinirse bu kayıtlar geçmişte kalır ama şube listesinden kaybolur.",
+          onayGerekli: true, planSayisi: bagliPlanlar.length, paylasilanSayisi: paylasilan,
+        });
+      }
       data.subeler = (data.subeler || []).filter((s) => s.id !== subeId);
       const _v = await kaydetVeYedekle(data);
       return res.status(200).json({ ok: true, _v, subeler: yanitSuz(data.subeler) });
