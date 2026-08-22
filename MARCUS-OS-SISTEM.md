@@ -37,7 +37,7 @@ Kod ve arayüz tamamen Türkçe — değişken ve fonksiyon adları dahil.
 | `src/` | React arayüzü (Vite ile derlenir) |
 | `api/` | Serverless fonksiyonlar — **her dosya bir fonksiyon**, Hobby sınırı 12 |
 | `lib/` | Ortak mantık — hem `api/` hem `src/` buradan import eder, **fonksiyon sayılmaz** |
-| `testler/` | 77 test dosyası (t1…t77) + 19 statik denetim betiği |
+| `testler/` | 78 test dosyası (t1…t78) + 19 statik denetim betiği |
 
 En büyük dosyalar: `src/App.jsx` (9.653), `src/CekimEditTakibi.jsx` (2.734),
 `api/data.js` (2.008), `src/musteriPaneli.jsx` (1.383), `src/tema.jsx` (1.039).
@@ -113,8 +113,14 @@ kullanamaz** — veri finansal iç bilgi; izin ayarı yanlış yapılsa bile iki
 ### `api/kasa.js` (125 satır) — şifre kasası
 `dogrula` · `degistir`. Kasa şifresi ayrı; **değiştirmeyi yalnızca owner yapabilir.**
 
-### `api/backup.js` (125 satır) — elle yedek indirme
-Belgenin tamamını JSON olarak verir. Owner yetkisi şart.
+### `api/backup.js` — yedek listesi, özet ve geri yükleme
+`GET` yedekleri listeler ya da tek bir yedeğin içeriğini/özetini verir; `?ozet=1`
+ayrıca **ne kaybedileceğini** söyler (`yedekDegerlendir`). `POST` geri yükler.
+
+Geri yükleme sistemdeki en tehlikeli yazma. Üç koruma: **yapı doğrulaması** (bozuk ya
+da yabancı belge yazılmadan reddedilir), **kilit** (alınamazsa geri yükleme YAPILMAZ),
+ve **geri-alma kopyası** (mevcut veri ayrı bir anahtara 30 gün saklanır). Sürüm sayacı
+geriye gitmez — açık sekmeler bayatlıklarını anlayabilsin diye.
 
 ### `api/daily-backup.js` (112 satır) — gece yedeği
 **Cron: her gün 03:00 UTC.** `BACKUP_EMAIL` adres(ler)ine yedek gönderir.
@@ -164,6 +170,7 @@ Artık **tanımsızsa kimse giremez.**
 | `eposta.js` | Resend üzerinden e-posta gönderimi ve şablonlar |
 | `video-jeton.js` | Video akışı için kısa ömürlü imzalı jeton |
 | `sistem-sagligi.js` | Belge ölçümü, büyüyen alanlar, ortam değişkeni var/yok — **yalnızca okur** |
+| `yedek-dogrula.js` | Geri yüklemeden önce yedeğin yapısı ve kayıp özeti — saf, yan etkisiz |
 
 ---
 
@@ -373,7 +380,7 @@ dosya hâlâ ekibin çalışma alanındadır.
 
 ```bash
 bash testler/hepsinidenetle.sh     # 19 statik denetim
-./testler/sunucutestleri.sh        # t1…t77, ~1619 kontrol — SAHTE veritabanı
+./testler/sunucutestleri.sh        # t1…t78, ~1645 kontrol — SAHTE veritabanı
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
