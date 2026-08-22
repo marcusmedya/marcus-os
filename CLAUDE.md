@@ -299,6 +299,7 @@ yalnızca var/yok bilgisi.
 | Belge | İçerik |
 |---|---|
 | `MARCUS-OS-SISTEM.md` | **Sistemin tam envanteri** — her uç, her modül, her alan, her ekran |
+| `MARCUS-OS-DENETIM-RAPORU.md` | Güvenilirlik denetimi (Ağu 2026) — bulunan kusurlar, düzeltmeler, ölçümler |
 | `README.md` | Sürüm sürüm tüm değişiklik geçmişi ve gerekçeleri |
 | `MARCUS-OS-DEVIR-RAPORU.md` | Sistem devir raporu — mimari, kurulum, ortam |
 | `MARCUS-OS-DEVIR-2.md` | İkinci devir notları |

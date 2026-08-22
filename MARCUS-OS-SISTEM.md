@@ -413,6 +413,7 @@ görünür ve koruma sınanmamış sayılır. Test dosyaları bunun için bölü
 |---|---|
 | `CLAUDE.md` | Her oturumda okunur — "bilmeden dokunulursa kırılır" kuralları |
 | `MARCUS-OS-SISTEM.md` | **Bu belge** — sistemin tam envanteri |
+| `MARCUS-OS-DENETIM-RAPORU.md` | Güvenilirlik denetimi (Ağu 2026) — bulunan kusurlar, düzeltmeler, ölçümler |
 | `README.md` | Sürüm sürüm tüm değişiklik geçmişi ve gerekçeleri |
 | `MARCUS-OS-DEVIR-RAPORU.md` | Sistem devir raporu — mimari, kurulum, ortam |
 | `MARCUS-OS-DEVIR-2.md` | İkinci devir notları |
