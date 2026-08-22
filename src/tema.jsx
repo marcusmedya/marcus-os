@@ -948,7 +948,12 @@ export function MarkaSecici({ value, onChange, clientList }) {
 }
 
 
-export function FieldForm({ fields, initial, onSubmit, onCancel, submitLabel = "Kaydet", clientList }) {
+/**
+ * `ekBolum`: alan listesiyle anlatılamayan bir bölüm (örn. şube listesi) formun İÇİNDE,
+ * Kaydet düğmesinin hemen üstünde çizilsin diye. Kartın dışına kardeş olarak
+ * konulduğunda panelin altında sahipsiz duruyor ve forma ait olmadığı izlenimi veriyor.
+ */
+export function FieldForm({ fields, initial, onSubmit, onCancel, submitLabel = "Kaydet", clientList, ekBolum }) {
   const [values, setValues] = useState(() => {
     const v = {};
     fields.forEach((f) => {
@@ -985,6 +990,7 @@ export function FieldForm({ fields, initial, onSubmit, onCancel, submitLabel = "
           )}
         </div>
       ))}
+      {ekBolum ? <div style={{ gridColumn: "1 / -1" }}>{ekBolum}</div> : null}
       <div style={{ display: "flex", gap: 8, gridColumn: "1 / -1", marginTop: 2 }}>
         <button onClick={() => onSubmit(values)} style={saveBtnStyle}><Check size={13} /> {submitLabel}</button>
         <button onClick={onCancel} style={cancelBtnStyle}>İptal</button>

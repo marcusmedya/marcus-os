@@ -126,8 +126,19 @@ await bolum("4) MARKA KİLİDİ — kilitli hesap başka markaya şube açamıyo
 });
 
 /* ---------------------------------------------------------------- */
-await bolum("5) ARAYÜZ BAĞLANTISI — onay dalı istemcide gerçekten var", 4, () => {
+await bolum("5) ARAYÜZ BAĞLANTISI — onay dalı istemcide gerçekten var", 6, () => {
   const app = readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");
+  const tema = readFileSync(new URL("../src/tema.jsx", import.meta.url), "utf8");
+
+  /* ŞUBE BÖLÜMÜ FORMUN İÇİNDE OLMALI. FieldForm kendi kartını çiziyor; bölüm ona
+   * KARDEŞ olarak konulduğunda kartın dışında, Kaydet düğmesinin altında sahipsiz
+   * kalıyor ve forma ait değilmiş gibi görünüyor — bu bir kez yaşandı. */
+  t("şube bölümü forma ekBolum olarak veriliyor",
+    /ekBolum=\{[^}]*MusteriSubeleri/.test(app),
+    "kardeş olarak konulursa kartın dışında kalır");
+  t("FieldForm ekBolum'u düğmelerin ÜSTÜNDE çiziyor",
+    tema.indexOf("{ekBolum ?") > 0 && tema.indexOf("{ekBolum ?") < tema.indexOf("{submitLabel}"),
+    "düğmelerden sonra çizilirse yine altta kalır");
 
   t("paylasimIstek onayGerekli dalını işliyor",
     /res\.onayGerekli\s*&&\s*secenekler/.test(app),
