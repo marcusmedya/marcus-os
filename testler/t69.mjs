@@ -35,6 +35,15 @@ const t = (ad, kosul, not) => {
   else { k++; console.log(`  ✗ ${ad}${not ? " — " + not : ""}`); }
 };
 
+/* Koruma kırıldığında test ÇÖKMEMELİ — çöken test hiç sonuç yazmaz ve kırma
+ * ölçümü "0 düştü" görünür, yani koruma sınanmamış sayılır. */
+const bolum = (baslik, adet, fn) => {
+  console.log(`\n${baslik}`);
+  const once = g + k;
+  try { fn(); }
+  catch (e) { for (let i = g + k - once; i < adet; i++) { k++; console.log(`  ✗ [bölüm çöktü] ${e.message}`); } }
+};
+
 /* Smell Coffee: dört şube, tek marka. */
 const CLIENT = 1;
 const SUBELER = [
@@ -164,6 +173,35 @@ console.log("\n5) BAĞLANTI ÇİTİ — arayüze var olan alan geçiliyor mu");
   t("MarkaStokKarti şube listesi için kart ve plan alıyor",
     stokKarti.length === 1 && /isler=\{isler\}/.test(stokKarti[0]) && /plan=\{haftalikPlan\}/.test(stokKarti[0]));
 }
+
+/* ---------------------------------------------------------------- */
+bolum("6) ÇEKİM LİSTESİ SATIRLARI — şube ayrı kart değil, markanın altında", 8, () => {
+  const app = readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");
+  const govde = app.slice(app.indexOf("function CekimListesi"), app.indexOf("function CekimListesi") + 6000);
+
+  /* ÖNCE HER ŞUBE KENDİ KARTIYDI: dört şubeli marka listeyi beş satırla dolduruyor,
+   * "hangi markaya çekim gerekiyor" sorusu okunamaz hale geliyordu. */
+  t("şubeler için AYRI üst düzey satır üretilmiyor",
+    !/\(subeler \|\| \[\]\)\.forEach/.test(govde),
+    "şube başına gruplar.push eden döngü geri gelmiş");
+  t("satır başlığında şube adı yapıştırılmıyor",
+    !/g\.sube \? ` — \$\{g\.sube\}`/.test(govde),
+    "başlık yalnızca marka adı olmalı");
+  t("marka satırı şube dökümü taşıyor", /subeOzetleri/.test(govde));
+  t("tıklama dökümü açıp kapatıyor", /setAcikMarka\(acik \? null : g\.anahtar\)/.test(govde));
+  /* Yalnızca "setAcikMarka geçiyor mu" demek yetmiyor: tıklama dursa da döküm hiç
+   * çizilmeyebilir. Açık durumun ŞUBELERİ GEZDİĞİ sınanıyor. */
+  t("açık durumda şubeler gerçekten çiziliyor",
+    /\{acik && \([\s\S]{0,300}?g\.subeOzetleri\.map/.test(govde),
+    "açık bayrağı şube listesini çizmiyor");
+  t("her şubenin kendi stok anahtarı okunuyor", /subeStokAnahtari\(c\.id, sb\.id, tur\)/.test(govde));
+
+  /* Markanın hazır içeriği yeterli olsa bile bir şubenin stoğu dibe vurmuş olabilir;
+   * marka listede kalmazsa o şube sessizce boşalır. */
+  t("şubesi dibe vuran marka listede kalıyor", /acilSubeVar/.test(govde));
+  t("eşik hem markaya hem şubeye uygulanıyor",
+    /toplam <= ESIK \|\| acilSubeVar/.test(govde));
+});
 
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);
 if (k > 0) process.exitCode = 1;
