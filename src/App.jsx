@@ -481,12 +481,19 @@ function Musteriler({ clients, subeler, onAddSube, onDeleteSube, bekleyenTahsila
               editingId === c.id ? (
                 <tr key={c.id}>
                   <td colSpan={7} style={{ padding: "12px 15px" }}>
-                    <FieldForm fields={CLIENT_FIELDS} initial={{ ...c, faturaliTutar: clientFaturaliTutar(c) }} onSubmit={(v) => { onUpdate(c.id, v); setEditingId(null); }} onCancel={() => setEditingId(null)} />
                     {/* ŞUBELER — markanın bir özelliği, tanımlandığı yerde duruyor.
-                      * Kaydet'e basmayı beklemiyor: şube ekleme/silme kendi ucuna gidiyor
-                      * (kilit ve işlem kimliği o yolda), form alanlarıyla aynı kayda
+                      * Formun İÇİNDE (`ekBolum`) çiziliyor: kardeş olarak konulduğunda
+                      * kartın dışında, Kaydet'in altında sahipsiz kalıyordu.
+                      * Kaydet'e basmayı beklemiyor — şube ekleme/silme kendi ucuna gidiyor
+                      * (kilit ve işlem kimliği o yolda). Form alanlarıyla aynı kayda
                       * girseydi eşzamanlı çalışan iki kişi birbirinin şubesini silerdi. */}
-                    {onAddSube && <MusteriSubeleri client={c} subeler={subeler} onAddSube={onAddSube} onDeleteSube={onDeleteSube} />}
+                    <FieldForm
+                      fields={CLIENT_FIELDS}
+                      initial={{ ...c, faturaliTutar: clientFaturaliTutar(c) }}
+                      onSubmit={(v) => { onUpdate(c.id, v); setEditingId(null); }}
+                      onCancel={() => setEditingId(null)}
+                      ekBolum={onAddSube ? <MusteriSubeleri client={c} subeler={subeler} onAddSube={onAddSube} onDeleteSube={onDeleteSube} /> : null}
+                    />
                   </td>
                 </tr>
               ) : (
