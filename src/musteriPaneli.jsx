@@ -10,8 +10,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
   tarihGoster, cancelBtnStyle, haftaBaslangici, reklamDurumu, musteriHatirlaniyorMu, FONTS, basligiTemizle, istatistikVarMi, authHeaders,
-  turEtiketi, TurRozet, inputStyle, saveBtnStyle,
-} from "./tema.jsx";
+  turEtiketi, TurRozet, inputStyle, saveBtnStyle, islemKimligiUret } from "./tema.jsx";
 import { LogOut, Trash2 } from "lucide-react";
 import { driveEmbedUrl, DriveGorsel, DriveVideo, driveGorselAdaylari, DriveKucukGorsel } from "./drive.jsx";
 import { InstagramOnizleme, InstagramIzgara } from "./instagram.jsx";
@@ -411,7 +410,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
     fetch("/api/data", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ musteriAction, isId, revizeNotu }),
+      body: JSON.stringify({ musteriAction, isId, revizeNotu, islemId: islemKimligiUret() }),
     })
       .then((r) => r.json())
       .then((res) => {
@@ -429,7 +428,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
     fetch("/api/data", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ musteriAction: "talepOlustur", talep }),
+      body: JSON.stringify({ musteriAction: "talepOlustur", talep, islemId: islemKimligiUret() }),
     })
       .then((r) => r.json())
       .then((res) => {
@@ -445,7 +444,7 @@ export function MusteriPaneli({ musteriData, onCikis, onIslemSonrasi, ortakModu 
     fetch("/api/data", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ musteriAction, icerikId, revizeNotu }),
+      body: JSON.stringify({ musteriAction, icerikId, revizeNotu, islemId: islemKimligiUret() }),
     })
       .then((r) => r.json())
       .then((res) => {
