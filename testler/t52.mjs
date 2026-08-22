@@ -340,9 +340,20 @@ t("DELETE yöntemi kullanılmıyor", patchler.length === 2);
 t("çöpe atma OAUTH ile deneniyor (sahiplik meselesi)",
   istekler.some((x) => x.jeton === "oauth"),
   JSON.stringify(istekler.filter((x) => x.jeton)));
+/* ÖLÇÜM DOSYA SİLME AŞAMASIYLA SINIRLI.
+ *
+ * İddia "dosya silinirken servis hesabına gereksiz yere düşülmüyor". Önce isteklerin
+ * TAMAMI sayılıyordu; dosyalar silindikten SONRA çalışan boş-klasör temizliği servis
+ * hesabını haklı olarak kullanınca test, niyet değişmediği hâlde düştü. Klasörü servis
+ * hesabı açtığı için sahibi odur ve çöpe atmayı ancak o yapabilir.
+ *
+ * İstekler sırayla kaydediliyor; son dosya PATCH'ine kadar olan bölüm dosya silme
+ * aşamasıdır. */
+const sonDosyaPatchi = istekler.reduce((son, x, i) => (x.dosyaId ? i : son), -1);
+const dosyaAsamasi = istekler.slice(0, sonDosyaPatchi + 1);
 t("OAuth başarılıysa servis hesabına düşülmüyor",
-  !istekler.some((x) => x.jeton === "servis"),
-  JSON.stringify(istekler.filter((x) => x.jeton)));
+  !dosyaAsamasi.some((x) => x.jeton === "servis"),
+  JSON.stringify(dosyaAsamasi.filter((x) => x.jeton)));
 
 sr = await sil("7");
 t("dosyası olmayan parça hata vermiyor", sr.kod === 200 && sr.govde.silinen.length === 0, JSON.stringify(sr.govde));
