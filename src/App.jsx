@@ -6004,7 +6004,7 @@ function MusteriHesaplariKart({ clients }) {
     fetch("/api/manage-staff", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
-      body: JSON.stringify({ hesapTuru: "musteri", action: "ekle", ad: yeniAd.trim(), kullaniciAdi: yeniKullanici.trim(), sifre: yeniSifre, clientId: yeniClientId }),
+      body: JSON.stringify({ hesapTuru: "musteri", action: "ekle", ad: yeniAd.trim(), kullaniciAdi: yeniKullanici.trim(), sifre: yeniSifre, clientId: yeniClientId, islemId: islemKimligiUret() }),
     })
       .then((r) => r.json()).then(surumBildir)
       .then((res) => {
@@ -6020,7 +6020,7 @@ function MusteriHesaplariKart({ clients }) {
     fetch("/api/manage-staff", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
-      body: JSON.stringify({ hesapTuru: "musteri", action: "sifreSifirla", id, sifre: yeniSifreDeger }),
+      body: JSON.stringify({ hesapTuru: "musteri", action: "sifreSifirla", id, sifre: yeniSifreDeger, islemId: islemKimligiUret() }),
     })
       .then((r) => r.json()).then(surumBildir)
       .then((res) => { if (res.hesaplar) { setHesaplar(res.hesaplar); setSifirlanan(null); setYeniSifreDeger(""); setHata(""); } })
@@ -6032,7 +6032,7 @@ function MusteriHesaplariKart({ clients }) {
     fetch("/api/manage-staff", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
-      body: JSON.stringify({ hesapTuru: "musteri", action: "sil", id }),
+      body: JSON.stringify({ hesapTuru: "musteri", action: "sil", id, islemId: islemKimligiUret() }),
     })
       .then((r) => r.json()).then(surumBildir)
       .then((res) => { if (res.hesaplar) setHesaplar(res.hesaplar); })
@@ -6229,7 +6229,7 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
     fetch("/api/manage-staff", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
-      body: JSON.stringify({ action: "ekle", ad: yeniAd.trim(), kullaniciAdi: yeniKullanici.trim(), sifre: yeniSifre }),
+      body: JSON.stringify({ action: "ekle", ad: yeniAd.trim(), kullaniciAdi: yeniKullanici.trim(), sifre: yeniSifre, islemId: islemKimligiUret() }),
     })
       .then((r) => r.json()).then(surumBildir)
       .then((res) => {
@@ -6245,7 +6245,7 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
     fetch("/api/manage-staff", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
-      body: JSON.stringify({ action: "sifreSifirla", id, sifre: yeniSifreDeger }),
+      body: JSON.stringify({ action: "sifreSifirla", id, sifre: yeniSifreDeger, islemId: islemKimligiUret() }),
     })
       .then((r) => r.json()).then(surumBildir)
       .then((res) => { if (res.hesaplar) setHesaplar(res.hesaplar); setSifirlanan(null); setYeniSifreDeger(""); });
@@ -6256,7 +6256,7 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
     fetch("/api/manage-staff", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
-      body: JSON.stringify({ action: "sil", id }),
+      body: JSON.stringify({ action: "sil", id, islemId: islemKimligiUret() }),
     })
       .then((r) => r.json()).then(surumBildir)
       .then((res) => { if (res.hesaplar) setHesaplar(res.hesaplar); });
@@ -6274,7 +6274,7 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
     fetch("/api/manage-staff", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
-      body: JSON.stringify({ action: "guncelle", id, email: taslakEmail.trim(), izinler: taslakIzin, markalar: taslakMarkalar }),
+      body: JSON.stringify({ action: "guncelle", id, email: taslakEmail.trim(), izinler: taslakIzin, markalar: taslakMarkalar, islemId: islemKimligiUret() }),
     })
       .then((r) => r.json()).then(surumBildir)
       .then((res) => { if (res.hesaplar) { setHesaplar(res.hesaplar); setAcikId(null); } });
@@ -7492,7 +7492,7 @@ export default function MarcusOS() {
     fetch("/api/manage-staff", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ hesapTuru: "musteri", action: "silByClientId", clientId: id }),
+      body: JSON.stringify({ hesapTuru: "musteri", action: "silByClientId", clientId: id, islemId: islemKimligiUret() }),
     }).catch(() => {}); // sessizce geç — asıl müşteri silme işlemi zaten tamamlandı
   };
 

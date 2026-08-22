@@ -44,7 +44,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     65 test dosyası (t1…t65) + 18 statik denetim betiği
+testler/     66 test dosyası (t1…t66) + 18 statik denetim betiği
 ```
 
 ---
@@ -79,7 +79,9 @@ eklerken yeni dosya AÇMA** — mevcut bir uca yeni bir `action` ekle. Örnek:
   zaten tekrara dayanıklı. İki kural: kimlik yalnızca gerçekten yazıldıysa işaretlenir
   (503'te ASLA), kontrol yazmayla aynı kilidin içinde olur. `guvenliGuncelle`'ye
   `{ islemId }` verilirse kontrol onun içinde yapılır ve `tekrarlandi` bayrağı döner —
-  **yan etkiler (e-posta, Drive taşıma) tekrarda çalıştırılmamalı.**
+  **yan etkiler (e-posta, Drive taşıma, güvenlik defteri) tekrarda çalıştırılmamalı.**
+  Ağ hatasında otomatik tekrar (`lib/mesgul-tekrar.js`) **yalnızca kimlik taşıyan
+  istekte** yapılır: ağ koptuğunda kaybolan YANIT'tır, istek uygulanmış olabilir.
 - **Stok sunucu otoritesidir.** Tarayıcının gönderdiği stok kopyası kullanılmaz;
   taban her zaman sunucudaki `stoklar` alanıdır.
 - **Kayıt numarasının son sözü sunucudadır** (`lib/kimlik.js`). Tarayıcı numarayı
@@ -140,7 +142,7 @@ geçince düşer. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI`).
 
 ```bash
 bash testler/hepsinidenetle.sh     # 18 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t65, ~1262 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t66, ~1285 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

@@ -73,17 +73,23 @@ function hashSifre(sifre, salt) {
  * A uyandığında B'nin sürümünü kendi cevabına koyuyor. Yanlış sürüm alan tarayıcı bir
  * sonraki kayıtta SAHTE çakışma yiyor ve ön yüz kullanıcının düzenlemesini eziyordu.
  * Yani bu yol doğrudan veri kaybı üretiyordu. t57 bunu deterministik olarak üretiyor. */
-async function hesaplariYaz(alanAdi, guncel) {
+async function hesaplariYaz(alanAdi, guncel, islemId) {
   /* Yalnızca hesap listesi değişiyor — sayaç yalnızca onun için artsın ki o sırada
-   * kart düzenleyen ya da şifre kasasına yazan kimse bayat olmasın. */
+   * kart düzenleyen ya da şifre kasasına yazan kimse bayat olmasın.
+   *
+   * İŞLEM KİMLİĞİ: hesap ekleme/silme bir FARK bildirimi. `ekle` kullanıcı adı tekliği
+   * sayesinde tesadüfen korunuyordu ama `sil` ve `sifreSifirla` korunmuyordu; tekrar
+   * gönderilen bir silme, aradaki sürede yeniden açılmış bir hesabı silebilirdi.
+   * Kontrol guvenliGuncelle'nin içinde, yazmayla aynı kilitte. */
   const sonuc = await guvenliGuncelle(async (veri) => ({
     degisenAlanlar: [alanAdi],
     veri: { ...veri, [alanAdi]: guncel },
-  }));
+  }), { islemId });
   const surum = sonuc && sonuc.ok && sonuc.veri ? sonuc.veri._v : undefined;
   return {
     ok: Boolean(sonuc && sonuc.ok),
     mesgul: Boolean(sonuc && sonuc.mesgul),
+    tekrarlandi: Boolean(sonuc && sonuc.tekrarlandi),
     /* Yazılan sürüm cevaba eklenir; bildirilmezse yönetici sekmesi bir tur geride kalır. */
     surumEki: typeof surum === "number" ? { _v: surum } : {},
   };
@@ -129,7 +135,7 @@ export default async function handler(req, res) {
     }
 
     if (req.method === "POST") {
-      const { action, id, ad, kullaniciAdi, sifre, email, izinler, markalar, clientId } = req.body || {};
+      const { action, id, ad, kullaniciAdi, sifre, email, izinler, markalar, clientId, islemId } = req.body || {};
 
       if (action === "ekle") {
         if (!ad || !kullaniciAdi || !sifre) return res.status(400).json({ error: "Ad, kullanıcı adı ve şifre gerekli." });
@@ -143,11 +149,14 @@ export default async function handler(req, res) {
           ? { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ad, kullaniciAdi, clientId, sifreHash: hashSifre(sifre, salt), sifreSalt: salt }
           : { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), ad, kullaniciAdi, email: email || "", izinler: { ...DEFAULT_PERMS }, sifreHash: hashSifre(sifre, salt), sifreSalt: salt };
         const guncel = [...hesaplar, yeni];
-        const yazma = await hesaplariYaz(alanAdi, guncel);
+        const yazma = await hesaplariYaz(alanAdi, guncel, islemId);
         if (!yazma.ok) return kaydedilemedi(res, yazma);
         // Hesap açma/silme ve yetki değişiklikleri güvenlik defterine yazılır.
-        await deftereYaz("hesap-islemi", { hesapTuru: hesapTuru || "personel", action, id: id || null, ad: ad || null });
-        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel), ...yazma.surumEki });
+        /* GÜVENLİK DEFTERİ TEKRARDA YAZILMIYOR. Defter "kim ne zaman ne yaptı" sorusunun
+         * cevabı; tekrar edilen bir istek için ikinci bir satır, olmayan bir işlemi
+         * varmış gibi gösterirdi. */
+        if (!yazma.tekrarlandi) await deftereYaz("hesap-islemi", { hesapTuru: hesapTuru || "personel", action, id: id || null, ad: ad || null });
+        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel), ...yazma.surumEki, ...(yazma.tekrarlandi ? { tekrarlandi: true } : {}) });
       }
 
       if (action === "sifreSifirla") {
@@ -155,11 +164,14 @@ export default async function handler(req, res) {
         if (sifre.length < 4) return res.status(400).json({ error: "Şifre en az 4 karakter olmalı." });
         const salt = crypto.randomBytes(16).toString("hex");
         const guncel = hesaplar.map((h) => (h.id === id ? { ...h, sifreHash: hashSifre(sifre, salt), sifreSalt: salt } : h));
-        const yazma = await hesaplariYaz(alanAdi, guncel);
+        const yazma = await hesaplariYaz(alanAdi, guncel, islemId);
         if (!yazma.ok) return kaydedilemedi(res, yazma);
         // Hesap açma/silme ve yetki değişiklikleri güvenlik defterine yazılır.
-        await deftereYaz("hesap-islemi", { hesapTuru: hesapTuru || "personel", action, id: id || null, ad: ad || null });
-        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel), ...yazma.surumEki });
+        /* GÜVENLİK DEFTERİ TEKRARDA YAZILMIYOR. Defter "kim ne zaman ne yaptı" sorusunun
+         * cevabı; tekrar edilen bir istek için ikinci bir satır, olmayan bir işlemi
+         * varmış gibi gösterirdi. */
+        if (!yazma.tekrarlandi) await deftereYaz("hesap-islemi", { hesapTuru: hesapTuru || "personel", action, id: id || null, ad: ad || null });
+        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel), ...yazma.surumEki, ...(yazma.tekrarlandi ? { tekrarlandi: true } : {}) });
       }
 
       if (action === "guncelle") {
@@ -179,21 +191,27 @@ export default async function handler(req, res) {
           }
           return yeni;
         });
-        const yazma = await hesaplariYaz(alanAdi, guncel);
+        const yazma = await hesaplariYaz(alanAdi, guncel, islemId);
         if (!yazma.ok) return kaydedilemedi(res, yazma);
         // Hesap açma/silme ve yetki değişiklikleri güvenlik defterine yazılır.
-        await deftereYaz("hesap-islemi", { hesapTuru: hesapTuru || "personel", action, id: id || null, ad: ad || null });
-        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel), ...yazma.surumEki });
+        /* GÜVENLİK DEFTERİ TEKRARDA YAZILMIYOR. Defter "kim ne zaman ne yaptı" sorusunun
+         * cevabı; tekrar edilen bir istek için ikinci bir satır, olmayan bir işlemi
+         * varmış gibi gösterirdi. */
+        if (!yazma.tekrarlandi) await deftereYaz("hesap-islemi", { hesapTuru: hesapTuru || "personel", action, id: id || null, ad: ad || null });
+        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel), ...yazma.surumEki, ...(yazma.tekrarlandi ? { tekrarlandi: true } : {}) });
       }
 
       if (action === "sil") {
         if (!id) return res.status(400).json({ error: "id gerekli." });
         const guncel = hesaplar.filter((h) => h.id !== id);
-        const yazma = await hesaplariYaz(alanAdi, guncel);
+        const yazma = await hesaplariYaz(alanAdi, guncel, islemId);
         if (!yazma.ok) return kaydedilemedi(res, yazma);
         // Hesap açma/silme ve yetki değişiklikleri güvenlik defterine yazılır.
-        await deftereYaz("hesap-islemi", { hesapTuru: hesapTuru || "personel", action, id: id || null, ad: ad || null });
-        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel), ...yazma.surumEki });
+        /* GÜVENLİK DEFTERİ TEKRARDA YAZILMIYOR. Defter "kim ne zaman ne yaptı" sorusunun
+         * cevabı; tekrar edilen bir istek için ikinci bir satır, olmayan bir işlemi
+         * varmış gibi gösterirdi. */
+        if (!yazma.tekrarlandi) await deftereYaz("hesap-islemi", { hesapTuru: hesapTuru || "personel", action, id: id || null, ad: ad || null });
+        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel), ...yazma.surumEki, ...(yazma.tekrarlandi ? { tekrarlandi: true } : {}) });
       }
 
       // Bir marka (client) silindiğinde, o markaya bağlı Müşteri Paneli giriş hesabını/hesaplarını
@@ -202,11 +220,14 @@ export default async function handler(req, res) {
       if (action === "silByClientId" && musteriMi) {
         if (clientId === undefined || clientId === null) return res.status(400).json({ error: "clientId gerekli." });
         const guncel = hesaplar.filter((h) => String(h.clientId) !== String(clientId));
-        const yazma = await hesaplariYaz(alanAdi, guncel);
+        const yazma = await hesaplariYaz(alanAdi, guncel, islemId);
         if (!yazma.ok) return kaydedilemedi(res, yazma);
         // Hesap açma/silme ve yetki değişiklikleri güvenlik defterine yazılır.
-        await deftereYaz("hesap-islemi", { hesapTuru: hesapTuru || "personel", action, id: id || null, ad: ad || null });
-        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel), ...yazma.surumEki });
+        /* GÜVENLİK DEFTERİ TEKRARDA YAZILMIYOR. Defter "kim ne zaman ne yaptı" sorusunun
+         * cevabı; tekrar edilen bir istek için ikinci bir satır, olmayan bir işlemi
+         * varmış gibi gösterirdi. */
+        if (!yazma.tekrarlandi) await deftereYaz("hesap-islemi", { hesapTuru: hesapTuru || "personel", action, id: id || null, ad: ad || null });
+        return res.status(200).json({ ok: true, hesaplar: listeGoster(guncel), ...yazma.surumEki, ...(yazma.tekrarlandi ? { tekrarlandi: true } : {}) });
       }
 
       return res.status(400).json({ error: "Geçersiz işlem." });
