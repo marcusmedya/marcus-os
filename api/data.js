@@ -7,7 +7,7 @@ import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, bir
 import { belgedekiCakismalariOnar, turetilmisleriAyikla } from "../lib/kimlik.js";
 import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
 import { epostaGonder, revizeBildirimHtml } from "../lib/eposta.js";
-import { onaylananiTasi, kartKlasorunuTasi, DURUM_KLASORLERI, klasorDurumu, driveDosyaIdCikar, videoAkisi } from "../lib/drive-tasima.js";
+import { onaylananiTasi, kartKlasorunuTasi, bosaldiysaKartKlasorunuCopeAt, DURUM_KLASORLERI, klasorDurumu, driveDosyaIdCikar, videoAkisi } from "../lib/drive-tasima.js";
 import { jetonUret, jetonCoz } from "../lib/video-jeton.js";
 import { Readable } from "stream";
 import { dosyasizKontroleGirenleriGeriAl, medyaVarMi, asamalariDuzelt,
@@ -1072,7 +1072,24 @@ export default async function handler(req, res) {
         const sebepler = [...new Set(basarisiz.map((x) => x.sebep).filter(Boolean))];
         return res.status(400).json({ error: `Drive'dan silinemedi: ${sebepler.join(" · ")}` });
       }
-      return res.status(200).json({ ok: true, silinen, basarisiz });
+      /* KART KLASÖRÜ BOŞALDIYSA ÇÖPE. Karosel slaytları silinince klasör Drive'da boş
+       * duruyordu; ONAY BEKLEYENLER birkaç ayda adı olup içi olmayan klasörlerle
+       * doluyordu. Yalnızca GERÇEKTEN boşsa ve yalnızca çöpe — kalıcı silme yok.
+       *
+       * Silme başarılı sayıldıktan SONRA çalışıyor ve sonucu silme işlemini
+       * etkilemiyor: klasör temizliği başarısız olsa da dosyalar silindi, kullanıcıya
+       * "silinemedi" demek yanlış olurdu. */
+      let klasorTemizligi = null;
+      const silKlasorAdi = kartKlasorAdi(is);
+      if (silKlasorAdi && silinen.length > 0) {
+        klasorTemizligi = await bosaldiysaKartKlasorunuCopeAt({
+          kartKlasoru: silKlasorAdi, ipucuDosyaId: silinen[0],
+        });
+      }
+      return res.status(200).json({
+        ok: true, silinen, basarisiz,
+        klasorSilindi: Boolean(klasorTemizligi && klasorTemizligi.silindi),
+      });
     }
 
     return res.status(400).json({ error: "Geçersiz işlem." });

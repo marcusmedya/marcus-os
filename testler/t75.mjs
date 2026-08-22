@@ -24,7 +24,7 @@ process.env.GOOGLE_PRIVATE_KEY = privateKey;
 
 const { yuklemeOturumuAc } = await import("../lib/drive-yukleme.js");
 const { kartKlasorAdi } = await import("../lib/asamalar.js");
-const { onaylananiTasi, kartKlasorunuTasi } = await import("../lib/drive-tasima.js");
+const { onaylananiTasi, kartKlasorunuTasi, bosaldiysaKartKlasorunuCopeAt } = await import("../lib/drive-tasima.js");
 
 let g = 0, k = 0;
 const t = (ad, kosul, not) => {
@@ -345,6 +345,90 @@ await bolum("6) ESKİ KARTLAR — klasörü yoksa dosya-dosya yola düşülüyor
     t("sebep 'klasör yok' olarak işaretleniyor", sonuc.klasorYok === true,
       "çağıran bunu görüp dosya-dosya yola düşüyor");
   } finally { globalThis.fetch = gercek; }
+});
+
+/* ---------------------------------------------------------------- */
+/* Klasör temizliği için ortak taklit: klasörün içinde kaç öğe kaldığı ve listelemenin
+ * başarılı olup olmadığı dışarıdan verilebiliyor. */
+function temizlikTaklidi({ kalanOge = 0, listelemeCalisiyor = true, klasorAdi = "#124 karosel" } = {}) {
+  const kayit = { patchler: [], silmeIstekleri: [] };
+  const gercek = globalThis.fetch;
+  globalThis.fetch = async (url, opt = {}) => {
+    const u = String(url);
+    if (u.includes("oauth2.googleapis.com/token")) {
+      return { ok: true, status: 200, json: async () => ({ access_token: "jeton" }) };
+    }
+    if (opt.method === "DELETE") { kayit.silmeIstekleri.push(u); return { ok: true, status: 204, json: async () => ({}) }; }
+    if (u.includes("?fields=parents")) {
+      return { ok: true, status: 200, json: async () => ({ parents: ["KARTKLASOR01"] }) };
+    }
+    if (u.includes("?fields=id,name,parents")) {
+      return { ok: true, status: 200, json: async () => ({ id: "KARTKLASOR01", name: klasorAdi, parents: ["BEKLEYENKLS1"] }) };
+    }
+    if (u.includes("drive/v3/files?q=")) {
+      if (!listelemeCalisiyor) return { ok: false, status: 500, json: async () => ({ error: { message: "Drive erişilemedi" } }) };
+      const files = Array.from({ length: kalanOge }, (_, i) => ({ id: `KALAN${i}` }));
+      return { ok: true, status: 200, json: async () => ({ files }) };
+    }
+    if (opt.method === "PATCH") {
+      kayit.patchler.push({ url: u, govde: JSON.parse(opt.body || "{}") });
+      return { ok: true, status: 200, json: async () => ({ id: "KARTKLASOR01", trashed: true }) };
+    }
+    return { ok: true, status: 200, json: async () => ({ id: "x" }) };
+  };
+  kayit.geriAl = () => { globalThis.fetch = gercek; };
+  return kayit;
+}
+
+const temizle = () => bosaldiysaKartKlasorunuCopeAt({
+  kartKlasoru: "#124 karosel", ipucuDosyaId: "SILINENDOSYA1",
+});
+
+await bolum("7) BOŞALAN KART KLASÖRÜ ÇÖPE ATILIYOR", 4, async () => {
+  const d = temizlikTaklidi({ kalanOge: 0 });
+  try {
+    const sonuc = await temizle();
+    t("klasör çöpe atıldı", sonuc.silindi === true, sonuc.sebep || "");
+    t("hangi klasör olduğu bildiriliyor", sonuc.klasorAdi === "#124 karosel");
+    t("işlem ÇÖPE ATMA — trashed işaretleniyor",
+      d.patchler.length === 1 && d.patchler[0].govde.trashed === true,
+      JSON.stringify(d.patchler));
+    t("KALICI SİLME yapılmıyor", d.silmeIstekleri.length === 0,
+      "çöp kutusunda 30 gün durmalı, geri alınabilmeli");
+  } finally { d.geriAl(); }
+});
+
+/* ---------------------------------------------------------------- */
+await bolum("8) DOLU KLASÖRE DOKUNULMUYOR", 5, async () => {
+  const d = temizlikTaklidi({ kalanOge: 1 });
+  try {
+    const sonuc = await temizle();
+    t("tek dosya kalmışsa silinmiyor", sonuc.silindi === false);
+    t("sebep bildiriliyor", sonuc.doluKaldi === true && sonuc.kalanSayisi === 1);
+    t("hiçbir yazma yapılmadı", d.patchler.length === 0 && d.silmeIstekleri.length === 0,
+      "boş sanıp doluyu atmak bu temizliğin yapabileceği en kötü şey");
+  } finally { d.geriAl(); }
+
+  /* Listeleme başarısız olursa "boş" sayılmamalı. */
+  const h = temizlikTaklidi({ kalanOge: 0, listelemeCalisiyor: false });
+  try {
+    const sonuc = await temizle();
+    t("listeleme HATA verirse klasör silinmiyor", sonuc.silindi === false,
+      "hata anında boş sayılsaydı dolu klasör çöpe giderdi");
+    t("hata anında da yazma yok", h.patchler.length === 0);
+  } finally { h.geriAl(); }
+});
+
+/* ---------------------------------------------------------------- */
+await bolum("9) BAŞKA KLASÖRE DOKUNULMUYOR", 2, async () => {
+  /* Dosyanın ebeveyni kart klasörü DEĞİL (eski yükleme) — durum klasörü asla silinmemeli. */
+  const d = temizlikTaklidi({ kalanOge: 0, klasorAdi: "1 ONAY BEKLEYENLER" });
+  try {
+    const sonuc = await temizle();
+    t("adı tutmayan klasör silinmiyor", sonuc.silindi === false && sonuc.klasorYok === true,
+      "durum klasörünün çöpe gitmesi bütün markayı bozardı");
+    t("hiçbir yazma yapılmadı", d.patchler.length === 0 && d.silmeIstekleri.length === 0);
+  } finally { d.geriAl(); }
 });
 
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);
