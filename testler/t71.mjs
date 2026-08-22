@@ -8,10 +8,15 @@
  *    değiştirilirse, kart artık o markada karşılığı olmayan kimlikler taşır. Sonuç:
  *    HİÇBİR şubenin kullanamadığı içerik — her seçiciden kaybolur, hata da vermez.
  *
- * 2. ŞUBE SİLİNİRSE O ŞUBEYE KİLİTLİ KART SAHİPSİZ KALMASIN. Aynı sessiz kayboluş,
- *    bu kez silme üzerinden. Kimlik karttan çıkarılır; geriye şube kalmazsa kart
- *    MARKA GENELİ olur. Her yerde görünen içerik fark edilir, hiçbir yerde
- *    görünmeyen içerik kaybolur — güvenli taraf bu.
+ * 2. ŞUBE SİLİNİRSE KİMLİK ÇIKARILIR — AMA KAPSAM AÇILMAZ. Kart birden çok şubeye
+ *    kilitliyse silinen kimlik çıkarılır ve kart kalan şubelerde çalışmaya devam eder.
+ *    Liste BOŞALACAKSA kimlik bırakılır.
+ *
+ *    KURAL DEĞİŞTİ — eskiden liste boşaltılıyor ve kart MARKA GENELİ oluyordu. Ölçüldü:
+ *    "yalnızca Lara için hazırlanmış içerik" Lara silinince Merkez'de kullanılabilir
+ *    hale geliyordu; içerik yanlış şubede paylaşılabilirdi. Artık kart kullanılamaz
+ *    kalıyor ve `kapsamiKayipMi` bunu adı olan bir hale çevirip arayüzde gösteriyor.
+ *    Ayrıntılı davranış testi: t76.
  *
  * Silmeden ÖNCE de uyarılıyor: kaç kartın yalnızca o şubeye açık olduğu söyleniyor.
  */
@@ -78,8 +83,9 @@ await bolum("2) ONAYLI SİLME — kilitli kartlar sahipsiz kalmıyor", 6, async 
   const veri = await oku();
   const kart = (id) => veri.cekimIsleri.find((j) => j.id === id);
 
-  t("yalnızca o şubeye açık kart MARKA GENELİ oldu", kart(1).sadeceSubeler.length === 0,
-    JSON.stringify(kart(1).sadeceSubeler));
+  t("yalnızca o şubeye açık kartın kimliği BIRAKILDI",
+    JSON.stringify(kart(1).sadeceSubeler) === '["lara"]',
+    JSON.stringify(kart(1).sadeceSubeler) + " — boşaltılsaydı kart marka geneline açılırdı");
   t("iki şubeli kartta yalnızca silinen çıkarıldı",
     JSON.stringify(kart(2).sadeceSubeler) === JSON.stringify(["mrkz"]),
     JSON.stringify(kart(2).sadeceSubeler));
@@ -87,9 +93,9 @@ await bolum("2) ONAYLI SİLME — kilitli kartlar sahipsiz kalmıyor", 6, async 
 
   /* ASIL MESELE: kart hâlâ bir şubede kullanılabiliyor mu? */
   const kalanSubeler = veri.subeler;
-  t("eski kilitli kart artık kalan şubede kullanılabiliyor",
-    kullanabilenSubeler(kart(1), kalanSubeler, 1).some((s) => s.id === "mrkz"),
-    "kimse kullanamıyorsa içerik sessizce kaybolur");
+  t("eski kilitli kart HİÇBİR şubede kullanılamıyor",
+    kullanabilenSubeler(kart(1), kalanSubeler, 1).length === 0,
+    "kapsam açılırsa içerik yanlış şubede paylaşılabilir — kasıtlı olarak kapalı");
   t("iki şubeli kart hâlâ Merkez'de kullanılabiliyor",
     kullanabilenSubeler(kart(2), kalanSubeler, 1).map((s) => s.id).join(",") === "mrkz");
 });

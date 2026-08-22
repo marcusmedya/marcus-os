@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     75 test dosyası (t1…t75) + 19 statik denetim betiği
+testler/     76 test dosyası (t1…t76) + 19 statik denetim betiği
 ```
 
 ---
@@ -188,8 +188,14 @@ koleksiyon yok, o kayda `subeId` eklendi. **`subeId` yoksa marka geneli** sayıl
   paylaşım ucu yapar. Bu ayrım olmadan bir şube paylaşınca dört şubenin stoğu birden düşüyordu.
 - `sadeceSubeler` hem **iş oluşturma formunda** hem düzenleme ekranında seçilir; markayı
   değiştirmek seçimi sıfırlar (başka markanın şube kimliği taşınırsa kart hiçbir şubede
-  görünmez). Şube silinince bu kimlik tüm kartlardan **çıkarılır**, liste boşalırsa kart
-  marka geneline döner — sahipsiz içerik kalmaz. Silme öncesi kaç kartın etkileneceği 409'da yazar.
+  görünmez).
+- **Şube silinince kapsam AÇILMAZ.** Silinen kimlik karttan çıkarılır; ama liste
+  **boşalacaksa kimlik BIRAKILIR**. `sadeceSubeler: []` "marka geneli" demek olduğu için
+  boşaltmak, "yalnızca Lara için hazırlanmış içeriği" bütün şubelere açıyordu — ölçüldü.
+  Kart artık hiçbir şubede kullanılamaz kalır; bu **kasıtlı** ve `kapsamiKayipMi` ile adı
+  olan bir haldir, Operasyon kartında uyarı olarak görünür. Kullanıcı kapsamı yeniden
+  seçince ölü kimlik temizlenir ve kart normale döner. Silme öncesi kaç kartın
+  etkileneceği 409'da yazar.
 - Kartta `sadeceSubeler` **onaydan sonra** değişirse stok motoru farkı uygular: kapsam
   dışına çıkan şubeden düşer, eklenene ekler. Aşama değişmediği için motor eskiden hiç
   uyanmıyordu; kapsam dışı şube kullanamayacağı içerik için stok gösteriyordu.
@@ -207,8 +213,14 @@ koleksiyon yok, o kayda `subeId` eklendi. **`subeId` yoksa marka geneli** sayıl
 ### 7. Stok kuralları — `lib/stok.js`
 
 Türler: Görsel · Video · Reels · Story · Carousel · Tasarım.
-Kart onaylanınca ilgili türün stoğu artar; kart silinince veya "Tamamlandı"ya
-geçince düşer. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI`).
+
+Stok, kartın **`Onaylandı` aşamasına girmesiyle artar ve oradan ÇIKMASIYLA düşer** —
+nereye gittiğinin önemi yok (`Şubelerde Paylaşılıyor`, `Teslim Edildi`, geri `Revize
+İstendi`, hepsi aynı). Kart silinince de düşer. Kartta `stokSayildi` işareti sayımın
+iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 20`).
+
+> `"Tamamlandı"` diye bir aşama YOKTUR. Bu satır bir süre öyle yazıyordu; aşama
+> listelerinin hiçbirinde böyle bir ad geçmiyor.
 
 ---
 
@@ -216,7 +228,7 @@ geçince düşer. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI`).
 
 ```bash
 bash testler/hepsinidenetle.sh     # 19 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t75, ~1569 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t76, ~1589 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
@@ -254,6 +266,12 @@ Bir düzeltme yaptıktan sonra **korumayı geri koyup kaç kontrolün düştüğ
 | `OWNER_EMAIL`, `RESEND_API_KEY` | İki adımlı doğrulama |
 | `BACKUP_EMAIL` | Gece yedeğinin gittiği adres(ler), virgülle ayrılır |
 | `KILIT_DENEME` | Yazma kilidi deneme sayısı (varsayılan 12, en fazla 40) |
+| `RESEND_FROM` | E-postaların gönderen adresi |
+| `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY` | Servis hesabı — klasör açar, taşır, **yükleyemez** |
+| `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REFRESH_TOKEN` | OAuth — dosyayı O yükler |
+| `DRIVE_ONAY_KLASOR_ID` | Ortak üst klasör; markanın kendi klasörü yoksa içinde marka adıyla alt klasör açılır |
+
+Tam liste ve her birinin nerede okunduğu `MARCUS-OS-SISTEM.md` §9'da.
 
 Hangi ortamda hangi değişkenin eksik olduğu **Ayarlar → Güvenlik** ekranında
 yazıyor (Canlı / Önizleme / Geliştirme ayrı ayrı). Değerler tarayıcıya gitmez,
@@ -266,10 +284,10 @@ yalnızca var/yok bilgisi.
 | Belge | İçerik |
 |---|---|
 | `MARCUS-OS-SISTEM.md` | **Sistemin tam envanteri** — her uç, her modül, her alan, her ekran |
-| `README.md` (3955 satır) | Sürüm sürüm tüm değişiklik geçmişi ve gerekçeleri |
+| `README.md` | Sürüm sürüm tüm değişiklik geçmişi ve gerekçeleri |
 | `MARCUS-OS-DEVIR-RAPORU.md` | Sistem devir raporu — mimari, kurulum, ortam |
 | `MARCUS-OS-DEVIR-2.md` | İkinci devir notları |
 | `MARCUS-OS-TANITIM.md` | Uygulamanın iş tarafından anlatımı |
 
-En büyük dosyalar: `src/App.jsx` (9243), `src/CekimEditTakibi.jsx` (2576),
-`api/data.js` (1882), `src/musteriPaneli.jsx` (1377).
+En büyük dosyalar: `src/App.jsx` (9653), `src/CekimEditTakibi.jsx` (2734),
+`api/data.js` (2008), `src/musteriPaneli.jsx` (1383).

@@ -37,7 +37,7 @@ Kod ve arayüz tamamen Türkçe — değişken ve fonksiyon adları dahil.
 | `src/` | React arayüzü (11 dosya, 17.878 satır) |
 | `api/` | Serverless fonksiyonlar — **her dosya bir fonksiyon**, Hobby sınırı 12 |
 | `lib/` | Ortak mantık — hem `api/` hem `src/` buradan import eder, **fonksiyon sayılmaz** |
-| `testler/` | 75 test dosyası (t1…t75) + 19 statik denetim betiği |
+| `testler/` | 76 test dosyası (t1…t76) + 19 statik denetim betiği |
 
 En büyük dosyalar: `src/App.jsx` (9.653), `src/CekimEditTakibi.jsx` (2.734),
 `api/data.js` (2.008), `src/musteriPaneli.jsx` (1.383), `src/tema.jsx` (1.039).
@@ -74,6 +74,9 @@ denemelerinde).
 **POST `onizlemeAction`** — `gorsel` · `videoJetonu`. Müşteri ve personelin kendi
 markasının önizlemesini alması.
 
+**POST `ortakAction`** — `asamaIlerlet`. Çözüm ortağının kartı ilerletmesi; şu an
+yalnızca `Kontrol Bekliyor` hedefine izin veriliyor ve marka kontrolü yapılıyor.
+
 **POST `musteriAction`** — `onayla` · `revizeIste` · `talepOlustur`. Müşteri panelinin
 yazabildiği **tek** üç işlem.
 
@@ -87,7 +90,7 @@ yazabildiği **tek** üç işlem.
 | `haftalikEkle` | Haftalık plana kayıt (opsiyonel `subeId`) |
 | `haftalikToggle` | Paylaşıldı işaretleme, stok düşümü, kart aşama geçişi |
 | `haftalikSil` · `haftalikAltMetin` | Plan silme, müşteri panelindeki alt metin |
-| `subeEkle` · `subeSil` | Şube yönetimi (aynı ad 409, kayıtlı şube onay ister) |
+| `subeEkle` · `subeSil` | Şube yönetimi (aynı ad 409, kayıtlı şube onay ister; silme kart kapsamını AÇMAZ) |
 | `uyelikEkle` · `uyelikGuncelle` · `uyelikSil` | Abonelik/üyelik takibi |
 
 **Marka kilidi tek yerde çözülür**: uç, `clientId` / `planId` / `subeId` / `uyelikId` /
@@ -364,7 +367,7 @@ dosya hâlâ ekibin çalışma alanındadır.
 
 ```bash
 bash testler/hepsinidenetle.sh     # 19 statik denetim
-./testler/sunucutestleri.sh        # t1…t75, ~1569 kontrol — SAHTE veritabanı
+./testler/sunucutestleri.sh        # t1…t76, ~1589 kontrol — SAHTE veritabanı
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
