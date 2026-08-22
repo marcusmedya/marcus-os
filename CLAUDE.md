@@ -143,6 +143,10 @@ altında açılır. Diğer kategorilerde `null` döner ve dosya doğrudan durum 
 mümkün değil — ve aşama değişince TAŞINIR (`onaylananiTasi`). Yalnızca taşımaya
 bağlanınca slaytlar aşama değişene kadar tek tek duruyordu.
 
+Aşama değişince **klasörün kendisi taşınır** (`kartKlasorunuTasi`), dosyalar tek tek
+değil: tek çağrı, kaynakta boş klasör kalmıyor ve klasörün kimliği korunuyor. Klasör
+bulunamazsa (özellik öncesi kartlar) dosya-dosya yola düşülür.
+
 `dosyaninAyKlasoru` yukarı doğru 4 basamak yürür. Sabit iki basamakken kart klasörü
 üçüncü basamağı görünmez yapıyordu: eski aydaki bir karoselin slaytları taşınırken
 içinde bulunulan aya sıçrardı.
@@ -204,7 +208,7 @@ geçince düşer. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI`).
 
 ```bash
 bash testler/hepsinidenetle.sh     # 18 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t75, ~1549 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t75, ~1558 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
