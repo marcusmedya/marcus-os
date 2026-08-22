@@ -1,7 +1,8 @@
 import { kv } from "@vercel/kv";
 import crypto from "crypto";
 import { KEY, guvenliGuncelle, kilitAl, kilitBirak, guvenliYaz, deftereYaz, defteriOku,
-         catisanAlanlar, bugunISO, mesgulYanit } from "../lib/kv-yaz.js";
+         catisanAlanlar, bugunISO, mesgulYanit,
+         belgeOkunabilirMi, BOZUK_KOD, BOZUK_MESAJI } from "../lib/kv-yaz.js";
 import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, tumOturumlariIptalEt, ikiAdimliAktifMi, esitMi, baslikOku } from "../lib/oturum.js";
 import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, birlestirmedeDusenler, trKucult, markaEslestirici } from "../lib/marka-kilidi.js";
 import { belgedekiCakismalariOnar, turetilmisleriAyikla } from "../lib/kimlik.js";
@@ -1383,6 +1384,20 @@ export default async function handler(req, res) {
   try {
     if (req.method === "GET") {
       const data = await kv.get(KEY);
+
+      /* BOZUK BELGE SESSİZCE BOŞ UYGULAMA OLARAK SUNULMAZ.
+       *
+       * `kv.get` metin, dizi ya da sayı döndürebiliyor (bozulmuş anahtar, elle yazılmış
+       * değer, yarım kalmış yazma). Eskiden bu durumda uygulama BOMBOŞ açılıyor ve
+       * hiçbir şey söylemiyordu: kullanıcı "her şey silinmiş" sanıp yeni kayıt giriyor,
+       * o kayıt da bozuk verinin üstüne yazılıyordu. Bozuk veri hâlâ kurtarılabilir
+       * olabilirdi; üstüne yazmak onu kalıcı olarak yok eder.
+       *
+       * Yazma tarafı `guvenliGuncelle` içinde ayrıca korunuyor; burası kullanıcının
+       * durumu GÖRMESİNİ sağlıyor. */
+      if (!belgeOkunabilirMi(data)) {
+        return res.status(BOZUK_KOD).json({ error: BOZUK_MESAJI, bozuk: true });
+      }
 
       /* ÇÖZÜM ORTAĞI — MARKA PANELİ
        *

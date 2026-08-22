@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     78 test dosyası (t1…t78) + 19 statik denetim betiği
+testler/     80 test dosyası (t1…t80) + 19 statik denetim betiği
 ```
 
 ---
@@ -85,6 +85,11 @@ eklerken yeni dosya AÇMA** — mevcut bir uca yeni bir `action` ekle. Örnek:
   **yan etkiler (e-posta, Drive taşıma, güvenlik defteri) tekrarda çalıştırılmamalı.**
   Ağ hatasında otomatik tekrar (`lib/mesgul-tekrar.js`) **yalnızca kimlik taşıyan
   istekte** yapılır: ağ koptuğunda kaybolan YANIT'tır, istek uygulanmış olabilir.
+- **Bozuk belge üzerine YAZILMAZ** (`belgeOkunabilirMi`). `kv.get` metin, dizi ya da
+  sayı döndürebiliyor (bozulmuş anahtar, yarım yazma). Eskiden bu boş bir belgeye
+  çevriliyor ve uygulama sessizce BOMBOŞ açılıyordu — kullanıcı "her şey silinmiş"
+  sanıp kayıt giriyor, o kayıt kurtarılabilir verinin üstüne yazılıyordu. Artık okuma
+  da yazma da `409` ile reddedilir. `null` bozuk DEĞİLDİR: ilk kurulumda belge yoktur.
 - **Stok sunucu otoritesidir.** Tarayıcının gönderdiği stok kopyası kullanılmaz;
   taban her zaman sunucudaki `stoklar` alanıdır.
 - **Kayıt numarasının son sözü sunucudadır** (`lib/kimlik.js`). Tarayıcı numarayı
@@ -111,6 +116,16 @@ eklerken yeni dosya AÇMA** — mevcut bir uca yeni bir `action` ekle. Örnek:
 
 `owner` (yönetici) · `staff` (personel) · çözüm ortağı (marka kilitli personel) ·
 `musteri` (müşteri paneli).
+
+**Marka kilidi tek yerde çözülür** (`api/paylasim.js`): uç, isteğin `clientId` /
+`planId` / `subeId` / `uyelikId` / `uyelik.clientId` alanlarından hedefin markasını
+bulur. Kural **fail-close** — hedef belirsizse kilitli hesap reddedilir. Yeni bir action
+eklerken markanın hangi alandan çözüleceğini bu listeye eklemeyi unutma; unutulursa
+kilitli hesap o işlemi kendi markasında bile yapamaz.
+
+**`clientId` ile `subeId` birlikte geliyorsa şube o markaya ait mi diye bakılır**
+(`markaninSubeleri`). Bakılmazsa kilitli hesap kendi markasının kimliğiyle BAŞKA
+markanın şubesini gönderip çöp stok anahtarı üretebiliyor ve şube adını öğrenebiliyordu.
 
 Müşteri ve çözüm ortağı görünümünün **tek kaynağı `lib/musteri-gorunumu.js`**.
 Aynı kuralı iki yere yazmak bu projede zaten bir kez panel senkron hatasına yol
@@ -228,7 +243,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 19 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t78, ~1645 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t80, ~1678 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

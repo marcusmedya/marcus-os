@@ -290,6 +290,14 @@ export default async function handler(req, res) {
           const uyelik = (data.uyelikler || []).find((x) => x.id === body.uyelikId);
           return uyelik ? uyelik.clientId : undefined;
         }
+        /* YENİ KAYITTA KİMLİK İÇ NESNEDE. `uyelikEkle` markayı `body.uyelik.clientId`
+         * içinde taşıyor, üst düzeyde değil. Çözümleyici onu göremediği için hedef
+         * "belirsiz" kalıyor ve fail-close devreye giriyordu: çözüm ortağı KENDİ
+         * markasına bile üyelik ekleyemiyordu — `uyelikler` izni onun için
+         * işlevsizdi. Güvenlik tarafı doğruydu, eksik olan çözümlemeydi. */
+        if (body.uyelik && body.uyelik.clientId !== undefined && body.uyelik.clientId !== null) {
+          return body.uyelik.clientId;
+        }
         return undefined;
       })();
 
@@ -625,8 +633,22 @@ export default async function handler(req, res) {
 
     if (action === "subeStokDegistir") {
       const { clientId, subeId, tur, delta } = body;
-      const sube = (data.subeler || []).find((s) => s.id === subeId);
-      const subeAdi = sube ? sube.ad : "";
+      /* ŞUBE, VERİLEN MARKAYA AİT OLMALI.
+       *
+       * Şube TÜM şubeler arasında aranıyordu. Marka kilidi `clientId`'yi ilk sırada
+       * çözdüğü için, kilitli bir hesap kendi `clientId`'sini ve BAŞKA markanın
+       * `subeId`'sini gönderdiğinde istek geçiyordu — ölçüldü. İki sonucu vardı:
+       * `1_onun_Video` gibi hiçbir şubeye karşılık gelmeyen çöp bir stok anahtarı
+       * oluşuyor, ve BAŞKA MARKANIN ŞUBE ADI geçmişe yazılıyordu.
+       *
+       * Kural yalnızca yetki değil VERİ BÜTÜNLÜĞÜ meselesi: yöneticide de geçerli,
+       * çünkü çöp anahtar stok sayılarını bozar. `haftalikEkle` bu doğrulamayı zaten
+       * yapıyordu; burada eksikti. */
+      const sube = markaninSubeleri(data.subeler, clientId).find((s) => String(s.id) === String(subeId));
+      if (!sube) {
+        return res.status(400).json({ error: "Şube bu markaya ait değil — sayfayı yenileyip tekrar dene." });
+      }
+      const subeAdi = sube.ad || "";
       const subeKey = `${clientId}_${subeId}_${tur}`;
       const mevcutSube = (data.stoklar || {})[subeKey] || 0;
       const yeniSube = Math.max(0, mevcutSube + delta);
