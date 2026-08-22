@@ -2596,6 +2596,8 @@ const bugunISO = () => tarihIso(new Date());
 
 function CekimListesi({ clients, stoklar, subeler, gecmis, isler, plan }) {
   const ESIK = 4;
+  /* Hangi markanın şube dökümü açık. Kapalıyken tek satır — liste kısa kalıyor. */
+  const [acikMarka, setAcikMarka] = useState(null);
   const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
   const stoklarObj = stoklar || {};
 
@@ -2624,28 +2626,37 @@ function CekimListesi({ clients, stoklar, subeler, gecmis, isler, plan }) {
       toplam = turler.reduce((s, x) => s + x.adet, 0);
     }
 
-    if (toplam <= ESIK) {
+    /* ŞUBELER AYRI SATIR DEĞİL, MARKANIN ALTINDA.
+     *
+     * Önce her şube kendi kartı olarak listeleniyordu: dört şubeli bir marka listeyi
+     * beş satırla dolduruyor, "hangi markaya çekim gerekiyor" sorusu okunamaz hale
+     * geliyordu. Marka tek satır; dökümü açınca şubeler ve her birinin stoğu görünüyor. */
+    const subeOzetleri = kendiSubeleri.map((sb) => {
+      const subeTurleri = PAYLASIM_TURLERI.map((tur) => ({ tur, adet: stoklarObj[subeStokAnahtari(c.id, sb.id, tur)] || 0 }));
+      return { sube: sb, turler: subeTurleri, toplam: subeTurleri.reduce((a, x) => a + x.adet, 0) };
+    });
+
+    /* Markanın kendi hazır içeriği yeterli olsa bile bir şubenin stoğu dibe vurmuş
+     * olabilir — o marka listede kalmalı, yoksa şube sessizce boşalır. */
+    const acilSubeVar = subeOzetleri.some((x) => x.toplam <= ESIK);
+
+    if (toplam <= ESIK || acilSubeVar) {
       gruplar.push({
         anahtar: `${c.ad}__`, marka: c.ad, sube: null, toplam,
         icerikSayisi: kendiSubeleri.length > 0,
         turler: kendiSubeleri.length > 0 ? [] : turler.filter((x) => x.adet > 0),
+        subeOzetleri,
+        clientId: c.id,
       });
     }
   });
 
-  // Şubeler kendi toplam stoklarıyla ayrı ayrı değerlendirilir (varsa).
-  (subeler || []).forEach((s) => {
-    const c = aktifMarkalar.find((x) => x.id === s.clientId);
-    if (!c) return;
-    const turler = PAYLASIM_TURLERI.map((tur) => ({ tur, adet: stoklarObj[`${s.clientId}_${s.id}_${tur}`] || 0, sonCekim: null }));
-    const toplam = turler.reduce((sum, x) => sum + x.adet, 0);
-    if (toplam <= ESIK) {
-      gruplar.push({ anahtar: `${c.ad}__${s.ad}`, marka: c.ad, sube: s.ad, toplam, turler: turler.filter((x) => x.adet > 0) });
-    }
-  });
-
   // En acil (toplam stoğu en düşük) markalar en üstte.
-  gruplar.forEach((g) => g.turler.sort((a, b) => a.adet - b.adet));
+  gruplar.forEach((g) => {
+    g.turler.sort((a, b) => a.adet - b.adet);
+    (g.subeOzetleri || []).forEach((x) => x.turler.sort((a, b) => a.adet - b.adet));
+    (g.subeOzetleri || []).sort((a, b) => a.toplam - b.toplam);
+  });
   gruplar.sort((a, b) => a.toplam - b.toplam);
 
   return (
@@ -2660,12 +2671,47 @@ function CekimListesi({ clients, stoklar, subeler, gecmis, isler, plan }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {gruplar.map((g) => {
             const kenarRenk = g.toplam <= 1 ? T.danger : g.toplam <= 2 ? T.warning : T.border;
+            const subeliMi = Array.isArray(g.subeOzetleri) && g.subeOzetleri.length > 0;
+            const acik = subeliMi && acikMarka === g.anahtar;
             return (
               <Card key={g.anahtar} style={{ padding: "12px 15px", border: `1px solid ${kenarRenk}` }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: g.turler.length > 0 ? 8 : 0 }}>
-                  <div style={{ fontSize: 15, color: T.text, fontWeight: 700, fontFamily: "Inter" }}>{g.marka}{g.sube ? ` — ${g.sube}` : ""}</div>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: kenarRenk, fontFamily: "'IBM Plex Mono', monospace", background: T.surfaceRaised, padding: "6px 10px", borderRadius: 999 }}>{g.icerikSayisi ? "Hazır içerik" : "Toplam"}: {g.toplam}</span>
+                <div
+                  onClick={() => { if (subeliMi) setAcikMarka(acik ? null : g.anahtar); }}
+                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: g.turler.length > 0 || acik ? 8 : 0, cursor: subeliMi ? "pointer" : "default" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                    <div style={{ fontSize: 15, color: T.text, fontWeight: 700, fontFamily: "Inter" }}>{g.marka}</div>
+                    {subeliMi && (
+                      <span style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>
+                        {acik ? "▾" : "▸"} {g.subeOzetleri.length} şube
+                      </span>
+                    )}
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: kenarRenk, fontFamily: "'IBM Plex Mono', monospace", background: T.surfaceRaised, padding: "6px 10px", borderRadius: 999, whiteSpace: "nowrap" }}>{g.icerikSayisi ? "Hazır içerik" : "Toplam"}: {g.toplam}</span>
                 </div>
+
+                {/* ŞUBE DÖKÜMÜ — her şube ve kendi stoğu. Kapalıyken liste tek satır. */}
+                {acik && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {g.subeOzetleri.map((x) => {
+                      const subeRenk = x.toplam <= 1 ? T.danger : x.toplam <= 2 ? T.warning : T.textDim;
+                      return (
+                        <div key={x.sube.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", background: T.surface, borderRadius: 9, padding: "8px 11px" }}>
+                          <span style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{x.sube.ad}</span>
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                            {x.turler.filter((y) => y.adet > 0).map((y) => (
+                              <span key={y.tur} style={{ display: "flex", alignItems: "center", gap: 5, padding: "4px 8px", borderRadius: 999, background: T.surfaceRaised, fontSize: 12, fontFamily: "Inter" }}>
+                                <span style={{ color: T.textDim }}>{y.tur}</span>
+                                <span style={{ color: y.adet <= 1 ? T.danger : y.adet <= 2 ? T.warning : T.textDim, fontWeight: 700, fontFamily: "'IBM Plex Mono', monospace" }}>{y.adet}</span>
+                              </span>
+                            ))}
+                            <span style={{ fontSize: 12.5, fontWeight: 700, color: subeRenk, fontFamily: "'IBM Plex Mono', monospace", whiteSpace: "nowrap" }}>Toplam: {x.toplam}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {g.turler.map((x) => {
                     const renk = x.adet <= 1 ? T.danger : x.adet <= 2 ? T.warning : T.textDim;
