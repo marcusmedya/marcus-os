@@ -24,6 +24,7 @@ python3 testler/ekrandenetle.py                                     > /dev/null 
 python3 testler/sabitdenetle.py src/*.jsx api/*.js lib/*.js         > /dev/null && echo "✓ 16 tanımsız sabit yok"
 python3 testler/erisimdenetle.py src/*.jsx                          > /dev/null && echo "✓ 17 erişilemeyen ad yok"
 node testler/sistemBelgesi.mjs                                      > /dev/null && echo "✓ 18 sistem belgesi envanteri güncel"
+node testler/fonksiyonSayisi.mjs                                    > /dev/null && echo "✓ 19 api fonksiyon sayısı sabiti güncel"
 echo ""
 echo "── SUNUCU DENETİMLERİ ──"
 echo "(testler/ klasöründe: node t5.mjs … t11.mjs — sahte veritabanı kullanır, gerçek veriye dokunmaz)"

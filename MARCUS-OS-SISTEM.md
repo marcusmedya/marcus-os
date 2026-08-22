@@ -34,10 +34,10 @@ Kod ve arayüz tamamen Türkçe — değişken ve fonksiyon adları dahil.
 
 | Klasör | İçerik |
 |---|---|
-| `src/` | React arayüzü (11 dosya, 17.878 satır) |
+| `src/` | React arayüzü (Vite ile derlenir) |
 | `api/` | Serverless fonksiyonlar — **her dosya bir fonksiyon**, Hobby sınırı 12 |
 | `lib/` | Ortak mantık — hem `api/` hem `src/` buradan import eder, **fonksiyon sayılmaz** |
-| `testler/` | 76 test dosyası (t1…t76) + 19 statik denetim betiği |
+| `testler/` | 77 test dosyası (t1…t77) + 19 statik denetim betiği |
 
 En büyük dosyalar: `src/App.jsx` (9.653), `src/CekimEditTakibi.jsx` (2.734),
 `api/data.js` (2.008), `src/musteriPaneli.jsx` (1.383), `src/tema.jsx` (1.039).
@@ -73,6 +73,11 @@ denemelerinde).
 
 **POST `onizlemeAction`** — `gorsel` · `videoJetonu`. Müşteri ve personelin kendi
 markasının önizlemesini alması.
+
+**POST `sistemAction`** — `saglik`. **Yalnızca yönetici.** Belge ölçümü (toplam boyut,
+en çok yer kaplayan alanlar, kayıt sayıları), fonksiyon sayısı, ortam değişkenlerinin
+**var/yok** durumu ve isteğe bağlı **salt okunur** Drive sağlık kontrolü. Hiçbir şey
+yazmaz; sır değeri asla döndürmez; üretim Drive'ında deneme yapmaz.
 
 **POST `ortakAction`** — `asamaIlerlet`. Çözüm ortağının kartı ilerletmesi; şu an
 yalnızca `Kontrol Bekliyor` hedefine izin veriliyor ve marka kontrolü yapılıyor.
@@ -158,6 +163,7 @@ Artık **tanımsızsa kimse giremez.**
 | `oturum.js` | İki adımlı doğrulama, oturum jetonu, owner yetkisi |
 | `eposta.js` | Resend üzerinden e-posta gönderimi ve şablonlar |
 | `video-jeton.js` | Video akışı için kısa ömürlü imzalı jeton |
+| `sistem-sagligi.js` | Belge ölçümü, büyüyen alanlar, ortam değişkeni var/yok — **yalnızca okur** |
 
 ---
 
@@ -367,7 +373,7 @@ dosya hâlâ ekibin çalışma alanındadır.
 
 ```bash
 bash testler/hepsinidenetle.sh     # 19 statik denetim
-./testler/sunucutestleri.sh        # t1…t76, ~1589 kontrol — SAHTE veritabanı
+./testler/sunucutestleri.sh        # t1…t77, ~1619 kontrol — SAHTE veritabanı
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

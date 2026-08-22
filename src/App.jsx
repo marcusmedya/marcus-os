@@ -41,6 +41,7 @@ import { InstagramOnizleme, InstagramIzgara, aylikRaporAc } from "./instagram.js
 import { MusteriPaneli } from "./musteriPaneli.jsx";
 import { hazirIcerikleriUret, musteriKayitlariniSuz } from "../lib/musteri-gorunumu.js";
 import { markaEslestirici } from "../lib/marka-kilidi.js";
+import SistemSagligi from "./sistemSagligi.jsx";
 /* Paylaşım türleri ve stok anahtarı TEK KAYNAKTAN. Bu iki tanım burada da ayrıca
  * yazılıydı; listeye tür eklendiğinde biri geride kalabilir, stok sayılır ama panelde
  * satırı hiç görünmezdi. */
@@ -6150,6 +6151,10 @@ function Ayarlar({ onGit, guvenlik, silinenler, onSurumGuncelle, onGeriAl, onKal
         <p style={{ fontFamily: "Inter, sans-serif", fontSize: 13, color: T.textDim, lineHeight: 1.7, marginBottom: 12 }}>İki adımlı doğrulama için Vercel'de <strong>OWNER_EMAIL</strong> tanımla.</p>
         <TumCihazlardanCikisButonu />
       </Card>
+
+      {/* Ölçüm paneli — hiçbir düğmesi veriye dokunmaz. Hesap mantığı
+        * lib/sistem-sagligi.js'de; App.jsx'e iş mantığı gömülmedi. */}
+      <SistemSagligi />
       <KasaSifresiKarti />
       </>}
 

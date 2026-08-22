@@ -7,7 +7,7 @@ import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, bir
 import { belgedekiCakismalariOnar, turetilmisleriAyikla } from "../lib/kimlik.js";
 import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
 import { epostaGonder, revizeBildirimHtml } from "../lib/eposta.js";
-import { onaylananiTasi, kartKlasorunuTasi, bosaldiysaKartKlasorunuCopeAt, DURUM_KLASORLERI, klasorDurumu, driveDosyaIdCikar, videoAkisi } from "../lib/drive-tasima.js";
+import { onaylananiTasi, kartKlasorunuTasi, bosaldiysaKartKlasorunuCopeAt, driveSagligi, DURUM_KLASORLERI, klasorDurumu, driveDosyaIdCikar, videoAkisi } from "../lib/drive-tasima.js";
 import { jetonUret, jetonCoz } from "../lib/video-jeton.js";
 import { Readable } from "stream";
 import { dosyasizKontroleGirenleriGeriAl, medyaVarMi, asamalariDuzelt,
@@ -15,8 +15,10 @@ import { dosyasizKontroleGirenleriGeriAl, medyaVarMi, asamalariDuzelt,
          tasinacakDosyalar, kartKlasorAdi } from "../lib/asamalar.js";
 import { epostaGonderAyrintili, gonderenAdres } from "../lib/eposta.js";
 import { onaylananlaraGoreStok } from "../lib/stok.js";
+import { belgeOlcumu, ozetSayilar, boyutDurumu, degiskenDurumu,
+         API_FONKSIYON_SAYISI, FONKSIYON_SINIRI } from "../lib/sistem-sagligi.js";
 import { yuklemeOturumuAc, yuklemeyiTamamla, yuklenenDosyayiSil, yuklemeHazirMi, kucukResimGetir,
-         dosyayiCopeAt } from "../lib/drive-yukleme.js";
+         dosyayiCopeAt, oauthJetonuAl } from "../lib/drive-yukleme.js";
 
 /** Bir kayıt (eski veri, yeni veri) arasındaki ÖNEMLİ değişiklikleri (müşteri/personel/üyelik
  * ekleme-silme, müşteri durum değişikliği) otomatik tespit edip okunabilir işlem geçmişi
@@ -1532,6 +1534,58 @@ export default async function handler(req, res) {
      * müşterinin kararını taklit etmek mümkün değil.
      *
      * Marka listesi sunucudaki hesap kaydından okunur; tarayıcının gönderdiğine güvenilmez. */
+    /* ------------------------------------------------------------------ */
+    /* SİSTEM SAĞLIĞI — yalnızca yönetici, yalnızca ÖLÇÜM                    */
+    /* ------------------------------------------------------------------ */
+    /* Yeni bir api dosyası AÇILMADI: Vercel Hobby sınırı 12 fonksiyon ve 11'i
+     * kullanılıyor. Yetenek mevcut uca action olarak eklendi.
+     *
+     * Bu uç hiçbir şey YAZMAZ. Belgeyi okur, sayar ve ölçer; Drive tarafında yalnızca
+     * okuma yapar. Ölçüm pahalı olduğu için (belgenin tamamı JSON'a çevriliyor) her
+     * GET'e eklenmedi — istendiğinde çalışır. */
+    if (req.method === "POST" && req.body && req.body.sistemAction) {
+      /* Bu ucun rolünü dosyanın kendi çözücüsü belirliyor — `resolveRole` oturum
+       * jetonunu, yönetici şifresini ve personel kimliğini birlikte değerlendiriyor.
+       * Ayrı bir yetki yolu açmak, iki yerin ayrışması demek olurdu. */
+      const sistemRol = await resolveRole(req);
+      if (!sistemRol || sistemRol.role !== "owner") {
+        return res.status(403).json({ error: "Bu bilgiye yalnızca yönetici erişebilir." });
+      }
+      if (req.body.sistemAction !== "saglik") {
+        return res.status(400).json({ error: "Geçersiz sistem işlemi." });
+      }
+
+      const veri = (await kv.get(KEY)) || {};
+      const olcum = belgeOlcumu(veri);
+
+      /* DRIVE İSTEĞE BAĞLI. Ağ çağrısı içerdiği için yavaş olabiliyor; kullanıcı
+       * istemediyse hiç yapılmıyor. Hata verirse ölçümün geri kalanı yine döner —
+       * sağlık ekranının kendisi bir hata yüzünden boş kalmamalı. */
+      let drive = null;
+      if (req.body.driveDahil) {
+        const ilkMarka = (veri.clients || []).find((c) => c && c.driveOnayKlasoru);
+        try {
+          drive = await driveSagligi({
+            markaKlasoru: ilkMarka ? ilkMarka.driveOnayKlasoru : "",
+            oauthJetonuAl,
+          });
+        } catch (e) {
+          drive = { hata: String(e.message || e), adimlar: [], hataSayisi: 1, dogrulanamayan: 0 };
+        }
+      }
+
+      return res.status(200).json({
+        ok: true,
+        olcum: { toplamBayt: olcum.toplamBayt, alanSayisi: olcum.alanSayisi, enBuyukler: olcum.enBuyukler },
+        boyutDurumu: boyutDurumu(olcum.toplamBayt),
+        ozet: ozetSayilar(veri),
+        fonksiyon: { kullanilan: API_FONKSIYON_SAYISI, sinir: FONKSIYON_SINIRI },
+        /* SIR DEĞERİ ASLA GİTMEZ — yalnızca var/yok. */
+        degiskenler: degiskenDurumu(process.env),
+        drive,
+      });
+    }
+
     if (req.method === "POST" && req.body && req.body.ortakAction) {
       if (role !== "staff") return res.status(403).json({ error: "Yetkin yok." });
       const mevcutVeri = (await kv.get(KEY)) || {};
