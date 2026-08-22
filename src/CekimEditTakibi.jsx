@@ -41,7 +41,7 @@ const C = {
   get warningSoft() { return T.warningSoft; },
 };
 
-export const KATEGORILER = ["Video", "Fotoğraf", "Grafik Tasarım"];
+export const KATEGORILER = ["Video", "Fotoğraf", "Carousel", "Grafik Tasarım"];
 
 /** Google Drive paylaşım linkini, sayfa içinde doğrudan oynatılabilir (gömülü) önizleme
  * formatına çevirir. Dönüştürülemezse null döner, o zaman normal link olarak gösterilir. */
@@ -200,7 +200,7 @@ export const ciktiVideoMu = (kategori) => (kategori || "Video") === "Video";
 export const cekimVarMi = (kategori) => (kategori || "Video") !== "Grafik Tasarım";
 /** O kategoride "işin bizzat yapıldığı" aşama — "Tamamladım" butonunun tetiklendiği yer. */
 const YAPILIYOR_ASAMASI = { "Video": "Edit Yapılıyor", "Fotoğraf": "Düzenleniyor", "Grafik Tasarım": "Tasarım Yapılıyor" };
-const TAMAMLADIM_ETIKETI = { "Video": "Editi Tamamladım", "Fotoğraf": "Düzenlemeyi Tamamladım", "Grafik Tasarım": "Tasarımı Tamamladım" };
+const TAMAMLADIM_ETIKETI = { "Video": "Editi Tamamladım", "Fotoğraf": "Düzenlemeyi Tamamladım", "Carousel": "Düzenlemeyi Tamamladım", "Grafik Tasarım": "Tasarımı Tamamladım" };
 
 /* Aşama kuralları lib/asamalar.js'te — sunucu da aynı dosyadan okuyor. İki kopya yazılsaydı
  * biri güncellenip diğeri unutulur, kural sessizce delinirdi. */
@@ -475,7 +475,7 @@ function YeniIsFormu({ clients, subeler, personelRosteri, varsayilanKategori, on
         {video && <div><label style={labelStyle}>Çekim Tarihi</label><input type="date" style={inputStyle} value={v.cekimTarihi} onChange={(e) => set("cekimTarihi", e.target.value)} /></div>}
         <div><label style={labelStyle}>Teslim Tarihi</label><input type="date" style={inputStyle} value={v.teslimTarihi} onChange={(e) => set("teslimTarihi", e.target.value)} /></div>
         {video && <div><label style={labelStyle}>Sorumlu Kameraman</label><PersonelSecici value={v.kameraman} onChange={(val) => set("kameraman", val)} personelRosteri={personelRosteri} /></div>}
-        <div><label style={labelStyle}>{video ? "Sorumlu Editör" : "Sorumlu Tasarımcı"}</label><PersonelSecici value={v.editor} onChange={(val) => set("editor", val)} personelRosteri={personelRosteri} /></div>
+        <div><label style={labelStyle}>{v.kategori === "Grafik Tasarım" ? "Sorumlu Tasarımcı" : (v.kategori === "Fotoğraf" || v.kategori === "Carousel") ? "Sorumlu Düzenleyen" : "Sorumlu Editör"}</label><PersonelSecici value={v.editor} onChange={(val) => set("editor", val)} personelRosteri={personelRosteri} /></div>
         <div>
           <label style={labelStyle}>Öncelik</label>
           <select style={inputStyle} value={v.oncelik} onChange={(e) => set("oncelik", e.target.value)}>
@@ -1433,7 +1433,7 @@ function IsDetayModal({ job, clients, subeler, planlar, role, staffName, islemYe
               {cekimVarMi(taslak.kategori) && <div><label style={labelStyle}>Çekim Tarihi</label><input type="date" style={inputStyle} value={taslak.cekimTarihi} onChange={(e) => setTaslak((s) => ({ ...s, cekimTarihi: e.target.value }))} /></div>}
               <div><label style={labelStyle}>Teslim Tarihi</label><input type="date" style={inputStyle} value={taslak.teslimTarihi} onChange={(e) => setTaslak((s) => ({ ...s, teslimTarihi: e.target.value }))} /></div>
               {cekimVarMi(taslak.kategori) && <div><label style={labelStyle}>Kameraman</label><PersonelSecici value={taslak.kameraman} onChange={(val) => setTaslak((s) => ({ ...s, kameraman: val }))} personelRosteri={personelRosteri} /></div>}
-              <div><label style={labelStyle}>{taslak.kategori === "Grafik Tasarım" ? "Tasarımcı" : taslak.kategori === "Fotoğraf" ? "Düzenleyen" : "Editör"}</label><PersonelSecici value={taslak.editor} onChange={(val) => setTaslak((s) => ({ ...s, editor: val }))} personelRosteri={personelRosteri} /></div>
+              <div><label style={labelStyle}>{taslak.kategori === "Grafik Tasarım" ? "Tasarımcı" : (taslak.kategori === "Fotoğraf" || taslak.kategori === "Carousel") ? "Düzenleyen" : "Editör"}</label><PersonelSecici value={taslak.editor} onChange={(val) => setTaslak((s) => ({ ...s, editor: val }))} personelRosteri={personelRosteri} /></div>
               <div>
                 <label style={labelStyle}>Öncelik</label>
                 <select style={inputStyle} value={taslak.oncelik} onChange={(e) => setTaslak((s) => ({ ...s, oncelik: e.target.value }))}>

@@ -12,7 +12,7 @@ import { jetonUret, jetonCoz } from "../lib/video-jeton.js";
 import { Readable } from "stream";
 import { dosyasizKontroleGirenleriGeriAl, medyaVarMi, asamalariDuzelt,
          guncelMedyalar, slotSonrakiVersiyon, slotGecerliMi, medyaSlotu,
-         tasinacakDosyalar } from "../lib/asamalar.js";
+         tasinacakDosyalar, kartKlasorAdi } from "../lib/asamalar.js";
 import { epostaGonderAyrintili, gonderenAdres } from "../lib/eposta.js";
 import { onaylananlaraGoreStok } from "../lib/stok.js";
 import { yuklemeOturumuAc, yuklemeyiTamamla, yuklenenDosyayiSil, yuklemeHazirMi, kucukResimGetir,
@@ -333,6 +333,7 @@ async function asamayaGoreTasi(oncekiVeri, sonrakiVeri) {
        * diğer yedisini eski klasörde bırakmak daha kötü. */
       tekTek.push(await onaylananiTasi({
         dosyaLinki: d.link, markaAdi: is.marka, markaKlasoru, hedefAd,
+        kartKlasoru: kartKlasorAdi(is),
       }));
     }
     /* Kart başına TEK bir sonuç: geçmişe 8 ayrı not düşmek defteri okunmaz hâle getirirdi. */
@@ -830,7 +831,7 @@ export default async function handler(req, res) {
 
         let tasima = null;
         if (marka.driveOnayKlasoru && hedefAd) {
-          tasima = await onaylananiTasi({ dosyaLinki: link, markaAdi: j.marka, markaKlasoru: marka.driveOnayKlasoru, hedefAd });
+          tasima = await onaylananiTasi({ dosyaLinki: link, markaAdi: j.marka, markaKlasoru: marka.driveOnayKlasoru, hedefAd, kartKlasoru: kartKlasorAdi(j) });
         }
 
         /* Taşıma başarısız olsa bile VERSİYON KAYDI yazılıyor: dosya kartta zaten duruyor,

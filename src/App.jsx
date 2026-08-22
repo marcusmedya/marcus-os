@@ -1300,7 +1300,7 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
                     {isKategori !== "Grafik Tasarım" && (
                       <input value={isKameraman} onChange={(e) => setIsKameraman(e.target.value)} placeholder="Kameraman (opsiyonel)" style={{ ...inputStyle, flex: "1 1 140px", fontSize: 13, padding: "6px 10px" }} />
                     )}
-                    <input value={isEditor} onChange={(e) => setIsEditor(e.target.value)} placeholder={isKategori === "Grafik Tasarım" ? "Tasarımcı" : isKategori === "Fotoğraf" ? "Düzenleyen" : "Editör"} style={{ ...inputStyle, flex: "1 1 140px", fontSize: 13, padding: "6px 10px" }} />
+                    <input value={isEditor} onChange={(e) => setIsEditor(e.target.value)} placeholder={isKategori === "Grafik Tasarım" ? "Tasarımcı" : (isKategori === "Fotoğraf" || isKategori === "Carousel") ? "Düzenleyen" : "Editör"} style={{ ...inputStyle, flex: "1 1 140px", fontSize: 13, padding: "6px 10px" }} />
                     <input type="date" value={isTeslim} onChange={(e) => setIsTeslim(e.target.value)} title="Teslim tarihi" style={{ ...inputStyle, flex: "1 1 140px", fontSize: 13, padding: "6px 10px" }} />
                   </div>
 
