@@ -564,17 +564,40 @@ export default async function handler(req, res) {
        * geçmişi okunamaz hale gelirdi. Plan kayıtları `subeAdi` kopyası taşıdığı için
        * GEÇMİŞ silinmiyor — ama kullanıcı ne olduğunu bilerek karar vermeli. */
       const bagliPlanlar = (data.haftalikPaylasimlar || []).filter((p) => String(p.subeId) === String(subeId));
-      if (bagliPlanlar.length > 0 && !body.onayliSil) {
+      /* Yalnızca bu şubeye kilitli kartlar da uyarıya girsin — silme onlar için
+       * "marka geneline dön" anlamına geliyor, kullanıcı bilerek karar vermeli. */
+      const kilitliKartlar = (data.cekimIsleri || []).filter((j) =>
+        j && Array.isArray(j.sadeceSubeler) && j.sadeceSubeler.map(String).includes(String(subeId)));
+      if ((bagliPlanlar.length > 0 || kilitliKartlar.length > 0) && !body.onayliSil) {
         const paylasilan = bagliPlanlar.filter((p) => p.yapildi).length;
+        const parcalar = [];
+        if (bagliPlanlar.length > 0) parcalar.push(`${bagliPlanlar.length} paylaşım kaydı var (${paylasilan} tanesi paylaşılmış)`);
+        if (kilitliKartlar.length > 0) parcalar.push(`${kilitliKartlar.length} kart yalnızca bu şubeye açık`);
         return res.status(409).json({
-          error: `Bu şubenin ${bagliPlanlar.length} paylaşım kaydı var (${paylasilan} tanesi paylaşılmış). `
-               + "Şube silinirse bu kayıtlar geçmişte kalır ama şube listesinden kaybolur.",
+          error: `Bu şubenin ${parcalar.join(", ")}. `
+               + "Şube silinirse paylaşım kayıtları geçmişte kalır; yalnızca bu şubeye açık kartlar marka geneline döner.",
           onayGerekli: true, planSayisi: bagliPlanlar.length, paylasilanSayisi: paylasilan,
+          kilitliKartSayisi: kilitliKartlar.length,
         });
       }
       data.subeler = (data.subeler || []).filter((s) => s.id !== subeId);
+
+      /* O ŞUBEYE KİLİTLİ KARTLAR SAHİPSİZ KALMASIN.
+       *
+       * `sadeceSubeler` silinen şubenin kimliğini taşımaya devam ederse, kart hiçbir
+       * şubenin kullanamadığı bir içeriğe dönüşür: her şubenin kart seçicisinden
+       * kaybolur, üç listenin hiçbirinde çıkmaz, hata da vermez. Kimliği çıkarıyoruz;
+       * geriye şube kalmıyorsa kart MARKA GENELİ oluyor. Güvenli taraf bu: her yerde
+       * görünen içerik fark edilir, hiçbir yerde görünmeyen içerik kaybolur. */
+      data.cekimIsleri = (data.cekimIsleri || []).map((j) => {
+        if (!j || !Array.isArray(j.sadeceSubeler)) return j;
+        const kalan = j.sadeceSubeler.filter((x) => String(x) !== String(subeId));
+        if (kalan.length === j.sadeceSubeler.length) return j;
+        return { ...j, sadeceSubeler: kalan };
+      });
+
       const _v = await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, _v, subeler: yanitSuz(data.subeler) });
+      return res.status(200).json({ ok: true, _v, subeler: yanitSuz(data.subeler), cekimIsleri: yanitSuz(data.cekimIsleri) });
     }
 
     if (action === "subeStokDegistir") {

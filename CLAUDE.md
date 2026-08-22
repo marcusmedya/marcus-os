@@ -44,7 +44,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     70 test dosyası (t1…t70) + 18 statik denetim betiği
+testler/     71 test dosyası (t1…t71) + 18 statik denetim betiği
 ```
 
 ---
@@ -148,6 +148,10 @@ koleksiyon yok, o kayda `subeId` eklendi. **`subeId` yoksa marka geneli** sayıl
 - **Genel stok yalnızca ilk paylaşımda düşer** — dört şubede kullanılan tek video, tek içerik.
 - Stok motoru, geçişin bir ucu `Şubelerde Paylaşılıyor` ise şubelere dokunmaz: o düşümü
   paylaşım ucu yapar. Bu ayrım olmadan bir şube paylaşınca dört şubenin stoğu birden düşüyordu.
+- `sadeceSubeler` hem **iş oluşturma formunda** hem düzenleme ekranında seçilir; markayı
+  değiştirmek seçimi sıfırlar (başka markanın şube kimliği taşınırsa kart hiçbir şubede
+  görünmez). Şube silinince bu kimlik tüm kartlardan **çıkarılır**, liste boşalırsa kart
+  marka geneline döner — sahipsiz içerik kalmaz. Silme öncesi kaç kartın etkileneceği 409'da yazar.
 - Kartta `sadeceSubeler` **onaydan sonra** değişirse stok motoru farkı uygular: kapsam
   dışına çıkan şubeden düşer, eklenene ekler. Aşama değişmediği için motor eskiden hiç
   uyanmıyordu; kapsam dışı şube kullanamayacağı içerik için stok gösteriyordu.
@@ -170,7 +174,7 @@ geçince düşer. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI`).
 
 ```bash
 bash testler/hepsinidenetle.sh     # 18 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t70, ~1433 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t71, ~1451 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
