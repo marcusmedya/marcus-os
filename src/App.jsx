@@ -288,7 +288,82 @@ const CLIENT_FIELDS = [
   { key: "not", label: "Not (opsiyonel)", type: "text" },
 ];
 
-function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, freelancerlar, onAdd, onUpdate, onDelete, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, openClient, onOpenClientHandled, duzenleyenAdi, musteriIcerikleri, onAddIcerik, onUpdateIcerik, onDeleteIcerik, onOnaylaIcerik, firmaAdi }) {
+/* ------------------------------------------------------------------ */
+/* MÜŞTERİ KARTINDA ŞUBELER                                             */
+/* ------------------------------------------------------------------ */
+/**
+ * Çok şubeli markanın şubeleri burada tanımlanıyor — markanın kendi kaydında,
+ * kategorisi ve ödeme günüyle aynı yerde. Şube açılınca Paylaşımlar ızgarası,
+ * stok sayaçları ve kart seçicileri kendiliğinden şubelere ayrılıyor.
+ *
+ * Stok DÜZENLEME burada YOK: o günlük bir iş ve yeri Paylaşımlar ekranı. Burası
+ * kurulum, orası kullanım.
+ */
+function MusteriSubeleri({ client, subeler, onAddSube, onDeleteSube }) {
+  const [ad, setAd] = useState("");
+  const [acik, setAcik] = useState(false);
+  const kendiSubeleri = markaninSubeleri(subeler, client.id);
+
+  const ekle = () => {
+    const temiz = ad.trim();
+    if (!temiz) return;
+    /* Aynı adı ikinci kez eklemek, planlarda hangi şubenin kastedildiğini
+     * okunamaz hale getirir — şube adı her paylaşım kaydına kopyalanıyor. */
+    if (kendiSubeleri.some((s) => (s.ad || "").trim().toLocaleLowerCase("tr") === temiz.toLocaleLowerCase("tr"))) {
+      window.alert(`"${temiz}" adında bir şube zaten var.`);
+      return;
+    }
+    onAddSube(client.id, temiz);
+    setAd("");
+    setAcik(false);
+  };
+
+  return (
+    <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.borderSoft}` }}>
+      <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, letterSpacing: 0.3, marginBottom: 8 }}>
+        ŞUBELER {kendiSubeleri.length > 0 ? `(${kendiSubeleri.length})` : ""}
+      </div>
+
+      {kendiSubeleri.length === 0 ? (
+        <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 8 }}>
+          Bu marka tek şubeli. Şube eklersen paylaşım planı ve stoklar şube bazında ayrılır.
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+          {kendiSubeleri.map((sube) => (
+            <span key={sube.id} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 999, background: T.surfaceRaised, fontSize: 13, fontFamily: "Inter" }}>
+              <span style={{ color: T.text, fontWeight: 600 }}>{sube.ad}</span>
+              <button
+                onClick={() => { if (window.confirm(`${sube.ad} şubesi silinsin mi?`)) onDeleteSube(sube.id); }}
+                title="Şubeyi sil"
+                style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex" }}
+              ><Trash2 size={12} color={T.textFaint} /></button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {acik ? (
+        <div style={{ display: "flex", gap: 6 }}>
+          <input
+            autoFocus
+            value={ad}
+            onChange={(e) => setAd(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") ekle(); if (e.key === "Escape") { setAd(""); setAcik(false); } }}
+            placeholder="örn. Smell Lara"
+            style={{ ...inputStyle, maxWidth: 260 }}
+          />
+          <button style={{ ...saveBtnStyle, padding: "6px 12px", fontSize: 13 }} onClick={ekle}>Ekle</button>
+          <button style={{ ...cancelBtnStyle, padding: "6px 12px", fontSize: 13 }} onClick={() => { setAd(""); setAcik(false); }}>İptal</button>
+        </div>
+      ) : (
+        <button onClick={() => setAcik(true)} style={{ background: "none", border: "none", color: T.accentText, fontSize: 12, cursor: "pointer", padding: 0, fontFamily: "Inter" }}>+ Şube Ekle</button>
+      )}
+    </div>
+  );
+}
+
+function Musteriler({ clients, subeler, onAddSube, onDeleteSube, bekleyenTahsilatlar, hesaplar, freelancerlar, onAdd, onUpdate, onDelete, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, openClient, onOpenClientHandled, duzenleyenAdi, musteriIcerikleri, onAddIcerik, onUpdateIcerik, onDeleteIcerik, onOnaylaIcerik, firmaAdi }) {
   const [filter, setFilter] = useState("hepsi");
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -407,6 +482,11 @@ function Musteriler({ clients, bekleyenTahsilatlar, hesaplar, freelancerlar, onA
                 <tr key={c.id}>
                   <td colSpan={7} style={{ padding: "12px 15px" }}>
                     <FieldForm fields={CLIENT_FIELDS} initial={{ ...c, faturaliTutar: clientFaturaliTutar(c) }} onSubmit={(v) => { onUpdate(c.id, v); setEditingId(null); }} onCancel={() => setEditingId(null)} />
+                    {/* ŞUBELER — markanın bir özelliği, tanımlandığı yerde duruyor.
+                      * Kaydet'e basmayı beklemiyor: şube ekleme/silme kendi ucuna gidiyor
+                      * (kilit ve işlem kimliği o yolda), form alanlarıyla aynı kayda
+                      * girseydi eşzamanlı çalışan iki kişi birbirinin şubesini silerdi. */}
+                    {onAddSube && <MusteriSubeleri client={c} subeler={subeler} onAddSube={onAddSube} onDeleteSube={onDeleteSube} />}
                   </td>
                 </tr>
               ) : (
@@ -8060,7 +8140,7 @@ export default function MarcusOS() {
     skipNextSave.current = true;
     setData((d) => ({ ...d, ...patch }));
   };
-  const paylasimIstek = (body, hataMesaji) => {
+  const paylasimIstek = (body, hataMesaji, secenekler) => {
     /* İŞLEM KİMLİĞİ — bu uçtaki on iki işlemin hepsi buradan geçiyor, tek yer yetiyor.
      *
      * Bu işlemler FARK bildirimi ("stoğu bir artır", "plan ekle"); aynı istek iki kez
@@ -8077,7 +8157,14 @@ export default function MarcusOS() {
       body: JSON.stringify(govde),
     })
       .then((r) => r.json())
-      .then((res) => { if (res.ok) mergePaylasimLocally(res); else if (res.error) window.alert(res.error); })
+      .then((res) => {
+        if (res.ok) { mergePaylasimLocally(res); return; }
+        /* 409 + onayGerekli: sunucu "bu kaydın sonuçları var, bilerek karar ver" diyor.
+         * Bu dalın istemci karşılığı YOKTU — uyarı gösteriliyor, onay gönderilemiyordu,
+         * yani planı ya da kilitli kartı olan şube HİÇ silinemiyordu. */
+        if (res.onayGerekli && secenekler && typeof secenekler.onayGerekli === "function") { secenekler.onayGerekli(res); return; }
+        if (res.error) window.alert(res.error);
+      })
       .catch(() => window.alert(hataMesaji));
   };
 
@@ -8101,7 +8188,17 @@ export default function MarcusOS() {
   const deleteHaftalikPlan = (planId) => paylasimIstek({ action: "haftalikSil", planId }, "Bağlantı hatası — silinemedi, tekrar dene.");
 
   const addSube = (clientId, ad) => paylasimIstek({ action: "subeEkle", clientId, ad }, "Bağlantı hatası — şube eklenemedi, tekrar dene.");
-  const deleteSube = (subeId) => paylasimIstek({ action: "subeSil", subeId }, "Bağlantı hatası — şube silinemedi, tekrar dene.");
+  const SUBE_SIL_HATASI = "Bağlantı hatası — şube silinemedi, tekrar dene.";
+  const deleteSube = (subeId) => paylasimIstek({ action: "subeSil", subeId }, SUBE_SIL_HATASI, {
+    /* Onay gelirse aynı istek `onayliSil` ile TEKRAR gönderiliyor — yeni bir işlem
+     * olduğu için yeni bir işlem kimliği alıyor, bu doğru: kullanıcı ikinci kez ve
+     * bilerek karar verdi. */
+    onayGerekli: (res) => {
+      if (window.confirm(`${res.error}\n\nYine de silinsin mi?`)) {
+        paylasimIstek({ action: "subeSil", subeId, onayliSil: true }, SUBE_SIL_HATASI);
+      }
+    },
+  });
   const subeStokDegistir = (clientId, subeId, tur, delta) => paylasimIstek({ action: "subeStokDegistir", clientId, subeId, tur, delta }, "Bağlantı hatası — stok güncellenemedi, tekrar dene.");
 
   const addHesap = (ad) => setData((d) => ({ ...d, hesaplar: [...(d.hesaplar && d.hesaplar.length ? d.hesaplar : [{ id: "ana", ad: "Marcus Medya", anaHesap: true }]), { id: `hesap_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, ad }] }));
@@ -8820,7 +8917,7 @@ export default function MarcusOS() {
           {!staffTab && <div style={{ color: T.textFaint, fontFamily: "Inter", fontSize: 13 }}>Henüz erişimin olan bir bölüm yok. Yöneticine sor.</div>}
           {staffTab === "dashboard" && <Dashboard data={data} />}
           {staffTab === "musteriler" && (
-            <Musteriler
+            <Musteriler subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube}
               clients={data.clients || []}
               bekleyenTahsilatlar={data.bekleyenTahsilatlar || []}
               hesaplar={data.hesaplar}
@@ -9265,7 +9362,7 @@ export default function MarcusOS() {
             />
           )}
           {tab === "musteriler" && (
-            <Musteriler
+            <Musteriler subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube}
               clients={data.clients}
               bekleyenTahsilatlar={data.bekleyenTahsilatlar}
               hesaplar={data.hesaplar}
