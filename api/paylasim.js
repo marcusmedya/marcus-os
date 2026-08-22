@@ -550,7 +550,19 @@ export default async function handler(req, res) {
       const { clientId, ad } = body;
       if (!ad || !ad.trim()) return res.status(400).json({ error: "Şube adı gerekli." });
       const liste = data.subeler || [];
-      const yeni = { id: nid(), clientId, ad: ad.trim() };
+
+      /* AYNI ADLA İKİNCİ ŞUBE AÇILMASIN.
+       *
+       * Şube adı her paylaşım kaydına KOPYALANIYOR (şube sonradan silinse bile geçmiş
+       * okunabilir kalsın diye). İki "Smell Lara" varsa geçmişte hangisinin kastedildiği
+       * bir daha ayırt edilemez. İstemci de kontrol ediyor ama tek başına yetmez: iki
+       * kişi aynı anda ekleyince ikisi de "yok" görüp gönderiyor. Son söz sunucuda. */
+      const temizAd = ad.trim();
+      const ayniAd = liste.some((x) => x && String(x.clientId) === String(clientId)
+        && (x.ad || "").trim().toLocaleLowerCase("tr") === temizAd.toLocaleLowerCase("tr"));
+      if (ayniAd) return res.status(409).json({ error: `"${temizAd}" adında bir şube zaten var.` });
+
+      const yeni = { id: nid(), clientId, ad: temizAd };
       data.subeler = [...liste, yeni];
       const _v = await kaydetVeYedekle(data);
       return res.status(200).json({ ok: true, _v, subeler: yanitSuz(data.subeler) });

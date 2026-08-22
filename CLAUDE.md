@@ -44,7 +44,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     71 test dosyası (t1…t71) + 18 statik denetim betiği
+testler/     72 test dosyası (t1…t72) + 18 statik denetim betiği
 ```
 
 ---
@@ -159,8 +159,12 @@ koleksiyon yok, o kayda `subeId` eklendi. **`subeId` yoksa marka geneli** sayıl
   Kartlar markayı ADIYLA, şubeler `clientId` ile saklıyor.
 - Müşteri panelinde aynı içeriğin şube kayıtları **tek satırda** birleşir
   (`musteriPlanSatirlari`); "✓ Paylaşıldı" yalnızca TÜM şubeler bitince yazılır.
-- Planı olan şube **sessizce silinmez** (409 + onay); şube adı kayıtta kopyalı olduğu için
-  geçmiş okunabilir kalır.
+- **Şube kurulumu müşteri kartında** (Müşteriler → Düzenle); Paylaşımlar'daki giriş de duruyor.
+  Aynı marka içinde **aynı adla ikinci şube açılmaz** (sunucu 409) — ad her paylaşım
+  kaydına kopyalandığı için iki aynı ad geçmişi okunamaz hale getirir.
+- Planı ya da kilitli kartı olan şube **sessizce silinmez** (409 + `onayGerekli`); istemci
+  onay alıp `onayliSil` ile tekrar gönderir. Şube adı kayıtta kopyalı olduğu için geçmiş
+  okunabilir kalır.
 
 ### 7. Stok kuralları — `lib/stok.js`
 
@@ -174,7 +178,7 @@ geçince düşer. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI`).
 
 ```bash
 bash testler/hepsinidenetle.sh     # 18 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t71, ~1451 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t72, ~1471 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
