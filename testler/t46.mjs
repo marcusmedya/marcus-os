@@ -14,6 +14,7 @@
  * Yani sınanan şey kodun görüntüsü değil, çıktısı.
  */
 import fs from "fs";
+import { musteriPlanSatirlari } from "../lib/sube-kullanimi.js";
 import path from "path";
 import { fileURLToPath } from "url";
 import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
@@ -64,7 +65,12 @@ const ESLESMELER = [
   { bilesen: "IcerikParcalari",      degisken: "h", kayit: gorunum.hazirIcerikler[0] },
   { bilesen: "MusteriOperasyon",     degisken: "j", kayit: gorunum.operasyonIsleri[0] },
   { bilesen: "MusteriReklamlar",     degisken: "r", kayit: gorunum.reklamlar[0] },
-  { bilesen: "MusteriPaylasimPlani", degisken: "p", kayit: gorunum.paylasimPlani[0] },
+  /* Paylaşım planı bileşene HAM projeksiyonla değil, `musteriPlanSatirlari` ile
+   * dönüştürülmüş hâliyle giriyor (aynı içeriğin şubelere ayrı kayıtları tek satırda
+   * birleşiyor). Bileşenin gerçekten gezdiği kayıt bu — karşılaştırma da onunla
+   * yapılmalı. Kural GEVŞEMİYOR: ne sunucunun ne de dönüşümün ürettiği bir alan
+   * okunursa test yine düşer. */
+  { bilesen: "MusteriPaylasimPlani", degisken: "p", kayit: musteriPlanSatirlari(gorunum.paylasimPlani)[0] },
 ];
 
 console.log("\nPanelin okuduğu her alan projeksiyonda var mı");

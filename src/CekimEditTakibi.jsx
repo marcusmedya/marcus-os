@@ -5,6 +5,8 @@ import { useSunucuOnizleme, useVideoAdresi, videoEni, gomuluEngelliMi, GOMULU_AC
 import { sunucuyuBekle } from "../lib/onizleme-bellegi.js";
 import { isBasladi, isBitti } from "../lib/suren-isler.js";
 import { kartiIsleyebilirMi } from "../lib/is-yetkisi.js";
+import { markaninIdsi } from "../lib/marka-kilidi.js";
+import { markaninSubeleri, kullanabilenSubeler, icerikSubeOzeti } from "../lib/sube-kullanimi.js";
 // Para gösterimleri Gizlilik Modu'na uymalı — aksi halde ücretler gizliyken de görünür kalırdı.
 import { fmt, T, authHeaders, tarihIso } from "./tema.jsx";
 import {
@@ -1190,7 +1192,7 @@ function SlotKucukOnizleme({ isId, slot, video }) {
   );
 }
 
-function IsDetayModal({ job, clients, role, staffName, islemYetkisi, personelRosteri, onClose, onUpdate, onDelete, kilitleyen, markaYoneticisiMi, firmaAdi, ucretDetayi, onSaveUcretDetayi }) {
+function IsDetayModal({ job, clients, subeler, planlar, role, staffName, islemYetkisi, personelRosteri, onClose, onUpdate, onDelete, kilitleyen, markaYoneticisiMi, firmaAdi, ucretDetayi, onSaveUcretDetayi }) {
   const [yorum, setYorum] = useState("");
   const [revizeMetni, setRevizeMetni] = useState("");
   const [revizeAciliyor, setRevizeAciliyor] = useState(false);
@@ -1200,6 +1202,18 @@ function IsDetayModal({ job, clients, role, staffName, islemYetkisi, personelRos
   const [dosyaTaslak, setDosyaTaslak] = useState({ hamDosyaLink: job.hamDosyaLink || "", editliDosyaLink: job.editliDosyaLink || "" });
 
   const yetkili = duzenleyebilirMi(job, role, islemYetkisi);
+
+  /* ŞUBE BAĞLAMI. Kart markayı ADIYLA saklıyor, şube `clientId` ile bağlı —
+   * çeviri tek yerde (lib/marka-kilidi.js). Marka tek şubeliyse aşağıdaki
+   * bölümlerin hiçbiri çizilmiyor; o markalar için ekran birebir eskisi gibi. */
+  const markaId = useMemo(() => markaninIdsi(clients, duzenle ? taslak.marka : job.marka),
+    [clients, duzenle, taslak.marka, job.marka]);
+  const markaSubeleri = useMemo(() => markaninSubeleri(subeler, markaId), [subeler, markaId]);
+  const cokSubeli = markaSubeleri.length > 0;
+  const subeOzeti = useMemo(
+    () => (cokSubeli ? icerikSubeOzeti(job, subeler, planlar, markaId) : []),
+    [cokSubeli, job, subeler, planlar, markaId]);
+
   const aciliyet = aciliyetDurumu(job);
   const stil = ACILIYET_STIL[aciliyet];
 
@@ -1392,6 +1406,31 @@ function IsDetayModal({ job, clients, role, staffName, islemYetkisi, personelRos
               <div><label style={labelStyle}>İstenen Adet</label><input style={inputStyle} value={taslak.istenenAdet || ""} onChange={(e) => setTaslak((s) => ({ ...s, istenenAdet: e.target.value }))} /></div>
               <div><label style={labelStyle}>Kaç Parça? (rapor için)</label><input type="number" min="0" style={inputStyle} value={taslak.uretilenAdet || ""} onChange={(e) => setTaslak((s) => ({ ...s, uretilenAdet: e.target.value }))} placeholder="örn. 10" /></div>
             </div>
+            {/* HANGİ ŞUBELER KULLANABİLİR.
+              * Varsayılan "tüm şubeler" — çoğu içerik marka geneli. Şube seçilirse
+              * içerik yalnızca orada planlanabilir; diğer şubelerin kart seçicisinde
+              * hiç görünmez ve onaylandığında onların stoğunu artırmaz. */}
+            {cokSubeli && (
+              <div style={{ marginBottom: 12 }}>
+                <label style={labelStyle}>Hangi şubeler kullanabilir?</label>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {(() => {
+                    const secili = Array.isArray(taslak.sadeceSubeler) ? taslak.sadeceSubeler.map(String) : [];
+                    const dugme = (etiket, aktif, tikla) => (
+                      <button key={etiket} onClick={tikla} style={{ padding: "7px 12px", borderRadius: 999, cursor: "pointer", fontSize: 13, fontWeight: 700, border: `1.5px solid ${aktif ? C.accent : C.border}`, background: aktif ? C.accentSoft : "transparent", color: aktif ? C.accentText : C.textDim }}>{etiket}</button>
+                    );
+                    return [
+                      dugme("Tüm şubeler", secili.length === 0, () => setTaslak((st) => ({ ...st, sadeceSubeler: [] }))),
+                      ...markaSubeleri.map((sb) => dugme(sb.ad, secili.includes(String(sb.id)), () => setTaslak((st) => {
+                        const su = Array.isArray(st.sadeceSubeler) ? st.sadeceSubeler.map(String) : [];
+                        const id = String(sb.id);
+                        return { ...st, sadeceSubeler: su.includes(id) ? su.filter((x) => x !== id) : [...su, id] };
+                      }))),
+                    ];
+                  })()}
+                </div>
+              </div>
+            )}
             <label style={labelStyle}>Brief / Çekim Notları</label>
             <textarea style={{ ...inputStyle, marginBottom: 10 }} rows={3} value={taslak.brief || ""} onChange={(e) => setTaslak((s) => ({ ...s, brief: e.target.value }))} />
             <label style={labelStyle}>Ham Dosya Klasör Bağlantısı</label>
@@ -1414,6 +1453,34 @@ function IsDetayModal({ job, clients, role, staffName, islemYetkisi, personelRos
               <div><span style={{ color: C.textFaint }}>İstenen Adet:</span> <span style={{ color: C.text }}>{job.istenenAdet || "—"}</span></div>
               {job.uretilenAdet ? <div><span style={{ color: C.textFaint }}>Parça Sayısı:</span> <span style={{ color: C.text }}>{job.uretilenAdet}</span></div> : null}
             </div>
+
+            {/* ŞUBE DURUMU — salt okunur.
+              * "Bu içeriği hangi şubede paylaştık, hangisi bekliyor" sorusu kartı
+              * işleyen kişinin de sorusu. Planlama Paylaşımlar ekranında yapılıyor;
+              * burada yalnızca durum gösteriliyor, tıklanacak bir şey yok. */}
+            {cokSubeli && subeOzeti.length > 0 && (
+              <div style={{ marginBottom: 16, padding: "11px 14px", background: C.panel, borderRadius: 10, border: `1px solid ${C.border}` }}>
+                <div style={{ fontSize: 11, color: C.textFaint, fontWeight: 700, letterSpacing: 0.3, marginBottom: 8 }}>
+                  ŞUBE DURUMU
+                  {Array.isArray(job.sadeceSubeler) && job.sadeceSubeler.length > 0 && (
+                    <span style={{ fontWeight: 600, letterSpacing: 0, marginLeft: 6 }}>· yalnızca seçili şubelerde kullanılır</span>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {subeOzeti.map((x) => {
+                    const renk = x.durum === "paylasildi" ? C.success : x.durum === "planlandi" ? C.warning : C.textFaint;
+                    const zemin = x.durum === "paylasildi" ? C.successSoft : x.durum === "planlandi" ? C.warningSoft : "transparent";
+                    const not = x.durum === "paylasildi" ? (x.tarih || "paylaşıldı") : x.durum === "planlandi" ? "planlı" : "bekliyor";
+                    return (
+                      <span key={x.subeId} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 11px", borderRadius: 999, background: zemin, border: `1px solid ${x.durum === "kullanilmadi" ? C.border : renk}`, fontSize: 12.5 }}>
+                        <span style={{ color: C.text, fontWeight: 600 }}>{x.subeAdi}</span>
+                        <span style={{ color: renk, fontWeight: 700 }}>{not}</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {role === "owner" && onSaveUcretDetayi && (
               <IsUcretPaneli job={job} detay={ucretDetayi} onKaydet={onSaveUcretDetayi} />
@@ -2331,7 +2398,7 @@ export function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onS
 /* ------------------------------------------------------------------ */
 /* ANA BİLEŞEN                                                           */
 /* ------------------------------------------------------------------ */
-export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, onRefreshRoster, onAddJob, onUpdateJob, onDeleteJob, girisYapanAd, islemYetkisi = true, isUcretleri, onSaveIsUcreti, isUcretDetaylari, onSaveIsUcretDetayi, avanslar, hesaplar, onAddAvans, onDeleteAvans, markalasmaSurecleri, onToggleMarkalasmaGorev, onSetMarkalasmaYonetici, onAddMarkalasmaGorev, onCompleteMarkalasmaSureci, onDeleteMarkalasmaSureci, markaYoneticisiMi, firmaAdi }) {
+export default function CekimEditTakibi({ role, clients, subeler, planlar, jobs, personelRosteri, onRefreshRoster, onAddJob, onUpdateJob, onDeleteJob, girisYapanAd, islemYetkisi = true, isUcretleri, onSaveIsUcreti, isUcretDetaylari, onSaveIsUcretDetayi, avanslar, hesaplar, onAddAvans, onDeleteAvans, markalasmaSurecleri, onToggleMarkalasmaGorev, onSetMarkalasmaYonetici, onAddMarkalasmaGorev, onCompleteMarkalasmaSureci, onDeleteMarkalasmaSureci, markaYoneticisiMi, firmaAdi }) {
   const [staffName, setStaffNameState] = useState(girisYapanAd || getStaffName());
   const [view, setView] = useState(role === "staff" ? "panom" : "pano");
   const [panoKategori, setPanoKategori] = useState("Video");
@@ -2450,6 +2517,8 @@ export default function CekimEditTakibi({ role, clients, jobs, personelRosteri, 
         <IsDetayModal
           job={isler.find((j) => j.id === acikIs.id) || acikIs}
           clients={clients}
+          subeler={subeler}
+          planlar={planlar}
           role={role}
           staffName={staffName}
           islemYetkisi={islemYetkisi}

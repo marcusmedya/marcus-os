@@ -66,7 +66,7 @@ export function BagliKartKapagi({ isId, yazi }) {
  * (Müşteri Paneli sekmesi) hem müşterinin ekranında AYNI bileşen kullanılır — iki taraf
  * asla farklı bir şey görmez.
  */
-export function InstagramOnizleme({ marka, tur, gun, gorselUrl, altMetin, yapildi, isId, kompakt = false }) {
+export function InstagramOnizleme({ marka, tur, gun, gorselUrl, altMetin, yapildi, isId, subeler, kompakt = false }) {
   const [metinAcik, setMetinAcik] = useState(false);
   const uzunMetin = (altMetin || "").length > 125;
   const gosterilenMetin = !uzunMetin || metinAcik ? altMetin : (altMetin || "").slice(0, 125) + "…";
@@ -86,6 +86,19 @@ export function InstagramOnizleme({ marka, tur, gun, gorselUrl, altMetin, yapild
         </div>
         {yapildi && <span style={{ fontSize: 11, color: "#4ade80", fontFamily: "Inter", fontWeight: 600 }}>✓ Paylaşıldı</span>}
       </div>
+
+      {/* ŞUBE ETİKETLERİ — aynı içerik şubelere ayrı ayrı planlandığında.
+        * Dört ayrı kare yerine tek kare, altında hangi şubede ne zaman. */}
+      {Array.isArray(subeler) && subeler.length > 0 && (
+        <div style={{ display: "flex", gap: 5, flexWrap: "wrap", padding: "0 15px 10px" }}>
+          {subeler.map((sb, i) => (
+            <span key={sb.subeId || i} style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 9px", borderRadius: 999, background: sb.yapildi ? "rgba(74,222,128,.14)" : "#1c1c1c", fontSize: 11, fontFamily: "Inter" }}>
+              <span style={{ color: "#e8e8e8", fontWeight: 600 }}>{sb.subeAdi}</span>
+              <span style={{ color: sb.yapildi ? "#4ade80" : "#8a8a8a" }}>{sb.yapildi ? (sb.tarih || "✓") : (sb.gun || "planlı")}</span>
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Görsel alanı — kare, Instagram gibi */}
       <div style={{ width: "100%", aspectRatio: "1 / 1", background: "#111", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
