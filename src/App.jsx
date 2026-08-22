@@ -45,6 +45,9 @@ import { markaEslestirici } from "../lib/marka-kilidi.js";
  * yazılıydı; listeye tür eklendiğinde biri geride kalabilir, stok sayılır ama panelde
  * satırı hiç görünmezdi. */
 import { PAYLASIM_TURLERI, stokAnahtari, stokYanitiniUygula } from "../lib/stok.js";
+import { planSubesi, subeStokAnahtari, markaninSubeleri, kullanabilenSubeler,
+         icerikSubeOzeti, subeListeleri, hazirIcerikSayisi } from "../lib/sube-kullanimi.js";
+import { SUBE_PAYLASIM_ASAMASI } from "../lib/asamalar.js";
 import { Finans, HesapBakiyeleri, MiniList, hesapBakiyesi } from "./finans.jsx";
 import { HataYakalayici } from "./hataYakalayici.jsx";
 import { Personel, avansToplami, avansKisiyeAitMi, odemeToplami, odemeKisiyeAitMi, AvansVerFormu, AvansListesi } from "./personel.jsx";
@@ -2037,7 +2040,9 @@ function KartOnizleme({ is, boyut = 52 }) {
 const TUR_HARFI = { "Görsel": "G", "Video": "V", "Reels": "R", "Story": "S", "Carousel": "C" };
 
 
-function MarkaStokKarti({ client, stoklar, gecmis, subeler, onStokDegis, onAddSube, onDeleteSube, onSubeStokDegis }) {
+function MarkaStokKarti({ client, stoklar, gecmis, subeler, isler, plan, onStokDegis, onAddSube, onDeleteSube, onSubeStokDegis }) {
+  /* Hangi şubenin içerik listesi açık. Kapalıyken hiçbir hesap yapılmıyor. */
+  const [acikSube, setAcikSube] = useState(null);
   const [subeEkleAcik, setSubeEkleAcik] = useState(false);
   const [subeAdi, setSubeAdi] = useState("");
   const dusukMu = (tur, adet) => {
@@ -2110,7 +2115,15 @@ function MarkaStokKarti({ client, stoklar, gecmis, subeler, onStokDegis, onAddSu
                   style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}
                 ><Trash2 size={12} color={T.textFaint} /></button>
               </div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                {/* ŞUBENİN İÇERİK LİSTESİ — "bu şubede ne bekliyor" sorusunun cevabı.
+                  * Sayıya tıklayınca hangi içerikler olduğu görünüyor; Drive'a bakmaya
+                  * gerek kalmıyor. Hesap açılınca yapılıyor, kapalıyken maliyeti yok. */}
+                <button
+                  onClick={() => setAcikSube(acikSube === sube.id ? null : sube.id)}
+                  title="Bu şubede paylaşılanlar, planlananlar ve hiç kullanılmamışlar"
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 6px", fontSize: 11, color: acikSube === sube.id ? T.accentText : T.textFaint, fontFamily: "Inter" }}
+                >{acikSube === sube.id ? "gizle" : "içerikler"}</button>
                 {PAYLASIM_TURLERI.map((tur) => {
                   const key = `${client.id}_${sube.id}_${tur}`;
                   const adet = stoklar[key] || 0;
@@ -2124,6 +2137,32 @@ function MarkaStokKarti({ client, stoklar, gecmis, subeler, onStokDegis, onAddSu
                   );
                 })}
               </div>
+
+              {acikSube === sube.id && (() => {
+                const liste = subeListeleri(sube.id, isler, plan, subeler, client.id,
+                  (j) => j.asama === "Onaylandı" || j.asama === SUBE_PAYLASIM_ASAMASI);
+                const bolum = (baslik, kayitlar, renk, tarihli) => (
+                  <div style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 10.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 3, letterSpacing: ".04em", textTransform: "uppercase" }}>
+                      {baslik} ({kayitlar.length})
+                    </div>
+                    {kayitlar.length === 0 ? (
+                      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>—</div>
+                    ) : kayitlar.map((x) => (
+                      <div key={x.is.id} style={{ fontSize: 11.5, color: renk, fontFamily: "Inter", lineHeight: 1.7 }}>
+                        {x.is.icerikTuru || "İsimsiz içerik"}{tarihli && x.tarih ? ` · ${x.tarih}` : ""}
+                      </div>
+                    ))}
+                  </div>
+                );
+                return (
+                  <div style={{ marginTop: 8, padding: "10px 12px", background: T.surface, borderRadius: 8 }}>
+                    {bolum("Bu şubede paylaşılanlar", liste.paylasilan, T.success, true)}
+                    {bolum("Planlananlar", liste.planlanan, T.warning, false)}
+                    {bolum("Hiç kullanılmamışlar", liste.kullanilmamis, T.textDim, false)}
+                  </div>
+                );
+              })()}
             </div>
           ))}
           {subeEkleAcik ? (
@@ -2149,11 +2188,25 @@ function haftaEkle(haftaKeyStr, adet) {
   return haftaBaslangici(d);
 }
 
-function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, onAddPlan, onToggleYapildi, onDeletePlan }) {
+function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPlan, onToggleYapildi, onDeletePlan }) {
   const [haftaKey, setHaftaKey] = useState(haftaBaslangici());
-  const [secim, setSecim] = useState(null); // { clientId, gun, tur }
+  const [secim, setSecim] = useState(null); // { clientId, gun, tur, subeId }
   const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
   const buHaftaPlan = (plan || []).filter((p) => p.haftaKey === haftaKey);
+
+  /* SATIRLAR: şubesiz markada tek satır (bugünkü hâl), çok şubeli markada HER ŞUBE
+   * kendi satırı. Böylece tablo yapısı ("bir satır × bir gün = bir hücre") hiç
+   * değişmiyor ama aynı içerik farklı şubelerde farklı günlerde planlanabiliyor. */
+  const satirlar = aktifMarkalar.flatMap((c) => {
+    const kendiSubeleri = markaninSubeleri(subeler, c.id);
+    if (kendiSubeleri.length === 0) return [{ key: `m${c.id}`, client: c, subeId: null, etiket: c.ad }];
+    return [
+      { key: `b${c.id}`, client: c, subeId: null, etiket: c.ad, baslik: true },
+      ...kendiSubeleri.map((sb) => ({
+        key: `m${c.id}s${sb.id}`, client: c, subeId: String(sb.id), etiket: sb.ad,
+      })),
+    ];
+  });
 
   const gunTarihi = (gunIndex) => {
     const d = new Date(haftaKey);
@@ -2161,11 +2214,16 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, onAddPlan, onTog
     return d.toLocaleDateString("tr-TR", { day: "numeric", month: "short" });
   };
 
-  const planBul = (clientId, gun) => buHaftaPlan.find((p) => p.clientId === clientId && p.gun === gun);
+  const planBul = (clientId, gun, subeId) => buHaftaPlan.find((p) =>
+    p.clientId === clientId && p.gun === gun && planSubesi(p) === (subeId === null ? null : String(subeId)));
 
   const tikla = (p) => {
     if (!p.yapildi) {
-      const mevcutStok = (stoklar || {})[stokAnahtari(p.clientId, p.tur)] || 0;
+      /* Şube planında o ŞUBENİN stoğuna bakılır — genel sayı o şubede ne kaldığını
+       * söylemiyor. Şubesiz planda eski davranış. */
+      const sube = planSubesi(p);
+      const anahtar = sube ? subeStokAnahtari(p.clientId, sube, p.tur) : stokAnahtari(p.clientId, p.tur);
+      const mevcutStok = (stoklar || {})[anahtar] || 0;
       if (mevcutStok <= 0) {
         if (!window.confirm(`${p.tur} stoğu şu an 0 görünüyor. Yine de "paylaşıldı" olarak işaretlemek istiyor musun?`)) return;
       }
@@ -2198,16 +2256,25 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, onAddPlan, onTog
               </tr>
             </thead>
             <tbody>
-              {aktifMarkalar.map((c) => (
-                <tr key={c.id} style={{ borderBottom: `1px solid ${T.borderSoft}` }}>
-                  <td style={{ padding: "6px 10px", fontSize: 13, color: T.text, fontWeight: 600, position: "sticky", left: 0, background: T.surface }}>{c.ad}</td>
-                  {GUN_ADLARI.map((_, gunIndex) => {
-                    const p = planBul(c.id, gunIndex);
+              {satirlar.map((satir) => (
+                <tr key={satir.key} style={{ borderBottom: `1px solid ${T.borderSoft}` }}>
+                  <td style={{
+                    padding: satir.subeId ? "6px 10px 6px 24px" : "6px 10px",
+                    fontSize: satir.subeId ? 12.5 : 13,
+                    color: satir.baslik ? T.textFaint : T.text,
+                    fontWeight: satir.baslik ? 700 : 600,
+                    position: "sticky", left: 0, background: T.surface,
+                    whiteSpace: "nowrap",
+                  }}>{satir.etiket}</td>
+                  {/* Marka başlık satırında hücre yok: planlama şube satırlarından yapılır. */}
+                  {satir.baslik ? GUN_ADLARI.map((_, gi) => <td key={gi} />) : GUN_ADLARI.map((_, gunIndex) => {
+                    const c = satir.client;
+                    const p = planBul(c.id, gunIndex, satir.subeId);
                     return (
                       <td key={gunIndex} style={{ padding: 5, textAlign: "center" }}>
                         {!p ? (
                           <button
-                            onClick={() => setSecim({ clientId: c.id, gun: gunIndex })}
+                            onClick={() => setSecim({ clientId: c.id, gun: gunIndex, subeId: satir.subeId })}
                             style={{ width: 32, height: 28, borderRadius: 7, border: `1px dashed ${T.border}`, background: "transparent", color: T.textFaint, cursor: "pointer", fontSize: 15 }}
                           >+</button>
                         ) : (
@@ -2281,25 +2348,38 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, onAddPlan, onTog
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   {(() => {
                     const markaAd = ((aktifMarkalar.find((c) => c.id === secim.clientId) || {}).ad || "").trim().toLocaleLowerCase("tr");
-                    const bagliIdler = new Set((plan || []).map((x) => String(x.isId)).filter((x) => x && x !== "null"));
+                    /* AYNI ŞUBEDE zaten planlanmış kartlar listeden çıkar; BAŞKA şubede
+                     * planlanmış olması o kartı bu şube için engellemez — çok şubeliliğin
+                     * kalbi bu. Şubesiz seçimde eski davranış (kart bir kez bağlanır). */
+                    const bagliIdler = new Set((plan || [])
+                      .filter((x) => planSubesi(x) === (secim.subeId || null))
+                      .map((x) => String(x.isId)).filter((x) => x && x !== "null"));
+                    /* "Şubelerde Paylaşılıyor" da listeye giriyor: içerik bir şubede
+                     * kullanıldı ama diğerlerinde hâlâ kullanılabilir. */
                     const hazir = (isler || []).filter((j) =>
                       (j.marka || "").trim().toLocaleLowerCase("tr") === markaAd
-                      && j.asama === "Onaylandı"
-                      && !bagliIdler.has(String(j.id)));
+                      && (j.asama === "Onaylandı" || j.asama === SUBE_PAYLASIM_ASAMASI)
+                      && !bagliIdler.has(String(j.id))
+                      /* Şubeye özel içerik başka şubede önerilmez. */
+                      && (!secim.subeId
+                          || kullanabilenSubeler(j, subeler, secim.clientId).some((sb) => String(sb.id) === String(secim.subeId))));
                     if (hazir.length === 0) {
                       return (
                         <div style={{ fontSize: 12.5, color: T.textDim, background: T.surfaceRaised, borderRadius: 8, padding: "12px 15px", lineHeight: 1.6 }}>
-                          Bu markada paylaşıma hazır (müşterinin onayladığı) kart yok. Kart bağlamadan
+                          {secim.subeId
+                            ? "Bu şube için kullanılabilir kart yok — ya hepsi burada planlandı ya da içerikler başka şubelere özel."
+                            : "Bu markada paylaşıma hazır (müşterinin onayladığı) kart yok."} Kart bağlamadan
                           da plan ekleyebilirsin — o zaman Drive'a bir şey taşınmaz.
                         </div>
                       );
                     }
                     return hazir.map((j) => {
                       const versiyon = Array.isArray(j.medya) && j.medya.length ? j.medya[j.medya.length - 1].versiyon : null;
+                      const subeOzeti = icerikSubeOzeti(j, subeler, plan, secim.clientId);
                       return (
                         <button
                           key={j.id}
-                          onClick={() => { onAddPlan(secim.clientId, secim.gun, haftaKey, secim.tur, j.id); setSecim(null); }}
+                          onClick={() => { onAddPlan(secim.clientId, secim.gun, haftaKey, secim.tur, j.id, secim.subeId); setSecim(null); }}
                           style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 12px", borderRadius: 8, border: `1px solid ${T.border}`, background: T.surfaceRaised, color: T.text, fontSize: 13, fontFamily: "Inter", cursor: "pointer", textAlign: "left" }}
                         >
                           <KartOnizleme is={j} />
@@ -2310,13 +2390,28 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, onAddPlan, onTog
                             <span style={{ fontSize: 11.5, color: T.textFaint }}>
                               {kartTuru(j)}{j.editor ? ` · ${j.editor}` : ""}{versiyon ? ` · V${versiyon}` : ""}
                             </span>
+                            {/* ŞUBE GEÇMİŞİ — "bu içeriği bu şubede paylaşmış mıydık?"
+                              * sorusunun cevabı burada; Drive'a bakmaya gerek kalmıyor. */}
+                            {subeOzeti.length > 1 && (
+                              <span style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 2 }}>
+                                {subeOzeti.map((x) => (
+                                  <span key={x.subeId} style={{
+                                    fontSize: 10.5, fontFamily: "Inter", borderRadius: 999, padding: "1px 7px",
+                                    background: x.durum === "paylasildi" ? T.successSoft : x.durum === "planlandi" ? T.warningSoft : T.surface,
+                                    color: x.durum === "paylasildi" ? T.success : x.durum === "planlandi" ? T.warning : T.textFaint,
+                                  }}>
+                                    {x.subeAdi}{x.durum === "paylasildi" ? ` ✓ ${x.tarih || ""}` : x.durum === "planlandi" ? " · planlı" : " · hiç"}
+                                  </span>
+                                ))}
+                              </span>
+                            )}
                           </span>
                         </button>
                       );
                     });
                   })()}
                   <button
-                    onClick={() => { onAddPlan(secim.clientId, secim.gun, haftaKey, secim.tur); setSecim(null); }}
+                    onClick={() => { onAddPlan(secim.clientId, secim.gun, haftaKey, secim.tur, null, secim.subeId); setSecim(null); }}
                     style={{ padding: "12px 15px", borderRadius: 8, border: `1px dashed ${T.border}`, background: "transparent", color: T.textDim, fontSize: 12.5, fontFamily: "Inter", cursor: "pointer", textAlign: "left" }}
                   >
                     Kart bağlamadan ekle
@@ -2355,6 +2450,7 @@ function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, isle
         plan={haftalikPlan}
         stoklar={stoklarObj}
         isler={isler}
+        subeler={subeler}
         onAddPlan={onAddHaftalikPlan}
         onToggleYapildi={onToggleHaftalikYapildi}
         onDeletePlan={onDeleteHaftalikPlan}
@@ -2378,7 +2474,7 @@ function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, isle
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14, marginBottom: 16 }}>
           {aktifMarkalar.map((c) => (
-            <MarkaStokKarti key={c.id} client={c} stoklar={stoklarObj} gecmis={gecmis} onStokDegis={onStokDegis} subeler={subeler} onAddSube={onAddSube} onDeleteSube={onDeleteSube} onSubeStokDegis={onSubeStokDegis} />
+            <MarkaStokKarti key={c.id} client={c} stoklar={stoklarObj} gecmis={gecmis} isler={isler} plan={haftalikPlan} onStokDegis={onStokDegis} subeler={subeler} onAddSube={onAddSube} onDeleteSube={onDeleteSube} onSubeStokDegis={onSubeStokDegis} />
           ))}
         </div>
       )}
@@ -2411,7 +2507,7 @@ function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, isle
  */
 const bugunISO = () => tarihIso(new Date());
 
-function CekimListesi({ clients, stoklar, subeler, gecmis }) {
+function CekimListesi({ clients, stoklar, subeler, gecmis, isler, plan }) {
   const ESIK = 4;
   const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
   const stoklarObj = stoklar || {};
@@ -2426,9 +2522,27 @@ function CekimListesi({ clients, stoklar, subeler, gecmis }) {
   const gruplar = [];
   aktifMarkalar.forEach((c) => {
     const turler = PAYLASIM_TURLERI.map((tur) => ({ tur, adet: stoklarObj[stokAnahtari(c.id, tur)] || 0, sonCekim: sonCekimTarihi(c.id, tur) }));
-    const toplam = turler.reduce((s, x) => s + x.adet, 0);
+    const kendiSubeleri = markaninSubeleri(subeler, c.id);
+
+    // ÇOK ŞUBELİ MARKADA STOK TOPLAMI YANILTIR: genel bir içerik dört şubenin de
+    // stoğunu artırdığı için "4 stok" görünür, oysa çekilmiş İÇERİK bir tanedir.
+    // Çekim kararı içerik sayısına bakar — hiçbir şubede henüz paylaşılmamış,
+    // elde duran farklı içerik kaç tane? Tek şubeli markada eski davranış aynen kalır.
+    let toplam;
+    if (kendiSubeleri.length > 0) {
+      const eslestir = markaEslestirici(clients || [], c.ad);
+      const markaIsleri = (isler || []).filter((j) => eslestir(j.marka));
+      toplam = hazirIcerikSayisi(markaIsleri, plan, (j) => j.asama === "Onaylandı" || j.asama === SUBE_PAYLASIM_ASAMASI);
+    } else {
+      toplam = turler.reduce((s, x) => s + x.adet, 0);
+    }
+
     if (toplam <= ESIK) {
-      gruplar.push({ anahtar: `${c.ad}__`, marka: c.ad, sube: null, toplam, turler: turler.filter((x) => x.adet > 0) });
+      gruplar.push({
+        anahtar: `${c.ad}__`, marka: c.ad, sube: null, toplam,
+        icerikSayisi: kendiSubeleri.length > 0,
+        turler: kendiSubeleri.length > 0 ? [] : turler.filter((x) => x.adet > 0),
+      });
     }
   });
 
@@ -2463,7 +2577,7 @@ function CekimListesi({ clients, stoklar, subeler, gecmis }) {
               <Card key={g.anahtar} style={{ padding: "12px 15px", border: `1px solid ${kenarRenk}` }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: g.turler.length > 0 ? 8 : 0 }}>
                   <div style={{ fontSize: 15, color: T.text, fontWeight: 700, fontFamily: "Inter" }}>{g.marka}{g.sube ? ` — ${g.sube}` : ""}</div>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: kenarRenk, fontFamily: "'IBM Plex Mono', monospace", background: T.surfaceRaised, padding: "6px 10px", borderRadius: 999 }}>Toplam: {g.toplam}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: kenarRenk, fontFamily: "'IBM Plex Mono', monospace", background: T.surfaceRaised, padding: "6px 10px", borderRadius: 999 }}>{g.icerikSayisi ? "Hazır içerik" : "Toplam"}: {g.toplam}</span>
                 </div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {g.turler.map((x) => {
@@ -7973,7 +8087,7 @@ export default function MarcusOS() {
    * ve işaretleme haftalikToggle üzerinden yapılıyor. Sunucudaki gunlukToggle işlemi duruyor —
    * paylasimGecmisi ve stok düşümünü o yönetiyor, haftalikToggle da onu çağırıyor. */
 
-  const addHaftalikPlan = (clientId, gun, haftaKey, tur, isId) => paylasimIstek({ action: "haftalikEkle", clientId, gun, haftaKey, tur, isId }, "Bağlantı hatası — plan eklenemedi, tekrar dene.");
+  const addHaftalikPlan = (clientId, gun, haftaKey, tur, isId, subeId) => paylasimIstek({ action: "haftalikEkle", clientId, gun, haftaKey, tur, isId, subeId }, "Bağlantı hatası — plan eklenemedi, tekrar dene.");
   /** Planlanan paylaşımın alt metni (caption) — müşteri panelinde gösterilir. */
   /** Planlanan paylaşımın açıklama metni ve/veya görseli. Sadece verilen alan gönderilir —
    * biri güncellenirken diğeri sıfırlanmasın diye undefined olanlar isteğe hiç eklenmez. */
@@ -8792,7 +8906,7 @@ export default function MarcusOS() {
           {/* Günlük Kontrol artık haftalık planı okur ve AYNI sunucu işlemine yazar
             (toggleHaftalikYapildi) — iki panelin ayrışması mümkün değil. */}
           {staffTab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="staff" />}
-          {staffTab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} />}
+          {staffTab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} isler={data.cekimIsleri || []} plan={data.haftalikPaylasimlar || []} />}
           {staffTab === "cekim-edit" && <CekimEditTakibi role="staff" clients={data.clients || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} girisYapanAd={loggedStaffName} islemYetkisi={izinler.cekimEdit === true} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={izinler.markaYoneticisi} firmaAdi={data.firmaAdi} />}
           {staffTab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} duzenleyenAdi={loggedStaffName || "Personel"} />}
           {staffTab === "birikim" && (
@@ -9234,7 +9348,7 @@ export default function MarcusOS() {
           {tab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} clients={data.clients || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} duzenleyenAdi="Yönetici (CEO)" olcumler={data.hesapOlcumleri || []} onKaydetOlcum={kaydetOlcum} onSilOlcum={silOlcum} />}
           {tab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} isler={data.cekimIsleri || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} />}
           {tab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="owner" />}
-          {tab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} />}
+          {tab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} isler={data.cekimIsleri || []} plan={data.haftalikPaylasimlar || []} />}
           {tab === "cekim-edit" && <CekimEditTakibi role="owner" clients={data.clients || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} isUcretleri={data.isUcretleri || {}} onSaveIsUcreti={setIsUcreti} isUcretDetaylari={data.isUcretDetaylari || {}} onSaveIsUcretDetayi={setIsUcretDetayi} avanslar={data.avanslar || []} hesaplar={data.hesaplar || []} onAddAvans={addAvans} onDeleteAvans={deleteAvans} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={true} firmaAdi={data.firmaAdi} />}
           {tab === "personel" && (
             <Personel
