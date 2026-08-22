@@ -44,7 +44,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     73 test dosyası (t1…t73) + 18 statik denetim betiği
+testler/     74 test dosyası (t1…t74) + 18 statik denetim betiği
 ```
 
 ---
@@ -144,7 +144,14 @@ görünür kalır, stok orada düşer), planlanan tüm şubeler bitince `Teslim 
 aşamanın `ASAMA_KLASORU` karşılığı **bilerek yok** — Drive'a taşıma en sonda yapılır.
 Şubesiz markada hiç kullanılmaz.
 Sunucu, istemciden gelen aşamayı doğrular; listede olmayan aşama `asamalariDuzelt`
-ile onarılır. Bir kartta en fazla 10 slayt + 1 story yuvası olabilir.
+ile onarılır.
+
+**Slayt sayısı kategoriye bağlı — `enFazlaSlayt`.** Fotoğraf **tek görsellik**; çoklu
+gönderi Carousel'in işi (ikisi de çoklu olduğunda "kaydırmalı gönderi mi, ayrı postlar mı"
+ayrımı kayboluyor ve stok yanlış türe yazılıyordu). Diğer kategorilerde 10 slayt.
+**Story yuvası bu sınırın dışında** — o ikinci bir görsel değil, aynı gönderinin story
+boyutu. Kural hem tarayıcıda hem sunucuda (`slotKategoriyeUygunMu`); sınır yalnızca YENİ
+yuva açmaya uygulanır, eski çok slaytlı Fotoğraf kartlarının dosyaları görünmeye devam eder.
 
 ### 6. Şube bazlı içerik kullanımı — `lib/sube-kullanimi.js`
 
@@ -188,7 +195,7 @@ geçince düşer. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI`).
 
 ```bash
 bash testler/hepsinidenetle.sh     # 18 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t73, ~1512 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t74, ~1534 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

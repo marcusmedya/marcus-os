@@ -11,7 +11,7 @@ import { onaylananiTasi, DURUM_KLASORLERI, klasorDurumu, driveDosyaIdCikar, vide
 import { jetonUret, jetonCoz } from "../lib/video-jeton.js";
 import { Readable } from "stream";
 import { dosyasizKontroleGirenleriGeriAl, medyaVarMi, asamalariDuzelt,
-         guncelMedyalar, slotSonrakiVersiyon, slotGecerliMi, medyaSlotu,
+         guncelMedyalar, slotSonrakiVersiyon, slotGecerliMi, slotKategoriyeUygunMu, medyaSlotu,
          tasinacakDosyalar, kartKlasorAdi } from "../lib/asamalar.js";
 import { epostaGonderAyrintili, gonderenAdres } from "../lib/eposta.js";
 import { onaylananlaraGoreStok } from "../lib/stok.js";
@@ -946,14 +946,27 @@ export default async function handler(req, res) {
     }
 
     if (driveAction === "yuklemeBasla") {
-      if (!yuklemeHazirMi()) {
-        return res.status(400).json({ error: "Drive yükleme kurulu değil. Ayarlardaki Google bağlantısını tamamla." });
-      }
-      const marka = (veri.clients || []).find((c) => trKucult(c.ad) === trKucult(is.marka)) || {};
       /* HANGİ SLOT — karosel slaydı ("1".."10") ya da "story".
        * Tarayıcıdan geleni doğruluyoruz: geçersiz bir slot, kaydın içine gelişigüzel anahtar
        * açardı ve o dosya hiçbir ekranda görünmezdi. */
       const slot = slotGecerliMi(req.body.slot) ? String(req.body.slot).trim() : "1";
+
+      /* KATEGORİ SINIRI SUNUCUDA DA. Fotoğraf tek görsellik; kural yalnızca arayüzde
+       * olsaydı açık kalmış eski bir sekme ya da tekrar gönderilen bir istek ikinci
+       * slaydı yine de açardı — ve o dosya hiçbir ekranda doğru görünmezdi.
+       *
+       * Drive kurulum kontrolünden ÖNCE: geçersiz slot Drive'ın durumundan bağımsız
+       * olarak geçersiz, ve kullanıcı gerçek sebebi görmeli. */
+      if (!slotKategoriyeUygunMu(slot, is.kategori)) {
+        return res.status(400).json({
+          error: "Fotoğraf kartına tek görsel yüklenir. Çoklu gönderi için Carousel kategorisini kullan.",
+        });
+      }
+
+      if (!yuklemeHazirMi()) {
+        return res.status(400).json({ error: "Drive yükleme kurulu değil. Ayarlardaki Google bağlantısını tamamla." });
+      }
+      const marka = (veri.clients || []).find((c) => trKucult(c.ad) === trKucult(is.marka)) || {};
       /* Sıradaki versiyon numarası SUNUCUDA hesaplanır — tarayıcıdan gelen sayıya güvenilmez,
        * iki kişi aynı anda yüklerse aynı numarayı gönderirdi.
        * Versiyon SLOT İÇİNDE sayılıyor: 3. slaydın revizyonu 5. slaydın numarasını atlatmasın. */

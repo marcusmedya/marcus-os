@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { medyaVarMi, asamalariDuzelt, guncelMedyalar, slotGecmisi, slotEtiketi,
-         bosSlot, medyaSlotu, STORY_SLOT, EN_FAZLA_SLAYT, kapakBaglantisi} from "../lib/asamalar.js";
+         bosSlot, medyaSlotu, STORY_SLOT, EN_FAZLA_SLAYT, enFazlaSlayt, kapakBaglantisi} from "../lib/asamalar.js";
 import { useSunucuOnizleme, useVideoAdresi, videoEni, gomuluEngelliMi, GOMULU_ACIKLAMA, onizlemeyiTazele } from "./drive.jsx";
 import { sunucuyuBekle } from "../lib/onizleme-bellegi.js";
 import { isBasladi, isBitti } from "../lib/suren-isler.js";
@@ -669,6 +669,8 @@ function SunucuOnizleme({ isId, slot, versiyon, video, drivedeAc, gomuluUrl }) {
  * 8 slayt birbirini eziyordu. Artık her slaydın kendi versiyon geçmişi var.
  */
 function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
+  /* Kategorinin slayt sınırı. Fotoğraf tek görsellik — çoklu gönderi Carousel'in işi. */
+  const slaytSiniri = enFazlaSlayt(job && job.kategori);
   const slotlar = useMemo(() => guncelMedyalar(job), [job]);
   const [acikSlot, setAcikSlot] = useState(null);      // büyük önizlemesi açık olan slot
   const [gecmisSlot, setGecmisSlot] = useState(null);  // versiyon geçmişi açık olan slot
@@ -817,10 +819,14 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
         let slot = hedef;
         if (!slot) {
           slot = null;
-          for (let n = 1; n <= EN_FAZLA_SLAYT; n += 1) {
+          for (let n = 1; n <= slaytSiniri; n += 1) {
             if (!dolu.has(String(n))) { slot = String(n); break; }
           }
-          if (!slot) throw new Error(`En fazla ${EN_FAZLA_SLAYT} görsel eklenebilir.`);
+          if (!slot) {
+            throw new Error(slaytSiniri === 1
+              ? "Fotoğraf kartına tek görsel yüklenir. Çoklu gönderi için Carousel kategorisini kullan."
+              : `En fazla ${slaytSiniri} görsel eklenebilir.`);
+          }
           dolu.add(slot);
         }
         setSira(dosyalar.length > 1 ? `${i + 1}/${dosyalar.length}` : null);
@@ -861,7 +867,8 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
    * kullanıcıya bırakılıyor. Dosya Drive'da yerinde kalıyor; değişen yalnızca kartın içindeki
    * etiket. */
   const bosSlotVar = Boolean(bosSlot(job));
-  const parcaYapilabilir = bosSlotVar && typeof onMedyaDegis === "function";
+  /* Tek slaytlık kategoride "ayrı parçaya taşı" anlamsız — gidecek ikinci yuva yok. */
+  const parcaYapilabilir = bosSlotVar && slaytSiniri > 1 && typeof onMedyaDegis === "function";
   const parcaYap = (kayit) => {
     const hedefSlot = bosSlot(job);
     if (!hedefSlot) { window.alert(`En fazla ${EN_FAZLA_SLAYT} parça olabilir.`); return; }
@@ -993,7 +1000,9 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
   const dosyaSec = (slot) => {
     hedefSlotRef.current = slot || null;
     if (girdiRef.current) {
-      girdiRef.current.multiple = !slot;            // belirli bir slota tek dosya
+      /* Tek slaytlık kategoride çoklu seçim kapalı: kullanıcı sekiz dosya seçip
+       * "neden biri yüklendi" diye sormasın, seçim anında belli olsun. */
+      girdiRef.current.multiple = !slot && slaytSiniri > 1;
       girdiRef.current.click();
     }
   };

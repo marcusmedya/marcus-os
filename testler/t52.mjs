@@ -39,7 +39,10 @@ const t = (ad, ok, d = "") => { console.log(`  ${ok ? "✓" : "✗ !!!"} ${ad}${
 console.log("\n1) SLOT MODELİ");
 
 const KAROSEL = {
-  id: 5, marka: "VIZZ", kategori: "Fotoğraf", icerikTuru: "Karosel",
+  /* KATEGORİ CAROUSEL. Bu kayıt bir kaydırmalı gönderi; Carousel kategorisi yokken
+   * "Fotoğraf" yazılmıştı. Fotoğraf artık tek görsellik olduğu için o kategoriyle bu
+   * fixture gerçekte var olamayacak bir kartı temsil ederdi. */
+  id: 5, marka: "VIZZ", kategori: "Carousel", icerikTuru: "Karosel",
   medya: [
     { versiyon: 1, dosyaId: "ESKIDOSYA01", mimeTur: "image/jpeg" },        // slotsuz ESKİ kayıt
     { slot: "2", versiyon: 1, dosyaId: "SLOT2VER1AA", mimeTur: "image/jpeg" },
