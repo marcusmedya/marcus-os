@@ -24,7 +24,7 @@ process.env.GOOGLE_PRIVATE_KEY = privateKey;
 
 const { yuklemeOturumuAc } = await import("../lib/drive-yukleme.js");
 const { kartKlasorAdi } = await import("../lib/asamalar.js");
-const { onaylananiTasi } = await import("../lib/drive-tasima.js");
+const { onaylananiTasi, kartKlasorunuTasi } = await import("../lib/drive-tasima.js");
 
 let g = 0, k = 0;
 const t = (ad, kosul, not) => {
@@ -230,6 +230,120 @@ await bolum("4) TAŞIMA — kart klasöründeki dosya AYINI kaybetmiyor", 4, asy
     t("yeni durum klasörüne geçti", /2 ONAYLANANLAR/.test(sonuc.klasor || ""));
     t("kart klasörü korunuyor", /#124 karosel$/.test(sonuc.klasor || ""),
       "gelen: " + sonuc.klasor);
+  } finally { globalThis.fetch = gercek; }
+});
+
+/* ---------------------------------------------------------------- */
+await bolum("5) KLASÖRÜN KENDİSİ TAŞINIYOR — dosyalar tek tek değil", 6, async () => {
+  /* Dosyaları tek tek taşımak on tur çağrı, hedefte YENİ klasör ve kaynakta BOŞ klasör
+   * demekti. Klasörü taşımak tek çağrı; klasörün kimliği de korunuyor. */
+  const KOK = "KOKKLASOR0001";
+  const klasorler = new Map([
+    [KOK, { ad: "SOSYAL MEDYA", ust: "MARKAKLASOR01" }],
+    ["TEMMUZKLASOR", { ad: "07 TEMMUZ", ust: KOK }],
+    ["BEKLEYENKLS1", { ad: "1 ONAY BEKLEYENLER", ust: "TEMMUZKLASOR" }],
+    ["KARTKLASOR01", { ad: "#124 karosel", ust: "BEKLEYENKLS1" }],
+  ]);
+  const KLASOR_ICERIGI = [
+    { id: "SLAYT0000001", name: "s1.jpg", mimeType: "image/jpeg" },
+    { id: "SLAYT0000002", name: "s2.jpg", mimeType: "image/jpeg" },
+  ];
+  let sayac = 0;
+  const patchler = [];
+  const gercek = globalThis.fetch;
+  globalThis.fetch = async (url, opt = {}) => {
+    const u = String(url);
+    if (u.includes("oauth2.googleapis.com/token")) {
+      return { ok: true, status: 200, json: async () => ({ access_token: "jeton" }) };
+    }
+    if (u.includes("drive/v3/files/SLAYT0000001?fields=parents")) {
+      return { ok: true, status: 200, json: async () => ({ parents: ["KARTKLASOR01"] }) };
+    }
+    const bilgi = u.match(/drive\/v3\/files\/([A-Za-z0-9_-]+)\?fields=id,name,parents/);
+    if (bilgi && klasorler.has(bilgi[1])) {
+      const x = klasorler.get(bilgi[1]);
+      return { ok: true, status: 200, json: async () => ({ id: bilgi[1], name: x.ad, parents: [x.ust] }) };
+    }
+    if (u.includes("drive/v3/files?q=")) {
+      const sorgu = decodeURIComponent(u.split("files?q=")[1] || "");
+      const ustEsl = sorgu.match(/'([^']*)'\s+in\s+parents/);
+      if (!ustEsl) return { ok: true, status: 200, json: async () => ({ files: [] }) };
+      /* Klasör listeleme mi, dosya listeleme mi — sorgu mimeType süzüyorsa klasör. */
+      if (sorgu.includes("mimeType=")) {
+        const cocuklar = [...klasorler.entries()]
+          .filter(([, x]) => String(x.ust) === String(ustEsl[1]))
+          .map(([id, x]) => ({ id, name: x.ad, createdTime: "2026-07-01T00:00:00Z" }));
+        return { ok: true, status: 200, json: async () => ({ files: cocuklar }) };
+      }
+      return { ok: true, status: 200,
+        json: async () => ({ files: ustEsl[1] === "KARTKLASOR01" ? KLASOR_ICERIGI : [] }) };
+    }
+    if (u.includes("drive/v3/files") && opt.method === "POST") {
+      const govde = JSON.parse(opt.body || "{}");
+      if (govde.mimeType === "application/vnd.google-apps.folder") {
+        const id = `YENIKLASOR${++sayac}`;
+        klasorler.set(id, { ad: govde.name, ust: (govde.parents || [])[0] });
+        return { ok: true, status: 200, json: async () => ({ id, name: govde.name }) };
+      }
+    }
+    if (opt.method === "PATCH" && u.includes("addParents=")) {
+      const id = u.match(/files\/([A-Za-z0-9_-]+)\?/)[1];
+      patchler.push({ id, hedef: u.match(/addParents=([^&]+)/)[1] });
+      return { ok: true, status: 200, json: async () => ({ id }) };
+    }
+    return { ok: true, status: 200, json: async () => ({ id: "x" }) };
+  };
+
+  try {
+    const sonuc = await kartKlasorunuTasi({
+      kartKlasoru: "#124 karosel", markaAdi: "Smell Coffee",
+      markaKlasoru: `https://drive.google.com/drive/folders/${KOK}`,
+      hedefAd: "2 ONAYLANANLAR",
+      ipucuDosyaLinki: "https://drive.google.com/file/d/SLAYT0000001/view",
+    });
+
+    t("klasör taşındı", sonuc.tasindi === true, sonuc.sebep || "");
+    t("TAŞINAN ŞEY klasörün kendisi, dosya değil",
+      patchler.length === 1 && patchler[0].id === "KARTKLASOR01",
+      "gelen: " + JSON.stringify(patchler));
+    t("iki slayt için İKİ ayrı taşıma yapılmadı", patchler.length === 1,
+      "on slaytlık kartta on tur çağrı demekti");
+    t("klasörün KİMLİĞİ korunuyor", sonuc.klasorId === "KARTKLASOR01",
+      "yeni klasör açılsaydı verilen bağlantılar kırılırdı");
+    t("ay korunuyor", /07 TEMMUZ/.test(sonuc.klasor || ""), "gelen: " + sonuc.klasor);
+    t("içindeki dosyalar bildiriliyor",
+      (sonuc.icerdekiDosyalar || []).join(",") === "SLAYT0000001,SLAYT0000002",
+      "çağıran bunları tekrar taşımaya kalkmasın");
+  } finally { globalThis.fetch = gercek; }
+});
+
+/* ---------------------------------------------------------------- */
+await bolum("6) ESKİ KARTLAR — klasörü yoksa dosya-dosya yola düşülüyor", 2, async () => {
+  const gercek = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes("oauth2.googleapis.com/token")) {
+      return { ok: true, status: 200, json: async () => ({ access_token: "jeton" }) };
+    }
+    /* Dosyanın ebeveyni doğrudan DURUM klasörü — kart klasörü yok (eski yükleme). */
+    if (u.includes("?fields=parents")) {
+      return { ok: true, status: 200, json: async () => ({ parents: ["BEKLEYENKLS1"] }) };
+    }
+    if (u.includes("?fields=id,name,parents")) {
+      return { ok: true, status: 200, json: async () => ({ id: "BEKLEYENKLS1", name: "1 ONAY BEKLEYENLER", parents: ["TEMMUZKLASOR"] }) };
+    }
+    return { ok: true, status: 200, json: async () => ({ files: [], id: "x" }) };
+  };
+  try {
+    const sonuc = await kartKlasorunuTasi({
+      kartKlasoru: "#124 karosel", markaAdi: "Smell Coffee",
+      markaKlasoru: "https://drive.google.com/drive/folders/KOKKLASOR0001",
+      hedefAd: "2 ONAYLANANLAR",
+      ipucuDosyaLinki: "https://drive.google.com/file/d/SLAYT0000001/view",
+    });
+    t("klasör taşıma başarısız bildiriliyor", sonuc.tasindi === false);
+    t("sebep 'klasör yok' olarak işaretleniyor", sonuc.klasorYok === true,
+      "çağıran bunu görüp dosya-dosya yola düşüyor");
   } finally { globalThis.fetch = gercek; }
 });
 

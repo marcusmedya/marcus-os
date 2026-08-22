@@ -114,7 +114,7 @@ bolum("5) DRIVE KART KLASÖRÜ", 6, () => {
 });
 
 /* ---------------------------------------------------------------- */
-bolum("6) TAŞIMA — kart klasörü gerçekten kullanılıyor", 4, () => {
+bolum("6) TAŞIMA — kart klasörü gerçekten kullanılıyor", 5, () => {
   const tasima = readFileSync(new URL("../lib/drive-tasima.js", import.meta.url), "utf8");
   const veri = readFileSync(new URL("../api/data.js", import.meta.url), "utf8");
 
@@ -126,9 +126,15 @@ bolum("6) TAŞIMA — kart klasörü gerçekten kullanılıyor", 4, () => {
     /kartKlasoru\s*\n?\s*\?\s*await klasorBulVeyaOlustur[\s\S]{0,80}:\s*durumKlasoru/.test(tasima));
 
   const cagrilar = (veri.match(/onaylananiTasi\(\{[\s\S]{0,260}?\}\)/g) || []);
+  /* İDDİA "kart klasörü geçiliyor mu", yazımı değil. Önce `kartKlasoru: kartKlasorAdi(is)`
+   * kalıbı sabitlenmişti; çağrı yerlerinden biri yerel değişkene geçince test niyet
+   * değişmediği hâlde düştü. Kısa yazım da (`kartKlasoru,`) kabul ediliyor. */
   t("her taşıma çağrısı kart klasörünü geçiriyor",
-    cagrilar.length >= 2 && cagrilar.every((c) => /kartKlasoru:\s*kartKlasorAdi\(/.test(c)),
+    cagrilar.length >= 2 && cagrilar.every((c) => /\bkartKlasoru\s*[,:}]/.test(c)),
     "gelen çağrı sayısı: " + cagrilar.length);
+  t("yükleme oturumu da kart klasörünü geçiriyor",
+    /kartKlasoru:\s*kartKlasorAdi\(is\)/.test(veri),
+    "yükleme bağlanmazsa slaytlar durum klasörüne tek tek iner");
 });
 
 /* ---------------------------------------------------------------- */

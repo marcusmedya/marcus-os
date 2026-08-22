@@ -7,7 +7,7 @@ import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, bir
 import { belgedekiCakismalariOnar, turetilmisleriAyikla } from "../lib/kimlik.js";
 import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
 import { epostaGonder, revizeBildirimHtml } from "../lib/eposta.js";
-import { onaylananiTasi, DURUM_KLASORLERI, klasorDurumu, driveDosyaIdCikar, videoAkisi } from "../lib/drive-tasima.js";
+import { onaylananiTasi, kartKlasorunuTasi, DURUM_KLASORLERI, klasorDurumu, driveDosyaIdCikar, videoAkisi } from "../lib/drive-tasima.js";
 import { jetonUret, jetonCoz } from "../lib/video-jeton.js";
 import { Readable } from "stream";
 import { dosyasizKontroleGirenleriGeriAl, medyaVarMi, asamalariDuzelt,
@@ -327,13 +327,34 @@ async function asamayaGoreTasi(oncekiVeri, sonrakiVeri) {
       continue;
     }
     const hedefAd = ASAMA_KLASORU[is.asama];
+    const kartKlasoru = kartKlasorAdi(is);
     const tekTek = [];
+
+    /* ÖNCE KLASÖRÜN KENDİSİ. Karosel slaytları zaten bir klasörün içinde; onları tek
+     * tek taşımak on tur Drive çağrısı demek, üstelik hedefte aynı adla YENİ bir klasör
+     * açılıyor ve kaynakta BOŞ bir klasör kalıyordu. Klasörü taşımak tek çağrı ve
+     * klasörün kimliği korunuyor.
+     *
+     * Başarısız olursa (özellik gelmeden önce yüklenmiş kart) aşağıdaki dosya-dosya yol
+     * aynen çalışıyor — o yol klasörü hedefte açıp dosyaları içine alıyor. */
+    let klasorTasima = null;
+    if (kartKlasoru) {
+      klasorTasima = await kartKlasorunuTasi({
+        kartKlasoru, markaAdi: is.marka, markaKlasoru, hedefAd, ipucuDosyaLinki: dosyalar[0].link,
+      });
+      if (klasorTasima.tasindi || klasorTasima.zatenOrada) tekTek.push(klasorTasima);
+    }
+
+    /* Klasörle birlikte taşınan dosyalar tekrar taşınmaya çalışılmaz. */
+    const tasinmislar = new Set((klasorTasima && klasorTasima.icerdekiDosyalar) || []);
+
     for (const d of dosyalar) {
+      /* Klasörle gitmiş dosya atlanıyor — ama SESSİZCE değil, sonuca sayılıyor. */
+      if (tasinmislar.has(driveDosyaIdCikar(d.link))) continue;
       /* Biri başarısız olsa da kalanlar denenir: bir slaydın taşınamaması yüzünden
        * diğer yedisini eski klasörde bırakmak daha kötü. */
       tekTek.push(await onaylananiTasi({
-        dosyaLinki: d.link, markaAdi: is.marka, markaKlasoru, hedefAd,
-        kartKlasoru: kartKlasorAdi(is),
+        dosyaLinki: d.link, markaAdi: is.marka, markaKlasoru, hedefAd, kartKlasoru,
       }));
     }
     /* Kart başına TEK bir sonuç: geçmişe 8 ayrı not düşmek defteri okunmaz hâle getirirdi. */
