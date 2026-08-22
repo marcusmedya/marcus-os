@@ -1062,7 +1062,7 @@ export default async function handler(req, res) {
       }
 
       if (req.method === "POST") {
-        const { musteriAction, icerikId, isId, talep } = req.body || {};
+        const { musteriAction, icerikId, isId, talep, islemId } = req.body || {};
         /* REVİZE NOTU SINIRLI — denetim bulgusu.
          *
          * Müşteri talebindeki metinler zaten kırpılıyordu (tur 40, açıklama 2000, referans 500)
@@ -1117,9 +1117,11 @@ export default async function handler(req, res) {
                 }],
               },
             };
-          });
+          }, { islemId });
           if (!sonucTalep.ok) return res.status(sonucTalep.kod || 409).json({ error: sonucTalep.hata || "Talep kaydedilemedi." });
-          return res.status(200).json({ ok: true });
+          /* Tekrar edilen istekte talep YENİDEN oluşturulmaz — ölçülmüştü: aynı istek iki
+           * kez gidince müşterinin talebi iki kez düşüyordu. */
+          return res.status(200).json({ ok: true, ...(sonucTalep.tekrarlandi ? { tekrarlandi: true } : {}) });
         }
 
         if (musteriAction !== "onayla" && musteriAction !== "revizeIste") {
@@ -1192,7 +1194,7 @@ export default async function handler(req, res) {
               },
               ek: { hedefIs: hedef, yeniSayi },
             };
-          });
+          }, { islemId });
           if (!sonucIs.ok) {
             return res.status(sonucIs.kod || 409).json({ error: sonucIs.hata || "Kaydedilemedi, sayfayı yenileyip tekrar dene." });
           }
@@ -1214,7 +1216,13 @@ export default async function handler(req, res) {
            *
            * TAŞIMA ASLA ONAYI ENGELLEMEZ: Drive kurulu değilse, yetki yoksa ya da bağlantı
            * koparsa onay yine geçerlidir; sonuç işin geçmişine not düşülür. */
-          if (sonucIs.ok) {
+          /* YAN ETKİLER TEKRARDA ÇALIŞMAZ.
+           *
+           * Tekrar edilen istekte kayıt zaten uygulanmış durumda; Drive taşımasını ve
+           * bildirim e-postasını ikinci kez tetiklemek gereksiz iş ve kullanıcı için
+           * kafa karıştırıcı olurdu (aynı revize için iki e-posta). `tekrarlandi`
+           * bayrağı tam bunun için var. */
+          if (sonucIs.ok && !sonucIs.tekrarlandi) {
             await tasimalariIsleVeNotDus(sonucIs.oncekiVeri, sonucIs.veri);
           }
 
@@ -1226,7 +1234,7 @@ export default async function handler(req, res) {
            *
            * Gönderim BAŞARISIZ OLSA BİLE revize kaydı geçerlidir — bu yüzden yanıt
            * beklenmeden, hata yutularak yapılır. E-posta, kaydın önüne geçmemeli. */
-          if (musteriAction === "revizeIste" && sonucIs.ek && sonucIs.ek.hedefIs) {
+          if (musteriAction === "revizeIste" && !sonucIs.tekrarlandi && sonucIs.ek && sonucIs.ek.hedefIs) {
             const is = sonucIs.ek.hedefIs;
             const guncelVeri = sonucIs.veri || {};
             const hesaplar = guncelVeri.personelHesaplari || [];
@@ -1244,7 +1252,7 @@ export default async function handler(req, res) {
             await Promise.all(hedefler.map((e) => epostaGonder(e, konu, html))).catch(() => {});
           }
 
-          return res.status(200).json({ ok: true });
+          return res.status(200).json({ ok: true, ...(sonucIs.tekrarlandi ? { tekrarlandi: true } : {}) });
         }
 
         // Kilit altında, EN GÜNCEL veri üzerinde çalışılır — eskiden yukarıda okunan
@@ -1302,10 +1310,10 @@ export default async function handler(req, res) {
            * İkisini de bildiriyoruz; bildirilmeyen alanların sayacı artmasın ki o sırada
            * başka bir bölümde çalışanlar gereksiz yere bayat olmasın. */
           return { degisenAlanlar: ["musteriIcerikleri", "cekimIsleri"], veri: yeni };
-        });
+        }, { islemId });
 
         if (!sonuc.ok) return res.status(sonuc.kod || 400).json({ error: sonuc.hata || "İşlem yapılamadı." });
-        return res.status(200).json({ ok: true });
+        return res.status(200).json({ ok: true, ...(sonuc.tekrarlandi ? { tekrarlandi: true } : {}) });
       }
 
       return res.status(405).json({ error: "Desteklenmeyen istek." });

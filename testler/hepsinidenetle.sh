@@ -4,6 +4,9 @@
 cd "$(dirname "$0")/.."
 echo "── KOD DENETİMLERİ ──"
 python3 testler/jsxdenetle.py  src/*.jsx src/*.js api/*.js lib/*.js > /dev/null && echo "✓ 1 sözdizimi"
+# 1b: GERÇEK ayrıştırma. Yukarıdaki sezgisel denetim bir import satırındaki çift virgülü
+#     kaçırdı ve "✓" dedi; derleme ise patladı. Derleyicinin kendisi son sözü söylesin.
+node testler/gercekSozdizimi.mjs > /dev/null && echo "✓ 1b gerçek ayrıştırma (esbuild)"
 python3 testler/bozulma.py     src/*.jsx                            > /dev/null && echo "✓ 2 şablon bozulması"
 python3 testler/ciftdenetle.py src/*.jsx api/*.js lib/*.js          > /dev/null && echo "✓ 3 çift tanım"
 python3 testler/jsxyapi.py     src/*.jsx                            > /dev/null && echo "✓ 4 JSX yapısı"

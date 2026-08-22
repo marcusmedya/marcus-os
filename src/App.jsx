@@ -7537,7 +7537,7 @@ export default function MarcusOS() {
     fetch("/api/client-payment", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ action: "addKaydi", clientId, kayit }),
+      body: JSON.stringify({ action: "addKaydi", clientId, kayit, islemId: islemKimligiUret() }),
     })
       .then((r) => r.json()).then(surumBildir)
       .then((res) => { if (res.ok && res.client) mergeClientLocally(res.client); else if (res.error) window.alert(res.error); })
@@ -7547,7 +7547,7 @@ export default function MarcusOS() {
     fetch("/api/client-payment", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ action: "deleteKaydi", clientId, kayitId }),
+      body: JSON.stringify({ action: "deleteKaydi", clientId, kayitId, islemId: islemKimligiUret() }),
     })
       .then((r) => r.json()).then(surumBildir)
       .then((res) => { if (res.ok && res.client) mergeClientLocally(res.client); else if (res.error) window.alert(res.error); })
@@ -7557,7 +7557,7 @@ export default function MarcusOS() {
     fetch("/api/client-payment", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ action: "setOdemeGunu", clientId, odemeGunu }),
+      body: JSON.stringify({ action: "setOdemeGunu", clientId, odemeGunu, islemId: islemKimligiUret() }),
     })
       .then((r) => r.json()).then(surumBildir)
       .then((res) => { if (res.ok && res.client) mergeClientLocally(res.client); else if (res.error) window.alert(res.error); })

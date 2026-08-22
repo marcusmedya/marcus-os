@@ -42,13 +42,20 @@ export default async function handler(req, res) {
   if (!(await yetkiliMi(req))) return res.status(401).json({ error: "Yetkisiz." });
 
   try {
-    const { action, clientId, kayit, kayitId, odemeGunu } = req.body || {};
+    const { action, clientId, kayit, kayitId, odemeGunu, islemId } = req.body || {};
     if (!clientId) return res.status(400).json({ error: "clientId gerekli." });
     if (action === "addKaydi" && (!kayit || !kayit.tutar)) return res.status(400).json({ error: "Geçerli bir ödeme kaydı gerekli." });
     if (action === "deleteKaydi" && !kayitId) return res.status(400).json({ error: "kayitId gerekli." });
 
-    // Kilit altında, en güncel veri okunarak yapılır ve versiyon sayacını artırır —
-    // böylece bu ödeme kaydı, açık duran başka bir sekme tarafından ezilemez.
+    /* Kilit altında, en güncel veri okunarak yapılır ve versiyon sayacını artırır —
+     * böylece bu ödeme kaydı, açık duran başka bir sekme tarafından ezilemez.
+     *
+     * İŞLEM KİMLİĞİ: bu uçtaki işlemler FARK bildirimi ("kayıt ekle", "kayıt sil").
+     * Ölçüldü: aynı istek iki kez gidince ödeme kaydı İKİ KEZ ekleniyordu — internet
+     * kesilip istek tekrarlandığında ya da iki kez tıklandığında. Para söz konusu
+     * olduğu için sessiz tekrarın en pahalı olduğu yerlerden biri.
+     *
+     * Kontrol guvenliGuncelle'nin İÇİNDE, yazmayla aynı kilitte yapılıyor. */
     const sonuc = await guvenliGuncelle(async (data) => {
       const clients = data.clients || [];
       const idx = clients.findIndex((c) => c.id === clientId);
@@ -68,10 +75,15 @@ export default async function handler(req, res) {
       const yeniClients = [...clients];
       yeniClients[idx] = client;
       return { veri: { ...data, clients: yeniClients }, ek: { client } };
-    });
+    }, { islemId });
 
     if (!sonuc.ok) return res.status(sonuc.kod || 400).json({ error: sonuc.hata || "İşlem yapılamadı." });
-    return res.status(200).json({ ok: true, client: sonuc.ek.client, _v: sonuc.veri._v });
+    /* Tekrar edilen istekte `ek` ilk seferki hâliyle geliyor; müşteri kaydı da güncel
+     * veriden okunuyor. İkinci kez uygulanan bir şey yok. */
+    return res.status(200).json({
+      ok: true, client: sonuc.ek && sonuc.ek.client, _v: sonuc.veri._v,
+      ...(sonuc.tekrarlandi ? { tekrarlandi: true } : {}),
+    });
   } catch (e) {
     return res.status(500).json({ error: "Sunucu hatası: " + e.message });
   }
