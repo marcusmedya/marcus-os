@@ -44,7 +44,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     74 test dosyası (t1…t74) + 18 statik denetim betiği
+testler/     75 test dosyası (t1…t75) + 18 statik denetim betiği
 ```
 
 ---
@@ -134,9 +134,18 @@ sessizce yanlış akışa düşer: `KATEGORILER` (`src/CekimEditTakibi.jsx`), `A
 `TUR_ETIKET` (`src/tema.jsx`). Her kategori KENDİ aşama dizisinin sahibi — Carousel'in
 akışı Fotoğraf'la aynı şekilde ama ayrı bir dizi, biri değişince diğeri değişmesin.
 
-**Carousel'in dosyaları Drive'da kendi klasörüne taşınır**: `ONAYLANANLAR/#124 Bowl Karosel/`.
+**Carousel'in dosyaları Drive'da kendi klasörüne gider**: `ONAY BEKLEYENLER/#124 Bowl Karosel/`.
 Ad `kartKlasorAdi` ile üretilir (kart numarası + içerik türü), klasör DURUM klasörünün
 altında açılır. Diğer kategorilerde `null` döner ve dosya doğrudan durum klasörüne gider.
+
+**İki ayrı yol var, ikisi de bağlanmalı:** dosya doğrudan hedefe YÜKLENİR
+(`hedefKlasoruHazirla`) — servis hesabı yükleyemediği için "önce yükle sonra taşı"
+mümkün değil — ve aşama değişince TAŞINIR (`onaylananiTasi`). Yalnızca taşımaya
+bağlanınca slaytlar aşama değişene kadar tek tek duruyordu.
+
+`dosyaninAyKlasoru` yukarı doğru 4 basamak yürür. Sabit iki basamakken kart klasörü
+üçüncü basamağı görünmez yapıyordu: eski aydaki bir karoselin slaytları taşınırken
+içinde bulunulan aya sıçrardı.
 
 **`Şubelerde Paylaşılıyor` ara aşaması** (`SUBE_PAYLASIM_ASAMASI`) yalnızca çok şubeli
 markalarda kullanılır: içerik ilk şubede paylaşılınca kart oraya geçer (Operasyon panosunda
@@ -195,7 +204,7 @@ geçince düşer. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI`).
 
 ```bash
 bash testler/hepsinidenetle.sh     # 18 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t74, ~1534 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t75, ~1549 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
