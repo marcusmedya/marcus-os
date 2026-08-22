@@ -1183,7 +1183,8 @@ export default async function handler(req, res) {
              * hale geliyor. Burada işlenmediğinde onay stoğa hiç yansımıyordu; üstelik bir
              * sonraki normal kayıt kartı "zaten sayılmış" kabul edip işaretliyor ve artış
              * KALICI OLARAK kayboluyordu. Sessiz ve geri dönüşü olmayan bir sayım hatası. */
-            const stokSonuc = onaylananlaraGoreStok(isler, yeniIsler, guncel.stoklar, guncel.clients);
+            const stokSonuc = onaylananlaraGoreStok(isler, yeniIsler, guncel.stoklar, guncel.clients,
+              undefined, guncel.subeler);
 
             return {
               degisenAlanlar: stokSonuc ? ["cekimIsleri", "stoklar"] : ["cekimIsleri"],
@@ -1651,7 +1652,8 @@ export default async function handler(req, res) {
           /* ONAYLANAN İŞ STOĞA GİRER. Aşama düzeltmesinden SONRA çalışıyor — düzeltilmemiş
            * bir aşamayı saymak yanlış türde stok üretirdi. */
           const stokSonuc = onaylananlaraGoreStok(
-            existing.cekimIsleri, merged.cekimIsleri, existing.stoklar, merged.clients || existing.clients);
+            existing.cekimIsleri, merged.cekimIsleri, existing.stoklar, merged.clients || existing.clients,
+            undefined, merged.subeler || existing.subeler);
           if (stokSonuc) { merged.stoklar = stokSonuc.stoklar; merged.cekimIsleri = stokSonuc.cekimIsleri; }
           /* Sayılar YALNIZCA stoğu görme izni olana gönderilir. İzni yoksa hangi kartın
            * sayıldığı bilgisi gider (kendi kartları), adet gitmez. */
@@ -1871,7 +1873,8 @@ export default async function handler(req, res) {
       const stokSonucu = onaylananlaraGoreStok(
         existingFull && existingFull.cekimIsleri, finalData.cekimIsleri,
         existingFull && existingFull.stoklar,
-        finalData.clients || (existingFull && existingFull.clients));
+        finalData.clients || (existingFull && existingFull.clients),
+        undefined, finalData.subeler || (existingFull && existingFull.subeler));
       if (!stokSonucu) finalData.stoklar = (existingFull && existingFull.stoklar) || {};
       if (stokSonucu) {
         finalData.stoklar = stokSonucu.stoklar;
