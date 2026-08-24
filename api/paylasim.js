@@ -9,6 +9,7 @@ import { markaErisimiVarMi } from "../lib/marka-kilidi.js";
 import { onaylananiTasi, kartKlasorunuTasi, driveDosyaIdCikar, DURUM_KLASORLERI } from "../lib/drive-tasima.js";
 import { tasinacakDosyalar, kartKlasorAdi } from "../lib/asamalar.js";
 import { onaylananlaraGoreStok, paylasimTuru } from "../lib/stok.js";
+import { kartlaraGoreStok } from "../lib/stok-mutabakat.js";
 
 const nid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const stokAnahtari = (clientId, tur) => `${clientId}_${tur}`;
@@ -209,6 +210,9 @@ function gecmiseEkle(data, clientId, marka, tur, tip, ek) {
     id: nid(), clientId, marka, tur, tip, tarih: bugunTR(),
     ...(ek && ek.subeId ? { subeId: ek.subeId } : {}),
     ...(ek && ek.isId ? { isId: ek.isId } : {}),
+    /* Mutabakat düzeltmesinde "neden bu sayı" sorusu cevaplanabilsin: eski ve yeni
+     * değer kayda giriyor. Elle keyfi düzeltme kaldırıldığı için tek iz bu. */
+    ...(ek && ek.eski !== undefined ? { eski: ek.eski, yeni: ek.yeni } : {}),
   }];
 }
 
@@ -696,6 +700,37 @@ export default async function handler(req, res) {
 
       const _v = await kaydetVeYedekle(data);
       return res.status(200).json({ ok: true, _v, subeler: yanitSuz(data.subeler), cekimIsleri: yanitSuz(data.cekimIsleri) });
+    }
+
+    /* STOK MUTABAKATI — kayıtlı sayıyı KARTLARA GÖRE düzeltir.
+     *
+     * Elle keyfi +/− kaldırıldı: stok kartların yansıması olmalı. Geriye tek bir
+     * düzeltme yolu kaldı ve o da rastgele bir sayı girmiyor — hedef değeri SUNUCU
+     * kartlardan hesaplıyor. Tarayıcıdan gelen sayıya güvenilseydi, düzeltme
+     * sapmayı gidermek yerine yeni bir sapma üretebilirdi.
+     *
+     * Marka kilidi `clientId` üzerinden zaten çözülüyor; ham anahtar yerine
+     * clientId/tur/subeId alınmasının sebebi bu. */
+    if (action === "stokDuzelt") {
+      const { clientId, tur, subeId } = body;
+      if (!clientId || !tur) return res.status(400).json({ error: "Marka ve tür gerekli." });
+      if (subeId) {
+        const sube = markaninSubeleri(data.subeler, clientId).find((x) => String(x.id) === String(subeId));
+        if (!sube) return res.status(400).json({ error: "Şube bu markaya ait değil." });
+      }
+      const anahtar = subeId ? `${clientId}_${subeId}_${tur}` : `${clientId}_${tur}`;
+      const gereken = kartlaraGoreStok(data)[anahtar] || 0;
+      const kayitli = (data.stoklar || {})[anahtar] || 0;
+      if (gereken === kayitli) {
+        return res.status(200).json({ ok: true, _v: data._v, stoklar: data.stoklar, degismedi: true });
+      }
+      data.stoklar = { ...(data.stoklar || {}), [anahtar]: gereken };
+      gecmiseEkle(data, clientId,
+        `${markaAdi(clientId)}${subeId ? ` (${(data.subeler || []).find((x) => String(x.id) === String(subeId))?.ad || ""})` : ""}`,
+        tur, "duzeltme", { eski: kayitli, yeni: gereken });
+      const _v = await kaydetVeYedekle(data);
+      return res.status(200).json({ ok: true, _v, stoklar: data.stoklar,
+        paylasimGecmisi: yanitSuz(data.paylasimGecmisi), duzeltildi: { anahtar, eski: kayitli, yeni: gereken } });
     }
 
     if (action === "subeStokDegistir") {
