@@ -2344,14 +2344,38 @@ function MarkaStokKarti({ client, stoklar, gecmis, subeler, isler, plan, onStokD
                       ))}
                     </div>
                   )}
+                  {/* HANGİ KART OLDUĞU DA YAZILIYOR. Yalnızca sayı verildiğinde
+                    * kullanıcı hangi kartı açacağını bilmiyor ve uyarı işe yaramıyordu —
+                    * "1 kartın dosyası bulunamadı" deyip kartı söylememek, sorunu
+                    * göstermek değil sadece varlığını duyurmak. */}
                   {(drive.kayipDosyalar || []).length > 0 && (
-                    <div style={{ marginTop: 6, color: T.warning }}>
-                      {drive.kayipDosyalar.length} kartın dosyası Drive'da bulunamadı (elle silinmiş ya da taşınmış olabilir)
+                    <div style={{ marginTop: 6 }}>
+                      <div style={{ color: T.warning }}>
+                        {drive.kayipDosyalar.length} kartın dosyası Drive'da bulunamadı (elle silinmiş ya da taşınmış olabilir)
+                      </div>
+                      {drive.kayipDosyalar.slice(0, 8).map((x) => (
+                        <div key={x.isId} style={{ color: T.textFaint, paddingLeft: 10 }}>
+                          · #{x.isId} {x.isAdi} <span style={{ opacity: 0.7 }}>({x.tur}, {x.asama}{x.tumuKayip ? "" : `, ${x.eksikSayisi} dosya`})</span>
+                        </div>
+                      ))}
+                      {drive.kayipDosyalar.length > 8 && (
+                        <div style={{ color: T.textFaint, paddingLeft: 10 }}>· … ve {drive.kayipDosyalar.length - 8} kart daha</div>
+                      )}
                     </div>
                   )}
                   {(drive.dosyasizKartlar || []).length > 0 && (
-                    <div style={{ marginTop: 6, color: T.warning }}>
-                      {drive.dosyasizKartlar.length} kartta hiç dosya bağlantısı yok
+                    <div style={{ marginTop: 6 }}>
+                      <div style={{ color: T.warning }}>
+                        {drive.dosyasizKartlar.length} kartta hiç dosya bağlantısı yok
+                      </div>
+                      {drive.dosyasizKartlar.slice(0, 8).map((x) => (
+                        <div key={x.isId} style={{ color: T.textFaint, paddingLeft: 10 }}>
+                          · #{x.isId} {x.isAdi} <span style={{ opacity: 0.7 }}>({x.tur}, {x.asama})</span>
+                        </div>
+                      ))}
+                      {drive.dosyasizKartlar.length > 8 && (
+                        <div style={{ color: T.textFaint, paddingLeft: 10 }}>· … ve {drive.dosyasizKartlar.length - 8} kart daha</div>
+                      )}
                     </div>
                   )}
                 </>
