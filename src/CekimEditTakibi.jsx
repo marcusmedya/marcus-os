@@ -5,7 +5,8 @@ import { useSunucuOnizleme, useVideoAdresi, videoEni, gomuluEngelliMi, GOMULU_AC
 import { sunucuyuBekle } from "../lib/onizleme-bellegi.js";
 import { isBasladi, isBitti } from "../lib/suren-isler.js";
 import { kartiIsleyebilirMi } from "../lib/is-yetkisi.js";
-import { markaninIdsi } from "../lib/marka-kilidi.js";
+import { markaninIdsi, trKucult } from "../lib/marka-kilidi.js";
+import { panoSuzgeci } from "../lib/pano-suzgeci.js";
 import { markaninSubeleri, kullanabilenSubeler, icerikSubeOzeti,
          kapsamiKayipMi, gecersizSubeKimlikleri } from "../lib/sube-kullanimi.js";
 // Para gösterimleri Gizlilik Modu'na uymalı — aksi halde ücretler gizliyken de görünür kalırdı.
@@ -1362,7 +1363,6 @@ function IsDetayModal({ job, clients, subeler, planlar, role, staffName, islemYe
   const [durumSonuc, setDurumSonuc] = useState("");
 
   const durumBildirimiGonder = () => {
-    const trKucult = (s) => (s || "").trim().toLocaleLowerCase("tr");
     const atananlar = [job.kameraman, job.editor].filter(Boolean);
     const roster = personelRosteri || [];
     const kisiler = atananlar
@@ -2483,6 +2483,12 @@ export default function CekimEditTakibi({ role, clients, subeler, planlar, jobs,
   const [staffName, setStaffNameState] = useState(girisYapanAd || getStaffName());
   const [view, setView] = useState(role === "staff" ? "panom" : "pano");
   const [panoKategori, setPanoKategori] = useState("Video");
+  /* MARKA SÜZGECİ — pano tek markaya daraltılabilsin.
+   * "" = tüm markalar. Kategori değişince seçim KORUNUYOR: bir markanın işini
+   * takip eden kişi kategoriler arasında gezerken süzgeci tekrar kurmak zorunda
+   * kalmasın. Marka kilitli hesapta `clients` zaten yalnızca kendi markalarını
+   * içerdiği için liste kendiliğinden doğru. */
+  const [panoMarka, setPanoMarka] = useState("");
   const [genisletilmisSutunlar, setGenisletilmisSutunlar] = useState({});
   const [adding, setAdding] = useState(false);
   const [acikIs, setAcikIs] = useState(null);
@@ -2511,7 +2517,10 @@ export default function CekimEditTakibi({ role, clients, subeler, planlar, jobs,
     );
   }
 
-  const panoIsleri = isler.filter((j) => (KATEGORILER.includes(j.kategori) ? j.kategori : "Video") === panoKategori);
+  /* Süzme mantığı `lib/pano-suzgeci.js`'de — arayüzün içinde kalsaydı test onun
+   * bir KOPYASINI sınardı ve kopya gerçek koddan ayrıştığında fark edilmezdi. */
+  const { panoIsleri, panoMarkalari, kategoriSayisi } = panoSuzgeci(isler, panoKategori, panoMarka, KATEGORILER);
+
   const panoAsamalari = asamaListesi(panoKategori);
 
   return (
@@ -2531,10 +2540,34 @@ export default function CekimEditTakibi({ role, clients, subeler, planlar, jobs,
       </div>
 
       {view === "pano" && (
-        <div style={{ display: "flex", gap: 6, marginBottom: 16, background: C.panelAlt, borderRadius: 10, padding: 3, width: "fit-content" }}>
-          {KATEGORILER.map((k) => (
-            <button key={k} onClick={() => setPanoKategori(k)} style={{ padding: "12px 16px", borderRadius: 8, border: "none", background: panoKategori === k ? C.accent : "transparent", color: panoKategori === k ? "#fff" : C.textDim, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{k}</button>
-          ))}
+        <div style={{ display: "flex", gap: 10, marginBottom: 16, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 6, background: C.panelAlt, borderRadius: 10, padding: 3, width: "fit-content" }}>
+            {KATEGORILER.map((k) => (
+              <button key={k} onClick={() => setPanoKategori(k)} style={{ padding: "12px 16px", borderRadius: 8, border: "none", background: panoKategori === k ? C.accent : "transparent", color: panoKategori === k ? "#fff" : C.textDim, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{k}</button>
+            ))}
+          </div>
+
+          <select
+            value={panoMarka}
+            onChange={(e) => setPanoMarka(e.target.value)}
+            title="Yalnızca seçtiğin markanın kartlarını göster"
+            style={{ ...inputStyle, width: "auto", minWidth: 190, padding: "10px 12px", fontSize: 13,
+              borderColor: panoMarka ? C.accent : C.border, color: panoMarka ? C.text : C.textDim }}
+          >
+            <option value="">Tüm markalar ({kategoriSayisi})</option>
+            {panoMarkalari.map((m) => (
+              <option key={m.ad} value={m.ad}>
+                {m.ad} ({m.adet}){m.adet === 0 ? " — bu kategoride kart yok" : ""}
+              </option>
+            ))}
+          </select>
+
+          {panoMarka && (
+            <button
+              onClick={() => setPanoMarka("")}
+              style={{ background: "none", border: "none", cursor: "pointer", color: C.textFaint, fontSize: 12.5, fontFamily: "Inter" }}
+            >× süzgeci kaldır</button>
+          )}
         </div>
       )}
 
