@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     80 test dosyası (t1…t80) + 19 statik denetim betiği
+testler/     81 test dosyası (t1…t81) + 19 statik denetim betiği
 ```
 
 ---
@@ -170,6 +170,11 @@ Aşama değişince **klasörün kendisi taşınır** (`kartKlasorunuTasi`), dosy
 değil: tek çağrı, kaynakta boş klasör kalmıyor ve klasörün kimliği korunuyor. Klasör
 bulunamazsa (özellik öncesi kartlar) dosya-dosya yola düşülür.
 
+**Bu taşıma İKİ uçta birden yapılır**: `api/data.js` (aşama kaydı) ve `api/paylasim.js`
+(paylaşım işaretleme/İPTAL). İkisi de `kartKlasorunuTasi` kullanmalı — paylaşım ucu bir
+süre yalnızca dosya-dosya taşıyordu ve iptal edilince Carousel slaytları kart
+klasöründen çıkıp ONAYLANANLAR'a dağınık düşüyor, boş klasör PAYLAŞILDI'da kalıyordu.
+
 `dosyaninAyKlasoru` yukarı doğru 4 basamak yürür. Sabit iki basamakken kart klasörü
 üçüncü basamağı görünmez yapıyordu: eski aydaki bir karoselin slaytları taşınırken
 içinde bulunulan aya sıçrardı.
@@ -243,7 +248,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 19 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t80, ~1678 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t81, ~1699 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

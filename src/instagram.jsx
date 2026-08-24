@@ -66,7 +66,7 @@ export function BagliKartKapagi({ isId, yazi }) {
  * (Müşteri Paneli sekmesi) hem müşterinin ekranında AYNI bileşen kullanılır — iki taraf
  * asla farklı bir şey görmez.
  */
-export function InstagramOnizleme({ marka, tur, gun, gorselUrl, altMetin, yapildi, isId, subeler, kompakt = false }) {
+export function InstagramOnizleme({ marka, tur, gun, gorselUrl, altMetin, yapildi, isId, isAdi, subeler, kompakt = false }) {
   const [metinAcik, setMetinAcik] = useState(false);
   const uzunMetin = (altMetin || "").length > 125;
   const gosterilenMetin = !uzunMetin || metinAcik ? altMetin : (altMetin || "").slice(0, 125) + "…";
@@ -82,7 +82,14 @@ export function InstagramOnizleme({ marka, tur, gun, gorselUrl, altMetin, yapild
         </div>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontSize: 13, color: "#fff", fontWeight: 600, fontFamily: "Inter", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{marka || "Marka"}</div>
+          {/* HANGİ İÇERİK PLANLANMIŞ. Kart adı plan kaydına kopyalanıyor (`isAdi`);
+            * burada gösterilince müşteri ve çözüm ortağı "bu kare hangi içerik"
+            * sorusunu Operasyon'a girmeden cevaplayabiliyor. Kart bağlı değilse
+            * satır eskisi gibi yalnızca tür ve günü gösteriyor. */}
           <div style={{ fontSize: 11, color: "#a8a8a8", fontFamily: "Inter" }}>{tur}{gun ? ` · ${gun}` : ""}</div>
+          {isAdi && (
+            <div style={{ fontSize: 11.5, color: "#e8e8e8", fontFamily: "Inter", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{isAdi}</div>
+          )}
         </div>
         {yapildi && <span style={{ fontSize: 11, color: "#4ade80", fontFamily: "Inter", fontWeight: 600 }}>✓ Paylaşıldı</span>}
       </div>

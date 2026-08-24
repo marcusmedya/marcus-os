@@ -6,8 +6,8 @@ import { KEY, guvenliYaz, kilitAl, kilitBirak, bugunISO, mesgulYanit } from "../
 import { kayitliYanit, yanitiSakla, yanitiYakala } from "../lib/islem-kimligi.js";
 import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
 import { markaErisimiVarMi } from "../lib/marka-kilidi.js";
-import { onaylananiTasi, DURUM_KLASORLERI } from "../lib/drive-tasima.js";
-import { tasinacakDosyalar } from "../lib/asamalar.js";
+import { onaylananiTasi, kartKlasorunuTasi, driveDosyaIdCikar, DURUM_KLASORLERI } from "../lib/drive-tasima.js";
+import { tasinacakDosyalar, kartKlasorAdi } from "../lib/asamalar.js";
 import { onaylananlaraGoreStok, paylasimTuru } from "../lib/stok.js";
 
 const nid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -141,10 +141,36 @@ async function bagliKartinDosyasiniTasi(data, is) {
   const dosyalar = tasinacakDosyalar(is);
   if (dosyalar.length === 0) return { tasindi: false, sebep: "kartta dosya bağlantısı yok" };
   const hedefAd = is.asama === PAYLASILDI_ASAMASI ? DURUM_KLASORLERI.paylasilan : DURUM_KLASORLERI.onaylanan;
+  const kartKlasoru = kartKlasorAdi(is);
   try {
     const sonuclar = [];
+
+    /* ÖNCE KLASÖRÜN KENDİSİ — `api/data.js`'deki taşımanın aynısı.
+     *
+     * Burası dosyaları TEK TEK taşıyordu ve `kartKlasoru` hiç geçirmiyordu. Sonuç,
+     * paylaşım İPTAL edilince ortaya çıkıyordu: Carousel kartının slaytları
+     * "3 PAYLAŞILDI/#9 Karosel" içinden çıkarılıp doğrudan "2 ONAYLANANLAR"a
+     * bırakılıyor, kart klasörü boş olarak PAYLAŞILDI'da kalıyordu. Kullanıcı
+     * ONAYLANANLAR'da klasörü arıyor ve bulamıyordu — ölçüldü.
+     *
+     * İleri yön (`api/data.js`) klasör taşımaya geçirilmişti; bu uç geride kalmıştı.
+     * Aynı davranışı buraya da veriyoruz: tek çağrı, kaynakta boş klasör kalmıyor,
+     * klasörün kimliği korunuyor. */
+    let klasorTasima = null;
+    if (kartKlasoru) {
+      klasorTasima = await kartKlasorunuTasi({
+        kartKlasoru, markaAdi: is.marka, markaKlasoru, hedefAd, ipucuDosyaLinki: dosyalar[0].link,
+      });
+      if (klasorTasima.tasindi || klasorTasima.zatenOrada) sonuclar.push(klasorTasima);
+    }
+    /* Klasörle birlikte taşınan dosyalar tekrar taşınmaya çalışılmaz. Klasör dışında
+     * kalmış dosya varsa (elle yapıştırılmış bağlantı, özellik öncesi yükleme) o tek
+     * tek taşınmaya devam eder — sessiz atlama yok. */
+    const klasorleGidenler = new Set((klasorTasima && klasorTasima.icerdekiDosyalar) || []);
+
     for (const d of dosyalar) {
-      sonuclar.push(await onaylananiTasi({ dosyaLinki: d.link, markaAdi: is.marka, markaKlasoru, hedefAd }));
+      if (klasorleGidenler.has(driveDosyaIdCikar(d.link))) continue;
+      sonuclar.push(await onaylananiTasi({ dosyaLinki: d.link, markaAdi: is.marka, markaKlasoru, hedefAd, kartKlasoru }));
     }
     const basarili = sonuclar.filter((x) => x && x.tasindi).length;
     const zaten = sonuclar.filter((x) => x && x.zatenOrada).length;

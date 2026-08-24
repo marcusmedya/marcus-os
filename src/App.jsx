@@ -2402,6 +2402,50 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
         Operasyon panosuna ya da Drive'a girmene gerek kalmaz.
       </div>
 
+      {/* BU HAFTA HANGİ İÇERİK PLANLI.
+        * Izgara hücresi 32 piksel — içine kart adı sığmıyor ve ad yalnızca fare
+        * üstüne gelince (title) görünüyordu. "Hangi içeriği planlamıştık" sorusu
+        * ekranda cevapsız kalıyordu. Izgara olduğu gibi duruyor; liste altına
+        * ekleniyor ve bu ekranı gören HERKES (yönetici, personel, çözüm ortağı)
+        * aynı listeyi görüyor. */}
+      {(() => {
+        const satirlar = buHaftaPlan
+          .map((p) => {
+            const c = aktifMarkalar.find((x) => x.id === p.clientId);
+            const sube = planSubesi(p);
+            const subeAd = sube ? (markaninSubeleri(subeler, p.clientId).find((x) => String(x.id) === String(sube)) || {}).ad : null;
+            return { p, marka: c ? c.ad : "", subeAd: subeAd || (p.subeAdi || null) };
+          })
+          .filter((x) => x.marka)
+          .sort((a, b) => GUN_ADLARI.indexOf(a.p.gun) - GUN_ADLARI.indexOf(b.p.gun));
+        if (satirlar.length === 0) return null;
+        return (
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${T.borderSoft}` }}>
+            <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, letterSpacing: 0.3, marginBottom: 8 }}>
+              BU HAFTA PLANLANAN İÇERİKLER ({satirlar.length})
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {satirlar.map(({ p, marka, subeAd }) => (
+                <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "6px 10px", background: T.surface, borderRadius: 8, fontSize: 12.5, fontFamily: "Inter" }}>
+                  <span style={{ color: T.textFaint, minWidth: 28, fontWeight: 600 }}>{p.gun}</span>
+                  <span style={{ color: T.text, fontWeight: 600 }}>{marka}{subeAd ? ` · ${subeAd}` : ""}</span>
+                  {/* ASIL İSTENEN: hangi KART planlanmış. Bağlı kart yoksa açıkça söyleniyor. */}
+                  <span style={{ color: p.isAdi ? T.accentText : T.textFaint, fontStyle: p.isAdi ? "normal" : "italic" }}>
+                    {p.isAdi || "kart bağlı değil"}
+                  </span>
+                  <span style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", whiteSpace: "nowrap" }}>
+                    <span style={{ color: T.textFaint }}>{p.tur}</span>
+                    <span style={{ color: p.yapildi ? T.success : T.warning, fontWeight: 700 }}>
+                      {p.yapildi ? "✓ paylaşıldı" : "bekliyor"}
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {secim && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 90, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={() => setSecim(null)}>
           <div onClick={(e) => e.stopPropagation()} className="marcus-card" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, padding: "18px 22px", width: 360, maxWidth: "100%", maxHeight: "80vh", overflowY: "auto" }}>
