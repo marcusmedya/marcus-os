@@ -15,7 +15,7 @@ import { dosyasizKontroleGirenleriGeriAl, medyaVarMi, asamalariDuzelt,
          guncelMedyalar, slotSonrakiVersiyon, slotGecerliMi, slotKategoriyeUygunMu, medyaSlotu,
          tasinacakDosyalar, kartKlasorAdi } from "../lib/asamalar.js";
 import { epostaGonderAyrintili, gonderenAdres } from "../lib/eposta.js";
-import { onaylananlaraGoreStok } from "../lib/stok.js";
+import { onaylananlaraGoreStok, ONAY_ASAMASI } from "../lib/stok.js";
 import { belgeOlcumu, ozetSayilar, boyutDurumu, degiskenDurumu,
          API_FONKSIYON_SAYISI, FONKSIYON_SINIRI } from "../lib/sistem-sagligi.js";
 import { yuklemeOturumuAc, yuklemeyiTamamla, yuklenenDosyayiSil, yuklemeHazirMi, kucukResimGetir,
@@ -399,7 +399,7 @@ async function asamayaGoreTasi(oncekiVeri, sonrakiVeri) {
 async function tasimalariIsleVeNotDus(oncekiVeri, sonrakiVeri) {
   try {
     const tasimalar = await asamayaGoreTasi(oncekiVeri || {}, sonrakiVeri || {});
-    if (tasimalar.length === 0) return null;
+    if (tasimalar.length === 0) return { veri: null, geriAlinanlar: [] };
     const notSonucu = await guvenliGuncelle((guncel) => ({
       /* YALNIZCA cekimIsleri değişiyor — bildirilmezse tüm alanların sayacı artar ve
        * o anda başka bir bölümde çalışan herkes gereksiz yere bayat olurdu. */
@@ -424,10 +424,72 @@ async function tasimalariIsleVeNotDus(oncekiVeri, sonrakiVeri) {
         }),
       },
     }));
-    return notSonucu && notSonucu.ok ? notSonucu.veri : null;
+    let sonHal = notSonucu && notSonucu.ok ? notSonucu.veri : null;
+
+    /* ================================================================
+     * ONAY KİLİDİ — DOSYA DOĞRU KLASÖRE GEÇMEDEN ONAY AYAKTA KALMAZ.
+     *
+     * Eskiden aşama kaydı ile Drive taşıması birbirinden bağımsızdı: taşıma sessizce
+     * başarısız olsa bile kart "Onaylandı"da kalıyor ve STOĞA YAZILIYORDU. Sonuç,
+     * arkasında içerik olmayan bir stok sayısıydı — aranan sapmanın kaynağı.
+     *
+     * Artık YENİ onaylanmış bir kartın dosyası taşınamadıysa onay GERİ ALINIR:
+     * aşama eski hâline döner, stok geri düşer, sebep kartın geçmişine yazılır.
+     * Fail-close: yanlış bir sayı taşımaktansa işlemi reddetmek yeğdir.
+     *
+     * Drive'ı hiç kurulu olmayan marka BU KİLİDİN DIŞINDA — `asamayaGoreTasi` o kartlar
+     * için sonuç üretmiyor, dolayısıyla burada da görünmüyorlar. Drive kullanmayan bir
+     * markanın işini durdurmak, çözdüğünden çok sorun yaratırdı.
+     * ================================================================ */
+    const oncekiIsler = new Map(((oncekiVeri || {}).cekimIsleri || []).map((j) => [String(j.id), j]));
+    const sonrakiIsler = (sonrakiVeri || {}).cekimIsleri || [];
+    const engellenenler = [];
+    sonrakiIsler.forEach((j) => {
+      if (!j || j.asama !== ONAY_ASAMASI) return;
+      const onceki = oncekiIsler.get(String(j.id));
+      if (onceki && onceki.asama === ONAY_ASAMASI) return;          // yeni onaylanmadı
+      const t = tasimalar.find((x) => String(x.isId) === String(j.id));
+      if (!t) return;                                               // Drive kurulu değil — kilit yok
+      if (t.tasindi || t.zatenOrada) return;                        // dosya yerinde
+      engellenenler.push({
+        isId: j.id, isAdi: j.icerikTuru || "", marka: j.marka || "",
+        eskiAsama: (onceki && onceki.asama) || "Kontrol Bekliyor",
+        sebep: t.sebep || "Drive taşıma yapılamadı",
+      });
+    });
+
+    if (engellenenler.length > 0) {
+      const geri = await guvenliGuncelle((guncel) => {
+        const isler = guncel.cekimIsleri || [];
+        const dondurulmus = isler.map((j) => {
+          const e = engellenenler.find((x) => String(x.isId) === String(j.id));
+          if (!e || j.asama !== ONAY_ASAMASI) return j;
+          return { ...j, asama: e.eskiAsama, gecmis: [...(j.gecmis || []), {
+            id: (j.gecmis || []).length + 1,
+            tarih: new Date().toLocaleString("tr-TR"),
+            yazan: "Sistem",
+            aciklama: `ONAY GERİ ALINDI — dosya Drive'da "${ASAMA_KLASORU[ONAY_ASAMASI]}" klasörüne taşınamadı: ${e.sebep}. Dosya yerine geçmeden onay stoğa yazılmaz.`,
+          }] };
+        });
+        /* Stok geri düşürülüyor: kart onaydan çıktığı için motor farkı kendisi uygular. */
+        const stokSonuc = onaylananlaraGoreStok(isler, dondurulmus, guncel.stoklar, guncel.clients,
+          undefined, guncel.subeler);
+        return {
+          degisenAlanlar: stokSonuc ? ["cekimIsleri", "stoklar"] : ["cekimIsleri"],
+          veri: {
+            ...guncel,
+            cekimIsleri: stokSonuc ? stokSonuc.cekimIsleri : dondurulmus,
+            ...(stokSonuc ? { stoklar: stokSonuc.stoklar } : {}),
+          },
+        };
+      });
+      if (geri && geri.ok) sonHal = geri.veri;
+    }
+
+    return { veri: sonHal, geriAlinanlar: engellenenler };
   } catch (e) {
     /* Taşıma ya da not düşme çökerse kaydın kendisi zarar görmemeli. */
-    return null;
+    return { veri: null, geriAlinanlar: [] };
   }
 }
 
@@ -1282,7 +1344,16 @@ export default async function handler(req, res) {
            * kafa karıştırıcı olurdu (aynı revize için iki e-posta). `tekrarlandi`
            * bayrağı tam bunun için var. */
           if (sonucIs.ok && !sonucIs.tekrarlandi) {
-            await tasimalariIsleVeNotDus(sonucIs.oncekiVeri, sonucIs.veri);
+            const tasimaSonucu = await tasimalariIsleVeNotDus(sonucIs.oncekiVeri, sonucIs.veri);
+            /* ONAY GERİ ALINDIYSA müşteriye SÖYLENİR. Sessizce geri almak, müşterinin
+             * "onayladım" sanıp beklemesi demek olurdu. */
+            if (tasimaSonucu.geriAlinanlar.length > 0) {
+              const e = tasimaSonucu.geriAlinanlar[0];
+              return res.status(409).json({
+                error: `Onay tamamlanamadı: dosya Drive'da onaylananlar klasörüne taşınamadı (${e.sebep}). İçerik onay bekliyor olarak kaldı.`,
+                onaylanamadi: tasimaSonucu.geriAlinanlar,
+              });
+            }
           }
 
           /* ATANAN KİŞİYE OTOMATİK BİLDİRİM.
@@ -1847,8 +1918,11 @@ export default async function handler(req, res) {
          * dönmeli, yoksa tarayıcı bir tur geride kalır ve sonraki kayıt sahte
          * çakışmayla kullanıcının düzenlemesini siler. */
         let staffSonHal = sonuc.veri;
+        let staffOnaylanamayanlar = [];
         if (sonuc.ok) {
-          staffSonHal = (await tasimalariIsleVeNotDus(sonuc.oncekiVeri, sonuc.veri)) || sonuc.veri;
+          const staffTasima = await tasimalariIsleVeNotDus(sonuc.oncekiVeri, sonuc.veri);
+          staffSonHal = staffTasima.veri || sonuc.veri;
+          staffOnaylanamayanlar = staffTasima.geriAlinanlar;
         }
 
         if (!sonuc.ok) {
@@ -1868,6 +1942,7 @@ export default async function handler(req, res) {
         }
         return res.status(200).json({
           ok: true, _v: staffSonHal._v,
+          ...(staffOnaylanamayanlar.length ? { onaylanamadi: staffOnaylanamayanlar } : {}),
           alanSurumleri: (staffSonHal && staffSonHal._alanSurumleri) || {},
           ...(stokBildirimi ? { stok: stokBildirimi } : {}),
           /* KAYDEDİLEMEYEN KAYITLAR AÇIKÇA BİLDİRİLİYOR.
@@ -2068,10 +2143,13 @@ export default async function handler(req, res) {
       /* KİLİT BIRAKILDI — taşıma ve not düşme burada yapılır.
        * Yanıttan ÖNCE çalışır: yanıt gönderildikten sonra sunucu fonksiyonu donabilir ve
        * arkada kalan iş hiç bitmeyebilir. */
-      const ownerSonHal = (await tasimalariIsleVeNotDus(ownerOncekiVeri, ownerYazilanVeri)) || ownerYazilanVeri;
+      const ownerTasima = await tasimalariIsleVeNotDus(ownerOncekiVeri, ownerYazilanVeri);
+      const ownerSonHal = ownerTasima.veri || ownerYazilanVeri;
+      const ownerOnaylanamayanlar = ownerTasima.geriAlinanlar;
 
       return res.status(200).json({
         ok: true, _v: ownerSonHal._v,
+        ...(ownerOnaylanamayanlar.length ? { onaylanamadi: ownerOnaylanamayanlar } : {}),
         /* İstemci taban sürümlerini tazelesin — yoksa bir sonraki kaydı kendi yazdığı
          * değişiklik yüzünden çakışma sanardı. */
         alanSurumleri: (ownerSonHal && ownerSonHal._alanSurumleri) || {},

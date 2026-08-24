@@ -6,11 +6,12 @@ import { KEY, guvenliYaz, kilitAl, kilitBirak, bugunISO, mesgulYanit } from "../
 import { kayitliYanit, yanitiSakla, yanitiYakala } from "../lib/islem-kimligi.js";
 import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
 import { markaErisimiVarMi } from "../lib/marka-kilidi.js";
-import { onaylananiTasi, kartKlasorunuTasi, driveDosyaIdCikar, markaninOnaylananDosyalari, DURUM_KLASORLERI } from "../lib/drive-tasima.js";
+import { onaylananiTasi, kartKlasorunuTasi, driveDosyaIdCikar, markaninDriveDosyalari, DURUM_KLASORLERI } from "../lib/drive-tasima.js";
 import { tasinacakDosyalar, kartKlasorAdi } from "../lib/asamalar.js";
-import { onaylananlaraGoreStok, paylasimTuru } from "../lib/stok.js";
+import { onaylananlaraGoreStok, paylasimTuru, PAYLASIM_TURLERI } from "../lib/stok.js";
 import { kartlaraGoreStok } from "../lib/stok-mutabakat.js";
-import { driveKartEslestir } from "../lib/drive-eslestirme.js";
+import { driveDurumRaporu, driveyeGoreStok, kartinDosyaKimlikleri, ASAMA_DURUMU } from "../lib/drive-eslestirme.js";
+import { stokFarklari, uygulanabilirMi, farklariUygula } from "../lib/drive-denetimi.js";
 import { markaEslestirici } from "../lib/marka-kilidi.js";
 
 const nid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -246,6 +247,21 @@ async function kaydetVeYedekle(data, degisenAlanlar) {
    * kart düzenleyen herkesi bayat yapıp kaydını 409 ile geri çevirirdi. Yaşanan tam olarak buydu. */
   const yazilan = await guvenliYaz(data, degisenAlanlar || BU_UCUN_ALANLARI);
   return (yazilan && typeof yazilan._v === "number") ? yazilan._v : undefined;
+}
+
+/* Dosyanın DURDUĞU klasör, kartın aşamasını belirler — uydurma bir aşama stok motorunu
+ * yanlış yöne çalıştırırdı. Her durumun İLK aşaması alınıyor (en erken hâli). */
+const DURUMDAN_ASAMA = Object.fromEntries(
+  Object.entries(ASAMA_DURUMU).map(([durum, asamalar]) => [durum, asamalar[0]]));
+
+/* Dosya adından kategori tahmini. Yanlış tahmin sorun değil — kart açılır, kullanıcı
+ * düzeltir; hiç kart açılmaması ise içeriğin görünmez kalması demek. */
+function dosyaAdindanKategori(ad) {
+  const s = String(ad || "").toLocaleLowerCase("tr");
+  if (/\.(mp4|mov|m4v|avi|webm)$/.test(s) || /reels|video/.test(s)) return "Video";
+  if (/karosel|carousel|carrousel/.test(s)) return "Carousel";
+  if (/tasarım|tasarim|design|dizayn/.test(s)) return "Grafik Tasarım";
+  return "Fotoğraf";
 }
 
 export default async function handler(req, res) {
@@ -721,31 +737,171 @@ export default async function handler(req, res) {
      *
      * Kilit ALINMAZ: yazma yok ve Google çağrıları saniyeler sürüyor — kilidi
      * tutmak o sırada paylaşım işaretleyen herkesi bekletirdi. */
+    /* DRIVE DENETİMİ — "hangi klasörde ne var, kartlarla tutuyor mu, stok doğru mu".
+     *
+     * SALT OKUNUR: hiçbir dosya taşınmaz, hiçbir klasör açılmaz. Kilit ALINMAZ —
+     * Google çağrıları saniyeler sürüyor, o süre boyunca herkesin yazmasını
+     * engellemek sistemi durdururdu. */
     if (action === "driveEslestir") {
       const { clientId } = body;
       const marka = (data.clients || []).find((c) => String(c.id) === String(clientId));
       if (!marka) return res.status(404).json({ error: "Marka bulunamadı." });
 
-      const liste = await markaninOnaylananDosyalari({
+      /* TARAMADAN ÖNCE KİLİT BIRAKILIYOR. Bir markanın ay klasörlerini gezmek saniyeler
+       * sürüyor; kilidi elde tutmak o süre boyunca herkesin yazmasını engellerdi. Bu
+       * işlem hiçbir şey yazmıyor, kilide zaten ihtiyacı yok. */
+      await kilitBirak(kilitAlindi); kilitAlindi = false;
+
+      const liste = await markaninDriveDosyalari({
         markaKlasoru: marka.driveOnayKlasoru || "", markaAdi: marka.ad,
       });
       if (!liste.ok) return res.status(200).json({ ok: true, eslestirme: null, sebep: liste.sebep });
 
       const esit = markaEslestirici(data.clients || [], marka.ad);
       const markaKartlari = (data.cekimIsleri || []).filter((j) => j && esit(j.marka));
-      const eslestirme = driveKartEslestir(liste.dosyalar, markaKartlari);
+      const rapor = driveDurumRaporu(liste.dosyalar, markaKartlari, paylasimTuru);
+      const driveStok = driveyeGoreStok(liste.dosyalar, markaKartlari, paylasimTuru);
+      const farklar = stokFarklari(data.stoklar, driveStok, marka.id, PAYLASIM_TURLERI);
+      const karar = uygulanabilirMi(liste, farklar);
 
       return res.status(200).json({
         ok: true,
         eslestirme: {
-          ...eslestirme,
+          ...rapor,
+          driveStok,
+          stokFarklari: farklar,
+          uygulanabilir: karar.uygula === true,
+          uygulanamamaSebebi: karar.uygula ? undefined : karar.sebep,
           bakilanAylar: liste.bakilanAylar,
           toplamAy: liste.toplamAy,
+          /* "Hiç dosya görmedim" ile "hiç klasör bulamadım" aynı şey değil — ikincisi
+           * bir yapı sorunudur ve stoğu sıfırlamak için gerekçe olamaz. */
+          ayBulunamadi: liste.ayBulunamadi,
           /* Bütçe dolduysa liste EKSİK — sessizce kesilmiş bir liste "her şeyi
            * gördük" sanılır ve yanlış karar verdirir. */
           tamamlanmadi: liste.tamamlanmadi,
         },
       });
+    }
+
+    /* DRIVE'A GÖRE STOĞU YAZ. Tarama İSTEMCİDEN GELMEZ — sunucu yeniden tarar.
+     * Tarayıcıdan gelen sayıya güvenmek, ekranı açıp sayı uydurabilen herkese stok
+     * yazma yetkisi vermek olurdu; stok otoritesi kuralı bunu yasaklıyor. */
+    if (action === "driveStokUygula") {
+      const { clientId } = body;
+      const marka = (data.clients || []).find((c) => String(c.id) === String(clientId));
+      if (!marka) return res.status(404).json({ error: "Marka bulunamadı." });
+
+      /* Tarama kilit DIŞINDA — Google çağrıları saniyeler sürüyor. */
+      await kilitBirak(kilitAlindi); kilitAlindi = false;
+
+      const liste = await markaninDriveDosyalari({
+        markaKlasoru: marka.driveOnayKlasoru || "", markaAdi: marka.ad, durumlar: ["onaylanan"],
+      });
+      const esit2 = markaEslestirici(data.clients || [], marka.ad);
+      const kartlar2 = (data.cekimIsleri || []).filter((j) => j && esit2(j.marka));
+      const driveStok2 = liste.ok ? driveyeGoreStok(liste.dosyalar, kartlar2, paylasimTuru) : {};
+      const farklar2 = liste.ok ? stokFarklari(data.stoklar, driveStok2, marka.id, PAYLASIM_TURLERI) : [];
+      const karar2 = uygulanabilirMi(liste, farklar2);
+      if (!karar2.uygula) return res.status(200).json({ ok: true, uygulanmadi: true, sebep: karar2.sebep });
+
+      /* YAZMA İÇİN KİLİT GERİ ALINIYOR ve belge TAZE okunuyor: tarama sürerken başkası
+       * kart onaylamış olabilir; elimizdeki kopyayı yazmak onun işini silerdi. */
+      kilitAlindi = await kilitAl();
+      if (!kilitAlindi) return mesgulYanit(res);
+      const taze = (await kv.get(KEY)) || {};
+      const tazeFark = stokFarklari(taze.stoklar, driveStok2, marka.id, PAYLASIM_TURLERI);
+      taze.stoklar = farklariUygula(taze.stoklar, tazeFark, marka.id);
+      taze.paylasimGecmisi = [...(taze.paylasimGecmisi || []), ...tazeFark.map((f, i) => ({
+        id: `drivestok_${Date.now().toString(36)}_${i}`,
+        tarih: new Date().toISOString(),
+        clientId: marka.id, marka: marka.ad, tur: f.tur,
+        islem: "Drive denetimi", eski: f.kayitli, yeni: f.driveGore,
+      }))];
+      const _vDrive = await kaydetVeYedekle(taze, ["stoklar", "paylasimGecmisi"]);
+      await kilitBirak(kilitAlindi); kilitAlindi = false;
+
+      return res.status(200).json({ ok: true, _v: _vDrive, stoklar: taze.stoklar,
+        paylasimGecmisi: yanitSuz(taze.paylasimGecmisi), uygulanan: tazeFark });
+    }
+
+    /* KARTSIZ DOSYADAN KART AÇ.
+     *
+     * Drive'da içerik var ama sistemde kartı yok — stok onu göremiyor, plan seçicisinde
+     * çıkmıyor, kimse üzerinde çalışamıyor. Kullanıcı onaylarsa taslak kart açılır.
+     *
+     * KARTSIZ LİSTESİ İSTEMCİDEN GELMEZ: sunucu yeniden tarar ve YALNIZCA gerçekten
+     * kartsız olan dosyalar için kart açar. Tarayıcıdan gelen listeye güvenmek, ekranı
+     * açabilen herkese "şu dosya için kart aç" dedirtmek olurdu; üstelik ekrandaki liste
+     * bayat olabilir ve az önce bağlanmış bir dosya için İKİNCİ bir kart açılırdı.
+     *
+     * Aşama, dosyanın DURDUĞU KLASÖRDEN geliyor: onay bekleyendeki dosya "Onaya
+     * Sunuldu", onaylananlardaki "Onaylandı" olur. Uydurma bir aşama vermek, stok
+     * motorunu yanlış tarafa çalıştırırdı. */
+    if (action === "kartsizdanKartAc") {
+      const { clientId, dosyaIdleri } = body;
+      const marka = (data.clients || []).find((c) => String(c.id) === String(clientId));
+      if (!marka) return res.status(404).json({ error: "Marka bulunamadı." });
+      const istenen = new Set((Array.isArray(dosyaIdleri) ? dosyaIdleri : []).map(String));
+      if (istenen.size === 0) return res.status(400).json({ error: "Kart açılacak dosya seçilmedi." });
+
+      await kilitBirak(kilitAlindi); kilitAlindi = false;
+      const liste = await markaninDriveDosyalari({
+        markaKlasoru: marka.driveOnayKlasoru || "", markaAdi: marka.ad,
+      });
+      if (!liste.ok) return res.status(200).json({ ok: true, acilmadi: true, sebep: liste.sebep });
+
+      const esitK = markaEslestirici(data.clients || [], marka.ad);
+      const kartlarK = (data.cekimIsleri || []).filter((j) => j && esitK(j.marka));
+      const raporK = driveDurumRaporu(liste.dosyalar, kartlarK, paylasimTuru);
+      const acilacak = raporK.kartsiz.filter((x) => istenen.has(String(x.id)));
+      if (acilacak.length === 0) {
+        return res.status(200).json({ ok: true, acilmadi: true,
+          sebep: "Seçilen dosyaların hepsinin zaten bir kartı var — liste tazelendi." });
+      }
+
+      kilitAlindi = await kilitAl();
+      if (!kilitAlindi) return mesgulYanit(res);
+      const taze = (await kv.get(KEY)) || {};
+      const mevcut = taze.cekimIsleri || [];
+      /* Aynı dosyaya İKİNCİ kart açılmasın: tarama ile yazma arasında biri kartı
+       * elle açmış olabilir. */
+      const bagliKimlikler = new Set();
+      mevcut.forEach((j) => kartinDosyaKimlikleri(j).forEach((x) => bagliKimlikler.add(x)));
+      const gercektenAcilacak = acilacak.filter((x) => !bagliKimlikler.has(String(x.id)));
+
+      let sonrakiId = mevcut.reduce((m, j) => Math.max(m, Number(j.id) || 0), 0);
+      const zamanK = new Date().toLocaleString("tr-TR");
+      const yeniKartlar = gercektenAcilacak.map((dosya) => {
+        sonrakiId += 1;
+        const kategori = dosyaAdindanKategori(dosya.ad);
+        return {
+          id: sonrakiId,
+          marka: marka.ad,
+          kategori,
+          icerikTuru: String(dosya.ad || "İçerik").replace(/\.[a-zA-Z0-9]+$/, "").slice(0, 120),
+          asama: DURUMDAN_ASAMA[dosya.durum] || "Onaya Sunuldu",
+          cekimTarihi: bugunISO(), teslimTarihi: bugunISO(),
+          kameraman: "", editor: "", oncelik: "Normal", istenenAdet: "", uretilenAdet: "",
+          brief: "", hamDosyaLink: "", editliDosyaLink: "",
+          medya: [{ slot: 1, dosyaId: dosya.id, ad: dosya.ad,
+            url: `https://drive.google.com/file/d/${dosya.id}/view` }],
+          gecmis: [{ id: 1, tarih: zamanK, yazan: "Sistem",
+            aciklama: `Drive denetiminde kartsız dosya bulundu — "${dosya.klasor}" klasöründeki dosya için kart açıldı. Tür ve ayrıntıları gözden geçir.` }],
+          yorumlar: [],
+          driveDenetimindenAcildi: true,
+        };
+      });
+
+      if (yeniKartlar.length === 0) {
+        await kilitBirak(kilitAlindi); kilitAlindi = false;
+        return res.status(200).json({ ok: true, acilmadi: true, sebep: "Bu dosyalar bu arada bir karta bağlanmış." });
+      }
+      taze.cekimIsleri = [...mevcut, ...yeniKartlar];
+      const _vKart = await kaydetVeYedekle(taze, ["cekimIsleri"]);
+      await kilitBirak(kilitAlindi); kilitAlindi = false;
+      return res.status(200).json({ ok: true, _v: _vKart, cekimIsleri: kartlariSuz(taze.cekimIsleri),
+        acilanKartlar: yeniKartlar.map((j) => ({ isId: j.id, isAdi: j.icerikTuru, asama: j.asama })) });
     }
 
     if (action === "stokDuzelt") {

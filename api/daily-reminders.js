@@ -1,6 +1,12 @@
 import { kv } from "@vercel/kv";
 import { ownerYetkiliMi } from "../lib/oturum.js";
 import { gonderenAdres } from "../lib/eposta.js";
+import { markaninDriveDosyalari } from "../lib/drive-tasima.js";
+import { driveDurumRaporu, driveyeGoreStok } from "../lib/drive-eslestirme.js";
+import { stokFarklari, uygulanabilirMi, farklariUygula } from "../lib/drive-denetimi.js";
+import { paylasimTuru, PAYLASIM_TURLERI as STOK_TURLERI } from "../lib/stok.js";
+import { markaEslestirici } from "../lib/marka-kilidi.js";
+import { guvenliGuncelle } from "../lib/kv-yaz.js";
 
 // Her gün (vercel.json'daki zamanlamaya göre) otomatik çalışır — CRON_SECRET ile korunur,
 // ayrıca Ayarlar sayfasındaki "Şimdi Test Et" ile elle de tetiklenebilir — SITE_PASSWORD ile korunur.
@@ -50,6 +56,9 @@ async function epostaGonder(resendKey, to, subject, html, cc) {
   });
   return r.ok;
 }
+
+/* Drive taraması Google çağrılarıyla ilerliyor — varsayılan 10 saniye on markaya yetmez. */
+export const config = { maxDuration: 60 };
 
 export default async function handler(req, res) {
   if (!(await yetkiliMi(req))) return res.status(401).json({ error: "Yetkisiz." });
@@ -278,6 +287,84 @@ export default async function handler(req, res) {
           `${oran > 0.85 ? "ACİL" : "Uyarı"}: Veri boyutu %${Math.round(oran * 100)} (${mb} MB)`, html);
       }
     }
+
+    /* ================================================================
+     * GECE DRIVE DENETİMİ — stok Drive'a göre kendini düzeltir.
+     *
+     * Kullanıcının kararı: stokta son söz Drive'ın. Elle mutabakat düğmesine basılmasını
+     * beklemek, sapmanın günlerce ayakta kalması demekti. Gece her aktif markanın
+     * ONAYLANANLAR klasörü taranıp genel stok oraya eşitleniyor.
+     *
+     * ÜÇ FREN VAR, üçü de veri kaybına karşı:
+     *   1. Tarama eksikse (bütçe doldu, klasör okunamadı) HİÇ YAZILMAZ — eksik liste
+     *      "içerik azalmış" gibi görünür ve gerçek içeriği stoktan siler.
+     *   2. Toplu kayıp freni: bir markada 20+ düşüş olacaksa dokunulmaz, rapora yazılır.
+     *   3. Yalnızca GENEL stok. Şube satırları Drive'dan türetilemez — bir dosyanın hangi
+     *      şubede paylaşıldığı Drive'da yazmıyor.
+     *
+     * Çağrı bütçesi TOPLAM tutuluyor: on markalı bir hesapta sınırsız gezmek fonksiyon
+     * süresini aşardı. Yetişilemeyen markalar rapora "taranmadı" diye yazılır — sessizce
+     * atlanan bir marka "temiz" sanılır.
+     * ================================================================ */
+    const denetim = { tarih: new Date().toISOString(), markalar: [], taranmayan: [] };
+    let kalanCagri = 240;
+    for (const c of clients.filter((x) => x && x.durum !== "pasif")) {
+      if (kalanCagri <= 10) { denetim.taranmayan.push(c.ad); continue; }
+      const butce = Math.min(40, kalanCagri);
+      kalanCagri -= butce;
+      const liste = await markaninDriveDosyalari({
+        markaKlasoru: c.driveOnayKlasoru || "", markaAdi: c.ad,
+        durumlar: ["onaylanan"], cagriButcesi: butce,
+      });
+      if (!liste.ok) { denetim.markalar.push({ clientId: c.id, ad: c.ad, okunamadi: liste.sebep }); continue; }
+
+      const esit = markaEslestirici(clients, c.ad);
+      const kartlar = (data.cekimIsleri || []).filter((j) => j && esit(j.marka));
+      const driveStok = driveyeGoreStok(liste.dosyalar, kartlar, paylasimTuru);
+      const rapor = driveDurumRaporu(liste.dosyalar, kartlar, paylasimTuru);
+      const farklar = stokFarklari(data.stoklar, driveStok, c.id, STOK_TURLERI);
+      const karar = uygulanabilirMi(liste, farklar);
+
+      const satir = {
+        clientId: c.id, ad: c.ad, farklar, kartsizSayisi: rapor.kartsizSayisi,
+        yanlisYerdeSayisi: rapor.yanlisYerdekiler.length,
+        dosyasizKartSayisi: rapor.dosyasizKartlar.length,
+        uygulandi: false, sebep: karar.uygula ? undefined : karar.sebep,
+      };
+
+      if (karar.uygula) {
+        const yazma = await guvenliGuncelle((guncel) => {
+          const taze = stokFarklari(guncel.stoklar, driveStok, c.id, STOK_TURLERI);
+          return {
+            degisenAlanlar: ["stoklar", "paylasimGecmisi"],
+            veri: {
+              ...guncel,
+              stoklar: farklariUygula(guncel.stoklar, taze, c.id),
+              paylasimGecmisi: [...(guncel.paylasimGecmisi || []), ...taze.map((f, i) => ({
+                id: `gecedrive_${Date.now().toString(36)}_${c.id}_${i}`,
+                tarih: new Date().toISOString(),
+                clientId: c.id, marka: c.ad, tur: f.tur,
+                islem: "Gece Drive denetimi", eski: f.kayitli, yeni: f.driveGore,
+              }))],
+            },
+          };
+        });
+        satir.uygulandi = Boolean(yazma && yazma.ok);
+        if (!satir.uygulandi) satir.sebep = "Yazma kilidi alınamadı";
+      }
+      denetim.markalar.push(satir);
+    }
+
+    /* Rapor belgeye yazılıyor — ekranda "gece ne buldu" diye bakılabilsin. */
+    await guvenliGuncelle((guncel) => ({
+      degisenAlanlar: ["driveDenetimi"],
+      veri: { ...guncel, driveDenetimi: denetim },
+    }));
+    sonuc.driveDenetimi = {
+      marka: denetim.markalar.length,
+      duzeltilen: denetim.markalar.filter((x) => x.uygulandi).length,
+      taranmayan: denetim.taranmayan.length,
+    };
 
     return res.status(200).json({ ok: true, ...sonuc });
   } catch (e) {
