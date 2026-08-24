@@ -42,6 +42,7 @@ import { MusteriPaneli } from "./musteriPaneli.jsx";
 import { hazirIcerikleriUret, musteriKayitlariniSuz } from "../lib/musteri-gorunumu.js";
 import { markaEslestirici } from "../lib/marka-kilidi.js";
 import SistemSagligi from "./sistemSagligi.jsx";
+import StokMutabakat from "./stokMutabakat.jsx";
 /* Paylaşım türleri ve stok anahtarı TEK KAYNAKTAN. Bu iki tanım burada da ayrıca
  * yazılıydı; listeye tür eklendiğinde biri geride kalabilir, stok sayılır ama panelde
  * satırı hiç görünmezdi. */
@@ -2162,24 +2163,13 @@ function MarkaStokKarti({ client, stoklar, gecmis, subeler, isler, plan, onStokD
                 {tur}
                 {dusuk && <span title="Yakında tükenebilir" style={{ width: 6, height: 6, borderRadius: 999, background: T.warning, display: "inline-block" }} />}
               </span>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <button
-                  disabled={adet <= 0}
-                  onClick={() => onStokDegis(client.id, client.ad, tur, -1)}
-                  title="Paylaşıldı — stoktan bir tane düş"
-                  style={{ padding: "6px 10px", borderRadius: 8, border: `1px solid ${T.border}`, background: "transparent", color: adet > 0 ? T.text : T.textFaint, fontSize: 11, fontWeight: 600, fontFamily: "Inter, sans-serif", cursor: adet > 0 ? "pointer" : "default" }}
-                >
-                  Paylaşıldı
-                </button>
-                <span style={{ minWidth: 22, textAlign: "center", fontSize: 15, fontWeight: 700, color: dusuk ? T.warning : adet > 0 ? T.text : T.textFaint, fontFamily: "'IBM Plex Mono', monospace" }}>{adet}</span>
-                <button
-                  onClick={() => onStokDegis(client.id, client.ad, tur, 1)}
-                  title="Çekim yapıldı — stoğa bir tane ekle"
-                  style={{ width: 26, height: 26, borderRadius: 8, border: "none", background: T.accentSoft, color: T.accentText, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
-                >
-                  <Plus size={13} />
-                </button>
-              </div>
+              {/* ELLE +/− KALDIRILDI — stok kartların yansımasıdır.
+                * Sayıyı elle oynatmak, kartlarla arasındaki bağı koparıyordu: bir
+                * içerik onaylanmadan stok artıyor, paylaşılmadan düşüyor ve
+                * "bu sayı neden böyle" sorusu cevapsız kalıyordu. Stok artık
+                * yalnızca kart onaya girip çıkarken hareket ediyor. Sapma olursa
+                * aşağıdaki mutabakat bölümü gösteriyor ve kartlara göre düzeltiyor. */}
+              <span style={{ minWidth: 22, textAlign: "center", fontSize: 15, fontWeight: 700, color: dusuk ? T.warning : adet > 0 ? T.text : T.textFaint, fontFamily: "'IBM Plex Mono', monospace" }}>{adet}</span>
             </div>
           );
         })}
@@ -2218,9 +2208,8 @@ function MarkaStokKarti({ client, stoklar, gecmis, subeler, isler, plan, onStokD
                   return (
                     <div key={tur} style={{ display: "flex", alignItems: "center", gap: 4, background: T.surface, borderRadius: 999, padding: "2px 4px 2px 8px" }}>
                       <span style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{tur.slice(0, 3)}</span>
-                      <button onClick={() => onSubeStokDegis(client.id, sube.id, tur, -1)} disabled={adet <= 0} style={{ width: 16, height: 16, borderRadius: 999, border: "none", background: "transparent", color: adet > 0 ? T.text : T.textFaint, cursor: adet > 0 ? "pointer" : "default", fontSize: 13, lineHeight: 1 }}>–</button>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: T.text, fontFamily: "'IBM Plex Mono', monospace", minWidth: 12, textAlign: "center" }}>{adet}</span>
-                      <button onClick={() => onSubeStokDegis(client.id, sube.id, tur, 1)} style={{ width: 16, height: 16, borderRadius: 999, border: "none", background: "transparent", color: T.accentText, cursor: "pointer", fontSize: 13, lineHeight: 1 }}>+</button>
+                      {/* Şube stoğunda da elle +/− yok — aynı gerekçe. */}
+                      <span style={{ fontSize: 11, fontWeight: 700, color: T.text, fontFamily: "'IBM Plex Mono', monospace", minWidth: 12, textAlign: "center", paddingRight: 4 }}>{adet}</span>
                     </div>
                   );
                 })}
@@ -2782,7 +2771,7 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
   );
 }
 
-function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, isler, onAddHaftalikPlan, onToggleHaftalikYapildi, onDeleteHaftalikPlan, subeler, onAddSube, onDeleteSube, onSubeStokDegis, driveSonuc, onDriveSonucKapat }) {
+function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, isler, onAddHaftalikPlan, onToggleHaftalikYapildi, onDeleteHaftalikPlan, subeler, onAddSube, onDeleteSube, onSubeStokDegis, driveSonuc, onDriveSonucKapat, mutabakatVerisi, onStokDuzelt }) {
   const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
   const stoklarObj = stoklar || {};
 
@@ -2813,6 +2802,10 @@ function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, isle
         driveSonuc={driveSonuc}
         onDriveSonucKapat={onDriveSonucKapat}
       />
+
+      {/* MUTABAKAT — sapma varsa stok kartlarından ÖNCE görünsün; sayıya bakmadan
+        * önce o sayının güvenilir olup olmadığı bilinsin. */}
+      {mutabakatVerisi && <StokMutabakat veri={mutabakatVerisi} onDuzelt={onStokDuzelt} />}
 
       {toplamStok.length > 0 && (
         <Card style={{ padding: "12px 15px", marginBottom: 16, display: "flex", gap: 18, flexWrap: "wrap" }}>
@@ -8569,6 +8562,10 @@ export default function MarcusOS() {
     },
   });
   const subeStokDegistir = (clientId, subeId, tur, delta) => paylasimIstek({ action: "subeStokDegistir", clientId, subeId, tur, delta }, "Bağlantı hatası — stok güncellenemedi, tekrar dene.");
+  /* Hedef sayı GÖNDERİLMİYOR — sunucu kartlardan kendisi hesaplıyor. */
+  const stokDuzelt = (r) => paylasimIstek(
+    { action: "stokDuzelt", clientId: Number(r.clientId) || r.clientId, tur: r.tur, subeId: r.subeId || undefined },
+    "Bağlantı hatası — düzeltilemedi, tekrar dene.");
 
   const addHesap = (ad) => setData((d) => ({ ...d, hesaplar: [...(d.hesaplar && d.hesaplar.length ? d.hesaplar : [{ id: "ana", ad: "Marcus Medya", anaHesap: true }]), { id: `hesap_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, ad }] }));
   const deleteHesap = (hesapId) => setData((d) => ({ ...d, hesaplar: (d.hesaplar || []).filter((h) => h.id !== hesapId) }));
@@ -9368,7 +9365,9 @@ export default function MarcusOS() {
             />
           )}
           {staffTab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} clients={data.clients || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} duzenleyenAdi={loggedStaffName || "Personel"} olcumler={data.hesapOlcumleri || []} onKaydetOlcum={kaydetOlcum} onSilOlcum={silOlcum} />}
-          {staffTab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} isler={data.cekimIsleri || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} driveSonuc={driveSonuc} onDriveSonucKapat={() => setDriveSonuc(null)} />}
+          {staffTab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} isler={data.cekimIsleri || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} driveSonuc={driveSonuc} onDriveSonucKapat={() => setDriveSonuc(null)}
+            mutabakatVerisi={{ clients: data.clients || [], cekimIsleri: data.cekimIsleri || [], haftalikPaylasimlar: data.haftalikPaylasimlar || [], subeler: data.subeler || [], stoklar: data.stoklar || {} }}
+            onStokDuzelt={stokDuzelt} />}
           {/* Günlük Kontrol artık haftalık planı okur ve AYNI sunucu işlemine yazar
             (toggleHaftalikYapildi) — iki panelin ayrışması mümkün değil. */}
           {staffTab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="staff" />}
@@ -9812,7 +9811,9 @@ export default function MarcusOS() {
             />
           )}
           {tab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} clients={data.clients || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} duzenleyenAdi="Yönetici (CEO)" olcumler={data.hesapOlcumleri || []} onKaydetOlcum={kaydetOlcum} onSilOlcum={silOlcum} />}
-          {tab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} isler={data.cekimIsleri || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} driveSonuc={driveSonuc} onDriveSonucKapat={() => setDriveSonuc(null)} />}
+          {tab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} isler={data.cekimIsleri || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} driveSonuc={driveSonuc} onDriveSonucKapat={() => setDriveSonuc(null)}
+            mutabakatVerisi={{ clients: data.clients || [], cekimIsleri: data.cekimIsleri || [], haftalikPaylasimlar: data.haftalikPaylasimlar || [], subeler: data.subeler || [], stoklar: data.stoklar || {} }}
+            onStokDuzelt={stokDuzelt} />}
           {tab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="owner" />}
           {tab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} isler={data.cekimIsleri || []} plan={data.haftalikPaylasimlar || []} />}
           {tab === "cekim-edit" && <CekimEditTakibi role="owner" clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} isUcretleri={data.isUcretleri || {}} onSaveIsUcreti={setIsUcreti} isUcretDetaylari={data.isUcretDetaylari || {}} onSaveIsUcretDetayi={setIsUcretDetayi} avanslar={data.avanslar || []} hesaplar={data.hesaplar || []} onAddAvans={addAvans} onDeleteAvans={deleteAvans} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={true} firmaAdi={data.firmaAdi} />}

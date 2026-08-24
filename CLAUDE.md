@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     82 test dosyası (t1…t82) + 20 statik denetim betiği
+testler/     83 test dosyası (t1…t83) + 20 statik denetim betiği
 ```
 
 ---
@@ -248,6 +248,19 @@ koleksiyon yok, o kayda `subeId` eklendi. **`subeId` yoksa marka geneli** sayıl
 
 Türler: Görsel · Video · Reels · Story · Carousel · Tasarım.
 
+**Stok kartların yansımasıdır — elle +/− YOKTUR.** Sayıyı elle oynatmak stoğun
+kartlarla bağını koparıyordu: içerik onaylanmadan stok artıyor, paylaşılmadan düşüyor
+ve "bu sayı neden böyle" sorusu cevapsız kalıyordu. Tek düzeltme yolu **mutabakat**
+(`lib/stok-mutabakat.js`): kartlardan olması gereken hesaplanır, farklı olan satırlar
+Paylaşımlar'da gösterilir, düzeltmede hedef sayıyı **sunucu** hesaplar — tarayıcıdan
+gelen sayıya güvenilmez. Düzeltme `paylasimGecmisi`'ne eski/yeni değerle yazılır.
+
+Türetme kuralları motorun davranışından çıkarıldı: **genel stok** = o türden
+`Onaylandı` aşamasındaki kart sayısı; **şube stoğu** = o şubenin kullanabildiği,
+`Onaylandı` ya da `Şubelerde Paylaşılıyor` kartlar eksi o şubenin zaten paylaştıkları.
+t83 bu türetmenin motorla birebir aynı sonucu verdiğini ölçüyor — ayrışırsa mutabakat
+olmayan sapmaları "düzeltmeye" başlar ve doğru sayıları bozar.
+
 Stok, kartın **`Onaylandı` aşamasına girmesiyle artar ve oradan ÇIKMASIYLA düşer** —
 nereye gittiğinin önemi yok (`Şubelerde Paylaşılıyor`, `Teslim Edildi`, geri `Revize
 İstendi`, hepsi aynı). Kart silinince de düşer. Kartta `stokSayildi` işareti sayımın
@@ -262,7 +275,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 20 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t82, ~1736 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t83, ~1760 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
