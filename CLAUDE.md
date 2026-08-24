@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     85 test dosyası (t1…t85) + 21 statik denetim betiği
+testler/     87 test dosyası (t1…t87) + 21 statik denetim betiği
 ```
 
 ---
@@ -268,6 +268,35 @@ koleksiyon yok, o kayda `subeId` eklendi. **`subeId` yoksa marka geneli** sayıl
 
 Türler: Görsel · Video · Reels · Story · Carousel · Tasarım.
 
+**Stokta son söz DRIVE'INDIR** (`lib/drive-eslestirme.js` → `driveyeGoreStok`,
+`lib/drive-denetimi.js`). Kural: *stok = ONAYLANANLAR klasöründe dosyası FİİLEN duran
+kartlar.* Kartın aşamasının `Onaylandı` olması YETMEZ — dosya gerçekten orada olacak.
+Sapmanın kaynağı buydu: taşıma sessizce başarısız olduğunda stok, arkasında içerik
+olmayan bir sayı gösteriyordu. **Tür yine karttan gelir** (Drive bir dosyanın Reels mi
+Görsel mi olduğunu bilmez); **kartsız dosya stoğa sayılmaz** — türü uydurulamaz, yolu
+kart açmaktır (`kartsizdanKartAc`).
+
+**Drive otoritesinin ÜÇ FRENİ var, üçü de veri kaybına karşı** — biri kalkarsa bir
+Google kesintisi bütün stoğu sıfırlar:
+- Tarama **tamamlanmadıysa** yazılmaz (bütçe doldu → liste eksik → "içerik azalmış" sanılır).
+- **Ay klasörü hiç bulunamadıysa** yazılmaz. "Hiç dosya görmedim" ile "hiç klasör
+  bulamadım" aynı şey değil; ikincisi yapı sorunudur. Bu ayrım olmadan tarama
+  "0 dosya, tamamlandı" deyip bütün sayıları sıfırlıyordu — ölçüldü.
+- **Toplu kayıp freni** (20+ düşüş) — o marka atlanır ve rapora yazılır.
+
+**Yalnızca GENEL stok Drive'dan türer.** Şube satırları (`clientId_subeId_tur`)
+türetilemez: bir dosyanın hangi şubede paylaşıldığı Drive'da yazmaz, o plan verisidir.
+
+**Onay kilidi — dosya doğru klasöre geçmeden onay ayakta kalmaz** (`api/data.js`
+→ `tasimalariIsleVeNotDus`). Yeni onaylanmış kartın dosyası taşınamadıysa **onay geri
+alınır**: aşama eski hâline döner, stok düşer, sebep kartın geçmişine yazılır ve istek
+409 ile reddedilir. Drive'ı kurulu OLMAYAN marka bu kilidin dışında — o kartlar için
+taşıma sonucu hiç üretilmez, yoksa Drive kullanmayan markanın işi dururdu.
+
+**Gece denetimi** (`api/daily-reminders.js`) her aktif markayı tarar, genel stoğu Drive'a
+eşitler ve raporu `driveDenetimi` alanına yazar. Yeni fonksiyon açılmadı; mevcut cron
+ucuna eklendi.
+
 **Stok kartların yansımasıdır — elle +/− YOKTUR.** Sayıyı elle oynatmak stoğun
 kartlarla bağını koparıyordu: içerik onaylanmadan stok artıyor, paylaşılmadan düşüyor
 ve "bu sayı neden böyle" sorusu cevapsız kalıyordu. Tek düzeltme yolu **mutabakat**
@@ -295,7 +324,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 21 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t85, ~1796 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t87, ~1841 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

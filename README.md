@@ -4123,3 +4123,60 @@ düşürüyor. İlk yazımda "başarı dalı" kontrolü fonksiyonun başka dalı
 ile eşleştiği için hiçbir şey sınamıyordu — daraltıldı ve tekrar ölçüldü.
 
 t85 üç kontrol daha aldı (19). Toplam **1796 kontrol**, 21 statik denetim.
+
+### 158 — Stokta son söz Drive'ın: kart aynası + Drive doğrulaması
+
+Sahadan gelen soru şuydu: *"Skylon Mimarlıkta 2 adet reels var, Drive'da 2 adet kart
+mevcut — doğru, ama stok bilgisi yanlış."* Sapmanın kaynağı, stok ile Drive'ın
+birbirinden bağımsız ilerlemesiydi: kart `Onaylandı` aşamasına geçtiği anda stoğa
+yazılıyordu, dosyanın Drive'da gerçekten o klasöre geçip geçmediğine bakılmadan.
+Taşıma sessizce başarısız olduğunda stok, arkasında içerik OLMAYAN bir sayı gösteriyordu.
+
+**Yeni kural:** *stok = ONAYLANANLAR klasöründe dosyası FİİLEN duran kartlar.* Kartın
+aşamasının onaylı olması yetmiyor. Tür yine karttan geliyor — Drive bir dosyanın Reels
+mi Görsel mi olduğunu bilmiyor.
+
+**Rapor tür kırılımlı.** `ONAYLANANLAR: 2 Reels · 1 Carousel`, `ONAY BEKLEYENLER: 1 Görsel`
+— ve her satırın altında kartın numarası ve adı. Sayılan şey dosya değil KART: bir
+carousel on slayttan oluşuyor, on içerik değil bir içerik.
+
+**Onay kilidi.** Yeni onaylanmış bir kartın dosyası Drive'da doğru klasöre taşınamadıysa
+onay GERİ ALINIR: aşama eski hâline döner, stok düşer, sebep kartın geçmişine yazılır,
+istek 409 ile reddedilir. Drive'ı kurulu olmayan marka bu kilidin dışında.
+
+**Kartsız dosyadan kart açma.** Drive'da içerik var ama kartı yoksa tek tuşla taslak kart
+açılıyor; aşama dosyanın DURDUĞU klasörden, kategori dosya adından geliyor. Kartsız
+listesini sunucu yeniden hesaplıyor — tarayıcıdan gelen listeye güvenilmiyor.
+
+**Gece denetimi.** Her aktif marka taranıp genel stok Drive'a eşitleniyor, rapor
+`driveDenetimi` alanına yazılıyor. Yeni fonksiyon açılmadı, mevcut cron ucuna eklendi.
+
+#### Üç fren — ve neden üçü de gerekli
+
+Drive'ı otorite yapmak güçlü ama tehlikeli: Drive EKSİK okunduğunda "içerik azalmış"
+görünür ve gerçekte duran içerik stoktan silinir. Üç fren var:
+
+1. **Tarama tamamlanmadıysa yazılmaz.** Ölçüldü: fren kaldırılınca yarıda kesilen bir
+   taramada stok 3→0 düştü.
+2. **Ay klasörü hiç bulunamadıysa yazılmaz.** Bu, geliştirme sırasında ÖLÇÜLEREK bulundu:
+   klasör adları beklenen ay biçiminde değilken tarama "0 dosya, tamamlandı" diyor ve
+   bütün sayıları sıfırlıyordu. "Hiç dosya görmedim" ile "hiç klasör bulamadım" aynı şey
+   değil.
+3. **Toplu kayıp freni** (20+ düşüş) — marka atlanır, rapora yazılır.
+
+Ayrıca **yalnızca genel stok** Drive'dan türer; şube satırlarına dokunulmaz — bir dosyanın
+hangi şubede paylaşıldığı Drive'da yazmıyor.
+
+#### Ölçümler
+
+Her koruma bozularak ölçüldü: kart yerine dosya saymak 2 kontrol, stoğu yine kartın
+aşamasına bağlamak 1, kartsız dosyayı "Görsel" varsaymak 1, onay kilidini kaldırmak 3
+(kart Onaylandı'da kalıyor + stok 1 şişiyor), eksik tarama frenini kaldırmak 2, ay
+klasörü frenini kaldırmak 2, şube satırlarına yazmak 1, kart açmada sunucu taramasını
+atlamak 3, yarış frenini kaldırmak 1 kontrol düşürüyor.
+
+t86 (14) ve t87 (27) eklendi. Toplam **1841 kontrol**, 21 statik denetim.
+
+**Kural değişikliği kaydı:** t32 uzun süre "taşıma başarısız olsa da onay geçerli"
+kuralını sabitliyordu. Kullanıcının kararıyla tersine çevrildi; gerekçe testin başlığına
+yazıldı ki ileride "bozulmuş" sanılıp geri alınmasın.

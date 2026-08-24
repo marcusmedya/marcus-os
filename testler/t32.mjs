@@ -26,10 +26,17 @@ t("hazır değil", driveTasimaHazirMi() === false);
 const sonuc = await onaylananiTasi({ dosyaLinki: "https://drive.google.com/file/d/1AbC_def-123/view", markaAdi: "A" });
 t("taşıma sessizce atlanıyor, ÇÖKMÜYOR", sonuc.tasindi === false && !!sonuc.sebep, sonuc.sebep);
 
-console.log("\n ONAY hâlâ çalışıyor mu (en kritik)");
-/* Markaya Drive klasörü TANIMLI: "kurulu ama başarısız" senaryosu bu. Klasör tanımsızken
- * sistem sessiz geçer (Drive kullanmayan markanın kartı sistem notlarıyla dolmasın diye),
- * bu yüzden başarısızlığın görünürlüğünü sınamak için klasörün tanımlı olması gerekir. */
+console.log("\n TAŞIMA BAŞARISIZSA ONAY GERİ ALINIR (kural DEĞİŞTİ)");
+/* KURAL DEĞİŞİKLİĞİ — v158. Burası uzun süre "taşıma başarısız olsa da onay geçerli"
+ * kuralını sabitliyordu. Kullanıcı bunu bilerek tersine çevirdi: stok Drive otoritesine
+ * bağlandı ve "dosyası doğru klasöre geçmemiş kart onaylı sayılmasın" istendi. Sebep,
+ * sahada ölçülen sapmaydı — kart onaylıydı, stok sayıyordu, Drive'da içerik yoktu.
+ *
+ * Bu satırları "onay çalışmıyor" diye ESKİ HÂLİNE DÖNDÜRME; kasıtlı bir iş kuralı.
+ *
+ * Markaya Drive klasörü TANIMLI: "kurulu ama başarısız" senaryosu bu. Klasör tanımsızken
+ * sistem sessiz geçer (Drive kullanmayan markanın işi durmasın diye), bu yüzden kilidi
+ * sınamak için klasörün tanımlı olması gerekir. */
 await kv.set("marcus-os-data", {
   _v: 1, clients: [{ id: 1, ad: "İbo Burger", driveOnayKlasoru: "https://drive.google.com/drive/folders/1AbCdefGHIjklMNOpqrs" }],
   musteriHesaplari: [{ id: "m1", ad: "M", kullaniciAdi: "m", clientId: 1, sifreHash: hash("1","s"), sifreSalt: "s" }],
@@ -39,8 +46,12 @@ await kv.set("marcus-os-data", {
 });
 let r = await cagir(h, { method: "POST", headers: M, query: {}, body: { musteriAction: "onayla", isId: 1 } });
 let d = await kv.get("marcus-os-data");
-t("onay tamamlandı", (d.cekimIsleri[0] || {}).asama === "Onaylandı", `HTTP ${r.kod}`);
+t("onay GERİ ALINDI, kart onaya döndü", (d.cekimIsleri[0] || {}).asama === "Kontrol Bekliyor", `aşama: ${(d.cekimIsleri[0]||{}).asama} · HTTP ${r.kod}`);
+t("istek 409 ile reddedildi", r.kod === 409, `HTTP ${r.kod}`);
+t("sebep müşteriye söyleniyor", /taşınamadı/.test(String(r.govde && r.govde.error || "")), JSON.stringify(r.govde));
 t("başarısız taşıma geçmişe not düştü", JSON.stringify(d.cekimIsleri[0].gecmis).includes("Drive taşıma yapılamadı"));
+t("geri alma sebebi de karta yazıldı", JSON.stringify(d.cekimIsleri[0].gecmis).includes("ONAY GERİ ALINDI"));
+t("STOK ŞİŞMEDİ", !Object.values(d.stoklar || {}).some((x) => Number(x) > 0), JSON.stringify(d.stoklar));
 
 console.log("\n Drive bağlantısı OLMAYAN iş");
 await kv.set("marcus-os-data", {

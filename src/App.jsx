@@ -2129,7 +2129,16 @@ function KartOnizleme({ is, boyut = 52 }) {
 const TUR_HARFI = { "Görsel": "G", "Video": "V", "Reels": "R", "Story": "S", "Carousel": "C" };
 
 
-function MarkaStokKarti({ client, stoklar, gecmis, subeler, isler, plan, onStokDegis, onAddSube, onDeleteSube, onSubeStokDegis, onDriveEslestir }) {
+/* Durum klasörlerinin ekranda okunur adları. Klasör adları ("2 ONAYLANANLAR") Drive'ın
+ * sıralama numarasını taşıyor; ekranda numara göstermek gereksiz gürültü. */
+const DURUM_BASLIKLARI = [
+  ["onayBekleyen", "ONAY BEKLEYENLER"],
+  ["onaylanan", "ONAYLANANLAR"],
+  ["paylasilan", "PAYLAŞILDI"],
+];
+const DURUM_ADI = Object.fromEntries(DURUM_BASLIKLARI);
+
+function MarkaStokKarti({ client, stoklar, gecmis, subeler, isler, plan, onStokDegis, onAddSube, onDeleteSube, onSubeStokDegis, onDriveEslestir, onDriveStokUygula, onKartAc }) {
   /* Hangi şubenin içerik listesi açık. Kapalıyken hiçbir hesap yapılmıyor. */
   const [acikSube, setAcikSube] = useState(null);
   /* Drive taraması: istendiğinde çalışır, kendiliğinden değil — bir markanın ay
@@ -2179,9 +2188,9 @@ function MarkaStokKarti({ client, stoklar, gecmis, subeler, isler, plan, onStokD
         })}
       </div>
 
-      {/* DRIVE EŞLEŞTİRMESİ — "Drive'da içerik var ama kartı yok mu?"
-        * Salt okunur: hiçbir dosya taşınmaz, hiçbir klasör açılmaz. İstendiğinde
-        * çalışır — bir markanın ay klasörlerini gezmek birkaç saniye sürüyor. */}
+      {/* DRIVE DENETİMİ — "hangi klasörde ne var, kartlarla tutuyor mu, stok doğru mu"
+        * Salt okunur: hiçbir dosya taşınmaz, hiçbir klasör açılmaz. İstendiğinde çalışır —
+        * bir markanın ay klasörlerini gezmek birkaç saniye sürüyor. */}
       {onDriveEslestir && (
         <div style={{ borderTop: `1px solid ${T.borderSoft}`, paddingTop: 10, marginBottom: 12 }}>
           <button
@@ -2193,45 +2202,138 @@ function MarkaStokKarti({ client, stoklar, gecmis, subeler, isler, plan, onStokD
                 .finally(() => setDriveTariyor(false));
             }}
             disabled={driveTariyor}
-            title="Drive'daki ONAYLANANLAR klasörlerini kartlarla karşılaştırır — hiçbir şey taşımaz"
+            title="Drive klasörlerini kartlarla karşılaştırır — hiçbir şey taşımaz"
             style={{ background: "none", border: "none", cursor: driveTariyor ? "default" : "pointer",
               color: T.accentText, fontSize: 11.5, fontFamily: "Inter", padding: 0 }}
           >{driveTariyor ? "Drive taranıyor…" : "Drive ile eşleştir"}</button>
 
           {drive && (
-            <div style={{ marginTop: 8, fontSize: 12, fontFamily: "Inter", lineHeight: 1.6 }}>
+            <div style={{ marginTop: 8, fontSize: 12, fontFamily: "Inter", lineHeight: 1.65 }}>
               {drive.hata ? (
                 <span style={{ color: T.warning }}>{drive.hata}</span>
               ) : (
                 <>
-                  <div style={{ color: T.textDim }}>
-                    ONAYLANANLAR'da <strong style={{ color: T.text }}>{drive.driveDosyaSayisi}</strong> dosya
-                    {drive.bakilanAylar && drive.bakilanAylar.length > 0
-                      ? <span style={{ color: T.textFaint }}> · {drive.bakilanAylar.length}/{drive.toplamAy} ay tarandı</span>
-                      : null}
-                  </div>
-                  {drive.tamamlanmadi && (
-                    <div style={{ color: T.warning }}>Tarama tamamlanmadı — daha eski aylar görülmedi.</div>
-                  )}
-                  <div style={{ color: drive.kartsizSayisi > 0 ? T.warning : T.success }}>
-                    {drive.kartsizSayisi > 0
-                      ? `${drive.kartsizSayisi} dosyanın kartı YOK`
-                      : "Her dosyanın bir kartı var"}
-                  </div>
-                  {drive.kartsiz.slice(0, 8).map((d) => (
-                    <div key={d.id} style={{ color: T.textFaint, paddingLeft: 8 }}>· {d.ad} <span style={{ opacity: 0.7 }}>({d.klasor})</span></div>
-                  ))}
-                  {drive.kartsiz.length > 8 && (
-                    <div style={{ color: T.textFaint, paddingLeft: 8 }}>· … ve {drive.kartsiz.length - 8} dosya daha</div>
-                  )}
-                  {drive.dosyasizKartlar.length > 0 && (
+                  {/* DURUM KIRILIMI — "ONAYLANANLAR'da 3 Görsel 1 Reels var".
+                    * Sayılan şey kart: bir carousel on slayt olsa da tek içeriktir. */}
+                  {DURUM_BASLIKLARI.map(([anahtar, baslik]) => {
+                    const kutu = (drive.durumlar || {})[anahtar];
+                    if (!kutu || kutu.kartlar.length + kutu.kartsizSayisi === 0) return null;
+                    const ozet = Object.entries(kutu.turler).map(([t2, n]) => `${n} ${t2}`).join(" · ");
+                    return (
+                      <div key={anahtar} style={{ marginBottom: 6 }}>
+                        <div style={{ color: T.textDim }}>
+                          <strong style={{ color: T.text }}>{baslik}:</strong> {ozet || "—"}
+                          {kutu.kartsizSayisi > 0 && (
+                            <span style={{ color: T.warning }}> · {kutu.kartsizSayisi} kartsız dosya</span>
+                          )}
+                        </div>
+                        {kutu.kartlar.map((x) => (
+                          <div key={x.isId} style={{ color: T.textFaint, paddingLeft: 10 }}>
+                            #{x.isId} {x.isAdi} <span style={{ opacity: 0.7 }}>({x.tur}{x.dosyaSayisi > 1 ? `, ${x.dosyaSayisi} dosya` : ""})</span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+
+                  {(drive.tamamlanmadi || drive.ayBulunamadi) && (
                     <div style={{ color: T.warning }}>
-                      {drive.dosyasizKartlar.length} onaylı kartta hiç dosya yok — stoğa sayılıyor ama arkasında içerik yok
+                      {drive.ayBulunamadi
+                        ? "Drive'da ay klasörü bulunamadı — klasör yapısı beklenenden farklı."
+                        : "Tarama tamamlanmadı — daha eski aylar görülmedi."}
                     </div>
                   )}
-                  {drive.kayipDosyalar.length > 0 && (
-                    <div style={{ color: T.warning }}>
-                      {drive.kayipDosyalar.length} kartın dosyası ONAYLANANLAR'da bulunamadı (elle silinmiş ya da taşınmış olabilir)
+
+                  {/* STOK FARKI. Sayıyı SUNUCU hesaplıyor; düğme yalnızca "uygula" diyor. */}
+                  {(drive.stokFarklari || []).length > 0 ? (
+                    <div style={{ marginTop: 6, borderTop: `1px solid ${T.borderSoft}`, paddingTop: 6 }}>
+                      <div style={{ color: T.warning, fontWeight: 600 }}>Stok Drive ile uyuşmuyor</div>
+                      {drive.stokFarklari.map((f) => (
+                        <div key={f.tur} style={{ color: T.textDim, paddingLeft: 10 }}>
+                          {f.tur}: <strong style={{ color: T.text }}>{f.kayitli}</strong> kayıtlı → <strong style={{ color: T.text }}>{f.driveGore}</strong> Drive'a göre
+                        </div>
+                      ))}
+                      {drive.uygulanabilir ? (
+                        <button
+                          onClick={() => {
+                            if (driveTariyor) return;
+                            if (!window.confirm(`${client.ad} stoğu Drive'daki içeriğe göre düzeltilsin mi?\n\nSayıyı sunucu yeniden hesaplar; değişiklik geçmişe yazılır.`)) return;
+                            setDriveTariyor(true);
+                            Promise.resolve(onDriveStokUygula(client.id))
+                              .then((r) => {
+                                if (r && r.uygulanmadi) window.alert(`Düzeltilmedi: ${r.sebep}`);
+                                return Promise.resolve(onDriveEslestir(client.id))
+                                  .then((x) => setDrive(x && x.eslestirme ? x.eslestirme : null));
+                              })
+                              .finally(() => setDriveTariyor(false));
+                          }}
+                          disabled={driveTariyor}
+                          style={{ background: "none", border: "none", padding: 0, marginTop: 4,
+                            cursor: driveTariyor ? "default" : "pointer", color: T.accentText, fontSize: 11.5, fontFamily: "Inter" }}
+                        >Drive'a göre düzelt</button>
+                      ) : (
+                        <div style={{ color: T.textFaint, paddingLeft: 10 }}>
+                          Düzeltilemez: {drive.uygulanamamaSebebi}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ color: T.success }}>Stok Drive ile uyuşuyor</div>
+                  )}
+
+                  {/* KARTSIZ DOSYALAR — kart açılabilir. */}
+                  {drive.kartsizSayisi > 0 && (
+                    <div style={{ marginTop: 6, borderTop: `1px solid ${T.borderSoft}`, paddingTop: 6 }}>
+                      <div style={{ color: T.warning, fontWeight: 600 }}>{drive.kartsizSayisi} dosyanın kartı yok</div>
+                      {drive.kartsiz.slice(0, 8).map((f) => (
+                        <div key={f.id} style={{ color: T.textFaint, paddingLeft: 10 }}>
+                          · {f.ad} <span style={{ opacity: 0.7 }}>({f.klasor})</span>
+                        </div>
+                      ))}
+                      {drive.kartsiz.length > 8 && (
+                        <div style={{ color: T.textFaint, paddingLeft: 10 }}>· … ve {drive.kartsiz.length - 8} dosya daha</div>
+                      )}
+                      <button
+                        onClick={() => {
+                          if (driveTariyor) return;
+                          if (!window.confirm(`${drive.kartsizSayisi} dosya için taslak kart açılsın mı?\n\nTür ve ayrıntılar dosya adından tahmin edilir; sonra Operasyon'dan düzeltebilirsin.`)) return;
+                          setDriveTariyor(true);
+                          Promise.resolve(onKartAc(client.id, drive.kartsiz.map((f) => f.id)))
+                            .then((r) => {
+                              if (r && r.acilmadi) window.alert(`Kart açılmadı: ${r.sebep}`);
+                              else if (r && r.acilanKartlar) window.alert(`${r.acilanKartlar.length} kart açıldı. Operasyon panosunda gözden geçir.`);
+                              return Promise.resolve(onDriveEslestir(client.id))
+                                .then((x) => setDrive(x && x.eslestirme ? x.eslestirme : null));
+                            })
+                            .finally(() => setDriveTariyor(false));
+                        }}
+                        disabled={driveTariyor}
+                        style={{ background: "none", border: "none", padding: 0, marginTop: 4,
+                          cursor: driveTariyor ? "default" : "pointer", color: T.accentText, fontSize: 11.5, fontFamily: "Inter" }}
+                      >Bu dosyalar için kart aç</button>
+                    </div>
+                  )}
+
+                  {/* KART VAR AMA DOSYA YERİNDE DEĞİL. Onay kilidi bunları engelliyor ama
+                    * kilit gelmeden önce onaylanmış eski kartlar hâlâ bu hâlde olabilir. */}
+                  {(drive.yanlisYerdekiler || []).length > 0 && (
+                    <div style={{ marginTop: 6, color: T.warning }}>
+                      {drive.yanlisYerdekiler.length} kartın dosyası yanlış klasörde:
+                      {drive.yanlisYerdekiler.slice(0, 5).map((x) => (
+                        <div key={x.isId} style={{ color: T.textFaint, paddingLeft: 10 }}>
+                          · #{x.isId} {x.isAdi} — aşama "{x.asama}", dosya {(x.bulunan || []).map((b) => DURUM_ADI[b] || b).join(", ")} klasöründe
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {(drive.kayipDosyalar || []).length > 0 && (
+                    <div style={{ marginTop: 6, color: T.warning }}>
+                      {drive.kayipDosyalar.length} kartın dosyası Drive'da bulunamadı (elle silinmiş ya da taşınmış olabilir)
+                    </div>
+                  )}
+                  {(drive.dosyasizKartlar || []).length > 0 && (
+                    <div style={{ marginTop: 6, color: T.warning }}>
+                      {drive.dosyasizKartlar.length} kartta hiç dosya bağlantısı yok
                     </div>
                   )}
                 </>
@@ -2837,7 +2939,7 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
   );
 }
 
-function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, isler, onAddHaftalikPlan, onToggleHaftalikYapildi, onDeleteHaftalikPlan, subeler, onAddSube, onDeleteSube, onSubeStokDegis, driveSonuc, onDriveSonucKapat, mutabakatVerisi, onStokDuzelt, onDriveEslestir }) {
+function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, isler, onAddHaftalikPlan, onToggleHaftalikYapildi, onDeleteHaftalikPlan, subeler, onAddSube, onDeleteSube, onSubeStokDegis, driveSonuc, onDriveSonucKapat, mutabakatVerisi, onStokDuzelt, onDriveEslestir, onDriveStokUygula, onKartAc }) {
   const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
   const stoklarObj = stoklar || {};
 
@@ -2891,7 +2993,8 @@ function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, isle
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14, marginBottom: 16 }}>
           {aktifMarkalar.map((c) => (
-            <MarkaStokKarti key={c.id} client={c} stoklar={stoklarObj} gecmis={gecmis} isler={isler} plan={haftalikPlan} onStokDegis={onStokDegis} subeler={subeler} onAddSube={onAddSube} onDeleteSube={onDeleteSube} onSubeStokDegis={onSubeStokDegis} onDriveEslestir={onDriveEslestir} />
+            <MarkaStokKarti key={c.id} client={c} stoklar={stoklarObj} gecmis={gecmis} isler={isler} plan={haftalikPlan} onStokDegis={onStokDegis} subeler={subeler} onAddSube={onAddSube} onDeleteSube={onDeleteSube} onSubeStokDegis={onSubeStokDegis} onDriveEslestir={onDriveEslestir}
+              onDriveStokUygula={onDriveStokUygula} onKartAc={onKartAc} />
           ))}
         </div>
       )}
@@ -8554,7 +8657,8 @@ export default function MarcusOS() {
    * adı) uygulama verisinin içine karışıyordu. Uçta yeni bir yanıt alanı üretilirse
    * buraya da eklenir — denetim 21 bunu zorluyor. */
   const BELGE_DISI_ALANLAR = ["ok", "driveSonuc", "error", "mesgul", "tekrarlandi",
-    "eslestirme", "sebep", "degismedi", "onayGerekli", "kimlikOnarildi", "duzeltildi"];
+    "eslestirme", "sebep", "degismedi", "onayGerekli", "kimlikOnarildi", "duzeltildi",
+    "uygulanan", "uygulanmadi", "acilanKartlar", "acilmadi", "onaylanamadi"];
   const [driveSonuc, setDriveSonuc] = useState(null);
   const mergePaylasimLocally = (patch) => {
     const temiz = { ...patch };
@@ -8645,6 +8749,14 @@ export default function MarcusOS() {
   /* Drive eşleştirmesi SALT OKUNUR — hiçbir şey taşımaz, hiçbir şey yazmaz. */
   const driveEslestir = (clientId) => paylasimIstek({ action: "driveEslestir", clientId },
     "Bağlantı hatası — Drive taranamadı, tekrar dene.");
+  /* Hedef sayı GÖNDERİLMİYOR — sunucu Drive'ı yeniden tarayıp kendisi hesaplıyor. */
+  const driveStokUygula = (clientId) => paylasimIstek({ action: "driveStokUygula", clientId },
+    "Bağlantı hatası — stok düzeltilemedi, tekrar dene.");
+  /* Kartsız dosya listesi de sunucuda yeniden hesaplanıyor; buradan giden yalnızca
+   * "şu dosyalar için kart açmak istiyorum" isteği. */
+  const kartsizdanKartAc = (clientId, dosyaIdleri) =>
+    paylasimIstek({ action: "kartsizdanKartAc", clientId, dosyaIdleri },
+      "Bağlantı hatası — kart açılamadı, tekrar dene.");
 
   /* Hedef sayı GÖNDERİLMİYOR — sunucu kartlardan kendisi hesaplıyor. */
   const stokDuzelt = (r) => paylasimIstek(
@@ -9451,7 +9563,8 @@ export default function MarcusOS() {
           {staffTab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} clients={data.clients || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} duzenleyenAdi={loggedStaffName || "Personel"} olcumler={data.hesapOlcumleri || []} onKaydetOlcum={kaydetOlcum} onSilOlcum={silOlcum} />}
           {staffTab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} isler={data.cekimIsleri || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} driveSonuc={driveSonuc} onDriveSonucKapat={() => setDriveSonuc(null)}
             mutabakatVerisi={{ clients: data.clients || [], cekimIsleri: data.cekimIsleri || [], haftalikPaylasimlar: data.haftalikPaylasimlar || [], subeler: data.subeler || [], stoklar: data.stoklar || {} }}
-            onStokDuzelt={stokDuzelt} onDriveEslestir={driveEslestir} />}
+            onStokDuzelt={stokDuzelt} onDriveEslestir={driveEslestir}
+            onDriveStokUygula={driveStokUygula} onKartAc={kartsizdanKartAc} />}
           {/* Günlük Kontrol artık haftalık planı okur ve AYNI sunucu işlemine yazar
             (toggleHaftalikYapildi) — iki panelin ayrışması mümkün değil. */}
           {staffTab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="staff" />}
@@ -9897,7 +10010,8 @@ export default function MarcusOS() {
           {tab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} clients={data.clients || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} duzenleyenAdi="Yönetici (CEO)" olcumler={data.hesapOlcumleri || []} onKaydetOlcum={kaydetOlcum} onSilOlcum={silOlcum} />}
           {tab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} isler={data.cekimIsleri || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} driveSonuc={driveSonuc} onDriveSonucKapat={() => setDriveSonuc(null)}
             mutabakatVerisi={{ clients: data.clients || [], cekimIsleri: data.cekimIsleri || [], haftalikPaylasimlar: data.haftalikPaylasimlar || [], subeler: data.subeler || [], stoklar: data.stoklar || {} }}
-            onStokDuzelt={stokDuzelt} onDriveEslestir={driveEslestir} />}
+            onStokDuzelt={stokDuzelt} onDriveEslestir={driveEslestir}
+            onDriveStokUygula={driveStokUygula} onKartAc={kartsizdanKartAc} />}
           {tab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="owner" />}
           {tab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} isler={data.cekimIsleri || []} plan={data.haftalikPaylasimlar || []} />}
           {tab === "cekim-edit" && <CekimEditTakibi role="owner" clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} isUcretleri={data.isUcretleri || {}} onSaveIsUcreti={setIsUcreti} isUcretDetaylari={data.isUcretDetaylari || {}} onSaveIsUcretDetayi={setIsUcretDetayi} avanslar={data.avanslar || []} hesaplar={data.hesaplar || []} onAddAvans={addAvans} onDeleteAvans={deleteAvans} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={true} firmaAdi={data.firmaAdi} />}
