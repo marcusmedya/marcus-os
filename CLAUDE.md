@@ -268,6 +268,13 @@ koleksiyon yok, o kayda `subeId` eklendi. **`subeId` yoksa marka geneli** sayıl
 
 Türler: Görsel · Video · Reels · Story · Carousel · Tasarım.
 
+**Tür kartta SEÇİLİR, seçilmemişse tahmin edilir** (`paylasimTuru`). Sıra: kartın
+`paylasimTuru` alanı → içerik adında geçen tür adı → kategori. **Kategori `Video`
+REELS'e düşer** — ajansın çektiği video içerik pratikte Reels olarak paylaşılıyor;
+`Video` stoğu yalnızca kartta açıkça seçilirse kullanılır. Eskiden kategori Video'ya
+düşüyordu ve sonuç şuydu: aynı işteki iki karttan adında "Reels" geçen Reels'e, geçmeyen
+Video'ya yazılıyordu — aradaki tek fark o kelimeydi, sahada görüldü.
+
 **Stokta son söz DRIVE'INDIR** (`lib/drive-eslestirme.js` → `driveyeGoreStok`,
 `lib/drive-denetimi.js`). Kural: *stok = ONAYLANANLAR klasöründe dosyası FİİLEN duran
 kartlar.* Kartın aşamasının `Onaylandı` olması YETMEZ — dosya gerçekten orada olacak.
@@ -324,7 +331,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 21 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t87, ~1841 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t87, ~1845 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

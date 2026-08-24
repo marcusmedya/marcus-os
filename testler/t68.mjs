@@ -46,7 +46,7 @@ const TEMEL = () => ({
                  asama: "Onaylandı", stokSayildi: true,
                  medya: [{ slot: "1", versiyon: 1, dosyaId: "x" }] }],
   subeler: SUBELER,
-  stoklar: { "1_Video": 1, "1_lara_Video": 1, "1_kony_Video": 1, "1_old_Video": 1, "1_dord_Video": 1 },
+  stoklar: { "1_Reels": 1, "1_lara_Reels": 1, "1_kony_Reels": 1, "1_old_Reels": 1, "1_dord_Reels": 1 },
   haftalikPaylasimlar: [], paylasimGecmisi: [], gunlukKontrol: null,
   musteriIcerikleri: [], musteriTalepleri: [], reklamlar: [], uyelikler: [],
   personelHesaplari: [], musteriHesaplari: [],
@@ -130,20 +130,20 @@ await sifirla();
 {
   await plan("lara", "Pzt"); await plan("kony", "Pzt"); await plan("old", "Cum");
   t("başlangıç: genel 1, her şube 1",
-    (await stok("1_Video")) === 1 && (await stok("1_lara_Video")) === 1 && (await stok("1_old_Video")) === 1);
+    (await stok("1_Reels")) === 1 && (await stok("1_lara_Reels")) === 1 && (await stok("1_old_Reels")) === 1);
 
   await isaretle("lara");
-  t("GENEL stok ilk paylaşımda düştü", (await stok("1_Video")) === 0,
+  t("GENEL stok ilk paylaşımda düştü", (await stok("1_Reels")) === 0,
     "dört şubede kullanılan tek video, yine tek içerik");
-  t("Lara'nın stoğu düştü", (await stok("1_lara_Video")) === 0);
-  t("Konyaaltı'nın stoğu DOKUNULMADI", (await stok("1_kony_Video")) === 1,
+  t("Lara'nın stoğu düştü", (await stok("1_lara_Reels")) === 0);
+  t("Konyaaltı'nın stoğu DOKUNULMADI", (await stok("1_kony_Reels")) === 1,
     "her şube kendi payını takip ediyor");
 
   await isaretle("kony");
-  t("genel stok İKİNCİ kez düşmedi", (await stok("1_Video")) === 0, "eksiye kaymamalı");
-  t("Konyaaltı düştü", (await stok("1_kony_Video")) === 0);
-  t("Old Town hâlâ bekliyor", (await stok("1_old_Video")) === 1);
-  t("hiç planlanmayan şube etkilenmedi", (await stok("1_dord_Video")) === 1);
+  t("genel stok İKİNCİ kez düşmedi", (await stok("1_Reels")) === 0, "eksiye kaymamalı");
+  t("Konyaaltı düştü", (await stok("1_kony_Reels")) === 0);
+  t("Old Town hâlâ bekliyor", (await stok("1_old_Reels")) === 1);
+  t("hiç planlanmayan şube etkilenmedi", (await stok("1_dord_Reels")) === 1);
 }
 
 /* ---------------------------------------------------------------- */
@@ -158,12 +158,12 @@ await sifirla();
   await isaretle("kony");   // geri al
   t("geri alınca 'Şubelerde Paylaşılıyor'a döndü", (await kart()).asama === SUBE_PAYLASIM_ASAMASI,
     "gelen: " + (await kart()).asama);
-  t("Konyaaltı stoğu geri geldi", (await stok("1_kony_Video")) === 1);
+  t("Konyaaltı stoğu geri geldi", (await stok("1_kony_Reels")) === 1);
 
   await isaretle("lara");   // onu da geri al
   t("hepsi geri alınınca 'Onaylandı'", (await kart()).asama === "Onaylandı");
-  t("genel stok geri geldi", (await stok("1_Video")) === 1);
-  t("Lara stoğu geri geldi", (await stok("1_lara_Video")) === 1);
+  t("genel stok geri geldi", (await stok("1_Reels")) === 1);
+  t("Lara stoğu geri geldi", (await stok("1_lara_Reels")) === 1);
 }
 
 /* ---------------------------------------------------------------- */
@@ -194,7 +194,7 @@ await sifirla();
   await gonder({ action: "haftalikToggle", planId });
   t("kart DOĞRUDAN 'Teslim Edildi'ye geçiyor", (await kart()).asama === "Teslim Edildi",
     "ara aşama şubesiz markada hiç kullanılmıyor — gelen: " + (await kart()).asama);
-  t("genel stok düştü", (await stok("1_Video")) === 0);
+  t("genel stok düştü", (await stok("1_Reels")) === 0);
   t("ikinci kez plan REDDEDİLİYOR",
     (await gonder({ action: "haftalikEkle", clientId: 1, gun: "Sal", tur: "Video", isId: 24 })).kod === 400,
     "marka geneli kart için eski kural aynen geçerli");

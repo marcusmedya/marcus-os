@@ -66,13 +66,13 @@ await bolum("1) TÜRETME MOTORLA AYNI — tek şubeli marka", 4, () => {
   t("hiç onaylı kart yokken ikisi de boş", uyusuyorMu(v));
 
   v = motoruCalistir(v, v.cekimIsleri.map((j) => ({ ...j, asama: "Onaylandı" })));
-  t("iki kart onaya girdi", uyusuyorMu(v) && v.stoklar["1_Video"] === 2, JSON.stringify(v.stoklar));
+  t("iki kart onaya girdi", uyusuyorMu(v) && v.stoklar["1_Reels"] === 2, JSON.stringify(v.stoklar));
 
   v = motoruCalistir(v, v.cekimIsleri.map((j) => (j.id === 1 ? { ...j, asama: "Teslim Edildi" } : j)));
-  t("biri teslim edildi", uyusuyorMu(v) && v.stoklar["1_Video"] === 1, JSON.stringify(v.stoklar));
+  t("biri teslim edildi", uyusuyorMu(v) && v.stoklar["1_Reels"] === 1, JSON.stringify(v.stoklar));
 
   v = motoruCalistir(v, v.cekimIsleri.map((j) => (j.id === 2 ? { ...j, asama: "Revize İstendi" } : j)));
-  t("diğeri revizeye döndü", uyusuyorMu(v) && (v.stoklar["1_Video"] || 0) === 0, JSON.stringify(v.stoklar));
+  t("diğeri revizeye döndü", uyusuyorMu(v) && (v.stoklar["1_Reels"] || 0) === 0, JSON.stringify(v.stoklar));
 });
 
 /* ---------------------------------------------------------------- */
@@ -88,7 +88,7 @@ await bolum("2) TÜRETME MOTORLA AYNI — çok şubeli marka, gerçek uçtan", 4
     const y = motoruCalistir(v, v.cekimIsleri.map((j) => ({ ...j, asama: "Onaylandı" })));
     await kv.set(KEY, y);
     t("kart onayda — üç şube de kullanabiliyor",
-      uyusuyorMu(y) && y.stoklar["1_a_Video"] === 1 && y.stoklar["1_c_Video"] === 1, JSON.stringify(y.stoklar));
+      uyusuyorMu(y) && y.stoklar["1_a_Reels"] === 1 && y.stoklar["1_c_Reels"] === 1, JSON.stringify(y.stoklar));
   }
 
   /* ÜÇ ŞUBE DE PLANLANIYOR. Yalnızca biri planlanıp paylaşılsaydı "planlanan tüm
@@ -106,7 +106,7 @@ await bolum("2) TÜRETME MOTORLA AYNI — çok şubeli marka, gerçek uçtan", 4
       "gelen: " + v.cekimIsleri[0].asama);
     t("A paylaştı — türetme motorla hâlâ aynı", uyusuyorMu(v), JSON.stringify(v.stoklar));
     t("A'nın stoğu düştü, B ve C duruyor",
-      (v.stoklar["1_a_Video"] || 0) === 0 && v.stoklar["1_b_Video"] === 1 && v.stoklar["1_c_Video"] === 1,
+      (v.stoklar["1_a_Reels"] || 0) === 0 && v.stoklar["1_b_Reels"] === 1 && v.stoklar["1_c_Reels"] === 1,
       JSON.stringify(v.stoklar));
   }
 });
@@ -117,7 +117,7 @@ await bolum("3) SAPMA GÖRÜNÜYOR", 5, () => {
     clients: [{ id: 1, ad: "M", durum: "aktif" }],
     cekimIsleri: [{ id: 1, marka: "M", kategori: "Video", icerikTuru: "A", asama: "Onaylandı", stokSayildi: true }],
     haftalikPaylasimlar: [], subeler: [],
-    stoklar: { "1_Video": 5 },                       // kartlara göre 1 olmalı
+    stoklar: { "1_Reels": 5 },                       // kartlara göre 1 olmalı
   };
   const m = stokMutabakati(v);
   t("fark tespit ediliyor", m.satirlar.length === 1, JSON.stringify(m.satirlar));
@@ -126,7 +126,7 @@ await bolum("3) SAPMA GÖRÜNÜYOR", 5, () => {
   t("fazla olduğu bildiriliyor", m.fazlaSayisi === 1 && m.eksikSayisi === 0);
   t("marka adı çözülüyor", m.satirlar[0].marka === "M");
 
-  const mutabik = stokMutabakati({ ...v, stoklar: { "1_Video": 1 } });
+  const mutabik = stokMutabakati({ ...v, stoklar: { "1_Reels": 1 } });
   t("uyuşuyorsa satır ÜRETİLMİYOR", mutabik.satirlar.length === 0,
     "her farkta satır çıkarsa panel gürültüye döner");
 });
@@ -136,16 +136,16 @@ await bolum("4) DÜZELTME — hedefi SUNUCU hesaplıyor", 6, async () => {
   await kv.set(KEY, {
     clients: [{ id: 1, ad: "M", durum: "aktif" }],
     cekimIsleri: [{ id: 1, marka: "M", kategori: "Video", icerikTuru: "A", asama: "Onaylandı", stokSayildi: true }],
-    haftalikPaylasimlar: [], subeler: [], stoklar: { "1_Video": 7 },
+    haftalikPaylasimlar: [], subeler: [], stoklar: { "1_Reels": 7 },
     paylasimGecmisi: [], gunlukKontrol: {}, musteriTalepleri: [], _alanSurumleri: {},
   });
 
   /* Tarayıcı yanlış bir hedef göndermeye çalışsa bile dikkate alınmamalı. */
-  const r = await gonder({ action: "stokDuzelt", clientId: 1, tur: "Video", gereken: 999 });
+  const r = await gonder({ action: "stokDuzelt", clientId: 1, tur: "Reels", gereken: 999 });
   const s = await kv.get(KEY);
   t("düzeltme başarılı", r.kod === 200, JSON.stringify(r.govde && r.govde.error));
-  t("sayı KARTLARA göre ayarlandı", s.stoklar["1_Video"] === 1, "gelen: " + s.stoklar["1_Video"]);
-  t("tarayıcının gönderdiği sayı dikkate ALINMADI", s.stoklar["1_Video"] !== 999);
+  t("sayı KARTLARA göre ayarlandı", s.stoklar["1_Reels"] === 1, "gelen: " + s.stoklar["1_Reels"]);
+  t("tarayıcının gönderdiği sayı dikkate ALINMADI", s.stoklar["1_Reels"] !== 999);
   t("düzeltme geçmişe yazıldı",
     (s.paylasimGecmisi || []).some((x) => x.tip === "duzeltme" && x.eski === 7 && x.yeni === 1),
     JSON.stringify(s.paylasimGecmisi));

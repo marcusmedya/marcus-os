@@ -4180,3 +4180,38 @@ t86 (14) ve t87 (27) eklendi. Toplam **1841 kontrol**, 21 statik denetim.
 **Kural değişikliği kaydı:** t32 uzun süre "taşıma başarısız olsa da onay geçerli"
 kuralını sabitliyordu. Kullanıcının kararıyla tersine çevrildi; gerekçe testin başlığına
 yazıldı ki ileride "bozulmuş" sanılıp geri alınmasın.
+
+### 159 — Tür artık tahmin değil, seçim
+
+Sahadan: *"Neden Video ve Reels olarak ayrıldı, normalde Reels olması gerekiyor."* Aynı
+markanın iki kartı, ikisi de `Video` kategorisinde, biri Reels stoğuna biri Video
+stoğuna yazılmıştı.
+
+Sebep, türün **serbest metinden tahmin edilmesiydi**: önce içerik adında tür adı
+aranıyor, bulunamazsa kategoriye düşülüyordu.
+
+- `#19 Reels white dent studio` → adında "Reels" geçiyor → **Reels**
+- `#131 Q PREMIUM` → adında hiçbir tür geçmiyor → kategori Video → **Video**
+
+İki kart arasındaki tek fark, birinin adına o kelimenin yazılmış olmasıydı. Kodda
+`paylasimTuru` diye açık bir alan vardı ama **arayüzde onu ayarlayan hiçbir yer yoktu** —
+yani tür her kart için tahminden ibaretti.
+
+**İki değişiklik:**
+
+1. **Kategori `Video` artık REELS'e düşüyor.** Ajansın çektiği video içerik pratikte
+   Reels olarak paylaşılıyor. `Video` stoğu yalnızca kartta açıkça seçilirse kullanılıyor.
+2. **Operasyon kartına "Paylaşım Türü (stok)" seçicisi eklendi.** Boş bırakılırsa tahmin
+   çalışır (seçenekte hangi türe düşeceği yazıyor); seçilirse tahmin tamamen devre dışı
+   kalır — addaki kelimeyi de geçersiz kılar.
+
+Ölçüm: seçimi yok saymak 4 kontrol, kategori düşümünü Video'ya geri çevirmek 2 kontrol
+düşürüyor. Kontrol yalnızca saf fonksiyonu değil **motoru** sınıyor — seçim motora
+ulaşmazsa kullanıcı ekranda "Video" seçer, stok yine Reels'e yazılır ve seçici sahte bir
+kontrol olurdu.
+
+Kural değişikliği t38, t68, t70, t83'te güncellendi; gerekçe t38'in başlığına yazıldı.
+
+Mevcut kartların stoğu kendiliğinden düzelmiyor — ama gece Drive denetimi ve Paylaşımlar'daki
+"Drive'a göre düzelt" bunu bir turda kapatıyor: Video satırı 0'a iner, Reels satırı gerçek
+sayıya çıkar. Toplam **1845 kontrol**.

@@ -50,7 +50,7 @@ const SUBELER = [
   { id: "mrkz", ad: "Smell Merkez", clientId: 1 },
   { id: "kepz", ad: "Smell Kepez", clientId: 1 },
 ];
-const sa = (subeId) => subeStokAnahtari(1, subeId, "Video");
+const sa = (subeId) => subeStokAnahtari(1, subeId, "Reels");
 let stok;
 const oku = (r, anahtar) => (r && r.stoklar ? r.stoklar[anahtar] : undefined);
 
@@ -73,7 +73,7 @@ bolum("2) KAPSAM SONRADAN DARALTILIYOR — dışarıda kalan şubeden düşüyor
   t("Merkez'in stoğu düştü", r.stoklar[sa("mrkz")] === 0, "gelen: " + r.stoklar[sa("mrkz")]);
   t("Kepez'in stoğu düştü", r.stoklar[sa("kepz")] === 0, "gelen: " + r.stoklar[sa("kepz")]);
   t("değişiklik bildiriliyor", r !== null, "motor null dönerse hiçbir şey yazılmaz");
-  t("GENEL stok bu işten etkilenmiyor", (r.stoklar["1_Video"] || 0) === 1,
+  t("GENEL stok bu işten etkilenmiyor", (r.stoklar["1_Reels"] || 0) === 1,
     "kapsam değişti, içerik sayısı değişmedi");
   t("aşama korunuyor", r.cekimIsleri[0].asama === "Onaylandı");
 
