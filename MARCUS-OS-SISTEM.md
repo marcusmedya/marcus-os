@@ -37,7 +37,7 @@ Kod ve arayüz tamamen Türkçe — değişken ve fonksiyon adları dahil.
 | `src/` | React arayüzü (Vite ile derlenir) |
 | `api/` | Serverless fonksiyonlar — **her dosya bir fonksiyon**, Hobby sınırı 12 |
 | `lib/` | Ortak mantık — hem `api/` hem `src/` buradan import eder, **fonksiyon sayılmaz** |
-| `testler/` | 83 test dosyası (t1…t83) + 20 statik denetim betiği |
+| `testler/` | 84 test dosyası (t1…t84) + 20 statik denetim betiği |
 
 En büyük dosyalar: `src/App.jsx` (9.653), `src/CekimEditTakibi.jsx` (2.734),
 `api/data.js` (2.008), `src/musteriPaneli.jsx` (1.383), `src/tema.jsx` (1.039).
@@ -161,6 +161,7 @@ Artık **tanımsızsa kimse giremez.**
 | `asamalar.js` | **Aşama tablolarının tek sahibi.** Medya yuvaları, slayt sınırı, kart klasörü adı |
 | `stok.js` | Stok motoru: onaya göre artış/düşüş, şube stoğu, toplu kayıp freni |
 | `stok-mutabakat.js` | Kartlardan olması gereken stok + kayıtlıyla fark — **yalnızca okur** |
+| `pano-suzgeci.js` | Operasyon panosu kategori + marka süzgeci |
 | `sube-kullanimi.js` | Şube bazlı içerik kullanımı — durum, özet, listeler, müşteri satırları |
 | `musteri-gorunumu.js` | **Müşteri ve çözüm ortağı görünümünün tek kaynağı** |
 | `drive-tasima.js` | Klasör ağacı, dosya/klasör taşıma, kart klasörü, önizleme, çöpe atma |
@@ -385,7 +386,7 @@ dosya hâlâ ekibin çalışma alanındadır.
 
 ```bash
 bash testler/hepsinidenetle.sh     # 20 statik denetim
-./testler/sunucutestleri.sh        # t1…t83, ~1760 kontrol — SAHTE veritabanı
+./testler/sunucutestleri.sh        # t1…t84, ~1777 kontrol — SAHTE veritabanı
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
