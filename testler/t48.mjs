@@ -1,8 +1,8 @@
-/* STOK: TASARIM TÜRÜ, ANLIK YANSIMA VE MARKA KİLİDİ
+/* STOK: TÜR DÜŞÜMÜ, ANLIK YANSIMA VE MARKA KİLİDİ
  *
- * 1. TASARIM. Stok panelinde Görsel/Video/Reels/Story/Carousel vardı; Grafik Tasarım
- *    çıktısı Görsel stoğuna yazılıyordu. Artık kendi satırı var. Sıra önemli: "video
- *    tasarımı" hareketli bir iştir, Video'ya yazılmalı.
+ * 1. TÜR DÜŞÜMÜ. Türler ÜÇE indi: Reels · Post · Carousel (v160). Tasarım ve görsel
+ *    işleri POST'a, video işleri REELS'e sayılıyor. Sıra hâlâ önemli: "video tasarımı"
+ *    hareketli bir iştir, Post'a değil Reels'e yazılmalı.
  *
  * 2. ANLIK YANSIMA. Stok artışını sunucu hesaplıyor ama yanıt yalnızca _v taşıyordu.
  *    Kart onaylanınca stok gerçekten artıyor, Paylaşımlar panelindeki sayı ise sayfa
@@ -31,15 +31,21 @@ const t = (ad, ok, d = "") => { console.log(`  ${ok ? "✓" : "✗ !!!"} ${ad}${
 console.log("\n1) TASARIM TÜRÜ");
 
 const tur = (icerikTuru, kategori) => paylasimTuru({ icerikTuru, kategori });
-t("Tasarım listede var", PAYLASIM_TURLERI.includes("Tasarım"), PAYLASIM_TURLERI.join(","));
-t("adında tasarım geçen kart Tasarım", tur("Logo Tasarımı", "Grafik Tasarım") === "Tasarım");
-t("adı boş, kategorisi Grafik Tasarım -> Tasarım", tur("", "Grafik Tasarım") === "Tasarım");
-t("İngilizce 'design' de yakalanıyor", tur("Menu Design", "Grafik Tasarım") === "Tasarım");
-t("video tasarımı Video'ya yazılıyor (sıra doğru)", tur("Video Tasarımı", "Video") === "Video", tur("Video Tasarımı", "Video"));
+/* KURAL DEĞİŞİKLİĞİ — v160. Türler ÜÇE indi: Reels · Post · Carousel.
+ * "Tasarım", "Görsel", "Story" ve "Video" ayrı stok satırı değil artık; tasarım ve
+ * görsel işleri POST, video işleri REELS sayılıyor. Story ikinci bir içerik değil,
+ * aynı gönderinin story boyutu. Bu satırları eski hâline döndürme. */
+t("liste tam olarak üç tür", PAYLASIM_TURLERI.join(",") === "Reels,Post,Carousel", PAYLASIM_TURLERI.join(","));
+t("adında tasarım geçen kart POST", tur("Logo Tasarımı", "Grafik Tasarım") === "Post");
+t("adı boş, eski Grafik Tasarım kartı POST", tur("", "Grafik Tasarım") === "Post");
+t("İngilizce 'design' de POST", tur("Menu Design", "Grafik Tasarım") === "Post");
+t("video tasarımı REELS'e yazılıyor (sıra doğru)", tur("Video Tasarımı", "Video") === "Reels", tur("Video Tasarımı", "Video"));
 t("Reels hâlâ Reels", tur("Kokteyl Reels", "Video") === "Reels");
-t("Fotoğraf çıktısı hâlâ Görsel", tur("", "Fotoğraf") === "Görsel");
-t("adında görsel geçen kart Görsel", tur("Görsel 3", "Fotoğraf") === "Görsel");
-t("Story ve Carousel bozulmadı", tur("Story 1", "Video") === "Story" && tur("Carousel 2", "Fotoğraf") === "Carousel");
+t("eski Fotoğraf kartı POST", tur("", "Fotoğraf") === "Post");
+t("adında görsel geçen kart POST", tur("Görsel 3", "Fotoğraf") === "Post");
+t("Story POST'a sayılıyor, Carousel kendi türünde",
+  tur("Story 1", "Video") === "Post" && tur("Carousel 2", "Fotoğraf") === "Carousel");
+
 t("kartta açık paylasimTuru varsa o kazanıyor",
   paylasimTuru({ icerikTuru: "Logo Tasarımı", paylasimTuru: "Carousel" }) === "Carousel");
 
@@ -92,7 +98,7 @@ const KIMLIK = (ad) => ({ "x-staff-username-b64": b64(ad), "x-staff-password-b64
 const TEMEL = () => ({
   _v: 1,
   clients: [{ id: 1, ad: "İbo Burger" }, { id: 2, ad: "Mirka Diamond" }],
-  stoklar: { "2_Görsel": 9 },
+  stoklar: { "2_Post": 9 },
   cekimIsleri: [
     { id: 40, marka: "İbo Burger", kategori: "Grafik Tasarım", icerikTuru: "Menü Tasarımı",
       asama: "Kontrol Bekliyor", medya: [{ versiyon: 1, dosyaId: "aaaaaaaaaaaa" }], gecmis: [] },
@@ -112,12 +118,12 @@ let r = await cagir(veriUcu, { method: "POST", headers: OWNER, query: {},
   body: { data: { ...d, cekimIsleri: [{ ...d.cekimIsleri[0], asama: "Onaylandı" }], _v: undefined }, _v: d._v } });
 t("yönetici kaydı geçti", r.kod === 200, JSON.stringify(r.govde).slice(0, 140));
 t("yanıt stok taşıyor", Boolean(r.govde.stok), JSON.stringify(r.govde.stok));
-t("Tasarım stoğu 1 oldu", r.govde.stok.stoklar["1_Tasarım"] === 1, JSON.stringify(r.govde.stok.stoklar));
+t("Post stoğu 1 oldu", r.govde.stok.stoklar["1_Post"] === 1, JSON.stringify(r.govde.stok.stoklar));
 t("Görsel stoğuna yazılmadı", !r.govde.stok.stoklar["1_Görsel"]);
 t("işaretlenen kart bildirildi",
   r.govde.stok.isaretlenen.length === 1 && String(r.govde.stok.isaretlenen[0].isId) === "40" && r.govde.stok.isaretlenen[0].yon === 1,
   JSON.stringify(r.govde.stok.isaretlenen));
-t("veritabanı da aynı", (await oku()).stoklar["1_Tasarım"] === 1);
+t("veritabanı da aynı", (await oku()).stoklar["1_Post"] === 1);
 
 /* --- Paylaşım izni OLAN personel --- */
 await kv.set("marcus-os-data", TEMEL());
@@ -125,7 +131,7 @@ d = await oku();
 r = await cagir(veriUcu, { method: "POST", headers: KIMLIK("tam"), query: {},
   body: { data: { cekimIsleri: [{ ...d.cekimIsleri[0], asama: "Onaylandı" }] }, _v: d._v } });
 t("yetkili personel kaydı geçti", r.kod === 200, JSON.stringify(r.govde).slice(0, 140));
-t("stok sayısı gönderildi", r.govde.stok && r.govde.stok.stoklar && r.govde.stok.stoklar["1_Tasarım"] === 1,
+t("stok sayısı gönderildi", r.govde.stok && r.govde.stok.stoklar && r.govde.stok.stoklar["1_Post"] === 1,
   JSON.stringify(r.govde.stok));
 
 /* --- Paylaşım izni OLMAYAN personel --- */
@@ -138,7 +144,7 @@ t("stok SAYISI gönderilmedi", !(r.govde.stok && r.govde.stok.stoklar), JSON.str
 t("işaret gönderildi ama adet yok",
   r.govde.stok && r.govde.stok.isaretlenen.length === 1 && r.govde.stok.isaretlenen[0].yeniStok === undefined,
   JSON.stringify(r.govde.stok));
-t("stok yine de sunucuda arttı", (await oku()).stoklar["1_Tasarım"] === 1);
+t("stok yine de sunucuda arttı", (await oku()).stoklar["1_Post"] === 1);
 
 /* --- Marka kilitli personel: başka markanın sayısını GÖRMEMELİ --- */
 await kv.set("marcus-os-data", TEMEL());
@@ -147,11 +153,11 @@ r = await cagir(veriUcu, { method: "POST", headers: KIMLIK("kilitli"), query: {}
   body: { data: { cekimIsleri: [{ ...d.cekimIsleri[0], asama: "Onaylandı" }] }, _v: d._v } });
 t("kilitli personel kaydı geçti", r.kod === 200, JSON.stringify(r.govde).slice(0, 140));
 const kilitliStok = (r.govde.stok && r.govde.stok.stoklar) || {};
-t("kendi markasının sayısını görüyor", kilitliStok["1_Tasarım"] === 1, JSON.stringify(kilitliStok));
+t("kendi markasının sayısını görüyor", kilitliStok["1_Post"] === 1, JSON.stringify(kilitliStok));
 t("BAŞKA markanın sayısı sızmıyor",
   !Object.keys(kilitliStok).some((a) => a.split("_")[0] === "2"),
   JSON.stringify(kilitliStok));
-t("başka markanın stoğu veride duruyor (silinmedi)", (await oku()).stoklar["2_Görsel"] === 9);
+t("başka markanın stoğu veride duruyor (silinmedi)", (await oku()).stoklar["2_Post"] === 9);
 
 /* ---------------------------------------------------------------- */
 console.log("\n4) ÇÖZÜM ORTAĞI PANELİ — aynı kaynaktan besleniyor mu");

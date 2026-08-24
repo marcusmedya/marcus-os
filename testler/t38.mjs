@@ -49,7 +49,9 @@ t("Reels, kategorisi Video olsa da Reels sayılıyor",
   paylasimTuru({ icerikTuru: "Reels 3", kategori: "Video" }) === "Reels",
   "kategoriye bakmak Reels'i Video stoğuna yazardı");
 t("adın içinde geçen Reels yakalanıyor", paylasimTuru({ icerikTuru: "Kokteyl Reels", kategori: "Video" }) === "Reels");
-t("Story ayırt ediliyor", paylasimTuru({ icerikTuru: "Kampanya Story", kategori: "Video" }) === "Story");
+/* v160: Story ayrı bir stok satırı DEĞİL — ikinci bir içerik değil, aynı gönderinin
+ * story boyutu; kartta zaten kendi yuvası var. POST'a sayılıyor. */
+t("Story POST'a sayılıyor", paylasimTuru({ icerikTuru: "Kampanya Story", kategori: "Video" }) === "Post");
 t("Carousel ayırt ediliyor", paylasimTuru({ icerikTuru: "Ürün Carousel", kategori: "Fotoğraf" }) === "Carousel");
 /* KURAL DEĞİŞİKLİĞİ — v159. Kategori "Video" artık REELS stoğuna düşüyor.
  * Sebep sahada görüldü: aynı işteki iki karttan adında "Reels" geçen Reels'e,
@@ -60,14 +62,19 @@ t("Carousel ayırt ediliyor", paylasimTuru({ icerikTuru: "Ürün Carousel", kate
 t("ad bir şey söylemiyorsa Video kategorisi REELS'e düşüyor",
   paylasimTuru({ icerikTuru: "Sivrisinek Kampanya", kategori: "Video" }) === "Reels");
 t("kartta AÇIKÇA seçilen tür tahmini geçersiz kılıyor",
-  paylasimTuru({ icerikTuru: "Sivrisinek Kampanya", kategori: "Video", paylasimTuru: "Video" }) === "Video");
-t("ad bir şey söylemiyorsa kategoriye düşülüyor (görsel)",
-  paylasimTuru({ icerikTuru: "Yeni Ürünler", kategori: "Fotoğraf" }) === "Görsel");
+  paylasimTuru({ icerikTuru: "Sivrisinek Kampanya", kategori: "Video", paylasimTuru: "Post" }) === "Post");
+/* Belgede eski tür adı yazılı kartlar var; seçim korunuyor ama karşılığına eşleniyor. */
+t("kartta yazılı ESKİ tür adı karşılığına eşleniyor",
+  paylasimTuru({ icerikTuru: "X", kategori: "Fotoğraf", paylasimTuru: "Video" }) === "Reels"
+  && paylasimTuru({ icerikTuru: "X", kategori: "Video", paylasimTuru: "Görsel" }) === "Post");
+t("ad bir şey söylemiyorsa kategoriye düşülüyor (post)",
+  paylasimTuru({ icerikTuru: "Yeni Ürünler", kategori: "Fotoğraf" }) === "Post");
 /* KURAL DEĞİŞTİ: Grafik Tasarım'ın artık kendi stok satırı var. Önceden Görsel'e
  * yazılıyordu; tasarım ile fotoğraf aynı kovada birikince "kaç tasarım hazır?" sorusu
  * cevapsız kalıyordu. Ayrıntısı t48'de. */
-t("Grafik Tasarım kendi stoğuna gidiyor",
-  paylasimTuru({ icerikTuru: "Yeni Ürünler", kategori: "Grafik Tasarım" }) === "Tasarım");
+/* v160: Grafik Tasarım kategorisi kalktı, kartları POST'a katıldı. */
+t("eski Grafik Tasarım kartı POST'a gidiyor",
+  paylasimTuru({ icerikTuru: "Yeni Ürünler", kategori: "Grafik Tasarım" }) === "Post");
 t("kartta açıkça yazılıysa tahmin edilmiyor",
   paylasimTuru({ icerikTuru: "Reels 3", kategori: "Video", paylasimTuru: "Carousel" }) === "Carousel");
 
@@ -192,17 +199,17 @@ t("eski onaylı kart teslim edilince stok DÜŞÜYOR", d.stoklar["1_Reels"] === 
     JSON.stringify(tahminli && tahminli.stoklar));
 
   const secili = onaylananlaraGoreStok(
-    [{ id: 1, marka: "M", kategori: "Video", icerikTuru: "Q PREMIUM", paylasimTuru: "Video", asama: "Kontrol Bekliyor" }],
-    [{ id: 1, marka: "M", kategori: "Video", icerikTuru: "Q PREMIUM", paylasimTuru: "Video", asama: "Onaylandı" }],
+    [{ id: 1, marka: "M", kategori: "Video", icerikTuru: "Q PREMIUM", paylasimTuru: "Post", asama: "Kontrol Bekliyor" }],
+    [{ id: 1, marka: "M", kategori: "Video", icerikTuru: "Q PREMIUM", paylasimTuru: "Post", asama: "Onaylandı" }],
     {}, client);
-  t("KARTTA SEÇİLEN TÜR motorda geçerli", secili && secili.stoklar["1_Video"] === 1 && !secili.stoklar["1_Reels"],
+  t("KARTTA SEÇİLEN TÜR motorda geçerli", secili && secili.stoklar["1_Post"] === 1 && !secili.stoklar["1_Reels"],
     JSON.stringify(secili && secili.stoklar) + " — seçim motora ulaşmazsa seçici sahte bir kontrol olur");
 
   const adaRagmen = onaylananlaraGoreStok(
-    [{ id: 1, marka: "M", kategori: "Video", icerikTuru: "Kokteyl Reels", paylasimTuru: "Story", asama: "Kontrol Bekliyor" }],
-    [{ id: 1, marka: "M", kategori: "Video", icerikTuru: "Kokteyl Reels", paylasimTuru: "Story", asama: "Onaylandı" }],
+    [{ id: 1, marka: "M", kategori: "Video", icerikTuru: "Kokteyl Reels", paylasimTuru: "Carousel", asama: "Kontrol Bekliyor" }],
+    [{ id: 1, marka: "M", kategori: "Video", icerikTuru: "Kokteyl Reels", paylasimTuru: "Carousel", asama: "Onaylandı" }],
     {}, client);
-  t("seçim ADDAKİ kelimeyi de geçersiz kılıyor", adaRagmen && adaRagmen.stoklar["1_Story"] === 1,
+  t("seçim ADDAKİ kelimeyi de geçersiz kılıyor", adaRagmen && adaRagmen.stoklar["1_Carousel"] === 1,
     JSON.stringify(adaRagmen && adaRagmen.stoklar));
 }
 

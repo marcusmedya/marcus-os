@@ -20,7 +20,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { asamaListesi, ILK_ASAMA, asamalariDuzelt, ASAMALAR_VIDEO, ASAMALAR_FOTOGRAF, ASAMALAR_TASARIM } from "../lib/asamalar.js";
+import { asamaListesi, ILK_ASAMA, asamalariDuzelt, ASAMALAR_REELS, ASAMALAR_POST, ASAMALAR_CAROUSEL } from "../lib/asamalar.js";
 
 const kok = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 let g = 0, k = 0;
@@ -33,13 +33,13 @@ const cekim = fs.readFileSync(path.join(kok, "src", "CekimEditTakibi.jsx"), "utf
 console.log("\n1) AŞAMA LİSTELERİ TEK KAYNAKTA");
 
 t("lib aşama listelerini veriyor",
-  ASAMALAR_VIDEO.length > 0 && ASAMALAR_FOTOGRAF.length > 0 && ASAMALAR_TASARIM.length > 0);
-t("arayüz kendi kopyasını tutmuyor", !/^export const ASAMALAR_VIDEO = \[/m.test(cekim), "CekimEditTakibi.jsx");
+  ASAMALAR_REELS.length > 0 && ASAMALAR_POST.length > 0 && ASAMALAR_CAROUSEL.length > 0);
+t("arayüz kendi kopyasını tutmuyor", !/^export const ASAMALAR_REELS = \[/m.test(cekim), "CekimEditTakibi.jsx");
 t("arayüz lib'den alıyor", /from "\.\.\/lib\/asamalar\.js"/.test(cekim));
 t("Talep Alındı YALNIZCA tasarım akışında",
-  ASAMALAR_TASARIM.includes("Talep Alındı")
-  && !ASAMALAR_VIDEO.includes("Talep Alındı")
-  && !ASAMALAR_FOTOGRAF.includes("Talep Alındı"),
+  !ASAMALAR_REELS.includes("Talep Alındı")
+  && !ASAMALAR_POST.includes("Talep Alındı")
+  && !ASAMALAR_CAROUSEL.includes("Talep Alındı"),
   "bu asimetri hatanın kaynağıydı");
 
 /* ---------------------------------------------------------------- */
@@ -58,7 +58,12 @@ const bul = (id) => duzelmis.find((x) => x.id === id);
 
 t("Video isteği akışın başına alındı", bul(1).asama === ILK_ASAMA("Video"), bul(1).asama);
 t("Fotoğraf isteği akışın başına alındı", bul(2).asama === ILK_ASAMA("Fotoğraf"), bul(2).asama);
-t("Tasarımda Talep Alındı GEÇERLİ — dokunulmadı", bul(3).asama === "Talep Alındı", bul(3).asama);
+/* v160: Grafik Tasarım kategorisi kalktı; "Talep Alındı" hiçbir akışta yok, kart
+ * kendi kategorisinin (Post) ilk aşamasına iniyor. */
+t("eski tasarım isteği POST'un ilk aşamasına indi", bul(3).asama === ILK_ASAMA("Post"), bul(3).asama);
+/* SÜREN İŞ BAŞA DÖNMÜYOR — asıl korunan davranış bu. */
+t("çalışılan tasarım işi Düzenleniyor'a taşınıyor, başa DEĞİL",
+  asamalariDuzelt([{ id: 9, kategori: "Grafik Tasarım", asama: "Tasarım Yapılıyor" }])[0].asama === "Düzenleniyor");
 t("geçerli aşama bozulmadı", bul(4).asama === "Edit Yapılıyor");
 t("kaldırılmış ara aşama karşılığına çevrildi", bul(5).asama === "Edit Yapılıyor", bul(5).asama);
 

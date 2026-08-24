@@ -51,9 +51,9 @@ bolum("1) TÜR KIRILIMI — kart sayılır, dosya değil", 5, () => {
     r.durumlar.onaylanan.turler.Carousel === 1 && r.durumlar.onaylanan.dosyaSayisi === 5,
     "dosya sayılsaydı 3 Carousel görünürdü");
   t("ONAY BEKLEYENLER ayrı raporlanıyor",
-    JSON.stringify(r.durumlar.onayBekleyen.turler) === JSON.stringify({ "Görsel": 1, Reels: 1 }),
+    JSON.stringify(r.durumlar.onayBekleyen.turler) === JSON.stringify({ Post: 1, Reels: 1 }),
     JSON.stringify(r.durumlar.onayBekleyen.turler));
-  t("PAYLAŞILDI ayrı raporlanıyor", r.durumlar.paylasilan.turler["Görsel"] === 1);
+  t("PAYLAŞILDI ayrı raporlanıyor", r.durumlar.paylasilan.turler.Post === 1);
   t("her satırda KART ADI var",
     r.durumlar.onaylanan.kartlar.some((x) => x.isAdi === "Reels tanıtım" && x.isId === 1));
 });
@@ -71,7 +71,7 @@ bolum("2) STOK — dosyası taşınmamış kart SAYILMAZ", 4, () => {
   const stok = driveyeGoreStok(dosyalar, kartlar, paylasimTuru);
   const r = driveDurumRaporu(dosyalar, kartlar, paylasimTuru);
 
-  t("TAŞINMAMIŞ KART STOĞA GİRMİYOR", stok["Görsel"] === undefined,
+  t("TAŞINMAMIŞ KART STOĞA GİRMİYOR", stok.Post === undefined,
     JSON.stringify(stok) + " — aşama onaylı ama dosya ONAYLANANLAR'da değil");
   t("taşınmış kart sayılıyor", stok.Reels === 1, JSON.stringify(stok));
   t("YANLIŞ YERDEKİ kart adıyla bildiriliyor",

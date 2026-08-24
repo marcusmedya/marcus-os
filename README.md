@@ -4215,3 +4215,57 @@ Kural değişikliği t38, t68, t70, t83'te güncellendi; gerekçe t38'in başlı
 Mevcut kartların stoğu kendiliğinden düzelmiyor — ama gece Drive denetimi ve Paylaşımlar'daki
 "Drive'a göre düzelt" bunu bir turda kapatıyor: Video satırı 0'a iner, Reels satırı gerçek
 sayıya çıkar. Toplam **1845 kontrol**.
+
+### 160 — Üç kategori: Reels · Post · Carousel
+
+Kullanıcının kararı: kategoriler ve stok türleri üçe insin, "tasarım falan olmasın".
+Eskiden dört kategori (Video / Fotoğraf / Carousel / Grafik Tasarım) ve **altı** stok
+türü (Görsel / Video / Reels / Story / Carousel / Tasarım) vardı — üstelik ikisi ayrı
+listelerdi ve aralarındaki çeviri koda dağılmıştı.
+
+Artık ikisi de **aynı liste**: `lib/kategori.js`.
+
+| | Reels | Post | Carousel |
+|---|---|---|---|
+| eski kategori | Video | Fotoğraf + Grafik Tasarım | Carousel |
+| eski stok türü | Video | Görsel + Story + Tasarım | Carousel |
+
+**Eski kayıtlara dokunulmadı.** Belgede hâlâ "Video", "Fotoğraf", "Grafik Tasarım"
+kategorili yüzlerce kart ve `1_Görsel` / `1_Story` / `1_Tasarım` anahtarları var. Eşleme
+okuma anında yapılıyor; kart normal akışında kaydedildiğinde kategorisi kendiliğinden
+yeni ada dönüyor.
+
+#### Geliştirme sırasında ölçülerek bulunan üç kayıp riski
+
+1. **Eski kartlar hiçbir sekmede görünmüyordu.** `panoSuzgeci` ham `kategori` alanına
+   bakıyordu; eşlemeden geçirilmeyince "Grafik Tasarım" kartı ne Post'ta ne başka bir
+   sekmede çıkıyordu. Aylardır süren işler panodan kaybolurdu.
+2. **Kategorisiz kartlar akışın başına düşüyordu.** Belgede kategorisi hiç olmayan
+   kartlar var (her şeyin video olduğu dönemden). İlk yazımda bunlar Post sayılıyordu;
+   aşamaları ("Edit Bekliyor") Post listesinde bulunmadığı için onarım onları başa
+   çekiyordu. Varsayılan Reels'e alındı — eski davranışın aynısı.
+3. **Yapılmamış çekim yapılmış sayılıyordu.** Eski tasarım aşamalarını Post'a eşlerken
+   `Talep Alındı` → `Çekim Yapıldı` da yazmıştım; ama "Talep Alındı" Reels kartlarında da
+   bulunuyor ve o kartlar "çekim yapıldı" sütununa düşüyordu. Eşleme yalnızca
+   `Tasarım Yapılıyor` → `Düzenleniyor` ile sınırlandı; diğerleri kendi kategorisinin
+   ilk aşamasına iniyor.
+
+Ayrıca `CekimEditTakibi.jsx` **kendi `YAPILIYOR_ASAMASI` kopyasını** tutuyormuş — bayat
+ve Carousel'i hiç içermiyordu, yani karosel kartında "üzerinde çalışılıyor" dalı hiç
+eşleşmiyordu. Kopya kaldırıldı, tek kaynağa bağlandı. Statik denetim bunu yakaladı.
+
+#### Stok anahtarları
+
+Eski anahtarlar okuma anında yeni türlere toplanıyor (genel VE şube satırları) — yoksa
+43 markanın stoğu sıfır görünürdü. Ama bu kalıcı çözüm değil: eski anahtar hiç düşmez.
+Bu yüzden stok düzeltmesi (Drive denetimi / mutabakat) yazarken o markanın eski
+anahtarlarını siliyor. Bir düzeltme turundan sonra toplama işlevsiz kalıyor.
+
+#### Ölçüm
+
+t88 eklendi (26 kontrol). Bozmalar: pano süzgecini ham kategoriye bağlamak 4 kontrol,
+kategorisiz kaydı Post saymak 7, stok anahtarlarını toplamamak 3, süren tasarım işini
+eşlememek 1 kontrol düşürüyor.
+
+Kural değişikliği t35, t38, t47, t48, t51, t53, t73, t74, t86, t87'de güncellendi;
+gerekçeler test başlıklarına yazıldı. Toplam **1877 kontrol**, 21 statik denetim.

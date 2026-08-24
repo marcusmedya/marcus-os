@@ -37,7 +37,7 @@ Kod ve arayüz tamamen Türkçe — değişken ve fonksiyon adları dahil.
 | `src/` | React arayüzü (Vite ile derlenir) |
 | `api/` | Serverless fonksiyonlar — **her dosya bir fonksiyon**, Hobby sınırı 12 |
 | `lib/` | Ortak mantık — hem `api/` hem `src/` buradan import eder, **fonksiyon sayılmaz** |
-| `testler/` | 87 test dosyası (t1…t87) + 21 statik denetim betiği |
+| `testler/` | 88 test dosyası (t1…t88) + 21 statik denetim betiği |
 
 En büyük dosyalar: `src/App.jsx` (9.653), `src/CekimEditTakibi.jsx` (2.734),
 `api/data.js` (2.008), `src/musteriPaneli.jsx` (1.383), `src/tema.jsx` (1.039).
@@ -169,6 +169,7 @@ Artık **tanımsızsa kimse giremez.**
 | `musteri-gorunumu.js` | **Müşteri ve çözüm ortağı görünümünün tek kaynağı** |
 | `drive-tasima.js` | Klasör ağacı, dosya/klasör taşıma, kart klasörü, önizleme, çöpe atma |
 | `drive-eslestirme.js` | Drive dosyaları ↔ kartlar — durum/tür kırılımı, kartsız dosya, yanlış klasördeki kart, Drive'a göre stok (**saf, ağ yok**) |
+| `kategori.js` | **Kategoriler ve stok türlerinin TEK kaynağı** — Reels/Post/Carousel + eski adların eşlemesi (**saf**) |
 | `drive-denetimi.js` | Kayıtlı stok ile Drive'ın söylediği stoğun farkı + uygulama frenleri (**saf, ağ yok**) |
 | `drive-yukleme.js` | Yükleme oturumu açma, tamamlama, dosya çöpe atma |
 | `onizleme-bellegi.js` | Önizleme önbelleği ve sunucu kaydını bekleme |
@@ -391,7 +392,7 @@ dosya hâlâ ekibin çalışma alanındadır.
 
 ```bash
 bash testler/hepsinidenetle.sh     # 21 statik denetim
-./testler/sunucutestleri.sh        # t1…t87, ~1845 kontrol — SAHTE veritabanı
+./testler/sunucutestleri.sh        # t1…t88, ~1877 kontrol — SAHTE veritabanı
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

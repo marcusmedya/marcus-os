@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import TeklifSozlesme from "./TeklifSozlesme.jsx";
-import CekimEditTakibi, { operasyonAylikHakEdis, markaAylikIsMaliyeti, operasyonKisiIsimleri, ASAMALAR_VIDEO, ASAMALAR_TASARIM, AylikIsRaporu, KATEGORILER, asamaListesi, ILK_ASAMA, ciktiVideoMu } from "./CekimEditTakibi.jsx";
+import CekimEditTakibi, { operasyonAylikHakEdis, markaAylikIsMaliyeti, operasyonKisiIsimleri, AylikIsRaporu, KATEGORILER, asamaListesi, ILK_ASAMA, ciktiVideoMu } from "./CekimEditTakibi.jsx";
 import {
   LayoutDashboard, Users, Wallet, Settings, Sparkles,
   ArrowUpRight, ArrowDownRight, X, Send, Plus, Pencil, Trash2, Check,
@@ -46,7 +46,7 @@ import StokMutabakat from "./stokMutabakat.jsx";
 /* Paylaşım türleri ve stok anahtarı TEK KAYNAKTAN. Bu iki tanım burada da ayrıca
  * yazılıydı; listeye tür eklendiğinde biri geride kalabilir, stok sayılır ama panelde
  * satırı hiç görünmezdi. */
-import { PAYLASIM_TURLERI, stokAnahtari, stokYanitiniUygula } from "../lib/stok.js";
+import { PAYLASIM_TURLERI, stokAnahtari, stokYanitiniUygula, stoklariBirlestir } from "../lib/stok.js";
 import { planSubesi, subeStokAnahtari, markaninSubeleri, kullanabilenSubeler,
          icerikSubeOzeti, subeListeleri, hazirIcerikSayisi } from "../lib/sube-kullanimi.js";
 import { SUBE_PAYLASIM_ASAMASI, medyalariBirlestir } from "../lib/asamalar.js";
@@ -2941,7 +2941,10 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
 
 function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, isler, onAddHaftalikPlan, onToggleHaftalikYapildi, onDeleteHaftalikPlan, subeler, onAddSube, onDeleteSube, onSubeStokDegis, driveSonuc, onDriveSonucKapat, mutabakatVerisi, onStokDuzelt, onDriveEslestir, onDriveStokUygula, onKartAc }) {
   const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
-  const stoklarObj = stoklar || {};
+  /* ESKİ TÜR ANAHTARLARI YENİ TÜRLERE TOPLANIYOR. Belgede `1_Görsel`, `1_Video`,
+   * `1_Story`, `1_Tasarım` gibi anahtarlar duruyor; toplanmasaydı türler üçe indikten
+   * sonra bütün markaların stoğu SIFIR görünürdü. Kayıtlara dokunulmuyor. */
+  const stoklarObj = useMemo(() => stoklariBirlestir(stoklar || {}), [stoklar]);
 
   const toplamStok = PAYLASIM_TURLERI.map((t) => ({
     tur: t,
@@ -3032,7 +3035,10 @@ function CekimListesi({ clients, stoklar, subeler, gecmis, isler, plan }) {
   /* Hangi markanın şube dökümü açık. Kapalıyken tek satır — liste kısa kalıyor. */
   const [acikMarka, setAcikMarka] = useState(null);
   const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
-  const stoklarObj = stoklar || {};
+  /* ESKİ TÜR ANAHTARLARI YENİ TÜRLERE TOPLANIYOR. Belgede `1_Görsel`, `1_Video`,
+   * `1_Story`, `1_Tasarım` gibi anahtarlar duruyor; toplanmasaydı türler üçe indikten
+   * sonra bütün markaların stoğu SIFIR görünürdü. Kayıtlara dokunulmuyor. */
+  const stoklarObj = useMemo(() => stoklariBirlestir(stoklar || {}), [stoklar]);
 
   const sonCekimTarihi = (clientId, tur) => {
     const kayitlar = (gecmis || []).filter((h) => h.clientId === clientId && h.tur === tur && h.tip === "cekim");

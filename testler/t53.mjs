@@ -55,9 +55,9 @@ t("markası tanınmayan silinen kart stoğa dokunmuyor", r === null, JSON.string
 /* Tür ayrımı silmede de geçerli. */
 r = onaylananlaraGoreStok(
   [KART(1, { icerikTuru: "Menü Tasarımı", kategori: "Grafik Tasarım" })], [],
-  { "1_Tasarım": 3, "1_Reels": 5 }, MARKALAR);
+  { "1_Post": 3, "1_Reels": 5 }, MARKALAR);
 t("silinen kart KENDİ türünden düşüyor",
-  r && r.stoklar["1_Tasarım"] === 2 && r.stoklar["1_Reels"] === 5, JSON.stringify(r && r.stoklar));
+  r && r.stoklar["1_Post"] === 2 && r.stoklar["1_Reels"] === 5, JSON.stringify(r && r.stoklar));
 
 console.log("\n   Toptan kayıp freni — ölçüsü doğru mu");
 const cok = (n) => Array.from({ length: n }, (_, i) => KART(i + 1));
