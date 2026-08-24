@@ -4269,3 +4269,30 @@ eşlememek 1 kontrol düşürüyor.
 
 Kural değişikliği t35, t38, t47, t48, t51, t53, t73, t74, t86, t87'de güncellendi;
 gerekçeler test başlıklarına yazıldı. Toplam **1877 kontrol**, 21 statik denetim.
+
+### 160.1 — `export { X } from` yerel bağ oluşturmuyor: Operasyon hiç açılmadı
+
+Üç kategoriye geçerken `KATEGORILER` listesini `lib/kategori.js`'e taşıdım ve arayüzde
+şöyle yazdım:
+
+```js
+export { KATEGORILER } from "../lib/kategori.js";
+```
+
+Bu bir **köprü**: adı dışarı taşır ama dosyanın kendi kapsamında `KATEGORILER` diye bir
+değişken **oluşturmaz**. Aynı dosyadaki dört kullanım tanımsız kaldı ve Operasyon bölümü
+`Can't find variable: KATEGORILER` ile hiç açılmadı.
+
+**Hiçbir katman yakalamadı:** `npm run build` geçti, 1877 sunucu kontrolü geçti, 21
+statik denetim geçti. Sunucu testleri React bileşenini çalıştırmıyor, paketleyici de
+bunu hata saymıyor. Hata ancak kullanıcının ekranında göründü.
+
+**Denetim 22 eklendi** (`testler/yenidenDisaVerme.mjs`): `export {…} from` ile yeniden
+dışa verilen bir ad, aynı dosyada kullanılıyor mu ve ayrıca içe aktarılmış mı diye bakar.
+
+İlk yazımı **işe yaramıyordu** — bozmayı geri koyduğumda "temiz" dedi. Sebep: yorumlarla
+birlikte dize sabitlerini de siliyordum, `from "../lib/x.js"` → `from ""` olduğu için
+köprü hiç eşleşmiyordu ve kullanım sayısı 4 yerine 2 çıkıyordu. Yalnızca yorum ayıklamaya
+indirildi ve tekrar ölçüldü: bozma geri konduğunda denetim düşüyor, onarınca geçiyor.
+
+Doğrusu: önce içe aktar, sonra `export { KATEGORILER };`.

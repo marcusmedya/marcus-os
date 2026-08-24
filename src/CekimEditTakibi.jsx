@@ -8,7 +8,7 @@ import { kartiIsleyebilirMi } from "../lib/is-yetkisi.js";
 import { markaninIdsi, trKucult } from "../lib/marka-kilidi.js";
 import { panoSuzgeci } from "../lib/pano-suzgeci.js";
 import { paylasimTuru, PAYLASIM_TURLERI } from "../lib/stok.js";
-import { KATEGORILER as KATEGORI_LISTESI, kategoriEsle } from "../lib/kategori.js";
+import { KATEGORILER, kategoriEsle } from "../lib/kategori.js";
 import { markaninSubeleri, kullanabilenSubeler, icerikSubeOzeti,
          kapsamiKayipMi, gecersizSubeKimlikleri } from "../lib/sube-kullanimi.js";
 // Para gösterimleri Gizlilik Modu'na uymalı — aksi halde ücretler gizliyken de görünür kalırdı.
@@ -47,8 +47,13 @@ const C = {
 
 /* Kategoriler artık `lib/kategori.js`'de — sekmeler, stok satırları ve aşama tablosu
  * aynı listeden besleniyor. Ayrı listeler tutulduğunda biri güncellenip diğeri
- * unutuluyordu. */
-export { KATEGORILER } from "../lib/kategori.js";
+ * unutuluyordu.
+ *
+ * DİKKAT: `export { X } from "..."` YEREL BİR BAĞ OLUŞTURMAZ. Bir süre öyle yazıldı ve
+ * bu dosyanın kendi içindeki `KATEGORILER` kullanımları tanımsız kaldı — Operasyon
+ * bölümü "Can't find variable: KATEGORILER" ile hiç açılmadı. Derleme bunu yakalamıyor.
+ * Bu yüzden yukarıda içe aktarılıp buradan yeniden dışa veriliyor. */
+export { KATEGORILER };
 
 /** Google Drive paylaşım linkini, sayfa içinde doğrudan oynatılabilir (gömülü) önizleme
  * formatına çevirir. Dönüştürülemezse null döner, o zaman normal link olarak gösterilir. */
@@ -1340,7 +1345,7 @@ function IsDetayModal({ job, clients, subeler, planlar, role, staffName, islemYe
     asamaGecir(hedefAsama, "geri alındı");
   };
 
-  const kategori = KATEGORILER.includes(job.kategori) ? job.kategori : "Video";
+  const kategori = kategoriEsle(job.kategori);
   const asamalar = asamaListesi(kategori);
   const dosyaVar = medyaVarMi(job);
   /* Karta YÜKLENMİŞ medya var mı? medyaVarMi elle yapıştırılmış bağlantıyı da sayıyor;
