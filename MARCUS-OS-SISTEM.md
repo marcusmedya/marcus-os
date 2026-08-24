@@ -37,7 +37,7 @@ Kod ve arayüz tamamen Türkçe — değişken ve fonksiyon adları dahil.
 | `src/` | React arayüzü (Vite ile derlenir) |
 | `api/` | Serverless fonksiyonlar — **her dosya bir fonksiyon**, Hobby sınırı 12 |
 | `lib/` | Ortak mantık — hem `api/` hem `src/` buradan import eder, **fonksiyon sayılmaz** |
-| `testler/` | 84 test dosyası (t1…t84) + 20 statik denetim betiği |
+| `testler/` | 85 test dosyası (t1…t85) + 20 statik denetim betiği |
 
 En büyük dosyalar: `src/App.jsx` (9.653), `src/CekimEditTakibi.jsx` (2.734),
 `api/data.js` (2.008), `src/musteriPaneli.jsx` (1.383), `src/tema.jsx` (1.039).
@@ -85,16 +85,17 @@ yalnızca `Kontrol Bekliyor` hedefine izin veriliyor ve marka kontrolü yapılı
 **POST `musteriAction`** — `onayla` · `revizeIste` · `talepOlustur`. Müşteri panelinin
 yazabildiği **tek** üç işlem.
 
-### `api/paylasim.js` (672 satır) — paylaşım, stok, şube, üyelik
+### `api/paylasim.js` (844 satır) — paylaşım, stok, şube, üyelik
 
 | Action | Ne yapar |
 |---|---|
-| `stokDegistir` | Marka geneli stok +/− |
-| `subeStokDegistir` | Şube stoğu +/− (genel stok da aynı miktarda değişir) |
+| `stokDegistir` · `subeStokDegistir` | Stok yazan iç uçlar — **arayüzde elle +/− YOK**, stok kartların yansıması |
+| `stokDuzelt` | Mutabakat düzeltmesi — hedef sayıyı **sunucu** hesaplar, tarayıcıdan gelene güvenilmez |
+| `driveEslestir` | Drive ONAYLANANLAR ↔ kartlar eşleştirmesi — **salt okuma**, kilit almaz |
 | `gunlukToggle` | Günlük Kontrol işaretleme, stok düşümü, geçmiş kaydı |
 | `haftalikEkle` | Haftalık plana kayıt (opsiyonel `subeId`) |
 | `haftalikToggle` | Paylaşıldı işaretleme, stok düşümü, kart aşama geçişi |
-| `haftalikSil` · `haftalikAltMetin` | Plan silme, müşteri panelindeki alt metin |
+| `haftalikSil` · `haftalikAltMetin` | Plan silme (**tam geri alma**: aşama, stok, Drive), alt metin |
 | `subeEkle` · `subeSil` | Şube yönetimi (aynı ad 409, kayıtlı şube onay ister; silme kart kapsamını AÇMAZ) |
 | `uyelikEkle` · `uyelikGuncelle` · `uyelikSil` | Abonelik/üyelik takibi |
 
@@ -165,6 +166,7 @@ Artık **tanımsızsa kimse giremez.**
 | `sube-kullanimi.js` | Şube bazlı içerik kullanımı — durum, özet, listeler, müşteri satırları |
 | `musteri-gorunumu.js` | **Müşteri ve çözüm ortağı görünümünün tek kaynağı** |
 | `drive-tasima.js` | Klasör ağacı, dosya/klasör taşıma, kart klasörü, önizleme, çöpe atma |
+| `drive-eslestirme.js` | Drive dosyaları ↔ kartlar — kartsız dosya, dosyasız kart (**saf, ağ yok**) |
 | `drive-yukleme.js` | Yükleme oturumu açma, tamamlama, dosya çöpe atma |
 | `onizleme-bellegi.js` | Önizleme önbelleği ve sunucu kaydını bekleme |
 | `suren-isler.js` | Yükleme sürerken arka plan tazelemesini durdurur (10 dk zaman aşımı) |
@@ -386,7 +388,7 @@ dosya hâlâ ekibin çalışma alanındadır.
 
 ```bash
 bash testler/hepsinidenetle.sh     # 20 statik denetim
-./testler/sunucutestleri.sh        # t1…t84, ~1777 kontrol — SAHTE veritabanı
+./testler/sunucutestleri.sh        # t1…t85, ~1793 kontrol — SAHTE veritabanı
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

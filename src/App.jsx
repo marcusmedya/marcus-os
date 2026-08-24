@@ -2129,9 +2129,13 @@ function KartOnizleme({ is, boyut = 52 }) {
 const TUR_HARFI = { "Görsel": "G", "Video": "V", "Reels": "R", "Story": "S", "Carousel": "C" };
 
 
-function MarkaStokKarti({ client, stoklar, gecmis, subeler, isler, plan, onStokDegis, onAddSube, onDeleteSube, onSubeStokDegis }) {
+function MarkaStokKarti({ client, stoklar, gecmis, subeler, isler, plan, onStokDegis, onAddSube, onDeleteSube, onSubeStokDegis, onDriveEslestir }) {
   /* Hangi şubenin içerik listesi açık. Kapalıyken hiçbir hesap yapılmıyor. */
   const [acikSube, setAcikSube] = useState(null);
+  /* Drive taraması: istendiğinde çalışır, kendiliğinden değil — bir markanın ay
+   * klasörlerini gezmek birkaç saniye sürüyor. */
+  const [drive, setDrive] = useState(null);
+  const [driveTariyor, setDriveTariyor] = useState(false);
   const [subeEkleAcik, setSubeEkleAcik] = useState(false);
   const [subeAdi, setSubeAdi] = useState("");
   const dusukMu = (tur, adet) => {
@@ -2174,6 +2178,68 @@ function MarkaStokKarti({ client, stoklar, gecmis, subeler, isler, plan, onStokD
           );
         })}
       </div>
+
+      {/* DRIVE EŞLEŞTİRMESİ — "Drive'da içerik var ama kartı yok mu?"
+        * Salt okunur: hiçbir dosya taşınmaz, hiçbir klasör açılmaz. İstendiğinde
+        * çalışır — bir markanın ay klasörlerini gezmek birkaç saniye sürüyor. */}
+      {onDriveEslestir && (
+        <div style={{ borderTop: `1px solid ${T.borderSoft}`, paddingTop: 10, marginBottom: 12 }}>
+          <button
+            onClick={() => {
+              if (driveTariyor) return;
+              setDriveTariyor(true);
+              Promise.resolve(onDriveEslestir(client.id))
+                .then((r) => setDrive(r && r.eslestirme ? r.eslestirme : { hata: (r && r.sebep) || "Drive taranamadı." }))
+                .finally(() => setDriveTariyor(false));
+            }}
+            disabled={driveTariyor}
+            title="Drive'daki ONAYLANANLAR klasörlerini kartlarla karşılaştırır — hiçbir şey taşımaz"
+            style={{ background: "none", border: "none", cursor: driveTariyor ? "default" : "pointer",
+              color: T.accentText, fontSize: 11.5, fontFamily: "Inter", padding: 0 }}
+          >{driveTariyor ? "Drive taranıyor…" : "Drive ile eşleştir"}</button>
+
+          {drive && (
+            <div style={{ marginTop: 8, fontSize: 12, fontFamily: "Inter", lineHeight: 1.6 }}>
+              {drive.hata ? (
+                <span style={{ color: T.warning }}>{drive.hata}</span>
+              ) : (
+                <>
+                  <div style={{ color: T.textDim }}>
+                    ONAYLANANLAR'da <strong style={{ color: T.text }}>{drive.driveDosyaSayisi}</strong> dosya
+                    {drive.bakilanAylar && drive.bakilanAylar.length > 0
+                      ? <span style={{ color: T.textFaint }}> · {drive.bakilanAylar.length}/{drive.toplamAy} ay tarandı</span>
+                      : null}
+                  </div>
+                  {drive.tamamlanmadi && (
+                    <div style={{ color: T.warning }}>Tarama tamamlanmadı — daha eski aylar görülmedi.</div>
+                  )}
+                  <div style={{ color: drive.kartsizSayisi > 0 ? T.warning : T.success }}>
+                    {drive.kartsizSayisi > 0
+                      ? `${drive.kartsizSayisi} dosyanın kartı YOK`
+                      : "Her dosyanın bir kartı var"}
+                  </div>
+                  {drive.kartsiz.slice(0, 8).map((d) => (
+                    <div key={d.id} style={{ color: T.textFaint, paddingLeft: 8 }}>· {d.ad} <span style={{ opacity: 0.7 }}>({d.klasor})</span></div>
+                  ))}
+                  {drive.kartsiz.length > 8 && (
+                    <div style={{ color: T.textFaint, paddingLeft: 8 }}>· … ve {drive.kartsiz.length - 8} dosya daha</div>
+                  )}
+                  {drive.dosyasizKartlar.length > 0 && (
+                    <div style={{ color: T.warning }}>
+                      {drive.dosyasizKartlar.length} onaylı kartta hiç dosya yok — stoğa sayılıyor ama arkasında içerik yok
+                    </div>
+                  )}
+                  {drive.kayipDosyalar.length > 0 && (
+                    <div style={{ color: T.warning }}>
+                      {drive.kayipDosyalar.length} kartın dosyası ONAYLANANLAR'da bulunamadı (elle silinmiş ya da taşınmış olabilir)
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {onAddSube && (
         <div style={{ borderTop: `1px solid ${T.borderSoft}`, paddingTop: 12 }}>
@@ -2771,7 +2837,7 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
   );
 }
 
-function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, isler, onAddHaftalikPlan, onToggleHaftalikYapildi, onDeleteHaftalikPlan, subeler, onAddSube, onDeleteSube, onSubeStokDegis, driveSonuc, onDriveSonucKapat, mutabakatVerisi, onStokDuzelt }) {
+function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, isler, onAddHaftalikPlan, onToggleHaftalikYapildi, onDeleteHaftalikPlan, subeler, onAddSube, onDeleteSube, onSubeStokDegis, driveSonuc, onDriveSonucKapat, mutabakatVerisi, onStokDuzelt, onDriveEslestir }) {
   const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
   const stoklarObj = stoklar || {};
 
@@ -2825,7 +2891,7 @@ function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, isle
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14, marginBottom: 16 }}>
           {aktifMarkalar.map((c) => (
-            <MarkaStokKarti key={c.id} client={c} stoklar={stoklarObj} gecmis={gecmis} isler={isler} plan={haftalikPlan} onStokDegis={onStokDegis} subeler={subeler} onAddSube={onAddSube} onDeleteSube={onDeleteSube} onSubeStokDegis={onSubeStokDegis} />
+            <MarkaStokKarti key={c.id} client={c} stoklar={stoklarObj} gecmis={gecmis} isler={isler} plan={haftalikPlan} onStokDegis={onStokDegis} subeler={subeler} onAddSube={onAddSube} onDeleteSube={onDeleteSube} onSubeStokDegis={onSubeStokDegis} onDriveEslestir={onDriveEslestir} />
           ))}
         </div>
       )}
@@ -8562,6 +8628,10 @@ export default function MarcusOS() {
     },
   });
   const subeStokDegistir = (clientId, subeId, tur, delta) => paylasimIstek({ action: "subeStokDegistir", clientId, subeId, tur, delta }, "Bağlantı hatası — stok güncellenemedi, tekrar dene.");
+  /* Drive eşleştirmesi SALT OKUNUR — hiçbir şey taşımaz, hiçbir şey yazmaz. */
+  const driveEslestir = (clientId) => paylasimIstek({ action: "driveEslestir", clientId },
+    "Bağlantı hatası — Drive taranamadı, tekrar dene.");
+
   /* Hedef sayı GÖNDERİLMİYOR — sunucu kartlardan kendisi hesaplıyor. */
   const stokDuzelt = (r) => paylasimIstek(
     { action: "stokDuzelt", clientId: Number(r.clientId) || r.clientId, tur: r.tur, subeId: r.subeId || undefined },
@@ -9367,7 +9437,7 @@ export default function MarcusOS() {
           {staffTab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} clients={data.clients || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} duzenleyenAdi={loggedStaffName || "Personel"} olcumler={data.hesapOlcumleri || []} onKaydetOlcum={kaydetOlcum} onSilOlcum={silOlcum} />}
           {staffTab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} isler={data.cekimIsleri || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} driveSonuc={driveSonuc} onDriveSonucKapat={() => setDriveSonuc(null)}
             mutabakatVerisi={{ clients: data.clients || [], cekimIsleri: data.cekimIsleri || [], haftalikPaylasimlar: data.haftalikPaylasimlar || [], subeler: data.subeler || [], stoklar: data.stoklar || {} }}
-            onStokDuzelt={stokDuzelt} />}
+            onStokDuzelt={stokDuzelt} onDriveEslestir={driveEslestir} />}
           {/* Günlük Kontrol artık haftalık planı okur ve AYNI sunucu işlemine yazar
             (toggleHaftalikYapildi) — iki panelin ayrışması mümkün değil. */}
           {staffTab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="staff" />}
@@ -9813,7 +9883,7 @@ export default function MarcusOS() {
           {tab === "reklamlar" && <Reklamlar reklamlar={data.reklamlar || []} clients={data.clients || []} onAdd={addReklam} onUpdate={updateReklam} onDelete={deleteReklam} duzenleyenAdi="Yönetici (CEO)" olcumler={data.hesapOlcumleri || []} onKaydetOlcum={kaydetOlcum} onSilOlcum={silOlcum} />}
           {tab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} isler={data.cekimIsleri || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} driveSonuc={driveSonuc} onDriveSonucKapat={() => setDriveSonuc(null)}
             mutabakatVerisi={{ clients: data.clients || [], cekimIsleri: data.cekimIsleri || [], haftalikPaylasimlar: data.haftalikPaylasimlar || [], subeler: data.subeler || [], stoklar: data.stoklar || {} }}
-            onStokDuzelt={stokDuzelt} />}
+            onStokDuzelt={stokDuzelt} onDriveEslestir={driveEslestir} />}
           {tab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="owner" />}
           {tab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} isler={data.cekimIsleri || []} plan={data.haftalikPaylasimlar || []} />}
           {tab === "cekim-edit" && <CekimEditTakibi role="owner" clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} isUcretleri={data.isUcretleri || {}} onSaveIsUcreti={setIsUcreti} isUcretDetaylari={data.isUcretDetaylari || {}} onSaveIsUcretDetayi={setIsUcretDetayi} avanslar={data.avanslar || []} hesaplar={data.hesaplar || []} onAddAvans={addAvans} onDeleteAvans={deleteAvans} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={true} firmaAdi={data.firmaAdi} />}
