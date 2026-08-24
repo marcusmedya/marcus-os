@@ -2509,10 +2509,13 @@ export function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onS
 /* ------------------------------------------------------------------ */
 /* ANA BİLEŞEN                                                           */
 /* ------------------------------------------------------------------ */
-export default function CekimEditTakibi({ role, clients, subeler, planlar, jobs, personelRosteri, onRefreshRoster, onAddJob, onUpdateJob, onDeleteJob, girisYapanAd, islemYetkisi = true, isUcretleri, onSaveIsUcreti, isUcretDetaylari, onSaveIsUcretDetayi, avanslar, hesaplar, onAddAvans, onDeleteAvans, markalasmaSurecleri, onToggleMarkalasmaGorev, onSetMarkalasmaYonetici, onAddMarkalasmaGorev, onCompleteMarkalasmaSureci, onDeleteMarkalasmaSureci, markaYoneticisiMi, firmaAdi }) {
+export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clients, subeler, planlar, jobs, personelRosteri, onRefreshRoster, onAddJob, onUpdateJob, onDeleteJob, girisYapanAd, islemYetkisi = true, isUcretleri, onSaveIsUcreti, isUcretDetaylari, onSaveIsUcretDetayi, avanslar, hesaplar, onAddAvans, onDeleteAvans, markalasmaSurecleri, onToggleMarkalasmaGorev, onSetMarkalasmaYonetici, onAddMarkalasmaGorev, onCompleteMarkalasmaSureci, onDeleteMarkalasmaSureci, markaYoneticisiMi, firmaAdi }) {
   const [staffName, setStaffNameState] = useState(girisYapanAd || getStaffName());
   const [view, setView] = useState(role === "staff" ? "panom" : "pano");
-  const [panoKategori, setPanoKategori] = useState("Video");
+  /* Varsayılan sekme LİSTEDEN geliyor. Bir süre "Video" yazılıydı: kategori adı
+   * değişince o ad listede kalmadı ve açılışta HİÇBİR sekme seçili görünmüyordu
+   * (süzgeç eşleme sayesinde kartları doğru gösterse bile). */
+  const [panoKategori, setPanoKategori] = useState(KATEGORILER[0]);
   /* MARKA SÜZGECİ — pano tek markaya daraltılabilsin.
    * "" = tüm markalar. Kategori değişince seçim KORUNUYOR: bir markanın işini
    * takip eden kişi kategoriler arasında gezerken süzgeci tekrar kurmak zorunda
@@ -2523,6 +2526,27 @@ export default function CekimEditTakibi({ role, clients, subeler, planlar, jobs,
   const [adding, setAdding] = useState(false);
   const [acikIs, setAcikIs] = useState(null);
   const duzenleyenAdi = role === "owner" ? "Yönetici (CEO)" : (staffName || "Personel");
+
+  /* DIŞARIDAN "BU KARTA GİT". Paylaşımlar'daki Drive raporu bir kartı adıyla söylüyor
+   * ama kullanıcı onu Operasyon'da elle aramak zorundaydı: doğru sekmeyi seç, doğru
+   * markayı süz, sütunlarda gözle bul. Rapor kartı biliyorsa oraya götürebilmeli.
+   *
+   * SEKME VE MARKA SÜZGECİ DE AYARLANIYOR: kart açılır ama arkasındaki pano başka bir
+   * kategoriyi gösterirse, detay kapandığında kullanıcı kartı yine kaybediyor.
+   *
+   * `onKartAcildi` isteği TEK SEFERLİK yapıyor — temizlenmezse kullanıcı kartı
+   * kapattığı anda aynı kart yeniden açılır ve panodan çıkamaz. */
+  useEffect(() => {
+    if (!acilacakIsId) return;
+    const hedef = (jobs || []).find((j) => String(j.id) === String(acilacakIsId));
+    if (hedef) {
+      setPanoKategori(kategoriEsle(hedef.kategori));
+      setPanoMarka(hedef.marka || "");
+      setAcikIs(hedef);
+    }
+    if (typeof onKartAcildi === "function") onKartAcildi();
+  }, [acilacakIsId]);      // eslint-disable-line react-hooks/exhaustive-deps
+
   const isKilitleyen = useDuzenlemeKilidi("operasyon-is", acikIs && acikIs.id, !!acikIs, duzenleyenAdi);
 
   useEffect(() => { setStaffNameState(girisYapanAd || getStaffName()); }, [girisYapanAd]);
