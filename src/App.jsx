@@ -47,6 +47,7 @@ import StokMutabakat from "./stokMutabakat.jsx";
  * yazılıydı; listeye tür eklendiğinde biri geride kalabilir, stok sayılır ama panelde
  * satırı hiç görünmezdi. */
 import { PAYLASIM_TURLERI, stokAnahtari, stokYanitiniUygula, stoklariBirlestir } from "../lib/stok.js";
+import { turunDagilimi } from "../lib/drive-eslestirme.js";
 import { planSubesi, subeStokAnahtari, markaninSubeleri, kullanabilenSubeler,
          icerikSubeOzeti, subeListeleri, hazirIcerikSayisi } from "../lib/sube-kullanimi.js";
 import { SUBE_PAYLASIM_ASAMASI, medyalariBirlestir } from "../lib/asamalar.js";
@@ -2248,11 +2249,28 @@ function MarkaStokKarti({ client, stoklar, gecmis, subeler, isler, plan, onStokD
                   {(drive.stokFarklari || []).length > 0 ? (
                     <div style={{ marginTop: 6, borderTop: `1px solid ${T.borderSoft}`, paddingTop: 6 }}>
                       <div style={{ color: T.warning, fontWeight: 600 }}>Stok Drive ile uyuşmuyor</div>
-                      {drive.stokFarklari.map((f) => (
-                        <div key={f.tur} style={{ color: T.textDim, paddingLeft: 10 }}>
-                          {f.tur}: <strong style={{ color: T.text }}>{f.kayitli}</strong> kayıtlı → <strong style={{ color: T.text }}>{f.driveGore}</strong> Drive'a göre
-                        </div>
-                      ))}
+                      {drive.stokFarklari.map((f) => {
+                        /* SEBEBİ DE SÖYLENİYOR. "Drive'da dosya var ama 0 gösteriyor"
+                          * diye soruldu — dosya gerçekten Drive'daydı, ama ONAY
+                          * BEKLEYENLER klasöründe. Stok yalnızca ONAYLANANLAR'ı sayıyor;
+                          * rapor bunu söylemeyince sayı yanlış sanılıyordu. */
+                        const dagilim = turunDagilimi(drive, f.tur);
+                        const baskaYerde = DURUM_BASLIKLARI
+                          .filter(([anahtar]) => anahtar !== "onaylanan" && dagilim[anahtar])
+                          .map(([anahtar, baslik]) => `${dagilim[anahtar]} ${baslik.toLocaleLowerCase("tr")}`);
+                        return (
+                          <div key={f.tur} style={{ paddingLeft: 10 }}>
+                            <div style={{ color: T.textDim }}>
+                              {f.tur}: <strong style={{ color: T.text }}>{f.kayitli}</strong> kayıtlı → <strong style={{ color: T.text }}>{f.driveGore}</strong> Drive'a göre
+                            </div>
+                            {baskaYerde.length > 0 && (
+                              <div style={{ color: T.textFaint, paddingLeft: 10 }}>
+                                bu türden {baskaYerde.join(", ")} — stoğa yalnızca onaylananlar sayılır
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                       {drive.uygulanabilir ? (
                         <button
                           onClick={() => {

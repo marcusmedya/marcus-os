@@ -9,7 +9,7 @@
  *   2. Aşaması onaylı ama dosyası başka klasörde olan kart stoğa SAYILMAZ.
  *   3. Kartsız dosya stoğa yazılmaz — türü bilinmiyor, uydurulamaz.
  */
-import { driveDurumRaporu, driveyeGoreStok, beklenenDurum } from "../lib/drive-eslestirme.js";
+import { driveDurumRaporu, driveyeGoreStok, beklenenDurum, turunDagilimi } from "../lib/drive-eslestirme.js";
 import { paylasimTuru } from "../lib/stok.js";
 
 let g = 0, k = 0;
@@ -107,6 +107,35 @@ bolum("4) DOSYASIZ ONAYLI KART", 2, () => {
   t("dosyasız onaylı kart bildiriliyor", r.dosyasizKartlar.length === 1 && r.dosyasizKartlar[0].isId === 1);
   t("henüz çekilmemiş kart bildirilmiyor", !r.dosyasizKartlar.some((x) => x.isId === 2),
     "çekim aşamasındaki kartın Drive'da dosyası olması beklenmez");
+});
+
+/* ---------------------------------------------------------------- */
+bolum("5) 'DRIVE'DA DOSYA VAR AMA STOK 0' — sebebi söyleniyor", 4, () => {
+  /* SAHADAN GELEN SORU: "Drive'da dosya mevcut, neden 0 gösteriyor?" Dosya gerçekten
+   * Drive'daydı — ama ONAY BEKLEYENLER klasöründe. Stok yalnızca ONAYLANANLAR'ı sayıyor.
+   * Rakam doğruydu; rapor SEBEBİ söylemediği için yanlış sanıldı. Bu bölüm, dağılımın
+   * gerçekten üretildiğini sınıyor. */
+  const dosyalar = [
+    d("R1AAAAAAAAAAA", "onayBekleyen", "violla_reels.mp4"),
+    d("P1AAAAAAAAAAA", "paylasilan"),
+    d("P2AAAAAAAAAAA", "paylasilan"),
+  ];
+  const kartlar = [
+    { id: 177, icerikTuru: "REELS 1 KARMA", kategori: "Video", asama: "Onaya Sunuldu", medya: [{ dosyaId: "R1AAAAAAAAAAA" }] },
+    { id: 113, icerikTuru: "FOTOĞRAF", kategori: "Fotoğraf", asama: "Teslim Edildi", medya: [{ dosyaId: "P1AAAAAAAAAAA" }] },
+    { id: 108, icerikTuru: "Görsel1", kategori: "Fotoğraf", asama: "Teslim Edildi", medya: [{ dosyaId: "P2AAAAAAAAAAA" }] },
+  ];
+  const rapor = driveDurumRaporu(dosyalar, kartlar, paylasimTuru);
+
+  t("onaylanan yok — stok sıfır", Object.keys(driveyeGoreStok(dosyalar, kartlar, paylasimTuru)).length === 0,
+    JSON.stringify(driveyeGoreStok(dosyalar, kartlar, paylasimTuru)));
+  t("REELS'in ONAY BEKLEYENLER'de olduğu bildiriliyor",
+    turunDagilimi(rapor, "Reels").onayBekleyen === 1,
+    JSON.stringify(turunDagilimi(rapor, "Reels")) + " — söylenmezse 'Drive'da dosya var ama 0' sanılır");
+  t("POST'un paylaşıldığı bildiriliyor", turunDagilimi(rapor, "Post").paylasilan === 2,
+    JSON.stringify(turunDagilimi(rapor, "Post")));
+  t("olmayan durum uydurulmuyor", turunDagilimi(rapor, "Carousel").onaylanan === undefined
+    && Object.keys(turunDagilimi(rapor, "Carousel")).length === 0);
 });
 
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);

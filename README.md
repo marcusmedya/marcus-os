@@ -4327,3 +4327,27 @@ t88'e 4, t87'ye 3 kontrol eklendi — ikisi de sahadan gelen hâli birebir kuruy
 
 Her iki bölüm ayrıca **gerçek sapmanın hâlâ yakalandığını** sınıyor: toplama, sapmayı
 gizlemeye başlarsa düzeltme aracı da işlevsiz kalırdı. Toplam **1884 kontrol**.
+
+### 160.3 — "Drive'da dosya var ama 0 gösteriyor": rapor sebebi söylemiyordu
+
+Violla kartında `Reels: 1 kayıtlı → 0 Drive'a göre` yazıyordu ve haklı bir itiraz geldi:
+*"Drive'da dosya mevcut."* Dosya gerçekten oradaydı — ama **`1 ONAY BEKLEYENLER`**
+klasöründe, `2 ONAYLANANLAR`'da değil. Stok kuralı gereği sayı **doğruydu**: stok yalnızca
+onaylanmış, yani ONAYLANANLAR klasöründe duran içeriği sayıyor.
+
+Kusur rakamda değil, raporun sebebi söylememesindeydi. Artık fark satırının altında
+şöyle yazıyor:
+
+```
+Reels: 1 kayıtlı → 0 Drive'a göre
+   bu türden 1 onay bekleyenler — stoğa yalnızca onaylananlar sayılır
+```
+
+Dağılım `turunDagilimi` ile üretiliyor (saf, rakamı değiştirmez).
+
+Test yazarken ikinci bir şey çıktı: adı yalnızca **"FOTOĞRAF"** olan kategorisiz bir kart
+**Reels'e** düşüyordu — ad tahmininde `görsel|post` aranıyor ama "fotoğraf" aranmıyordu.
+Kelime eklendi; çıkarıldığında kontrol düşüyor.
+
+Ölçüm: dağılımı boş döndürmek 2 kontrol, "fotoğraf" kelimesini çıkarmak 1 kontrol
+düşürüyor. Toplam **1889 kontrol**.
