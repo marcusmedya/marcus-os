@@ -4097,3 +4097,29 @@ Eşleştirme tek markada ve istendiğinde çalışır — otomatik, arka planda 
 **Testler:** t85 eklendi (16 kontrol). Toplam **1793 kontrol**, 85 test dosyası,
 20 statik denetim. Yeni API dosyası açılmadı — `driveEslestir`, `api/paylasim.js`
 üzerine bir action olarak eklendi; fonksiyon sayısı 11'de kaldı.
+
+### 157.1 — Eşleştirme ekrana ulaşmıyordu, üstelik belgeye sızıyordu
+
+Sahadan gelen ilk ekran görüntüsünde tarama "Drive taranamadı." diyordu. Sebep, sanılanın
+aksine Drive değildi: `paylasimIstek` başarı dalında **çıplak `return`** yapıyordu, yani
+yanıtı okuyan her çağrı `undefined` alıyordu. Eşleştirme sonucu — başarılı olsa bile —
+ekrana hiç ulaşmıyor, arayüz de elinde bir şey olmadığı için genel hata metnini yazıyordu.
+
+Aynı yerde ikinci bir kusur çıktı: yanıt gövdesi `setData` içine olduğu gibi yayılıyor ve
+`BELGE_DISI_ALANLAR` listesinde olmayan alanlar **belgeye karışıyordu**. `eslestirme`
+(yüzlerce dosya adı) ve `duzeltildi` böyle sızıyordu; bir sonraki kayıtta Redis'e
+yazılacaklardı.
+
+Üçüncüsü en ağırı: marka klasörü tanımsızken tarama `klasorBulVeyaOlustur` çağırıyordu —
+"bakıyorum" derken ortak klasörün altında marka adıyla **yeni klasör açıyor**, sonra boş
+listeye bakıp "her dosyanın bir kartı var" diyordu. Hem üretim Drive'ına yazma, hem sahte
+temiz rapor. Artık aranır, bulunamazsa sebep söylenir.
+
+**Denetim 21 eklendi** (`testler/yanitAlanlari.mjs`): uçta üretilen her başarılı-yanıt
+alanı ya belgenin gerçek bir alanıdır ya da `BELGE_DISI_ALANLAR`'dadır; ayrıca yanıtı
+okuyan bir çağrı varken gönderenin yanıtı döndürdüğü doğrulanır. Üç bozma ile ölçüldü:
+listeden alan çıkarmak, uca yeni alan eklemek ve çıplak `return`'e dönmek denetimi
+düşürüyor. İlk yazımda "başarı dalı" kontrolü fonksiyonun başka dalındaki `return res;`
+ile eşleştiği için hiçbir şey sınamıyordu — daraltıldı ve tekrar ölçüldü.
+
+t85 üç kontrol daha aldı (19). Toplam **1796 kontrol**, 21 statik denetim.
