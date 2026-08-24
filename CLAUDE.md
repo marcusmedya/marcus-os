@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     88 test dosyası (t1…t88) + 21 statik denetim betiği
+testler/     88 test dosyası (t1…t88) + 22 statik denetim betiği
 ```
 
 ---
@@ -353,7 +353,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 ## Çalıştırma ve doğrulama
 
 ```bash
-bash testler/hepsinidenetle.sh     # 21 statik denetim (sözdizimi, JSX, hook, kapsam…)
+bash testler/hepsinidenetle.sh     # 22 statik denetim (sözdizimi, JSX, hook, kapsam…)
 ./testler/sunucutestleri.sh        # t1…t88, ~1877 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ

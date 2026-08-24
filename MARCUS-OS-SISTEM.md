@@ -37,7 +37,7 @@ Kod ve arayüz tamamen Türkçe — değişken ve fonksiyon adları dahil.
 | `src/` | React arayüzü (Vite ile derlenir) |
 | `api/` | Serverless fonksiyonlar — **her dosya bir fonksiyon**, Hobby sınırı 12 |
 | `lib/` | Ortak mantık — hem `api/` hem `src/` buradan import eder, **fonksiyon sayılmaz** |
-| `testler/` | 88 test dosyası (t1…t88) + 21 statik denetim betiği |
+| `testler/` | 88 test dosyası (t1…t88) + 22 statik denetim betiği |
 
 En büyük dosyalar: `src/App.jsx` (9.653), `src/CekimEditTakibi.jsx` (2.734),
 `api/data.js` (2.008), `src/musteriPaneli.jsx` (1.383), `src/tema.jsx` (1.039).
@@ -391,7 +391,7 @@ dosya hâlâ ekibin çalışma alanındadır.
 ## 11. Çalıştırma ve doğrulama
 
 ```bash
-bash testler/hepsinidenetle.sh     # 21 statik denetim
+bash testler/hepsinidenetle.sh     # 22 statik denetim
 ./testler/sunucutestleri.sh        # t1…t88, ~1877 kontrol — SAHTE veritabanı
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
