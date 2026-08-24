@@ -7,6 +7,7 @@ import { isBasladi, isBitti } from "../lib/suren-isler.js";
 import { kartiIsleyebilirMi } from "../lib/is-yetkisi.js";
 import { markaninIdsi, trKucult } from "../lib/marka-kilidi.js";
 import { panoSuzgeci } from "../lib/pano-suzgeci.js";
+import { paylasimTuru, PAYLASIM_TURLERI } from "../lib/stok.js";
 import { markaninSubeleri, kullanabilenSubeler, icerikSubeOzeti,
          kapsamiKayipMi, gecersizSubeKimlikleri } from "../lib/sube-kullanimi.js";
 // Para gösterimleri Gizlilik Modu'na uymalı — aksi halde ücretler gizliyken de görünür kalırdı.
@@ -1455,6 +1456,24 @@ function IsDetayModal({ job, clients, subeler, planlar, role, staffName, islemYe
                 <label style={labelStyle}>Öncelik</label>
                 <select style={inputStyle} value={taslak.oncelik} onChange={(e) => setTaslak((s) => ({ ...s, oncelik: e.target.value }))}>
                   {ONCELIKLER.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+              {/* PAYLAŞIM TÜRÜ — kart hangi stok satırına yazılacak.
+                *
+                * Boş bırakılırsa tür TAHMİN ediliyor: önce içerik adında tür adı aranıyor,
+                * bulunamazsa kategoriye düşülüyor. Sahada şu görüldü: aynı işteki iki
+                * karttan adında "Reels" geçen Reels stoğuna, geçmeyen başka bir satıra
+                * yazılıyordu — aradaki tek fark o kelimeydi. Buradan seçilince tahmin
+                * devre dışı kalır ve tür bir daha kaymaz. */}
+              <div>
+                <label style={labelStyle}>Paylaşım Türü (stok)</label>
+                <select
+                  style={inputStyle}
+                  value={taslak.paylasimTuru || ""}
+                  onChange={(e) => setTaslak((s) => ({ ...s, paylasimTuru: e.target.value || undefined }))}
+                >
+                  <option value="">Otomatik ({paylasimTuru(taslak)})</option>
+                  {PAYLASIM_TURLERI.map((t2) => <option key={t2} value={t2}>{t2}</option>)}
                 </select>
               </div>
               <div><label style={labelStyle}>İstenen Adet</label><input style={inputStyle} value={taslak.istenenAdet || ""} onChange={(e) => setTaslak((s) => ({ ...s, istenenAdet: e.target.value }))} /></div>

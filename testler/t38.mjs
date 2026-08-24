@@ -51,8 +51,16 @@ t("Reels, kategorisi Video olsa da Reels sayılıyor",
 t("adın içinde geçen Reels yakalanıyor", paylasimTuru({ icerikTuru: "Kokteyl Reels", kategori: "Video" }) === "Reels");
 t("Story ayırt ediliyor", paylasimTuru({ icerikTuru: "Kampanya Story", kategori: "Video" }) === "Story");
 t("Carousel ayırt ediliyor", paylasimTuru({ icerikTuru: "Ürün Carousel", kategori: "Fotoğraf" }) === "Carousel");
-t("ad bir şey söylemiyorsa kategoriye düşülüyor (video)",
-  paylasimTuru({ icerikTuru: "Sivrisinek Kampanya", kategori: "Video" }) === "Video");
+/* KURAL DEĞİŞİKLİĞİ — v159. Kategori "Video" artık REELS stoğuna düşüyor.
+ * Sebep sahada görüldü: aynı işteki iki karttan adında "Reels" geçen Reels'e,
+ * geçmeyen Video'ya yazılıyordu; aradaki tek fark o kelimeydi. Ajansın çektiği
+ * video içerik pratikte Reels olarak paylaşılıyor. "Video" stoğu artık YALNIZCA
+ * kartta açıkça seçildiğinde kullanılıyor — aşağıdaki kontrol onu sınıyor.
+ * Bu satırı "Video olmalı" diye geri çevirme; kasıtlı bir iş kuralı. */
+t("ad bir şey söylemiyorsa Video kategorisi REELS'e düşüyor",
+  paylasimTuru({ icerikTuru: "Sivrisinek Kampanya", kategori: "Video" }) === "Reels");
+t("kartta AÇIKÇA seçilen tür tahmini geçersiz kılıyor",
+  paylasimTuru({ icerikTuru: "Sivrisinek Kampanya", kategori: "Video", paylasimTuru: "Video" }) === "Video");
 t("ad bir şey söylemiyorsa kategoriye düşülüyor (görsel)",
   paylasimTuru({ icerikTuru: "Yeni Ürünler", kategori: "Fotoğraf" }) === "Görsel");
 /* KURAL DEĞİŞTİ: Grafik Tasarım'ın artık kendi stok satırı var. Önceden Görsel'e
@@ -168,6 +176,35 @@ await kv.set("marcus-os-data", VERI([IS({ asama: "Onaylandı" })], { "1_Reels": 
 r = await veriCagri({ data: VERI([IS({ asama: "Teslim Edildi" })], { "1_Reels": 4 }), _v: 1 });
 d = await oku();
 t("eski onaylı kart teslim edilince stok DÜŞÜYOR", d.stoklar["1_Reels"] === 3, JSON.stringify(d.stoklar));
+
+/* PAYLAŞIM TÜRÜ SEÇİCİSİ — tahmin devre dışı kalıyor mu (MOTOR SEVİYESİNDE).
+ *
+ * Saf fonksiyonun doğru davranması yetmez: motor kartı stoğa yazarken türü kendisi
+ * çözüyor. Seçilen tür motora ulaşmazsa kullanıcı ekranda "Video" seçer, stok yine
+ * Reels'e yazılır ve seçici sahte bir kontrol olur. */
+{
+  const client = [{ id: 1, ad: "M" }];
+  const tahminli = onaylananlaraGoreStok(
+    [{ id: 1, marka: "M", kategori: "Video", icerikTuru: "Q PREMIUM", asama: "Kontrol Bekliyor" }],
+    [{ id: 1, marka: "M", kategori: "Video", icerikTuru: "Q PREMIUM", asama: "Onaylandı" }],
+    {}, client);
+  t("tahminde Video kategorisi REELS stoğuna yazıyor", tahminli && tahminli.stoklar["1_Reels"] === 1,
+    JSON.stringify(tahminli && tahminli.stoklar));
+
+  const secili = onaylananlaraGoreStok(
+    [{ id: 1, marka: "M", kategori: "Video", icerikTuru: "Q PREMIUM", paylasimTuru: "Video", asama: "Kontrol Bekliyor" }],
+    [{ id: 1, marka: "M", kategori: "Video", icerikTuru: "Q PREMIUM", paylasimTuru: "Video", asama: "Onaylandı" }],
+    {}, client);
+  t("KARTTA SEÇİLEN TÜR motorda geçerli", secili && secili.stoklar["1_Video"] === 1 && !secili.stoklar["1_Reels"],
+    JSON.stringify(secili && secili.stoklar) + " — seçim motora ulaşmazsa seçici sahte bir kontrol olur");
+
+  const adaRagmen = onaylananlaraGoreStok(
+    [{ id: 1, marka: "M", kategori: "Video", icerikTuru: "Kokteyl Reels", paylasimTuru: "Story", asama: "Kontrol Bekliyor" }],
+    [{ id: 1, marka: "M", kategori: "Video", icerikTuru: "Kokteyl Reels", paylasimTuru: "Story", asama: "Onaylandı" }],
+    {}, client);
+  t("seçim ADDAKİ kelimeyi de geçersiz kılıyor", adaRagmen && adaRagmen.stoklar["1_Story"] === 1,
+    JSON.stringify(adaRagmen && adaRagmen.stoklar));
+}
 
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);
 if (k > 0) process.exitCode = 1;

@@ -391,7 +391,7 @@ dosya hâlâ ekibin çalışma alanındadır.
 
 ```bash
 bash testler/hepsinidenetle.sh     # 21 statik denetim
-./testler/sunucutestleri.sh        # t1…t87, ~1841 kontrol — SAHTE veritabanı
+./testler/sunucutestleri.sh        # t1…t87, ~1845 kontrol — SAHTE veritabanı
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
