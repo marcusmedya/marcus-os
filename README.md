@@ -4371,3 +4371,39 @@ biçimde (ilk 8, sonra "… ve N kart daha"):
 
 Ölçüm: raporu yine yalnızca sayıya indirmek 3 kontrol düşürüyor (t86). Toplam
 **1894 kontrol**.
+
+### 161 — Rapordaki karta tek tıkla gitme
+
+Drive raporu kartı adıyla söylüyordu (`#95 Post (Post, Onaylandı)`) ama kullanıcı onu
+Operasyon'da elle aramak zorundaydı: doğru sekmeyi seç, markayı süz, sütunlarda gözle bul.
+
+Artık rapordaki her kart satırı tıklanabilir. Tıklanınca Operasyon'a geçiliyor, **sekme
+ve marka süzgeci o karta göre ayarlanıyor** ve kart açılıyor. Süzgeç ayarlanmasaydı kart
+açılır ama detay kapandığında arkada başka bir kategori kalır ve kullanıcı kartı yine
+kaybederdi.
+
+İstek tek seferlik: kart açıldıktan sonra temizleniyor, yoksa kullanıcı kartı kapattığı
+anda aynı kart yeniden açılır ve panodan çıkamazdı.
+
+**Operasyon yetkisi olmayan hesapta düğme hiç çıkmıyor** — tıklanınca hiçbir şey olmayan
+bir bağlantı göstermek, yetkisi olmadığını söylememekten kötü.
+
+Ayrıca panonun varsayılan sekmesi `"Video"` yazılıydı — kategori adları değişince o ad
+listede kalmadığı için açılışta hiçbir sekme seçili görünmüyordu. Listeden alınıyor.
+
+#### Yazarken çıkan hata ve denetim sınırı
+
+İlk yazımda iki render yerini karıştırdım: personel bloğuna yöneticininkini, yönetici
+bloğuna `izinler.cekimEdit` ve `setStaffTab` verdim. `izinler` yönetici kapsamında yok,
+`setStaffTab` diye bir şey ise hiç yok — yani Paylaşımlar ekranı **açılırken** patlardı.
+
+Ölçüldü: **ne derleme ne de 22 statik denetim bunu yakaladı.** KATEGORILER hatasıyla aynı
+sınıf. İki farklı denetim denendi:
+
+- tüm dosyada tanımsız tanımlayıcı taraması → `src/App.jsx` için **673 yanlış alarm**
+- yalnızca `setX(` / `handleX(` çağrı hedefleri → hâlâ **13 yanlış alarm**
+
+Gürültülü bir denetim, olmayan denetimden kötüdür (öğrenilen refleks: görmezden gelmek).
+Bu yüzden eklenmedi. **Gerçek boşluk şu: hiçbir test arayüzü render etmiyor.** Bunun
+karşılığı bir tarayıcı duman testidir (yüklenen sayfada yakalanmamış hata var mı) —
+ayrı bir iş olarak duruyor.

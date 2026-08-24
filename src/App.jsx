@@ -2139,7 +2139,29 @@ const DURUM_BASLIKLARI = [
 ];
 const DURUM_ADI = Object.fromEntries(DURUM_BASLIKLARI);
 
-function MarkaStokKarti({ client, stoklar, gecmis, subeler, isler, plan, onStokDegis, onAddSube, onDeleteSube, onSubeStokDegis, onDriveEslestir, onDriveStokUygula, onKartAc }) {
+/* Rapordaki kart satırı — tıklanınca Operasyon'da o kart açılıyor.
+ *
+ * Rapor kartı adıyla söylüyordu ama kullanıcı onu elle aramak zorundaydı: doğru sekmeyi
+ * seç, markayı süz, sütunlarda gözle bul. `onKartaGit` verilmezse (Operasyon yetkisi
+ * olmayan hesap) düz metin olarak kalıyor — tıklanınca hiçbir şey olmayan bir bağlantı
+ * göstermek, yetkisi olmadığını söylememekten kötü. */
+function KartSatiri({ isId, children, onKartaGit, renk }) {
+  if (typeof onKartaGit !== "function") {
+    return <div style={{ color: renk, paddingLeft: 10 }}>{children}</div>;
+  }
+  return (
+    <div style={{ paddingLeft: 10 }}>
+      <button
+        onClick={() => onKartaGit(isId)}
+        title="Operasyon'da bu kartı aç"
+        style={{ background: "none", border: "none", padding: 0, textAlign: "left",
+          color: renk, cursor: "pointer", fontSize: "inherit", fontFamily: "inherit", lineHeight: "inherit" }}
+      >{children} <span style={{ opacity: 0.75 }}>↗</span></button>
+    </div>
+  );
+}
+
+function MarkaStokKarti({ client, stoklar, gecmis, subeler, isler, plan, onStokDegis, onAddSube, onDeleteSube, onSubeStokDegis, onDriveEslestir, onDriveStokUygula, onKartAc, onKartaGit }) {
   /* Hangi şubenin içerik listesi açık. Kapalıyken hiçbir hesap yapılmıyor. */
   const [acikSube, setAcikSube] = useState(null);
   /* Drive taraması: istendiğinde çalışır, kendiliğinden değil — bir markanın ay
@@ -2229,9 +2251,9 @@ function MarkaStokKarti({ client, stoklar, gecmis, subeler, isler, plan, onStokD
                           )}
                         </div>
                         {kutu.kartlar.map((x) => (
-                          <div key={x.isId} style={{ color: T.textFaint, paddingLeft: 10 }}>
+                          <KartSatiri key={x.isId} isId={x.isId} onKartaGit={onKartaGit} renk={T.textFaint}>
                             #{x.isId} {x.isAdi} <span style={{ opacity: 0.7 }}>({x.tur}{x.dosyaSayisi > 1 ? `, ${x.dosyaSayisi} dosya` : ""})</span>
-                          </div>
+                          </KartSatiri>
                         ))}
                       </div>
                     );
@@ -2338,9 +2360,9 @@ function MarkaStokKarti({ client, stoklar, gecmis, subeler, isler, plan, onStokD
                     <div style={{ marginTop: 6, color: T.warning }}>
                       {drive.yanlisYerdekiler.length} kartın dosyası yanlış klasörde:
                       {drive.yanlisYerdekiler.slice(0, 5).map((x) => (
-                        <div key={x.isId} style={{ color: T.textFaint, paddingLeft: 10 }}>
+                        <KartSatiri key={x.isId} isId={x.isId} onKartaGit={onKartaGit} renk={T.textFaint}>
                           · #{x.isId} {x.isAdi} — aşama "{x.asama}", dosya {(x.bulunan || []).map((b) => DURUM_ADI[b] || b).join(", ")} klasöründe
-                        </div>
+                        </KartSatiri>
                       ))}
                     </div>
                   )}
@@ -2354,9 +2376,9 @@ function MarkaStokKarti({ client, stoklar, gecmis, subeler, isler, plan, onStokD
                         {drive.kayipDosyalar.length} kartın dosyası Drive'da bulunamadı (elle silinmiş ya da taşınmış olabilir)
                       </div>
                       {drive.kayipDosyalar.slice(0, 8).map((x) => (
-                        <div key={x.isId} style={{ color: T.textFaint, paddingLeft: 10 }}>
+                        <KartSatiri key={x.isId} isId={x.isId} onKartaGit={onKartaGit} renk={T.textFaint}>
                           · #{x.isId} {x.isAdi} <span style={{ opacity: 0.7 }}>({x.tur}, {x.asama}{x.tumuKayip ? "" : `, ${x.eksikSayisi} dosya`})</span>
-                        </div>
+                        </KartSatiri>
                       ))}
                       {drive.kayipDosyalar.length > 8 && (
                         <div style={{ color: T.textFaint, paddingLeft: 10 }}>· … ve {drive.kayipDosyalar.length - 8} kart daha</div>
@@ -2369,9 +2391,9 @@ function MarkaStokKarti({ client, stoklar, gecmis, subeler, isler, plan, onStokD
                         {drive.dosyasizKartlar.length} kartta hiç dosya bağlantısı yok
                       </div>
                       {drive.dosyasizKartlar.slice(0, 8).map((x) => (
-                        <div key={x.isId} style={{ color: T.textFaint, paddingLeft: 10 }}>
+                        <KartSatiri key={x.isId} isId={x.isId} onKartaGit={onKartaGit} renk={T.textFaint}>
                           · #{x.isId} {x.isAdi} <span style={{ opacity: 0.7 }}>({x.tur}, {x.asama})</span>
-                        </div>
+                        </KartSatiri>
                       ))}
                       {drive.dosyasizKartlar.length > 8 && (
                         <div style={{ color: T.textFaint, paddingLeft: 10 }}>· … ve {drive.dosyasizKartlar.length - 8} kart daha</div>
@@ -2981,7 +3003,7 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
   );
 }
 
-function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, isler, onAddHaftalikPlan, onToggleHaftalikYapildi, onDeleteHaftalikPlan, subeler, onAddSube, onDeleteSube, onSubeStokDegis, driveSonuc, onDriveSonucKapat, mutabakatVerisi, onStokDuzelt, onDriveEslestir, onDriveStokUygula, onKartAc }) {
+function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, isler, onAddHaftalikPlan, onToggleHaftalikYapildi, onDeleteHaftalikPlan, subeler, onAddSube, onDeleteSube, onSubeStokDegis, driveSonuc, onDriveSonucKapat, mutabakatVerisi, onStokDuzelt, onDriveEslestir, onDriveStokUygula, onKartAc, onKartaGit }) {
   const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
   /* ESKİ TÜR ANAHTARLARI YENİ TÜRLERE TOPLANIYOR. Belgede `1_Görsel`, `1_Video`,
    * `1_Story`, `1_Tasarım` gibi anahtarlar duruyor; toplanmasaydı türler üçe indikten
@@ -3039,7 +3061,7 @@ function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, isle
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 14, marginBottom: 16 }}>
           {aktifMarkalar.map((c) => (
             <MarkaStokKarti key={c.id} client={c} stoklar={stoklarObj} gecmis={gecmis} isler={isler} plan={haftalikPlan} onStokDegis={onStokDegis} subeler={subeler} onAddSube={onAddSube} onDeleteSube={onDeleteSube} onSubeStokDegis={onSubeStokDegis} onDriveEslestir={onDriveEslestir}
-              onDriveStokUygula={onDriveStokUygula} onKartAc={onKartAc} />
+              onDriveStokUygula={onDriveStokUygula} onKartAc={onKartAc} onKartaGit={onKartaGit} />
           ))}
         </div>
       )}
@@ -8795,6 +8817,13 @@ export default function MarcusOS() {
   });
   const subeStokDegistir = (clientId, subeId, tur, delta) => paylasimIstek({ action: "subeStokDegistir", clientId, subeId, tur, delta }, "Bağlantı hatası — stok güncellenemedi, tekrar dene.");
   /* Drive eşleştirmesi SALT OKUNUR — hiçbir şey taşımaz, hiçbir şey yazmaz. */
+  /* "BU KARTA GİT" — Paylaşımlar'daki rapordan Operasyon'daki karta.
+   *
+   * Rapor kartı adıyla söylüyordu ama kullanıcı onu elle aramak zorundaydı. İstek tek
+   * seferlik: Operasyon kartı açtıktan sonra `onKartAcildi` ile temizleniyor, yoksa
+   * kullanıcı kartı kapattığı anda aynı kart yeniden açılır ve panodan çıkamaz. */
+  const [gidilecekIs, setGidilecekIs] = useState(null);
+
   const driveEslestir = (clientId) => paylasimIstek({ action: "driveEslestir", clientId },
     "Bağlantı hatası — Drive taranamadı, tekrar dene.");
   /* Hedef sayı GÖNDERİLMİYOR — sunucu Drive'ı yeniden tarayıp kendisi hesaplıyor. */
@@ -9612,12 +9641,15 @@ export default function MarcusOS() {
           {staffTab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} isler={data.cekimIsleri || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} driveSonuc={driveSonuc} onDriveSonucKapat={() => setDriveSonuc(null)}
             mutabakatVerisi={{ clients: data.clients || [], cekimIsleri: data.cekimIsleri || [], haftalikPaylasimlar: data.haftalikPaylasimlar || [], subeler: data.subeler || [], stoklar: data.stoklar || {} }}
             onStokDuzelt={stokDuzelt} onDriveEslestir={driveEslestir}
-            onDriveStokUygula={driveStokUygula} onKartAc={kartsizdanKartAc} />}
+            onDriveStokUygula={driveStokUygula} onKartAc={kartsizdanKartAc}
+            /* Operasyon yetkisi yoksa düğme HİÇ çıkmıyor — tıklanınca hiçbir şey
+              * olmayan bir bağlantı, yetkisi olmadığını söylememekten kötü. */
+            onKartaGit={izinler.cekimEdit ? ((isId) => { setGidilecekIs(isId); setTab("cekim-edit"); }) : undefined} />}
           {/* Günlük Kontrol artık haftalık planı okur ve AYNI sunucu işlemine yazar
             (toggleHaftalikYapildi) — iki panelin ayrışması mümkün değil. */}
           {staffTab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="staff" />}
           {staffTab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} isler={data.cekimIsleri || []} plan={data.haftalikPaylasimlar || []} />}
-          {staffTab === "cekim-edit" && <CekimEditTakibi role="staff" clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} girisYapanAd={loggedStaffName} islemYetkisi={izinler.cekimEdit === true} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={izinler.markaYoneticisi} firmaAdi={data.firmaAdi} />}
+          {staffTab === "cekim-edit" && <CekimEditTakibi role="staff" acilacakIsId={gidilecekIs} onKartAcildi={() => setGidilecekIs(null)} clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} girisYapanAd={loggedStaffName} islemYetkisi={izinler.cekimEdit === true} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={izinler.markaYoneticisi} firmaAdi={data.firmaAdi} />}
           {staffTab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} duzenleyenAdi={loggedStaffName || "Personel"} />}
           {staffTab === "birikim" && (
             <Birikim
@@ -10059,10 +10091,11 @@ export default function MarcusOS() {
           {tab === "paylasimlar" && <Paylasimlar clients={data.clients || []} stoklar={data.stoklar || {}} gecmis={data.paylasimGecmisi || []} onStokDegis={degistirStok} haftalikPlan={data.haftalikPaylasimlar || []} isler={data.cekimIsleri || []} onAddHaftalikPlan={addHaftalikPlan} onToggleHaftalikYapildi={toggleHaftalikYapildi} onDeleteHaftalikPlan={deleteHaftalikPlan} subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeStokDegis={subeStokDegistir} driveSonuc={driveSonuc} onDriveSonucKapat={() => setDriveSonuc(null)}
             mutabakatVerisi={{ clients: data.clients || [], cekimIsleri: data.cekimIsleri || [], haftalikPaylasimlar: data.haftalikPaylasimlar || [], subeler: data.subeler || [], stoklar: data.stoklar || {} }}
             onStokDuzelt={stokDuzelt} onDriveEslestir={driveEslestir}
-            onDriveStokUygula={driveStokUygula} onKartAc={kartsizdanKartAc} />}
+            onDriveStokUygula={driveStokUygula} onKartAc={kartsizdanKartAc}
+            onKartaGit={(isId) => { setGidilecekIs(isId); setTab("cekim-edit"); }} />}
           {tab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="owner" />}
           {tab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} isler={data.cekimIsleri || []} plan={data.haftalikPaylasimlar || []} />}
-          {tab === "cekim-edit" && <CekimEditTakibi role="owner" clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} isUcretleri={data.isUcretleri || {}} onSaveIsUcreti={setIsUcreti} isUcretDetaylari={data.isUcretDetaylari || {}} onSaveIsUcretDetayi={setIsUcretDetayi} avanslar={data.avanslar || []} hesaplar={data.hesaplar || []} onAddAvans={addAvans} onDeleteAvans={deleteAvans} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={true} firmaAdi={data.firmaAdi} />}
+          {tab === "cekim-edit" && <CekimEditTakibi role="owner" acilacakIsId={gidilecekIs} onKartAcildi={() => setGidilecekIs(null)} clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} isUcretleri={data.isUcretleri || {}} onSaveIsUcreti={setIsUcreti} isUcretDetaylari={data.isUcretDetaylari || {}} onSaveIsUcretDetayi={setIsUcretDetayi} avanslar={data.avanslar || []} hesaplar={data.hesaplar || []} onAddAvans={addAvans} onDeleteAvans={deleteAvans} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={true} firmaAdi={data.firmaAdi} />}
           {tab === "personel" && (
             <Personel
               /* Giriş hesapları ve yetkiler artık Personel > Hesaplar & Yetkiler altında.
