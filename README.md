@@ -4023,3 +4023,77 @@ kaldırılmış, OAuth jetonu geçersiz, Drive alanı dolmuş.
 80 test dosyası, **1678 kontrol**, 19 statik denetim (ikisi bu turda eklendi: sistem
 belgesi envanteri ve API fonksiyon sayısı sabiti), temiz derleme, 11/12 fonksiyon.
 Veri modeli değişmedi — tek JSON belgesi, migration yok.
+
+---
+
+## Güncelleme 157: Paylaşım Hücresi, Stok Mutabakatı, Marka Süzgeci ve Drive Eşleştirmesi
+
+Bu tur sahadan gelen dört şikâyetle başladı ve hepsi aynı kök soruya çıktı:
+**"ekranda gördüğüm sayı gerçekten kartların hâli mi?"**
+
+### Paylaşım planında hangi kartın planlandığı görünüyor
+
+Plan hücresi yalnızca bir harf gösteriyordu; hangi içeriğin planlandığı yalnızca onu
+planlayanın aklındaydı. Artık hücrenin üstüne gelince **planlanan kart** açılıyor:
+numarası, içerik türü, önizlemesi. Çözüm ortakları da görüyor — görünürlük kuralı
+`lib/musteri-gorunumu.js`'de, panellerin tek kaynağında.
+
+Aynı kutuda **Paylaş** düğmesi var; basınca "paylaşıldığını onaylıyor musun?" diye
+son kez soruyor, ancak ondan sonra Drive'da dosya hareket ediyor. Shift+tık ile iptal
+de aynı kutuya taşındı.
+
+### İptal edilen paylaşım gerçekten geri dönüyor
+
+İptal edildiğinde kart aşaması geri alınıyordu ama **dosya PAYLAŞILDI klasöründe
+kalıyordu**. Carousel kartlarında daha kötüydü: slaytlar kart klasöründen çıkıp
+ONAYLANANLAR'a dağınık düşüyor, boş klasör PAYLAŞILDI'da kalıyordu. Paylaşım ucu artık
+taşımayı `kartKlasorunuTasi` ile yapıyor — `api/data.js` ile aynı yol.
+
+**Plan silmek artık tam geri almadır**: aşama geri alınır, stok geri gelir, dosya
+ONAYLANANLAR'a döner. Eskiden karta hiç dokunulmadığı için kart "Teslim Edildi"de kalıyor,
+seçicide çıkmıyor ve aynı içerik bir daha planlanamıyordu.
+
+### Stok kartların yansıması oldu — elle +/− kaldırıldı
+
+Sayıyı elle oynatmak stoğun kartlarla bağını koparıyordu: içerik onaylanmadan stok
+artıyor, paylaşılmadan düşüyor, "bu sayı neden böyle" sorusu cevapsız kalıyordu.
+Elle +/− kaldırıldı. Tek düzeltme yolu **mutabakat** (`lib/stok-mutabakat.js`):
+kartlardan olması gereken hesaplanır, sapan satırlar Paylaşımlar'da gösterilir ve
+düzeltmede **hedef sayıyı sunucu hesaplar** — tarayıcıdan gelen sayıya güvenilmez.
+Düzeltme `paylasimGecmisi`'ne eski/yeni değerle yazılır.
+
+t83 bu türetmenin stok motoruyla birebir aynı sonucu verdiğini ölçüyor; ayrışırlarsa
+mutabakat, olmayan sapmaları "düzeltmeye" başlar ve doğru sayıları bozar.
+
+### Operasyon panosunda marka süzgeci
+
+Kart sayısı arttıkça pano okunmaz hâle geliyordu. Kategori süzgecinin yanına **marka**
+seçimi eklendi. Süzgeç mantığı `lib/pano-suzgeci.js`'e alındı — testin uygulamanın
+kendi koduyla aynı yolu sınaması için; ayrı yazılan süzgeç, ayrı davranış demek.
+
+### Drive ile eşleştirme: "eksik kart mı var?"
+
+Mutabakat "sayı sapmış" diyor ama sapmanın iki sebebi olabilir: sayaç kaymıştır, ya da
+**Drive'da içerik vardır, sistemde kartı yoktur**. İkincisini ancak dosyalara bakarak
+anlarız. Marka stok kartına **"Drive ile eşleştir"** eklendi: markanın ONAYLANANLAR
+klasörlerini ay ay okur ve kartların dosya kimlikleriyle karşılaştırır. Sonuç:
+kartsız dosyalar (adı ve klasörüyle), dosyası hiç olmayan onaylı kartlar ve kartta
+yazılı olup Drive'da bulunmayan dosyalar.
+
+Üç kural bilerek böyle:
+
+- **Yalnızca listeler, hiçbir şey onarmaz.** Tarama üretim Drive'ında tek bir yazma
+  yapmaz — klasör açmaz, taşımaz, silmez. t85 bunu isteklerin yöntemini sayarak ölçüyor;
+  koruma kaldırıldığında kontrol düşüyor. Teşhis aracının kendisi hasar üretmemeli.
+- **Elle yapıştırılmış bağlantılar da karttır.** Dosya kimliği yalnızca `medya[].dosyaId`
+  içinde olmayabilir. Okunmazsa elle bağlanan içerik "kartsız" sanılır ve araç olmayan
+  bir sorun gösterir — güveni ilk yitiren şey budur.
+- **Bütçe dolarsa söylenir.** Çok aylı markada tarama sınırsız süremez; çağrı bütçesi
+  dolduğunda liste eksiktir ve `tamamlanmadi` bildirilir. Sessiz kırpma, eksik listeyi
+  "temiz" göstermek demekti. Aylar en yeniden eskiye taranır.
+
+Eşleştirme tek markada ve istendiğinde çalışır — otomatik, arka planda tarama yok.
+
+**Testler:** t85 eklendi (16 kontrol). Toplam **1793 kontrol**, 85 test dosyası,
+20 statik denetim. Yeni API dosyası açılmadı — `driveEslestir`, `api/paylasim.js`
+üzerine bir action olarak eklendi; fonksiyon sayısı 11'de kaldı.

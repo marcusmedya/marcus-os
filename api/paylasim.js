@@ -6,10 +6,12 @@ import { KEY, guvenliYaz, kilitAl, kilitBirak, bugunISO, mesgulYanit } from "../
 import { kayitliYanit, yanitiSakla, yanitiYakala } from "../lib/islem-kimligi.js";
 import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
 import { markaErisimiVarMi } from "../lib/marka-kilidi.js";
-import { onaylananiTasi, kartKlasorunuTasi, driveDosyaIdCikar, DURUM_KLASORLERI } from "../lib/drive-tasima.js";
+import { onaylananiTasi, kartKlasorunuTasi, driveDosyaIdCikar, markaninOnaylananDosyalari, DURUM_KLASORLERI } from "../lib/drive-tasima.js";
 import { tasinacakDosyalar, kartKlasorAdi } from "../lib/asamalar.js";
 import { onaylananlaraGoreStok, paylasimTuru } from "../lib/stok.js";
 import { kartlaraGoreStok } from "../lib/stok-mutabakat.js";
+import { driveKartEslestir } from "../lib/drive-eslestirme.js";
+import { markaEslestirici } from "../lib/marka-kilidi.js";
 
 const nid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const stokAnahtari = (clientId, tur) => `${clientId}_${tur}`;
@@ -711,6 +713,41 @@ export default async function handler(req, res) {
      *
      * Marka kilidi `clientId` üzerinden zaten çözülüyor; ham anahtar yerine
      * clientId/tur/subeId alınmasının sebebi bu. */
+    /* DRIVE EŞLEŞTİRME — "Drive'da içerik var ama kartı yok mu?"
+     *
+     * SALT OKUNUR: hiçbir klasör açılmaz, hiçbir dosya taşınmaz ya da silinmez.
+     * Yalnızca markanın ONAYLANANLAR klasörleri listelenir ve kartların dosya
+     * kimlikleriyle karşılaştırılır.
+     *
+     * Kilit ALINMAZ: yazma yok ve Google çağrıları saniyeler sürüyor — kilidi
+     * tutmak o sırada paylaşım işaretleyen herkesi bekletirdi. */
+    if (action === "driveEslestir") {
+      const { clientId } = body;
+      const marka = (data.clients || []).find((c) => String(c.id) === String(clientId));
+      if (!marka) return res.status(404).json({ error: "Marka bulunamadı." });
+
+      const liste = await markaninOnaylananDosyalari({
+        markaKlasoru: marka.driveOnayKlasoru || "", markaAdi: marka.ad,
+      });
+      if (!liste.ok) return res.status(200).json({ ok: true, eslestirme: null, sebep: liste.sebep });
+
+      const esit = markaEslestirici(data.clients || [], marka.ad);
+      const markaKartlari = (data.cekimIsleri || []).filter((j) => j && esit(j.marka));
+      const eslestirme = driveKartEslestir(liste.dosyalar, markaKartlari);
+
+      return res.status(200).json({
+        ok: true,
+        eslestirme: {
+          ...eslestirme,
+          bakilanAylar: liste.bakilanAylar,
+          toplamAy: liste.toplamAy,
+          /* Bütçe dolduysa liste EKSİK — sessizce kesilmiş bir liste "her şeyi
+           * gördük" sanılır ve yanlış karar verdirir. */
+          tamamlanmadi: liste.tamamlanmadi,
+        },
+      });
+    }
+
     if (action === "stokDuzelt") {
       const { clientId, tur, subeId } = body;
       if (!clientId || !tur) return res.status(400).json({ error: "Marka ve tür gerekli." });

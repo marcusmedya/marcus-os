@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     84 test dosyası (t1…t84) + 20 statik denetim betiği
+testler/     85 test dosyası (t1…t85) + 20 statik denetim betiği
 ```
 
 ---
@@ -120,6 +120,17 @@ eklerken yeni dosya AÇMA** — mevcut bir uca yeni bir `action` ekle. Örnek:
   dosyaları görür.
 - **Çöpe atmak sahiplik ister**, düzenleme yetkisi yetmez. Bu yüzden silme
   OAuth-önce / servis hesabı-sonra sırasıyla denenir.
+
+**Drive ↔ kart eşleştirmesi TEŞHİSTİR, onarım değil** (`lib/drive-eslestirme.js`,
+`api/paylasim.js` → `driveEslestir`). "Stok kartlardan fazla, eksik kart mı var?"
+sorusuna Drive'daki ONAYLANANLAR dosyalarını kartların dosya kimlikleriyle karşılaştırarak
+cevap verir. **Tarama üretim Drive'ında HİÇBİR ŞEY YAZMAZ** — klasör açmaz, taşımaz,
+silmez; t85 bunu istek yöntemlerini sayarak ölçüyor. Kartın dosyası yalnızca
+`medya[].dosyaId` değil, **elle yapıştırılmış bağlantılarda da** olabiliyor
+(`editliDosyaLink` vb.) — okunmazsa elle bağlanmış içerik "kartsız" sanılır ve araç
+olmayan bir sorun gösterir. Marka çok aylıysa çağrı bütçesi (varsayılan 60) dolabilir;
+o zaman **`tamamlanmadi` bildirilir** — sessizce kesilirse eksik liste "temiz" sanılır.
+Aylar en yeniden eskiye taranır, bütçe dolarsa güncel dönem elde kalır.
 
 ### 4. Roller ve paneller senkron olmak zorunda
 
@@ -275,7 +286,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 20 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t84, ~1777 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t85, ~1793 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
