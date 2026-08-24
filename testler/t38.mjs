@@ -51,6 +51,9 @@ t("Reels, kategorisi Video olsa da Reels sayılıyor",
 t("adın içinde geçen Reels yakalanıyor", paylasimTuru({ icerikTuru: "Kokteyl Reels", kategori: "Video" }) === "Reels");
 /* v160: Story ayrı bir stok satırı DEĞİL — ikinci bir içerik değil, aynı gönderinin
  * story boyutu; kartta zaten kendi yuvası var. POST'a sayılıyor. */
+t("adı yalnızca FOTOĞRAF olan kategorisiz kart POST",
+  paylasimTuru({ icerikTuru: "FOTOĞRAF" }) === "Post",
+  paylasimTuru({ icerikTuru: "FOTOĞRAF" }) + " — hiçbir kelimeye takılmayınca Reels'e düşüyordu");
 t("Story POST'a sayılıyor", paylasimTuru({ icerikTuru: "Kampanya Story", kategori: "Video" }) === "Post");
 t("Carousel ayırt ediliyor", paylasimTuru({ icerikTuru: "Ürün Carousel", kategori: "Fotoğraf" }) === "Carousel");
 /* KURAL DEĞİŞİKLİĞİ — v159. Kategori "Video" artık REELS stoğuna düşüyor.
