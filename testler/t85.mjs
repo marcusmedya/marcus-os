@@ -204,5 +204,43 @@ await bolum("4) BÜTÇE DOLARSA — sessizce kesilmiyor", 3, async () => {
   } finally { globalThis.fetch = gercek; }
 });
 
+/* ---------------------------------------------------------------- */
+await bolum("5) MARKA KLASÖRÜ TANIMSIZ — klasör AÇMAZ", 3, async () => {
+  /* Markanın kendi Drive klasörü tanımlı değilken tarama, ortak klasörün altında
+   * marka adıyla YENİ bir klasör açıyordu — "bakıyorum" derken üretim Drive'ına
+   * yazmak. Aranır, bulunamazsa sebep söylenir. */
+  await kv.set("marcus-os-data", {
+    clients: [{ id: 7, ad: "Skylon Mimarlık", durum: "aktif" }],   // driveOnayKlasoru YOK
+    cekimIsleri: [], subeler: [], haftalikPaylasimlar: [], stoklar: {}, paylasimGecmisi: [],
+    gunlukKontrol: {}, musteriTalepleri: [], _alanSurumleri: {},
+  });
+  const eskiKok = process.env.DRIVE_ONAY_KLASOR_ID;
+  process.env.DRIVE_ONAY_KLASOR_ID = "ORTAKKOK0001";
+
+  const yazmaIstekleri = [];
+  const gercek = globalThis.fetch;
+  globalThis.fetch = async (u, o = {}) => {
+    const s2 = String(u);
+    const yontem = (o.method || "GET").toUpperCase();
+    if (yontem !== "GET" && !s2.includes("oauth2.googleapis.com/token")) yazmaIstekleri.push({ yontem, url: s2 });
+    if (s2.includes("oauth2.googleapis.com/token")) return { ok: true, status: 200, json: async () => ({ access_token: "j" }) };
+    /* Ortak kökün altında bu markanın klasörü YOK. */
+    if (s2.includes("drive/v3/files?q=")) return { ok: true, status: 200, json: async () => ({ files: [] }) };
+    return { ok: true, status: 200, json: async () => ({ id: "YENIKLASOR01" }) };
+  };
+  try {
+    const r = await cagir(paylasimUcu, { method: "POST", headers: OWNER,
+      body: { action: "driveEslestir", clientId: 7, islemId: `t85_${Math.random().toString(36).slice(2, 12)}` } });
+    t("istek hata vermiyor", r.kod === 200, JSON.stringify(r.govde));
+    t("sebep söyleniyor", r.govde.eslestirme === null && /bulunamadı|tanımlı değil/.test(String(r.govde.sebep || "")),
+      JSON.stringify(r.govde));
+    t("KLASÖR TANIMSIZKEN DE HİÇ YAZMA YOK", yazmaIstekleri.length === 0,
+      JSON.stringify(yazmaIstekleri) + " — tarama marka klasörü açmamalı");
+  } finally {
+    globalThis.fetch = gercek;
+    if (eskiKok) process.env.DRIVE_ONAY_KLASOR_ID = eskiKok; else delete process.env.DRIVE_ONAY_KLASOR_ID;
+  }
+});
+
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);
 if (k > 0) process.exitCode = 1;

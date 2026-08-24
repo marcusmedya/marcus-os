@@ -26,6 +26,7 @@ python3 testler/erisimdenetle.py src/*.jsx                          > /dev/null 
 node testler/sistemBelgesi.mjs                                      > /dev/null && echo "✓ 18 sistem belgesi envanteri güncel"
 node testler/fonksiyonSayisi.mjs                                    > /dev/null && echo "✓ 19 api fonksiyon sayısı sabiti güncel"
 node testler/temaAnahtari.mjs                                       > /dev/null && echo "✓ 20 tema anahtarları gerçek"
+node testler/yanitAlanlari.mjs                                      > /dev/null && echo "✓ 21 yanıt alanı belgeye sızmıyor"
 echo ""
 echo "── SUNUCU DENETİMLERİ ──"
 echo "(testler/ klasöründe: node t5.mjs … t11.mjs — sahte veritabanı kullanır, gerçek veriye dokunmaz)"

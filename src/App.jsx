@@ -8546,7 +8546,15 @@ export default function MarcusOS() {
   /* Paylaşım ucunun yanıtında BELGEYE AİT OLMAYAN alanlar da var (`ok`, `driveSonuc`).
    * Doğrudan yayılırsa bunlar veri belgesine sızıyor ve sonraki kayıtta yazılıyordu.
    * Ayıklanıyor; `driveSonuc` ayrı bir duruma alınıyor çünkü kullanıcıya gösterilecek. */
-  const BELGE_DISI_ALANLAR = ["ok", "driveSonuc", "error", "mesgul", "tekrarlandi"];
+  /* YANIT ALANLARI — belgeye AİT DEĞİL.
+   *
+   * Yanıt gövdesi `setData` içine olduğu gibi yayılıyor; sunucunun yalnızca bu istek
+   * için ürettiği alanlar listeye girmezse BELGEYE SIZAR ve bir sonraki kayıtta
+   * Redis'e yazılır. `eslestirme` bunu yaşadı: Drive tarama sonucu (yüzlerce dosya
+   * adı) uygulama verisinin içine karışıyordu. Uçta yeni bir yanıt alanı üretilirse
+   * buraya da eklenir — denetim 21 bunu zorluyor. */
+  const BELGE_DISI_ALANLAR = ["ok", "driveSonuc", "error", "mesgul", "tekrarlandi",
+    "eslestirme", "sebep", "degismedi", "onayGerekli", "kimlikOnarildi", "duzeltildi"];
   const [driveSonuc, setDriveSonuc] = useState(null);
   const mergePaylasimLocally = (patch) => {
     const temiz = { ...patch };
@@ -8585,13 +8593,19 @@ export default function MarcusOS() {
           if (Object.prototype.hasOwnProperty.call(res, "driveSonuc")) {
             setDriveSonuc(res.driveSonuc === null ? { tasindi: false, kurulumYok: true } : res.driveSonuc);
           }
-          mergePaylasimLocally(res); return;
+          mergePaylasimLocally(res);
+          /* YANIT GERİ DÖNÜYOR. Eskiden burada çıplak `return` vardı: Drive
+           * eşleştirmesi gibi yanıtı OKUYAN çağrılar hep `undefined` alıyor,
+           * sonuç ekrana hiç ulaşmıyor ve her seferinde "Drive taranamadı."
+           * yazıyordu — tarama başarılı olsa bile. */
+          return res;
         }
         /* 409 + onayGerekli: sunucu "bu kaydın sonuçları var, bilerek karar ver" diyor.
          * Bu dalın istemci karşılığı YOKTU — uyarı gösteriliyor, onay gönderilemiyordu,
          * yani planı ya da kilitli kartı olan şube HİÇ silinemiyordu. */
-        if (res.onayGerekli && secenekler && typeof secenekler.onayGerekli === "function") { secenekler.onayGerekli(res); return; }
+        if (res.onayGerekli && secenekler && typeof secenekler.onayGerekli === "function") { secenekler.onayGerekli(res); return res; }
         if (res.error) window.alert(res.error);
+        return res;
       })
       .catch(() => window.alert(hataMesaji));
   };

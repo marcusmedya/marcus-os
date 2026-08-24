@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     85 test dosyası (t1…t85) + 20 statik denetim betiği
+testler/     85 test dosyası (t1…t85) + 21 statik denetim betiği
 ```
 
 ---
@@ -130,7 +130,16 @@ silmez; t85 bunu istek yöntemlerini sayarak ölçüyor. Kartın dosyası yalnı
 (`editliDosyaLink` vb.) — okunmazsa elle bağlanmış içerik "kartsız" sanılır ve araç
 olmayan bir sorun gösterir. Marka çok aylıysa çağrı bütçesi (varsayılan 60) dolabilir;
 o zaman **`tamamlanmadi` bildirilir** — sessizce kesilirse eksik liste "temiz" sanılır.
-Aylar en yeniden eskiye taranır, bütçe dolarsa güncel dönem elde kalır.
+Aylar en yeniden eskiye taranır, bütçe dolarsa güncel dönem elde kalır. Marka klasörü
+tanımsızsa **aranır, AÇILMAZ** — bir süre `klasorBulVeyaOlustur` çağrılıyordu ve tarama
+ortak klasörün altında marka adıyla yeni klasör açıp sonra "her dosyanın kartı var" diye
+sahte temiz rapor veriyordu.
+
+**Uçtan dönen yanıt alanları `BELGE_DISI_ALANLAR`'a yazılır** (`src/App.jsx`). Yanıt gövdesi
+`setData` içine olduğu gibi yayılıyor; listeye girmeyen alan BELGEYE SIZAR ve sonraki kayıtta
+Redis'e yazılır — `eslestirme` ve `duzeltildi` bunu yaşadı. Ayrıca `paylasimIstek` yanıtı
+**döndürmek zorunda**: çıplak `return` yüzünden Drive eşleştirmesi hep `undefined` alıyor,
+tarama başarılı olsa bile ekranda "Drive taranamadı." yazıyordu. İkisini de denetim 21 zorluyor.
 
 ### 4. Roller ve paneller senkron olmak zorunda
 
@@ -285,8 +294,8 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 ## Çalıştırma ve doğrulama
 
 ```bash
-bash testler/hepsinidenetle.sh     # 20 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t85, ~1793 kontrol — SAHTE veritabanı kullanır
+bash testler/hepsinidenetle.sh     # 21 statik denetim (sözdizimi, JSX, hook, kapsam…)
+./testler/sunucutestleri.sh        # t1…t85, ~1796 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
