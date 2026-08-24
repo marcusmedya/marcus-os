@@ -4,7 +4,7 @@ import { gonderenAdres } from "../lib/eposta.js";
 import { markaninDriveDosyalari } from "../lib/drive-tasima.js";
 import { driveDurumRaporu, driveyeGoreStok } from "../lib/drive-eslestirme.js";
 import { stokFarklari, uygulanabilirMi, farklariUygula } from "../lib/drive-denetimi.js";
-import { paylasimTuru, PAYLASIM_TURLERI as STOK_TURLERI, eskiTurAnahtarlari } from "../lib/stok.js";
+import { paylasimTuru, PAYLASIM_TURLERI as STOK_TURLERI, eskiTurAnahtarlari, stoklariBirlestir } from "../lib/stok.js";
 import { markaEslestirici } from "../lib/marka-kilidi.js";
 import { guvenliGuncelle } from "../lib/kv-yaz.js";
 
@@ -322,7 +322,7 @@ export default async function handler(req, res) {
       const kartlar = (data.cekimIsleri || []).filter((j) => j && esit(j.marka));
       const driveStok = driveyeGoreStok(liste.dosyalar, kartlar, paylasimTuru);
       const rapor = driveDurumRaporu(liste.dosyalar, kartlar, paylasimTuru);
-      const farklar = stokFarklari(data.stoklar, driveStok, c.id, STOK_TURLERI);
+      const farklar = stokFarklari(stoklariBirlestir(data.stoklar), driveStok, c.id, STOK_TURLERI);
       const karar = uygulanabilirMi(liste, farklar);
 
       const satir = {
@@ -334,7 +334,7 @@ export default async function handler(req, res) {
 
       if (karar.uygula) {
         const yazma = await guvenliGuncelle((guncel) => {
-          const taze = stokFarklari(guncel.stoklar, driveStok, c.id, STOK_TURLERI);
+          const taze = stokFarklari(stoklariBirlestir(guncel.stoklar), driveStok, c.id, STOK_TURLERI);
           return {
             degisenAlanlar: ["stoklar", "paylasimGecmisi"],
             veri: {
