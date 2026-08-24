@@ -8,7 +8,7 @@ import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
 import { markaErisimiVarMi } from "../lib/marka-kilidi.js";
 import { onaylananiTasi, kartKlasorunuTasi, driveDosyaIdCikar, markaninDriveDosyalari, DURUM_KLASORLERI } from "../lib/drive-tasima.js";
 import { tasinacakDosyalar, kartKlasorAdi } from "../lib/asamalar.js";
-import { onaylananlaraGoreStok, paylasimTuru, PAYLASIM_TURLERI, eskiTurAnahtarlari } from "../lib/stok.js";
+import { onaylananlaraGoreStok, paylasimTuru, PAYLASIM_TURLERI, eskiTurAnahtarlari, stoklariBirlestir } from "../lib/stok.js";
 import { kartlaraGoreStok } from "../lib/stok-mutabakat.js";
 import { driveDurumRaporu, driveyeGoreStok, kartinDosyaKimlikleri, ASAMA_DURUMU } from "../lib/drive-eslestirme.js";
 import { stokFarklari, uygulanabilirMi, farklariUygula } from "../lib/drive-denetimi.js";
@@ -761,7 +761,7 @@ export default async function handler(req, res) {
       const markaKartlari = (data.cekimIsleri || []).filter((j) => j && esit(j.marka));
       const rapor = driveDurumRaporu(liste.dosyalar, markaKartlari, paylasimTuru);
       const driveStok = driveyeGoreStok(liste.dosyalar, markaKartlari, paylasimTuru);
-      const farklar = stokFarklari(data.stoklar, driveStok, marka.id, PAYLASIM_TURLERI);
+      const farklar = stokFarklari(stoklariBirlestir(data.stoklar), driveStok, marka.id, PAYLASIM_TURLERI);
       const karar = uygulanabilirMi(liste, farklar);
 
       return res.status(200).json({
@@ -801,7 +801,7 @@ export default async function handler(req, res) {
       const esit2 = markaEslestirici(data.clients || [], marka.ad);
       const kartlar2 = (data.cekimIsleri || []).filter((j) => j && esit2(j.marka));
       const driveStok2 = liste.ok ? driveyeGoreStok(liste.dosyalar, kartlar2, paylasimTuru) : {};
-      const farklar2 = liste.ok ? stokFarklari(data.stoklar, driveStok2, marka.id, PAYLASIM_TURLERI) : [];
+      const farklar2 = liste.ok ? stokFarklari(stoklariBirlestir(data.stoklar), driveStok2, marka.id, PAYLASIM_TURLERI) : [];
       const karar2 = uygulanabilirMi(liste, farklar2);
       if (!karar2.uygula) return res.status(200).json({ ok: true, uygulanmadi: true, sebep: karar2.sebep });
 
@@ -810,7 +810,7 @@ export default async function handler(req, res) {
       kilitAlindi = await kilitAl();
       if (!kilitAlindi) return mesgulYanit(res);
       const taze = (await kv.get(KEY)) || {};
-      const tazeFark = stokFarklari(taze.stoklar, driveStok2, marka.id, PAYLASIM_TURLERI);
+      const tazeFark = stokFarklari(stoklariBirlestir(taze.stoklar), driveStok2, marka.id, PAYLASIM_TURLERI);
       taze.stoklar = farklariUygula(taze.stoklar, tazeFark, marka.id, eskiTurAnahtarlari(taze.stoklar, marka.id));
       taze.paylasimGecmisi = [...(taze.paylasimGecmisi || []), ...tazeFark.map((f, i) => ({
         id: `drivestok_${Date.now().toString(36)}_${i}`,
@@ -913,11 +913,18 @@ export default async function handler(req, res) {
       }
       const anahtar = subeId ? `${clientId}_${subeId}_${tur}` : `${clientId}_${tur}`;
       const gereken = kartlaraGoreStok(data)[anahtar] || 0;
-      const kayitli = (data.stoklar || {})[anahtar] || 0;
+      /* Toplanmış hâl okunuyor: eski tür anahtarları (`1_Görsel`) yeni türe eklenmiş
+       * olarak görülsün, yoksa düzeltilecek bir şey yokken "0 → 5" gibi sahte bir
+       * düzeltme yazılırdı. */
+      const kayitli = stoklariBirlestir(data.stoklar || {})[anahtar] || 0;
       if (gereken === kayitli) {
         return res.status(200).json({ ok: true, _v: data._v, stoklar: data.stoklar, degismedi: true });
       }
-      data.stoklar = { ...(data.stoklar || {}), [anahtar]: gereken };
+      /* Eski tür anahtarları siliniyor: okuma anındaki toplama onları doğru sayının
+       * ÜSTÜNE eklemeye devam ederdi. */
+      const temiz = { ...(data.stoklar || {}) };
+      eskiTurAnahtarlari(temiz, clientId).forEach((a) => { delete temiz[a]; });
+      data.stoklar = { ...temiz, [anahtar]: gereken };
       gecmiseEkle(data, clientId,
         `${markaAdi(clientId)}${subeId ? ` (${(data.subeler || []).find((x) => String(x.id) === String(subeId))?.ad || ""})` : ""}`,
         tur, "duzeltme", { eski: kayitli, yeni: gereken });

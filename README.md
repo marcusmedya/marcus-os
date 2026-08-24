@@ -4296,3 +4296,34 @@ köprü hiç eşleşmiyordu ve kullanım sayısı 4 yerine 2 çıkıyordu. Yaln�
 indirildi ve tekrar ölçüldü: bozma geri konduğunda denetim düşüyor, onarınca geçiyor.
 
 Doğrusu: önce içe aktar, sonra `export { KATEGORILER };`.
+
+### 160.2 — Toplama yalnızca ekranda yapılıyordu: bütün markalar sahte sapmalı göründü
+
+Sahadan gelen ekran görüntüsünde Violla kartında **"Post 5"** yazıyordu; hemen altındaki
+Drive raporu ise **"Post: 0 kayıtlı → 5 Drive'a göre"** diyordu. Mutabakat paneli de
+**"22 satırda kayıtlı sayı kartlarla uyuşmuyor"** gösteriyordu.
+
+Sebep: eski stok anahtarlarının yeni türlere toplanması **yalnızca ekranda** yapılıyordu.
+Karşılaştırma yapan iki yer — sunucudaki Drive farkı ve `stokMutabakati` — ham belgeyi
+okuyordu. Belgede `Violla_Görsel: 5` duruyor; sunucu yeni türde `Post` arıyor, bulamıyor
+ve **sıfır** sayıyordu. Sayılar aslında doğruydu; yalnızca anahtarların adı eskiydi.
+
+Sonuç, teşhis aracının olmayan bir sorunu göstermesiydi — düzeltmeye çalıştığımız
+güven kaybının aynısı.
+
+**Düzeltme:** toplama artık karşılaştırmanın yapıldığı her yerde uygulanıyor —
+`stokMutabakati`, `driveEslestir`, `driveStokUygula`, gece denetimi ve `stokDuzelt`.
+`stokDuzelt` ayrıca yazarken o markanın eski anahtarlarını siliyor (Drive düzeltmesi
+bunu zaten yapıyordu); yoksa okuma anındaki toplama doğru sayının üstüne eklemeye
+devam ederdi.
+
+#### Ölçüm
+
+t88'e 4, t87'ye 3 kontrol eklendi — ikisi de sahadan gelen hâli birebir kuruyor
+(eski anahtarlı ama sayıları DOĞRU bir marka).
+
+- mutabakatı yine ham stoka bağlamak → 3 kontrol düşüyor
+- Drive farkını yine ham stoka bağlamak → 2 kontrol düşüyor
+
+Her iki bölüm ayrıca **gerçek sapmanın hâlâ yakalandığını** sınıyor: toplama, sapmayı
+gizlemeye başlarsa düzeltme aracı da işlevsiz kalırdı. Toplam **1884 kontrol**.

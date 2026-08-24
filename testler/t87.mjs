@@ -311,5 +311,47 @@ await bolum("7) KARTSIZ DOSYADAN KART AÇ", 7, async () => {
   } finally { globalThis.fetch = gercek; }
 });
 
+/* ---------------------------------------------------------------- */
+await bolum("8) ESKİ ANAHTAR — Drive raporu sahte fark göstermesin", 3, async () => {
+  /* Sahadan gelen hâl: kartta "Post 5" yazarken rapor "Post: 0 kayıtlı → 5" diyordu.
+   * Sunucu ham `1_Görsel` anahtarını görüyor, yeni türde `Post` arıyor, bulamıyor ve
+   * sıfır sayıyordu. Ekrandaki toplama ile sunucudaki karşılaştırma ayrışmıştı. */
+  await kv.set("marcus-os-data", {
+    clients: [{ id: 1, ad: "Skylon Mimarlık", durum: "aktif",
+      driveOnayKlasoru: "https://drive.google.com/drive/folders/KOKKLASOR001" }],
+    cekimIsleri: [
+      { id: 1, marka: "Skylon Mimarlık", kategori: "Video", icerikTuru: "Reels", asama: "Onaylandı", medya: [{ dosyaId: R1 }] },
+      { id: 2, marka: "Skylon Mimarlık", kategori: "Fotoğraf", icerikTuru: "Görsel", asama: "Onaylandı", medya: [{ dosyaId: G1 }] },
+    ],
+    subeler: [], haftalikPaylasimlar: [], paylasimGecmisi: [], gunlukKontrol: {}, musteriTalepleri: [],
+    /* Sayılar DOĞRU ama anahtarlar ESKİ. */
+    stoklar: { "1_Video": 1, "1_Görsel": 1 }, _alanSurumleri: {},
+  });
+  const gercek = globalThis.fetch;
+  globalThis.fetch = driveTaklidi({ aylikDosyalar: { "08 AĞUSTOS": [
+    { id: R1, name: "reels1.mp4", mimeType: "video/mp4" },
+    { id: G1, name: "gorsel.jpg", mimeType: "image/jpeg" },
+  ] } });
+  try {
+    const r = await cagir(paylasimUcu, { method: "POST", headers: OWNER,
+      body: { action: "driveEslestir", clientId: 1, islemId: kimlik() } });
+    const e = r.govde.eslestirme;
+    t("ESKİ ANAHTARLI DOĞRU SAYI fark üretmiyor", e.stokFarklari.length === 0,
+      JSON.stringify(e.stokFarklari) + " — kartta 'Post 1' yazarken '0 kayıtlı' demek sahte bir sorun gösterir");
+    t("tür kırılımı doğru",
+      JSON.stringify(e.durumlar.onaylanan.turler) === JSON.stringify({ Reels: 1, Post: 1 }),
+      JSON.stringify(e.durumlar.onaylanan.turler));
+
+    /* GERÇEK fark hâlâ görülüyor mu — toplama sapmayı gizlemeye başlamasın. */
+    const d0 = await kv.get("marcus-os-data");
+    await kv.set("marcus-os-data", { ...d0, stoklar: { "1_Görsel": 7 } });
+    const r2 = await cagir(paylasimUcu, { method: "POST", headers: OWNER,
+      body: { action: "driveEslestir", clientId: 1, islemId: kimlik() } });
+    t("GERÇEK fark hâlâ yakalanıyor",
+      r2.govde.eslestirme.stokFarklari.some((f) => f.tur === "Post" && f.kayitli === 7 && f.driveGore === 1),
+      JSON.stringify(r2.govde.eslestirme.stokFarklari));
+  } finally { globalThis.fetch = gercek; }
+});
+
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);
 if (k > 0) process.exitCode = 1;

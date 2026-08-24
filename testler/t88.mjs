@@ -13,6 +13,7 @@ import { KATEGORILER, kategoriEsle, turEsle } from "../lib/kategori.js";
 import { asamaListesi, ILK_ASAMA, asamalariDuzelt, yapiliyorAsamasi, enFazlaSlayt } from "../lib/asamalar.js";
 import { paylasimTuru, PAYLASIM_TURLERI, stoklariBirlestir, eskiTurAnahtarlari, onaylananlaraGoreStok } from "../lib/stok.js";
 import { panoSuzgeci } from "../lib/pano-suzgeci.js";
+import { stokMutabakati } from "../lib/stok-mutabakat.js";
 
 let g = 0, k = 0;
 const t = (ad, kosul, not) => {
@@ -120,6 +121,53 @@ bolum("6) AKIŞ VE SLAYT SINIRI", 4, () => {
     yapiliyorAsamasi("Grafik Tasarım") === "Düzenleniyor" && yapiliyorAsamasi("Video") === "Edit Yapılıyor");
   t("Post tek görsellik, Carousel çoklu",
     enFazlaSlayt("Post") === 1 && enFazlaSlayt("Fotoğraf") === 1 && enFazlaSlayt("Carousel") > 1);
+});
+
+/* ---------------------------------------------------------------- */
+bolum("7) SAHTE SAPMA — eski anahtarlı marka 'uyuşmuyor' görünmesin", 4, () => {
+  /* SAHADAN GELEN HÂL (Violla): kartta "Post 5" yazıyor ama mutabakat "Post: 0 kayıtlı"
+   * diyordu. Sebep, toplamanın YALNIZCA EKRANDA yapılması, karşılaştırmada
+   * yapılmamasıydı: sunucu ham `Violla_Görsel: 5` anahtarını görüyor, yeni türde `Post`
+   * arıyor, bulamıyor ve sıfır sayıyordu. Bütün markalar sapmalı görünüyordu — panelde
+   * 22 satır sahte uyuşmazlık çıktı. */
+  const veri = {
+    clients: [{ id: 1, ad: "Violla", durum: "aktif" }],
+    subeler: [],
+    haftalikPaylasimlar: [],
+    cekimIsleri: [
+      { id: 109, marka: "Violla", kategori: "Fotoğraf", icerikTuru: "Görsel2", asama: "Onaylandı", stokSayildi: true },
+      { id: 110, marka: "Violla", kategori: "Fotoğraf", icerikTuru: "Görsel 3", asama: "Onaylandı", stokSayildi: true },
+      { id: 111, marka: "Violla", kategori: "Fotoğraf", icerikTuru: "Görsel 4", asama: "Onaylandı", stokSayildi: true },
+      { id: 119, marka: "Violla", kategori: "Fotoğraf", icerikTuru: "violla fotoğraf", asama: "Onaylandı", stokSayildi: true },
+      { id: 120, marka: "Violla", kategori: "Fotoğraf", icerikTuru: "küpe", asama: "Onaylandı", stokSayildi: true },
+      { id: 177, marka: "Violla", kategori: "Video", icerikTuru: "REELS 1 KARMA", asama: "Onaya Sunuldu" },
+    ],
+    /* Belgede yalnızca ESKİ anahtar var — sayılar doğru, adı eski. */
+    stoklar: { "1_Görsel": 5 },
+  };
+
+  const rapor = stokMutabakati(veri);
+  t("ESKİ ANAHTARLI DOĞRU SAYI sapma göstermiyor",
+    !rapor.satirlar.some((x) => String(x.clientId) === "1"),
+    JSON.stringify(rapor.satirlar) + " — 'Post 5' yazarken '0 kayıtlı' demek kullanıcıyı olmayan bir sorunla uğraştırır");
+
+  /* Onaya sunulmuş kart stoğa sayılmaz — Reels satırı 0 olmalı ve sapma değil. */
+  t("onay bekleyen kart Reels sapması üretmiyor",
+    !rapor.satirlar.some((x) => x.tur === "Reels" && String(x.clientId) === "1"),
+    JSON.stringify(rapor.satirlar));
+
+  /* GERÇEK sapma hâlâ görülüyor mu — toplama, sapmayı gizlemeye başlamasın. */
+  const sapmali = { ...veri, stoklar: { "1_Görsel": 9 } };
+  const rapor2 = stokMutabakati(sapmali);
+  t("GERÇEK sapma hâlâ yakalanıyor",
+    rapor2.satirlar.some((x) => x.tur === "Post" && x.kayitli === 9 && x.gereken === 5),
+    JSON.stringify(rapor2.satirlar));
+
+  /* Eski + yeni anahtar bir arada: toplam doğru sayılmalı (3 + 2 = 5). */
+  const karisik = { ...veri, stoklar: { "1_Görsel": 3, "1_Post": 2 } };
+  t("eski ve yeni anahtar bir arada toplanıyor",
+    !stokMutabakati(karisik).satirlar.some((x) => String(x.clientId) === "1"),
+    JSON.stringify(stokMutabakati(karisik).satirlar));
 });
 
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);
