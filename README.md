@@ -4351,3 +4351,23 @@ Kelime eklendi; çıkarıldığında kontrol düşüyor.
 
 Ölçüm: dağılımı boş döndürmek 2 kontrol, "fotoğraf" kelimesini çıkarmak 1 kontrol
 düşürüyor. Toplam **1889 kontrol**.
+
+### 160.4 — Uyarılar hangi kart olduğunu söylemiyordu
+
+Animed kartında `1 kartın dosyası Drive'da bulunamadı` yazıyordu ama **hangi kart**
+olduğu yazmıyordu. Sayı vermek sorunu göstermek değil, yalnızca varlığını duyurmak:
+kullanıcı hangi kartı açacağını bilmiyor.
+
+Rapor kimliği zaten taşıyordu (`isId`, `isAdi`, `tur`, `asama`, `eksikSayisi`); arayüz
+onu kullanmıyordu. İki uyarı da artık kartları listeliyor — diğer listelerle aynı
+biçimde (ilk 8, sonra "… ve N kart daha"):
+
+```
+1 kartın dosyası Drive'da bulunamadı (elle silinmiş ya da taşınmış olabilir)
+   · #97 kitle 123 (Reels, Teslim Edildi)
+2 kartta hiç dosya bağlantısı yok
+   · #60 Menü görseli (Post, Onaylandı)
+```
+
+Ölçüm: raporu yine yalnızca sayıya indirmek 3 kontrol düşürüyor (t86). Toplam
+**1894 kontrol**.

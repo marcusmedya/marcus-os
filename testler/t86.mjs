@@ -138,5 +138,34 @@ bolum("5) 'DRIVE'DA DOSYA VAR AMA STOK 0' — sebebi söyleniyor", 4, () => {
     && Object.keys(turunDagilimi(rapor, "Carousel")).length === 0);
 });
 
+/* ---------------------------------------------------------------- */
+bolum("6) UYARILAR KARTI ADIYLA SÖYLÜYOR", 5, () => {
+  /* "1 kartın dosyası Drive'da bulunamadı" deyip HANGİ kart olduğunu söylememek,
+   * sorunu göstermek değil yalnızca varlığını duyurmaktı — kullanıcı hangi kartı
+   * açacağını bilmiyordu. Rapor kimlik taşımalı ki arayüz yazabilsin. */
+  const dosyalar = [d("VAR0000000001", "onaylanan")];
+  const kartlar = [
+    { id: 50, icerikTuru: "Duran kart", kategori: "Video", asama: "Onaylandı", medya: [{ dosyaId: "VAR0000000001" }] },
+    { id: 97, icerikTuru: "kitle 123", kategori: "Video", asama: "Teslim Edildi",
+      medya: [{ dosyaId: "YOK0000000001" }, { dosyaId: "YOK0000000002" }] },
+    { id: 60, icerikTuru: "Dosyasız kart", kategori: "Fotoğraf", asama: "Onaylandı" },
+  ];
+  const r = driveDurumRaporu(dosyalar, kartlar, paylasimTuru);
+
+  const kayip = r.kayipDosyalar.find((x) => x.isId === 97);
+  t("kayıp dosyalı kartın KİMLİĞİ var", Boolean(kayip) && kayip.isAdi === "kitle 123",
+    JSON.stringify(r.kayipDosyalar) + " — ad olmadan kullanıcı hangi kartı açacağını bilmez");
+  t("türü ve aşaması da var", Boolean(kayip) && kayip.tur === "Reels" && kayip.asama === "Teslim Edildi",
+    JSON.stringify(kayip));
+  t("kaç dosyasının kayıp olduğu var", Boolean(kayip) && kayip.eksikSayisi === 2 && kayip.tumuKayip === true,
+    JSON.stringify(kayip));
+  t("dosyası duran kart kayıp sayılmıyor", !r.kayipDosyalar.some((x) => x.isId === 50));
+
+  const dosyasiz = r.dosyasizKartlar.find((x) => x.isId === 60);
+  t("dosyasız kartın da KİMLİĞİ var",
+    Boolean(dosyasiz) && dosyasiz.isAdi === "Dosyasız kart" && dosyasiz.tur === "Post" && dosyasiz.asama === "Onaylandı",
+    JSON.stringify(r.dosyasizKartlar));
+});
+
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);
 if (k > 0) process.exitCode = 1;
