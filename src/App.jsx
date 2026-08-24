@@ -2305,18 +2305,61 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
   const planBul = (clientId, gun, subeId) => buHaftaPlan.find((p) =>
     p.clientId === clientId && p.gun === gun && planSubesi(p) === (subeId === null ? null : String(subeId)));
 
-  const tikla = (p) => {
-    if (!p.yapildi) {
-      /* Şube planında o ŞUBENİN stoğuna bakılır — genel sayı o şubede ne kaldığını
-       * söylemiyor. Şubesiz planda eski davranış. */
-      const sube = planSubesi(p);
-      const anahtar = sube ? subeStokAnahtari(p.clientId, sube, p.tur) : stokAnahtari(p.clientId, p.tur);
-      const mevcutStok = (stoklar || {})[anahtar] || 0;
-      if (mevcutStok <= 0) {
-        if (!window.confirm(`${p.tur} stoğu şu an 0 görünüyor. Yine de "paylaşıldı" olarak işaretlemek istiyor musun?`)) return;
-      }
+  /* AÇIK HÜCRE KUTUSU.
+   *
+   * Konum SABİT (fixed) ve düğmenin ekrandaki koordinatından hesaplanıyor: ızgara
+   * yatay kaydırmalı bir kapsayıcının içinde, kutuyu içeride mutlak konumlandırmak
+   * onu kırpardı. */
+  const [acikPlan, setAcikPlan] = useState(null);
+  const [gonderiliyor, setGonderiliyor] = useState(false);
+
+  const hucreAc = (p, dugme) => {
+    const r = dugme.getBoundingClientRect();
+    setAcikPlan({ plan: p, x: r.left + r.width / 2, y: r.bottom + 6 });
+  };
+
+  /* Bu planın stoğu — şube planında O ŞUBENİN sayısı, genel sayı o şubede ne
+   * kaldığını söylemiyor. */
+  const planStogu = (p) => {
+    const sube = planSubesi(p);
+    const anahtar = sube ? subeStokAnahtari(p.clientId, sube, p.tur) : stokAnahtari(p.clientId, p.tur);
+    return (stoklar || {})[anahtar] || 0;
+  };
+
+  /* PAYLAŞILDI İŞARETLEME — SON ONAY SORULUYOR.
+   *
+   * İşlemin geri dönüşü olan ama görünmeyen sonuçları var: stok düşüyor, kart
+   * "Teslim Edildi"ye geçiyor ve Drive'da dosya taşınıyor. Onay metni bunların
+   * üçünü de söylüyor; kullanıcı neye "evet" dediğini bilerek onaylıyor. */
+  const paylasimiOnayla = (p) => {
+    if (gonderiliyor) return;                      // uçuşta koruması: çift tık geri almasın
+    const stok = planStogu(p);
+    const satirlar = [
+      `"${p.isAdi || p.tur}" paylaşıldı olarak işaretlenecek.`,
+      "",
+      `• ${p.tur} stoğundan 1 düşecek${stok <= 0 ? " (stok şu an 0 görünüyor)" : ` (şu an ${stok})`}`,
+    ];
+    if (p.isId) {
+      satirlar.push("• Operasyon kartı 'Teslim Edildi'ye geçecek");
+      satirlar.push("• Drive'da dosya '3 PAYLAŞILDI' klasörüne taşınacak");
     }
-    onToggleYapildi(p.id);
+    satirlar.push("", "Paylaşıldığını onaylıyor musun?");
+    if (!window.confirm(satirlar.join("\n"))) return;
+    setGonderiliyor(true);
+    Promise.resolve(onToggleYapildi(p.id)).finally(() => { setGonderiliyor(false); setAcikPlan(null); });
+  };
+
+  const paylasimiGeriAl = (p) => {
+    if (gonderiliyor) return;
+    const satirlar = [`"${p.isAdi || p.tur}" paylaşımı geri alınacak.`, "", "• Stok geri gelecek"];
+    if (p.isId) {
+      satirlar.push("• Kart 'Onaylandı'ya dönecek");
+      satirlar.push("• Drive'da dosya '2 ONAYLANANLAR' klasörüne geri taşınacak");
+    }
+    satirlar.push("", "Devam edilsin mi?");
+    if (!window.confirm(satirlar.join("\n"))) return;
+    setGonderiliyor(true);
+    Promise.resolve(onToggleYapildi(p.id)).finally(() => { setGonderiliyor(false); setAcikPlan(null); });
   };
 
   return (
@@ -2367,9 +2410,19 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
                           >+</button>
                         ) : (
                           <button
-                            onClick={() => tikla(p)}
-                            onDoubleClick={() => { if (window.confirm("Bu plan silinsin mi?")) onDeletePlan(p.id); }}
-                            title={`${p.tur}${p.isAdi ? ` — ${p.isAdi}` : ""}${p.isId ? " (Operasyon kartına bağlı: paylaşıldı deyince kart Teslim Edildi olur, dosya Drive'da 3 PAYLAŞILDI'ya geçer)" : ""} — tıkla: yapıldı işaretle (stoktan düşer), çift tıkla: sil`}
+                            /* TEK TIKLA İŞARETLEME KALDIRILDI.
+                             *
+                             * Tıklama toggle'dı ve uçuşta koruması yoktu: çift tık işareti
+                             * sessizce GERİ ALIYORDU — kullanıcı işaretledim sanıp paylaşımı
+                             * atlıyordu, ölçüldü. Ayrıca hangi kartın planlandığı yalnızca
+                             * fare üstündeki title'da yazıyordu.
+                             *
+                             * Artık üstüne gelmek (ya da tıklamak) kartı gösteren bir kutu
+                             * açıyor; işaretleme oradaki düğmeden, ayrıca onay sorularak
+                             * yapılıyor. */
+                            onMouseEnter={(e) => hucreAc(p, e.currentTarget)}
+                            onClick={(e) => (acikPlan && acikPlan.plan.id === p.id ? setAcikPlan(null) : hucreAc(p, e.currentTarget))}
+                            title={`${p.tur}${p.isAdi ? ` — ${p.isAdi}` : ""} — ayrıntı için üstüne gel`}
                             style={{
                               width: 32, height: 28, borderRadius: 7,
                               /* Bağlı kartın kenarlığı var: hangi hücrenin Drive'ı da
@@ -2394,13 +2447,85 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
       )}
 
       <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 10 }}>
-        <span style={{ color: T.warning }}>■</span> planlandı (henüz paylaşılmadı) · <span style={{ color: T.success }}>■</span> paylaşıldı (G=Görsel, V=Video, R=Reels, S=Story, C=Carousel). Bir güne tıklayıp tür seçerek plan ekle; planlı güne tıklayınca "paylaşıldı" işaretlenir (o markanın kartından o birim düşer), çift tıklayınca silinir.
+        <span style={{ color: T.warning }}>■</span> planlandı (henüz paylaşılmadı) · <span style={{ color: T.success }}>■</span> paylaşıldı (G=Görsel, V=Video, R=Reels, S=Story, C=Carousel). Boş güne tıklayıp tür seçerek plan ekle. <strong>Planlı hücrenin üstüne gel</strong>: hangi kartın planlandığı, stoğu ve işlem düğmeleri çıkar — işaretleme oradan, son bir onayla yapılır.
         <br />
         <span style={{ display: "inline-block", width: 9, height: 9, border: `2px solid ${T.success}`, borderRadius: 3, verticalAlign: "middle", marginRight: 4 }} />
         Kenarlıklı hücre bir <strong>Operasyon kartına bağlı</strong>: paylaşıldı dediğin an o iş
         "Teslim Edildi" olur ve dosyası Drive'da <strong>3 PAYLAŞILDI</strong> klasörüne geçer.
         Operasyon panosuna ya da Drive'a girmene gerek kalmaz.
       </div>
+
+      {/* AÇILAN HÜCRE KUTUSU — hangi kart planlı ve ne yapılabilir.
+        *
+        * Fare kutunun üstündeyken kapanmıyor (düğmeye ulaşılabilsin diye); dışına
+        * çıkınca ya da işlem bitince kapanıyor. */}
+      {acikPlan && (() => {
+        const p = acikPlan.plan;
+        const c = aktifMarkalar.find((x) => x.id === p.clientId);
+        const sube = planSubesi(p);
+        const subeAd = sube
+          ? ((markaninSubeleri(subeler, p.clientId).find((x) => String(x.id) === String(sube)) || {}).ad || p.subeAdi || null)
+          : null;
+        const stok = planStogu(p);
+        return (
+          <div
+            onMouseLeave={() => setAcikPlan(null)}
+            style={{
+              position: "fixed", left: acikPlan.x, top: acikPlan.y, transform: "translateX(-50%)",
+              zIndex: 60, width: 268, padding: "12px 14px",
+              background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 12,
+              boxShadow: "0 10px 30px rgba(0,0,0,.35)", fontFamily: "Inter",
+            }}
+          >
+            <div style={{ fontSize: 11, color: T.textFaint, fontWeight: 600, letterSpacing: 0.3, marginBottom: 6 }}>
+              {p.gun} · {c ? c.ad : ""}{subeAd ? ` · ${subeAd}` : ""}
+            </div>
+
+            {/* ASIL İSTENEN: hangi KART planlanmış. */}
+            <div style={{ fontSize: 14, color: p.isAdi ? T.text : T.textFaint, fontWeight: 700, lineHeight: 1.4, marginBottom: 2, fontStyle: p.isAdi ? "normal" : "italic" }}>
+              {p.isAdi || "Kart bağlı değil"}
+            </div>
+            <div style={{ fontSize: 12, color: T.textDim, marginBottom: 10 }}>
+              {p.tur} · stok {stok}
+              {p.yapildi && <span style={{ color: T.success, fontWeight: 700 }}> · ✓ paylaşıldı{p.yapildigiTarih ? ` (${p.yapildigiTarih})` : ""}</span>}
+            </div>
+
+            {p.isId ? (
+              <div style={{ fontSize: 11.5, color: T.textFaint, lineHeight: 1.5, marginBottom: 10 }}>
+                Operasyon kartına bağlı — işaretleyince kart ve Drive dosyası da hareket eder.
+              </div>
+            ) : (
+              <div style={{ fontSize: 11.5, color: T.textFaint, lineHeight: 1.5, marginBottom: 10 }}>
+                Karta bağlı değil — yalnızca stok düşer, Drive'da bir şey taşınmaz.
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {!p.yapildi ? (
+                <button
+                  onClick={() => paylasimiOnayla(p)}
+                  disabled={gonderiliyor}
+                  style={{ ...saveBtnStyle, padding: "8px 12px", fontSize: 12.5, flex: 1,
+                    opacity: gonderiliyor ? 0.6 : 1, cursor: gonderiliyor ? "default" : "pointer" }}
+                >{gonderiliyor ? "Gönderiliyor…" : "Paylaşıldı olarak işaretle"}</button>
+              ) : (
+                <button
+                  onClick={() => paylasimiGeriAl(p)}
+                  disabled={gonderiliyor}
+                  style={{ ...cancelBtnStyle, padding: "8px 12px", fontSize: 12.5, flex: 1,
+                    opacity: gonderiliyor ? 0.6 : 1, cursor: gonderiliyor ? "default" : "pointer" }}
+                >{gonderiliyor ? "Gönderiliyor…" : "Paylaşımı geri al"}</button>
+              )}
+              <button
+                onClick={() => { if (window.confirm("Bu plan silinsin mi?")) { onDeletePlan(p.id); setAcikPlan(null); } }}
+                disabled={gonderiliyor}
+                title="Planı sil"
+                style={{ ...cancelBtnStyle, padding: "8px 10px", fontSize: 12.5, color: T.danger, borderColor: T.danger }}
+              >Sil</button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* BU HAFTA HANGİ İÇERİK PLANLI.
         * Izgara hücresi 32 piksel — içine kart adı sığmıyor ve ad yalnızca fare
@@ -8242,6 +8367,9 @@ export default function MarcusOS() {
     skipNextSave.current = true;
     setData((d) => ({ ...d, ...patch }));
   };
+  /* Söz DÖNDÜRÜYOR: arayüz "istek uçuyor mu" bilip düğmeyi kilitleyebilsin.
+   * Kilitlenmeyen bir düğmede çift tık, toggle olduğu için işareti sessizce geri
+   * alıyordu — ölçüldü. */
   const paylasimIstek = (body, hataMesaji, secenekler) => {
     /* İŞLEM KİMLİĞİ — bu uçtaki on iki işlemin hepsi buradan geçiyor, tek yer yetiyor.
      *
@@ -8253,7 +8381,7 @@ export default function MarcusOS() {
      * Kimlik burada, ÇAĞRI ANINDA üretiliyor. Otomatik tekrar denemeler aynı gövdeyi
      * yeniden gönderdiği için kimlik de aynı kalıyor — korunmak istenen durum bu. */
     const govde = { ...body, islemId: islemKimligiUret() };
-    fetch("/api/paylasim", {
+    return fetch("/api/paylasim", {
       method: "POST",
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(govde),

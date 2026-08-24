@@ -228,5 +228,44 @@ await bolum("4) IZGARA ALTI LİSTE — herkes aynı listeyi görüyor", 4, () =>
     "çözüm ortağı dahil herkes görebilmeli");
 });
 
+/* ---------------------------------------------------------------- */
+await bolum("5) HÜCRE KUTUSU — kart görünüyor, işaretleme onay istiyor", 9, () => {
+  const app = readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");
+
+  /* ESKİ DAVRANIŞ: tek tık doğrudan toggle'dı ve uçuşta koruması yoktu — çift tık
+   * işareti SESSİZCE geri alıyordu (ölçüldü). Kullanıcı işaretledim sanıp paylaşımı
+   * atlıyordu. Ayrıca hangi kartın planlandığı yalnızca title'da yazıyordu. */
+  t("hücre artık doğrudan toggle ETMİYOR",
+    !/onClick=\{\(\) => tikla\(p\)\}/.test(app),
+    "tek tıkla işaretleme geri gelmiş");
+  t("üstüne gelince kutu açılıyor", /onMouseEnter=\{\(e\) => hucreAc\(p, e\.currentTarget\)\}/.test(app));
+  t("dokunmatik için tıklama da açıyor", /acikPlan && acikPlan\.plan\.id === p\.id \? setAcikPlan\(null\)/.test(app),
+    "fare üstüne gelme dokunmatik ekranda çalışmıyor");
+
+  t("kutu planlanan KARTI gösteriyor", /\{p\.isAdi \|\| "Kart bağlı değil"\}/.test(app));
+  t("paylaş düğmesi kutuda", /paylasimiOnayla\(p\)/.test(app));
+
+  /* SON ONAY: işlemin görünmeyen üç sonucu var — stok, kart aşaması, Drive. */
+  t("son onay soruluyor", /Paylaşıldığını onaylıyor musun\?/.test(app));
+  t("onay metni Drive taşımasını söylüyor",
+    /Drive'da dosya '3 PAYLAŞILDI' klasörüne taşınacak/.test(app),
+    "kullanıcı neye evet dediğini bilmeli");
+
+  /* UÇUŞTA KORUMASI: çift tık iki ayrı işlem demek, toggle olduğu için ikincisi
+   * birincisini geri alır ve sonuç "hiçbir şey olmadı" olur — görünmeyen bir hata. */
+  /* KORUMA, PAYLAŞ YOLUNDA olmalı — "metin bir yerde geçiyor mu" demek yetmiyor:
+   * geri-alma yolunda da aynı satırlar var ve biri kalkınca kontrol yine geçiyordu
+   * (ölçüldü, 0 düştü). Paylaş fonksiyonunun GÖVDESİ ve paylaş DÜĞMESİ ayrı ayrı
+   * sınanıyor. */
+  const onaylaGovde = (app.match(/const paylasimiOnayla = \(p\) => \{[\s\S]*?\n  \};/) || [""])[0];
+  t("paylaş fonksiyonu uçuşta kontrolü yapıyor",
+    /if \(gonderiliyor\) return;/.test(onaylaGovde),
+    "kilitlenmezse çift tık işareti sessizce geri alır");
+  const paylasDugmesi = (app.match(/<button\s+onClick=\{\(\) => paylasimiOnayla\(p\)\}[\s\S]{0,400}?<\/button>/) || [""])[0];
+  t("paylaş düğmesi istek uçarken kilitleniyor",
+    /disabled=\{gonderiliyor\}/.test(paylasDugmesi),
+    "gelen: " + (paylasDugmesi ? "düğme bulundu ama disabled yok" : "düğme bulunamadı"));
+});
+
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);
 if (k > 0) process.exitCode = 1;
