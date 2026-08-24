@@ -464,8 +464,49 @@ export default async function handler(req, res) {
           data.gunlukKontrol = { tarih: bugun, yapilanlar: data.gunlukKontrol.yapilanlar.filter((k) => k !== itemKey) };
         }
       }
-      const _v = await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, _v, haftalikPaylasimlar: yanitSuz(data.haftalikPaylasimlar), gunlukKontrol: data.gunlukKontrol });
+      /* PLAN SİLMEK = TAM GERİ ALMA.
+       *
+       * Bu işlem KARTA HİÇ DOKUNMUYORDU. Paylaşıldı işaretli bir plan silinince:
+       * kart "Teslim Edildi"de kalıyor, stok geri gelmiyor ve Drive dosyası
+       * PAYLAŞILDI klasöründe kalıyordu. Üstelik kart artık "Onaylandı" olmadığı
+       * için paylaşım seçicisinde de ÇIKMIYOR — kullanıcı aynı içeriği başka bir
+       * güne planlamak isteyince bulamıyordu. Sahadan bildirilen sorun tam buydu:
+       * "iptal etsem de tekrar göstermiyor, sadece kalan görünüyor".
+       *
+       * `bagliKartiIsaretle` aşamayı KALAN planlardan hesapladığı için, plan
+       * listeden çıkarıldıktan SONRA çağrılması yeterli: tek şubeli markada kart
+       * "Onaylandı"ya döner, çok şubelide kalan şubeler varsa "Şubelerde
+       * Paylaşılıyor"da kalır. */
+      const isleriOnceSil = data.cekimIsleri || [];
+      let geriAlinanIs = null;
+      if (silinen && silinen.isId) {
+        geriAlinanIs = bagliKartiIsaretle(data, silinen.isId,
+          false, kimlik.markalar.length ? "Marka Yöneticisi" : "Yönetici (CEO)");
+      }
+
+      if (geriAlinanIs) {
+        /* Stoğun tek sahibi kartın aşaması — motor farkı kendisi uyguluyor. */
+        const stokSonucSil = onaylananlaraGoreStok(isleriOnceSil, data.cekimIsleri, data.stoklar,
+          data.clients, undefined, data.subeler);
+        if (stokSonucSil) { data.stoklar = stokSonucSil.stoklar; data.cekimIsleri = stokSonucSil.cekimIsleri; }
+      } else if (silinen && silinen.yapildi) {
+        /* Karta bağlı olmayan işaretli plan: sayıyı plan tutuyordu, geri veriliyor. */
+        stokDegistirDahili(data, silinen.clientId, silinen.tur, 1);
+      }
+
+      const _v = await kaydetVeYedekle(data,
+        geriAlinanIs ? [...BU_UCUN_ALANLARI, "cekimIsleri"] : undefined);
+
+      /* Drive taşıması kilit DIŞINDA — Google çağrıları saniyeler sürebiliyor. */
+      await kilitBirak(kilitAlindi); kilitAlindi = false;
+      const silmeTasima = geriAlinanIs ? await bagliKartinDosyasiniTasi(data, geriAlinanIs) : null;
+
+      return res.status(200).json({ ok: true, _v,
+        haftalikPaylasimlar: yanitSuz(data.haftalikPaylasimlar),
+        gunlukKontrol: data.gunlukKontrol,
+        stoklar: data.stoklar,
+        cekimIsleri: kartlariSuz(data.cekimIsleri),
+        driveSonuc: silmeTasima });
     }
 
     if (action === "haftalikToggle") {
