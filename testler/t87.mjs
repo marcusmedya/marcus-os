@@ -91,7 +91,7 @@ const belge = (stoklar) => ({
 
 /* ---------------------------------------------------------------- */
 await bolum("1) RAPOR — durum ve tür kırılımı, kart adlarıyla", 4, async () => {
-  await kv.set("marcus-os-data", belge({ "1_Reels": 3, "1_Görsel": 1 }));
+  await kv.set("marcus-os-data", belge({ "1_Reels": 3, "1_Post": 1 }));
   const gercek = globalThis.fetch;
   globalThis.fetch = driveTaklidi({ aylikDosyalar: { "08 AĞUSTOS": [
     { id: R1, name: "reels1.mp4", mimeType: "video/mp4" },
@@ -108,7 +108,7 @@ await bolum("1) RAPOR — durum ve tür kırılımı, kart adlarıyla", 4, async
       e.durumlar.onaylanan.kartlar.some((x) => x.isAdi === "Reels tanıtım"));
     t("STOK FARKI hesaplanıyor",
       e.stokFarklari.some((f) => f.tur === "Reels" && f.kayitli === 3 && f.driveGore === 2)
-      && e.stokFarklari.some((f) => f.tur === "Görsel" && f.driveGore === 0),
+      && e.stokFarklari.some((f) => f.tur === "Post" && f.driveGore === 0),
       JSON.stringify(e.stokFarklari));
     t("DOSYASI DRIVE'DA HİÇ OLMAYAN onaylı kart bildiriliyor",
       e.kayipDosyalar.length === 1 && e.kayipDosyalar[0].isId === 3 && e.kayipDosyalar[0].tumuKayip === true,
@@ -118,7 +118,7 @@ await bolum("1) RAPOR — durum ve tür kırılımı, kart adlarıyla", 4, async
 
 /* ---------------------------------------------------------------- */
 await bolum("2) UYGULA — Drive sayısı yazılıyor, şube stoğu korunuyor", 5, async () => {
-  await kv.set("marcus-os-data", belge({ "1_Reels": 3, "1_Görsel": 1, "1_9_Reels": 5 }));
+  await kv.set("marcus-os-data", belge({ "1_Reels": 3, "1_Post": 1, "1_9_Reels": 5 }));
   const gercek = globalThis.fetch;
   globalThis.fetch = driveTaklidi({ aylikDosyalar: { "08 AĞUSTOS": [
     { id: R1, name: "reels1.mp4", mimeType: "video/mp4" },
@@ -130,7 +130,7 @@ await bolum("2) UYGULA — Drive sayısı yazılıyor, şube stoğu korunuyor", 
     const d = await kv.get("marcus-os-data");
     t("istek başarılı", r.kod === 200 && !r.govde.uygulanmadi, JSON.stringify(r.govde));
     t("genel Reels stoğu Drive'a eşitlendi", d.stoklar["1_Reels"] === 2, JSON.stringify(d.stoklar));
-    t("dosyası olmayan kartın türü sıfırlandı", d.stoklar["1_Görsel"] === 0, JSON.stringify(d.stoklar));
+    t("dosyası olmayan kartın türü sıfırlandı", d.stoklar["1_Post"] === 0, JSON.stringify(d.stoklar));
     t("ŞUBE STOĞUNA DOKUNULMADI", d.stoklar["1_9_Reels"] === 5,
       JSON.stringify(d.stoklar) + " — hangi şubede paylaşıldığı Drive'da yazmıyor");
     t("değişiklik geçmişe eski/yeni değerle yazıldı",
@@ -143,7 +143,7 @@ await bolum("2) UYGULA — Drive sayısı yazılıyor, şube stoğu korunuyor", 
 await bolum("3) EKSİK TARAMA — STOK YAZILMAZ (asıl fren)", 3, async () => {
   /* Bütçe dolduğunda ya da Drive okunamadığında liste eksik gelir. O sayıyı yazmak,
    * gerçekte duran içeriği stoktan silmek demek. */
-  await kv.set("marcus-os-data", belge({ "1_Reels": 3, "1_Görsel": 1 }));
+  await kv.set("marcus-os-data", belge({ "1_Reels": 3, "1_Post": 1 }));
   const gercek = globalThis.fetch;
   globalThis.fetch = driveTaklidi({ aylikDosyalar: {}, hataVer: true });
   try {
@@ -152,7 +152,7 @@ await bolum("3) EKSİK TARAMA — STOK YAZILMAZ (asıl fren)", 3, async () => {
     const d = await kv.get("marcus-os-data");
     t("uygulanmadığı SÖYLENİYOR", r.govde.uygulanmadi === true && Boolean(r.govde.sebep),
       JSON.stringify(r.govde));
-    t("STOK OLDUĞU GİBİ DURUYOR", d.stoklar["1_Reels"] === 3 && d.stoklar["1_Görsel"] === 1,
+    t("STOK OLDUĞU GİBİ DURUYOR", d.stoklar["1_Reels"] === 3 && d.stoklar["1_Post"] === 1,
       JSON.stringify(d.stoklar) + " — eksik okuma yüzünden içerik silinmemeli");
     t("geçmişe sahte düzeltme yazılmadı",
       !(d.paylasimGecmisi || []).some((x) => x.islem === "Drive denetimi"));
@@ -161,7 +161,7 @@ await bolum("3) EKSİK TARAMA — STOK YAZILMAZ (asıl fren)", 3, async () => {
 
 /* ---------------------------------------------------------------- */
 await bolum("4) TOPLU KAYIP FRENİ", 2, async () => {
-  const cokStok = { "1_Reels": 25, "1_Görsel": 1 };
+  const cokStok = { "1_Reels": 25, "1_Post": 1 };
   await kv.set("marcus-os-data", belge(cokStok));
   const gercek = globalThis.fetch;
   globalThis.fetch = driveTaklidi({ aylikDosyalar: { "08 AĞUSTOS": [] } });
@@ -194,7 +194,7 @@ await bolum("5) YARIDA KESİLEN TARAMA — en tehlikeli hâl", 3, async () => {
   for (let y = 2023; y <= 2026; y++) AYLAR.forEach((ay) => { cokAy[`${ay} ${y}`] = []; });
   cokAy["AĞUSTOS 2026"] = [{ id: R1, name: "reels1.mp4", mimeType: "video/mp4" }];
 
-  await kv.set("marcus-os-data", belge({ "1_Reels": 3, "1_Görsel": 1 }));
+  await kv.set("marcus-os-data", belge({ "1_Reels": 3, "1_Post": 1 }));
   const gercek = globalThis.fetch;
   globalThis.fetch = driveTaklidi({ aylikDosyalar: cokAy });
   try {
@@ -208,7 +208,7 @@ await bolum("5) YARIDA KESİLEN TARAMA — en tehlikeli hâl", 3, async () => {
     const d = await kv.get("marcus-os-data");
     t("EKSİK LİSTEYLE STOK YAZILMADI", r.govde.uygulanmadi === true && /tamamlanmadı/i.test(String(r.govde.sebep)),
       JSON.stringify(r.govde));
-    t("stok olduğu gibi duruyor", d.stoklar["1_Reels"] === 3 && d.stoklar["1_Görsel"] === 1,
+    t("stok olduğu gibi duruyor", d.stoklar["1_Reels"] === 3 && d.stoklar["1_Post"] === 1,
       JSON.stringify(d.stoklar) + " — taranmamış aylardaki içerik silinmemeli");
   } finally { globalThis.fetch = gercek; }
 });
@@ -219,7 +219,7 @@ await bolum("6) AY KLASÖRÜ YOK — 'içerik yok' sanılmıyor", 3, async () =>
    * başka klasörü gösteriyor, ya da erişim kısıtlı). Tarama "0 dosya, tamamlandı"
    * diyordu ve Drive otoriteli stok BÜTÜN SAYILARI SIFIRLIYORDU. "Hiç dosya görmedim"
    * ile "hiç klasör bulamadım" aynı şey değil. */
-  await kv.set("marcus-os-data", belge({ "1_Reels": 3, "1_Görsel": 1 }));
+  await kv.set("marcus-os-data", belge({ "1_Reels": 3, "1_Post": 1 }));
   const gercek = globalThis.fetch;
   globalThis.fetch = driveTaklidi({ aylikDosyalar: {} });     // hiç ay klasörü yok
   try {
@@ -231,7 +231,7 @@ await bolum("6) AY KLASÖRÜ YOK — 'içerik yok' sanılmıyor", 3, async () =>
     const r = await cagir(paylasimUcu, { method: "POST", headers: OWNER,
       body: { action: "driveStokUygula", clientId: 1, islemId: kimlik() } });
     const d = await kv.get("marcus-os-data");
-    t("STOK SIFIRLANMADI", d.stoklar["1_Reels"] === 3 && d.stoklar["1_Görsel"] === 1,
+    t("STOK SIFIRLANMADI", d.stoklar["1_Reels"] === 3 && d.stoklar["1_Post"] === 1,
       JSON.stringify(d.stoklar) + " — klasör yapısı okunamadı diye içerik silinemez");
     t("sebep söyleniyor", r.govde.uygulanmadi === true && /klasör/i.test(String(r.govde.sebep)),
       JSON.stringify(r.govde));

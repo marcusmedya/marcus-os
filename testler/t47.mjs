@@ -14,7 +14,7 @@
  *    gönderilmiyordu, dolayısıyla görsel istenemiyordu.
  *
  * 3. STOK. Onaylanan kart stoğu türüne göre artırmalı — Reels, Reels stoğunu; görsel,
- *    görsel stoğunu. Soru soruldu, cevabı ölçülerek veriliyor.
+ *    post stoğunu. Soru soruldu, cevabı ölçülerek veriliyor.
  */
 import fs from "fs";
 import path from "path";
@@ -150,12 +150,12 @@ let r = await onayla(30);
 t("müşteri Reels kartını onayladı", r.kod === 200, JSON.stringify(r.govde).slice(0, 120));
 let d = await oku();
 t("Reels stoğu 1 oldu", d.stoklar["1_Reels"] === 1, JSON.stringify(d.stoklar));
-t("görsel stoğu artmadı", !d.stoklar["1_Görsel"], JSON.stringify(d.stoklar));
+t("post stoğu artmadı", !d.stoklar["1_Post"], JSON.stringify(d.stoklar));
 
 r = await onayla(31);
 t("müşteri görsel kartını onayladı", r.kod === 200, JSON.stringify(r.govde).slice(0, 120));
 d = await oku();
-t("görsel stoğu 1 oldu", d.stoklar["1_Görsel"] === 1, JSON.stringify(d.stoklar));
+t("post stoğu 1 oldu", d.stoklar["1_Post"] === 1, JSON.stringify(d.stoklar));
 t("Reels stoğu 1'de kaldı (ikinci kez sayılmadı)", d.stoklar["1_Reels"] === 1, JSON.stringify(d.stoklar));
 t("kartlar sayıldı olarak işaretlendi",
   d.cekimIsleri.every((j) => j.stokSayildi === true),

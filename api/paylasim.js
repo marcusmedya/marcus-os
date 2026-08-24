@@ -8,7 +8,7 @@ import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
 import { markaErisimiVarMi } from "../lib/marka-kilidi.js";
 import { onaylananiTasi, kartKlasorunuTasi, driveDosyaIdCikar, markaninDriveDosyalari, DURUM_KLASORLERI } from "../lib/drive-tasima.js";
 import { tasinacakDosyalar, kartKlasorAdi } from "../lib/asamalar.js";
-import { onaylananlaraGoreStok, paylasimTuru, PAYLASIM_TURLERI } from "../lib/stok.js";
+import { onaylananlaraGoreStok, paylasimTuru, PAYLASIM_TURLERI, eskiTurAnahtarlari } from "../lib/stok.js";
 import { kartlaraGoreStok } from "../lib/stok-mutabakat.js";
 import { driveDurumRaporu, driveyeGoreStok, kartinDosyaKimlikleri, ASAMA_DURUMU } from "../lib/drive-eslestirme.js";
 import { stokFarklari, uygulanabilirMi, farklariUygula } from "../lib/drive-denetimi.js";
@@ -811,7 +811,7 @@ export default async function handler(req, res) {
       if (!kilitAlindi) return mesgulYanit(res);
       const taze = (await kv.get(KEY)) || {};
       const tazeFark = stokFarklari(taze.stoklar, driveStok2, marka.id, PAYLASIM_TURLERI);
-      taze.stoklar = farklariUygula(taze.stoklar, tazeFark, marka.id);
+      taze.stoklar = farklariUygula(taze.stoklar, tazeFark, marka.id, eskiTurAnahtarlari(taze.stoklar, marka.id));
       taze.paylasimGecmisi = [...(taze.paylasimGecmisi || []), ...tazeFark.map((f, i) => ({
         id: `drivestok_${Date.now().toString(36)}_${i}`,
         tarih: new Date().toISOString(),

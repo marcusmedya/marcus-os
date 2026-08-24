@@ -4,7 +4,7 @@ import { gonderenAdres } from "../lib/eposta.js";
 import { markaninDriveDosyalari } from "../lib/drive-tasima.js";
 import { driveDurumRaporu, driveyeGoreStok } from "../lib/drive-eslestirme.js";
 import { stokFarklari, uygulanabilirMi, farklariUygula } from "../lib/drive-denetimi.js";
-import { paylasimTuru, PAYLASIM_TURLERI as STOK_TURLERI } from "../lib/stok.js";
+import { paylasimTuru, PAYLASIM_TURLERI as STOK_TURLERI, eskiTurAnahtarlari } from "../lib/stok.js";
 import { markaEslestirici } from "../lib/marka-kilidi.js";
 import { guvenliGuncelle } from "../lib/kv-yaz.js";
 
@@ -339,7 +339,7 @@ export default async function handler(req, res) {
             degisenAlanlar: ["stoklar", "paylasimGecmisi"],
             veri: {
               ...guncel,
-              stoklar: farklariUygula(guncel.stoklar, taze, c.id),
+              stoklar: farklariUygula(guncel.stoklar, taze, c.id, eskiTurAnahtarlari(guncel.stoklar, c.id)),
               paylasimGecmisi: [...(guncel.paylasimGecmisi || []), ...taze.map((f, i) => ({
                 id: `gecedrive_${Date.now().toString(36)}_${c.id}_${i}`,
                 tarih: new Date().toISOString(),

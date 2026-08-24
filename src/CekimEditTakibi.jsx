@@ -8,6 +8,7 @@ import { kartiIsleyebilirMi } from "../lib/is-yetkisi.js";
 import { markaninIdsi, trKucult } from "../lib/marka-kilidi.js";
 import { panoSuzgeci } from "../lib/pano-suzgeci.js";
 import { paylasimTuru, PAYLASIM_TURLERI } from "../lib/stok.js";
+import { KATEGORILER as KATEGORI_LISTESI, kategoriEsle } from "../lib/kategori.js";
 import { markaninSubeleri, kullanabilenSubeler, icerikSubeOzeti,
          kapsamiKayipMi, gecersizSubeKimlikleri } from "../lib/sube-kullanimi.js";
 // Para gösterimleri Gizlilik Modu'na uymalı — aksi halde ücretler gizliyken de görünür kalırdı.
@@ -44,7 +45,10 @@ const C = {
   get warningSoft() { return T.warningSoft; },
 };
 
-export const KATEGORILER = ["Video", "Fotoğraf", "Carousel", "Grafik Tasarım"];
+/* Kategoriler artık `lib/kategori.js`'de — sekmeler, stok satırları ve aşama tablosu
+ * aynı listeden besleniyor. Ayrı listeler tutulduğunda biri güncellenip diğeri
+ * unutuluyordu. */
+export { KATEGORILER } from "../lib/kategori.js";
 
 /** Google Drive paylaşım linkini, sayfa içinde doğrudan oynatılabilir (gömülü) önizleme
  * formatına çevirir. Dönüştürülemezse null döner, o zaman normal link olarak gösterilir. */
@@ -191,18 +195,20 @@ function DriveGorsel({ link, C, yukseklik, kapak, kucuk, isId, icerikId, boyut =
  * itibaren yüklenebiliyor, bir sütun uğruna herkesin fazladan tıklaması anlamsızdı. */
 /* AŞAMA LİSTELERİ ARTIK lib/asamalar.js'TE — sunucu da okuyabilsin diye. Buradan yeniden
  * dışa veriliyor ki mevcut çağrı yerleri değişmesin. */
-import { ASAMALAR_VIDEO, ASAMALAR_FOTOGRAF, ASAMALAR_TASARIM, ASAMALAR, asamaListesi, ILK_ASAMA } from "../lib/asamalar.js";
-export { ASAMALAR_VIDEO, ASAMALAR_FOTOGRAF, ASAMALAR_TASARIM, ASAMALAR, asamaListesi, ILK_ASAMA };
+import { ASAMALAR_REELS, ASAMALAR_POST, ASAMALAR, asamaListesi, ILK_ASAMA, yapiliyorAsamasi } from "../lib/asamalar.js";
+export { ASAMALAR_REELS, ASAMALAR_POST, ASAMALAR, asamaListesi, ILK_ASAMA };
 
 
 /** Çıktısı video mu? Fotoğraf ve tasarımın çıktısı GÖRSELDİR; oynatıcı yerine görsel
  * önizleme gösterilmeli. Eskiden "Grafik Tasarım değilse video" varsayılıyordu. */
-export const ciktiVideoMu = (kategori) => (kategori || "Video") === "Video";
+export const ciktiVideoMu = (kategori) => kategoriEsle(kategori || "Reels") === "Reels";
 
 /** Çekim içeren kategoriler — kameraman alanı yalnızca bunlarda anlamlı. */
 export const cekimVarMi = (kategori) => (kategori || "Video") !== "Grafik Tasarım";
 /** O kategoride "işin bizzat yapıldığı" aşama — "Tamamladım" butonunun tetiklendiği yer. */
-const YAPILIYOR_ASAMASI = { "Video": "Edit Yapılıyor", "Fotoğraf": "Düzenleniyor", "Grafik Tasarım": "Tasarım Yapılıyor" };
+/* KENDİ KOPYASI KALDIRILDI. Buradaki liste bayatlamıştı: eski kategori adlarını
+ * taşıyor ve CAROUSEL'i hiç içermiyordu — karosel kartında "üzerinde çalışılıyor"
+ * dalı hiç eşleşmiyordu. Tek kaynak lib/asamalar.js. */
 const TAMAMLADIM_ETIKETI = { "Video": "Editi Tamamladım", "Fotoğraf": "Düzenlemeyi Tamamladım", "Carousel": "Düzenlemeyi Tamamladım", "Grafik Tasarım": "Tasarımı Tamamladım" };
 
 /* Aşama kuralları lib/asamalar.js'te — sunucu da aynı dosyadan okuyor. İki kopya yazılsaydı
@@ -1765,7 +1771,7 @@ function IsDetayModal({ job, clients, subeler, planlar, role, staffName, islemYe
 
             {yetkili && (
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 18 }}>
-                {job.asama === YAPILIYOR_ASAMASI[kategori] && (
+                {job.asama === yapiliyorAsamasi(kategori) && (
                   <button style={dosyaVar ? btnPrimary : kapaliBtn} onClick={editiTamamla} disabled={!dosyaVar}
                           title={dosyaVar ? "" : "Önce video ya da görsel yükle"}>
                     <CheckCircle2 size={14} /> {TAMAMLADIM_ETIKETI[kategori]}
@@ -1777,7 +1783,7 @@ function IsDetayModal({ job, clients, subeler, planlar, role, staffName, islemYe
                     <CheckCircle2 size={14} /> Revizeyi Tamamladım
                   </button>
                 )}
-                {job.asama !== YAPILIYOR_ASAMASI[kategori] && job.asama !== "Revize İstendi" && ileriAsama && !["Onaylandı", "Teslim Edildi"].includes(ileriAsama) && (
+                {job.asama !== yapiliyorAsamasi(kategori) && job.asama !== "Revize İstendi" && ileriAsama && !["Onaylandı", "Teslim Edildi"].includes(ileriAsama) && (
                   <button style={btnGhost} onClick={() => asamaGecir(ileriAsama)}><ChevronRight size={14} /> Sonraki Aşamaya Geçir: {ileriAsama}</button>
                 )}
                 {suankiIndex > 0 && (

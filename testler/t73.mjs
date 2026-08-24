@@ -16,7 +16,7 @@
  */
 import { readFileSync } from "node:fs";
 import {
-  asamaListesi, ILK_ASAMA, yapiliyorAsamasi, ASAMALAR_CAROUSEL, ASAMALAR_FOTOGRAF,
+  asamaListesi, ILK_ASAMA, yapiliyorAsamasi, ASAMALAR_CAROUSEL, ASAMALAR_POST,
   SUBE_PAYLASIM_ASAMASI, asamalariDuzelt, kartKlasorAdi, KLASORLU_KATEGORI,
 } from "../lib/asamalar.js";
 import { paylasimTuru, PAYLASIM_TURLERI, onaylananlaraGoreStok } from "../lib/stok.js";
@@ -41,8 +41,8 @@ bolum("1) AŞAMA TABLOSU — kendi akışı var, Video'ya düşmüyor", 6, () =>
     "tabloya eklenmezse asamaListesi Video akışına düşer");
   t("Video akışına DÜŞMÜYOR", liste !== asamaListesi("Video"));
   t("akış Fotoğraf ile aynı ŞEKİLDE",
-    JSON.stringify(liste) === JSON.stringify(ASAMALAR_FOTOGRAF));
-  t("ama AYRI bir tablo", ASAMALAR_CAROUSEL !== ASAMALAR_FOTOGRAF,
+    JSON.stringify(liste) === JSON.stringify(ASAMALAR_POST));
+  t("ama AYRI bir tablo", ASAMALAR_CAROUSEL !== ASAMALAR_POST,
     "aynı dizi paylaşılsaydı Fotoğraf değişince Carousel sessizce değişirdi");
   t("ilk aşama Çekim Yapıldı", ILK_ASAMA("Carousel") === "Çekim Yapıldı");
   t("şube ara aşaması akışta", liste.includes(SUBE_PAYLASIM_ASAMASI));
@@ -81,7 +81,8 @@ bolum("4) STOK TÜRÜ — Carousel kendi sayacına yazıyor", 5, () => {
     "eşleme yoksa Görsel'e düşer ve yanlış sayaç artar");
   t("içerik adı hâlâ öncelikli",
     paylasimTuru({ kategori: "Carousel", icerikTuru: "Reels çekimi" }) === "Reels");
-  t("Fotoğraf bozulmadı", paylasimTuru({ kategori: "Fotoğraf", icerikTuru: "Ürün" }) === "Görsel");
+  /* v160: türler üçe indi — eski Fotoğraf kartı POST sayılıyor. */
+  t("eski Fotoğraf kartı POST", paylasimTuru({ kategori: "Fotoğraf", icerikTuru: "Ürün" }) === "Post");
 
   /* Onaylanınca gerçekten Carousel sayacı artıyor mu — kural değil, sonuç sınanıyor. */
   const r = onaylananlaraGoreStok(
@@ -141,18 +142,20 @@ bolum("6) TAŞIMA — kart klasörü gerçekten kullanılıyor", 5, () => {
 bolum("7) ARAYÜZ — kategori her yerde tanınıyor", 5, () => {
   const cekim = readFileSync(new URL("../src/CekimEditTakibi.jsx", import.meta.url), "utf8");
 
-  t("kategori listesinde", /KATEGORILER = \[[^\]]*"Carousel"/.test(cekim),
+  /* v160: kategori listesi artık lib/kategori.js'te — arayüz oradan alıyor.
+   * Listede olmayan kategori pano sekmesi ve form seçeneği olarak hiç çıkmaz. */
+  const kategoriModulu = readFileSync(new URL("../lib/kategori.js", import.meta.url), "utf8");
+  t("kategori listesinde", /KATEGORILER = \[[^\]]*"Carousel"/.test(kategoriModulu),
     "listede yoksa pano sekmesi ve form seçeneği hiç çıkmaz");
-  t("Grafik Tasarım'dan ÖNCE duruyor",
-    cekim.indexOf('"Carousel"') < cekim.indexOf('"Grafik Tasarım"'),
-    "çekilen içerikler bir arada");
+  t("arayüz kendi kopyasını tutmuyor", !/const KATEGORILER = \[/.test(cekim),
+    "iki liste tutulursa biri güncellenip diğeri unutulur");
   t("tamamladım etiketi var", /"Carousel": "Düzenlemeyi Tamamladım"/.test(cekim),
     "eksikse düğme boş metinle çıkar");
 
   /* .jsx Node'da doğrudan içe aktarılamıyor; eşleme kaynaktan doğrulanıyor. */
   const tema = readFileSync(new URL("../src/tema.jsx", import.meta.url), "utf8");
   t("kendi rozet etiketi ve rengi var",
-    /"Carousel": \{ ad: "Karosel", renk: "#[0-9A-Fa-f]{6}"/.test(tema),
+    /"Carousel": \{ ad: "Carousel", renk: "#[0-9A-Fa-f]{6}"/.test(tema),
     "eşleme yoksa gri 'Carousel' yazar, Görsel'le karışır");
 
   /* Carousel çekiliyor — kameraman alanı görünmeli. Kural "Grafik Tasarım değilse

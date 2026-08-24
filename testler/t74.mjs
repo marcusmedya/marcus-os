@@ -44,11 +44,16 @@ const KEY = "marcus-os-data";
 const OWNER = { "x-site-password": "ownerpw", "content-type": "application/json" };
 
 /* ---------------------------------------------------------------- */
-await bolum("1) SLAYT SINIRI — kategoriye göre", 5, () => {
+await bolum("1) SLAYT SINIRI — kategoriye göre", 7, () => {
   t("Fotoğraf tek slayt", enFazlaSlayt("Fotoğraf") === 1);
   t("Carousel tam sınır", enFazlaSlayt("Carousel") === EN_FAZLA_SLAYT);
   t("Video etkilenmedi", enFazlaSlayt("Video") === EN_FAZLA_SLAYT);
-  t("Grafik Tasarım etkilenmedi", enFazlaSlayt("Grafik Tasarım") === EN_FAZLA_SLAYT);
+  /* KURAL DEĞİŞİKLİĞİ — v160: Grafik Tasarım POST'a katıldı, Post tek görsellik.
+   * Sınır yalnızca YENİ yuva açmaya uygulanıyor; eski çok slaytlı tasarım kartlarının
+   * dosyaları görünmeye devam ediyor (aşağıdaki bölüm bunu ölçüyor). */
+  t("eski tasarım kartı POST sınırına tabi", enFazlaSlayt("Grafik Tasarım") === 1);
+  t("Post tek slayt", enFazlaSlayt("Post") === 1);
+  t("Reels tam sınır", enFazlaSlayt("Reels") === EN_FAZLA_SLAYT);
   t("kategorisiz eski kayıt kısıtlanmıyor", enFazlaSlayt(undefined) === EN_FAZLA_SLAYT,
     "eski kartlar bu kural yokken açıldı, sessizce daraltılmamalı");
 });

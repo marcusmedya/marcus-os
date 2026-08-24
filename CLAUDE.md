@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     87 test dosyası (t1…t87) + 21 statik denetim betiği
+testler/     88 test dosyası (t1…t88) + 21 statik denetim betiği
 ```
 
 ---
@@ -173,11 +173,35 @@ markalarını görür). Kart **silme** bu kuralın dışında — yalnızca yön
 
 ### 5. Aşamalar ve medya yuvaları
 
-`lib/asamalar.js` aşama tablolarının **tek** sahibi (Video / Fotoğraf / Carousel / Grafik Tasarım).
+`lib/asamalar.js` aşama tablolarının **tek** sahibi (Reels / Post / Carousel).
+
+**ÜÇ KATEGORİ — `lib/kategori.js` tek kaynak.** Kategoriler ve stok türleri AYNI liste:
+`Reels · Post · Carousel`. Eskiden dört kategori + altı stok türü vardı ve ikisi ayrı
+listelerdi. **Eski kayıtlara dokunulmuyor**: belgede hâlâ "Video", "Fotoğraf", "Grafik
+Tasarım" kategorili kartlar ve `1_Görsel` / `1_Story` / `1_Tasarım` anahtarları var;
+eşleme OKUMA ANINDA yapılıyor (`kategoriEsle`, `turEsle`, `stoklariBirlestir`).
+
+Eşlemenin dokunması gereken YERLER — biri unutulursa kayıt sessizce KAYBOLUR:
+`panoSuzgeci` (unutuldu → eski kartlar hiçbir sekmede görünmedi, ölçüldü) ·
+`asamaListesi` · `yapiliyorAsamasi` · `enFazlaSlayt` · `paylasimTuru` · `TUR_ETIKET`.
+
+**Kategorisiz kart REELS sayılır**, Post değil. Belgede kategorisi hiç olmayan kartlar
+var (her şeyin video olduğu dönemden); Post sayılsalardı aşamaları ("Edit Bekliyor")
+Post listesinde bulunmadığı için onarım onları akışın BAŞINA çekerdi.
+
+**Eski tasarım aşamalarından yalnızca `Tasarım Yapılıyor` eşlenir** (→ `Düzenleniyor`).
+Bir süre `Talep Alındı` ve `Tasarım Bekliyor` da `Çekim Yapıldı`ya eşleniyordu — ölçüldü:
+o zaman `Talep Alındı` taşıyan bir REELS kartı da oraya düşüyor, yani YAPILMAMIŞ bir
+çekim yapılmış sayılıyordu.
+
+**Eski stok anahtarları okuma anında toplanır ama bu KALICI ÇÖZÜM DEĞİL** — eski anahtar
+hiç düşmez. Bu yüzden stok düzeltmesi (Drive denetimi / mutabakat) yazarken o markanın
+eski anahtarlarını SİLİYOR (`eskiTurAnahtarlari`). Bir düzeltme turundan sonra toplama
+işlevsiz kalır.
 
 **Yeni kategori eklerken dört yer birden güncellenir**, biri unutulursa hata çıkmaz — kart
-sessizce yanlış akışa düşer: `KATEGORILER` (`src/CekimEditTakibi.jsx`), `ASAMA_TABLOSU` +
-`YAPILIYOR_ASAMASI` (`lib/asamalar.js`), `paylasimTuru` kategori düşümü (`lib/stok.js`),
+sessizce yanlış akışa düşer: `KATEGORILER` (`lib/kategori.js`), `ASAMA_TABLOSU` +
+`YAPILIYOR_TABLOSU` (`lib/asamalar.js`), `paylasimTuru` kategori düşümü (`lib/stok.js`),
 `TUR_ETIKET` (`src/tema.jsx`). Her kategori KENDİ aşama dizisinin sahibi — Carousel'in
 akışı Fotoğraf'la aynı şekilde ama ayrı bir dizi, biri değişince diğeri değişmesin.
 
@@ -266,14 +290,13 @@ koleksiyon yok, o kayda `subeId` eklendi. **`subeId` yoksa marka geneli** sayıl
 
 ### 7. Stok kuralları — `lib/stok.js`
 
-Türler: Görsel · Video · Reels · Story · Carousel · Tasarım.
+Türler: **Reels · Post · Carousel** — kategorilerle aynı liste (`lib/kategori.js`).
 
 **Tür kartta SEÇİLİR, seçilmemişse tahmin edilir** (`paylasimTuru`). Sıra: kartın
-`paylasimTuru` alanı → içerik adında geçen tür adı → kategori. **Kategori `Video`
-REELS'e düşer** — ajansın çektiği video içerik pratikte Reels olarak paylaşılıyor;
-`Video` stoğu yalnızca kartta açıkça seçilirse kullanılır. Eskiden kategori Video'ya
-düşüyordu ve sonuç şuydu: aynı işteki iki karttan adında "Reels" geçen Reels'e, geçmeyen
-Video'ya yazılıyordu — aradaki tek fark o kelimeydi, sahada görüldü.
+`paylasimTuru` alanı → içerik adında geçen tür adı → kategori. Ad hiçbir şey
+söylemiyorsa kategoriye düşülür ve kategori zaten üç türden biridir. Eskiden ad tahmini
+tek yoldu: aynı işteki iki karttan adında "Reels" geçen Reels'e, geçmeyen Video'ya
+yazılıyordu — aradaki tek fark o kelimeydi, sahada görüldü.
 
 **Stokta son söz DRIVE'INDIR** (`lib/drive-eslestirme.js` → `driveyeGoreStok`,
 `lib/drive-denetimi.js`). Kural: *stok = ONAYLANANLAR klasöründe dosyası FİİLEN duran
@@ -331,7 +354,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 21 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t87, ~1845 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t88, ~1877 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

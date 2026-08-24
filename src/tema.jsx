@@ -1011,15 +1011,20 @@ export function FieldForm({ fields, initial, onSubmit, onCancel, submitLabel = "
  * dilindeki karşılıklarını görmeli: Reels, Görsel, Tasarım. Etiket hem renkli bir rozet
  * olarak hem de listeyi bölümlere ayırmak için kullanılıyor. */
 export const TUR_ETIKET = {
+  "Reels": { ad: "Reels", renk: "#7C3AED", zemin: "#F1ECFD" },
+  "Post": { ad: "Post", renk: "#0E7490", zemin: "#E5F4F7" },
+  "Carousel": { ad: "Carousel", renk: "#0F766E", zemin: "#E3F2F0" },
+  /* ESKİ ADLAR — belgede hâlâ bu kategorileri taşıyan kartlar var; etiketleri
+   * yenilerine denk geliyor ki panoda renksiz/adsız görünmesinler. */
   "Video": { ad: "Reels", renk: "#7C3AED", zemin: "#F1ECFD" },
-  "Fotoğraf": { ad: "Görsel", renk: "#0E7490", zemin: "#E5F4F7" },
-  /* Carousel müşterinin de kullandığı bir kelime — çeviriye gerek yok, yalnızca kendi
-   * rengi olsun ki listede Görsel'le karışmasın. */
-  "Carousel": { ad: "Karosel", renk: "#0F766E", zemin: "#E3F2F0" },
-  "Grafik Tasarım": { ad: "Tasarım", renk: "#B45309", zemin: "#FDF3E7" },
+  "Fotoğraf": { ad: "Post", renk: "#0E7490", zemin: "#E5F4F7" },
+  "Grafik Tasarım": { ad: "Post", renk: "#0E7490", zemin: "#E5F4F7" },
+  "Görsel": { ad: "Post", renk: "#0E7490", zemin: "#E5F4F7" },
+  "Story": { ad: "Post", renk: "#0E7490", zemin: "#E5F4F7" },
+  "Tasarım": { ad: "Post", renk: "#0E7490", zemin: "#E5F4F7" },
   "cekim": { ad: "Çekim Planı", renk: "#5B5BD6", zemin: "#EEEEFB" },
   "video": { ad: "Reels", renk: "#7C3AED", zemin: "#F1ECFD" },
-  "gorsel": { ad: "Görsel", renk: "#0E7490", zemin: "#E5F4F7" },
+  "gorsel": { ad: "Post", renk: "#0E7490", zemin: "#E5F4F7" },
 };
 export const turEtiketi = (anahtar) => TUR_ETIKET[anahtar] || { ad: String(anahtar || "İçerik"), renk: "#6B7280", zemin: "rgba(107,114,128,0.14)" };
 

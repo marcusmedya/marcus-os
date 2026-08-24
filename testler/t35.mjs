@@ -48,7 +48,13 @@ t("elle yapıştırılan bağlantı da sayılıyor", medyaVarMi(IS({ editliDosya
 t("boş medya dizisi yetmiyor", medyaVarMi(IS({ medya: [] })) === false);
 t("video çalışma aşaması", yapiliyorAsamasi("Video") === "Edit Yapılıyor", yapiliyorAsamasi("Video"));
 t("fotoğraf çalışma aşaması", yapiliyorAsamasi("Fotoğraf") === "Düzenleniyor", yapiliyorAsamasi("Fotoğraf"));
-t("tasarım çalışma aşaması", yapiliyorAsamasi("Grafik Tasarım") === "Tasarım Yapılıyor", yapiliyorAsamasi("Grafik Tasarım"));
+/* KURAL DEĞİŞİKLİĞİ — v160. Grafik Tasarım kategorisi kalktı, kartları POST'a katıldı;
+ * çalışma aşaması da Post'unki. Eski adı taşıyan kartlar eşlemeden geçtiği için panoda
+ * doğru sütunda kalıyor. Geri çevirme. */
+t("eski tasarım kartı POST çalışma aşamasını kullanıyor",
+  yapiliyorAsamasi("Grafik Tasarım") === "Düzenleniyor", yapiliyorAsamasi("Grafik Tasarım"));
+t("yeni adlar da çalışıyor",
+  yapiliyorAsamasi("Reels") === "Edit Yapılıyor" && yapiliyorAsamasi("Post") === "Düzenleniyor");
 t("kategorisiz eski kayıt video akışını kullanıyor", yapiliyorAsamasi(undefined) === "Edit Yapılıyor");
 
 /* ---- 2. YÖNETİCİ KAYDI ---- */
@@ -137,7 +143,7 @@ console.log("\n Geri alınan kart nereye düşüyor");
   const yeni = dosyasizKontroleGirenleriGeriAl(
     [], [{ id: 2, asama: "Kontrol Bekliyor", kategori: "Grafik Tasarım" }], zaman);
   t("öncesi olmayan kart kategorisinin çalışma aşamasına düşüyor",
-    yeni && yeni[0].asama === "Tasarım Yapılıyor", yeni && yeni[0].asama);
+    yeni && yeni[0].asama === "Düzenleniyor", yeni && yeni[0].asama);
 
   /* Kaldırılmış aşamadan gelen kart, geri alınırken oraya DÖNMEMELİ — o aşama artık
    * hiçbir sütuna denk gelmiyor, kart panoda kaybolurdu. */
@@ -159,7 +165,13 @@ console.log("\n Geri alınan kart nereye düşüyor");
 console.log("\n Kaldırılan aşamada kalmış kartlar");
 t("Edit Yapıldı -> Edit Yapılıyor", asamaKarsiligi("Edit Yapıldı") === "Edit Yapılıyor", asamaKarsiligi("Edit Yapıldı"));
 t("Düzenleme Yapıldı -> Düzenleniyor", asamaKarsiligi("Düzenleme Yapıldı") === "Düzenleniyor", asamaKarsiligi("Düzenleme Yapıldı"));
-t("Tasarım Yapıldı -> Tasarım Yapılıyor", asamaKarsiligi("Tasarım Yapıldı") === "Tasarım Yapılıyor", asamaKarsiligi("Tasarım Yapıldı"));
+/* İKİ ADIM ZİNCİRLİ: "Tasarım Yapıldı" → "Tasarım Yapılıyor" → "Düzenleniyor".
+ * Tek adım kalsaydı Post listesinde olmayan bir ada düşer ve kart akışın BAŞINA
+ * çekilirdi — kontrol bekleyen bir tasarım işi yeniden kuyruğa girerdi. */
+t("Tasarım Yapıldı -> Düzenleniyor (Post karşılığı)",
+  asamaKarsiligi("Tasarım Yapıldı") === "Düzenleniyor", asamaKarsiligi("Tasarım Yapıldı"));
+t("onaylı tasarım kartı onaylı KALIYOR",
+  asamaKarsiligi("Onaylandı") === "Onaylandı");
 t("geçerli aşamalara dokunulmuyor", asamaKarsiligi("Kontrol Bekliyor") === "Kontrol Bekliyor");
 t("değişiklik yoksa AYNI dizi dönüyor (gereksiz kayıt olmasın)", (() => {
   const liste = [{ id: 1, asama: "Kontrol Bekliyor" }];
