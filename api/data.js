@@ -1725,7 +1725,19 @@ export default async function handler(req, res) {
           const merged = { ...existing };
           /* Gerçekten hangi alanlara yazıldığını topluyoruz; sayaç yalnızca onlar için
            * artsın. Bildirilmezse hepsi artar ve herkes gereksiz yere bayat olur. */
-          const yazilanAlanlar = new Set(["cekimIsleri"]);   // aşama düzeltme + stok her kayıtta dokunabiliyor
+          /* KART ALANI KOŞULSUZ EKLENMİYOR — ölçülerek düzeltildi.
+           *
+           * Burada `cekimIsleri` her kayda koşulsuz ekleniyordu; gerekçe "aşama
+           * düzeltme + stok her kayıtta dokunabiliyor" idi. Dokunabiliyor ama HER
+           * ZAMAN dokunmuyor. Sonuç: yalnızca reklam kaydeden biri kart sürüm
+           * sayacını artırıyor ve o sırada bir kart üzerinde çalışan HERKES 409
+           * alıyordu. Veri kaybı yok (bildirilmeyen alan yazılmıyor) ama istemci
+           * 409'da tekrar denemiyor — çakışan alanı sunucudakiyle değiştiriyor ve
+           * kullanıcının var olan bir kartta yaptığı DÜZENLEME geri alınıyordu.
+           * Yeni kayıtlar korunuyor, düzenlemeler korunmuyor.
+           *
+           * Alan artık aşağıda, kartlar GERÇEKTEN değiştiyse ekleniyor. */
+          const yazilanAlanlar = new Set();
           Object.entries(PERMISSION_WRITE_FIELDS).forEach(([permKey, fields]) => {
             if (perms[permKey] !== true) return;
             fields.forEach((f) => {
@@ -1822,6 +1834,10 @@ export default async function handler(req, res) {
             onarim.onarilanlar.forEach((x) => { yazilanAlanlar.add(x.alan); onarilanKimlikler.push(x); });
             return { veri: turetilmisleriAyikla(onarim.belge), degisenAlanlar: [...yazilanAlanlar] };
           }
+          /* Aşama onarımı ve stok motoru kartları değiştirmiş olabilir. Değiştirdiyse
+           * alan yazılmalı ve sayacı artmalı; değiştirmediyse artmamalı. Karşılaştırma
+           * referans üzerinden: iki yol da değiştirdiğinde YENİ dizi üretiyor. */
+          if (merged.cekimIsleri !== existing.cekimIsleri) yazilanAlanlar.add("cekimIsleri");
           return { veri: turetilmisleriAyikla(merged), degisenAlanlar: [...yazilanAlanlar] };
         });
 

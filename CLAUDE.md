@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     81 test dosyası (t1…t81) + 20 statik denetim betiği
+testler/     82 test dosyası (t1…t82) + 20 statik denetim betiği
 ```
 
 ---
@@ -75,6 +75,15 @@ eklerken yeni dosya AÇMA** — mevcut bir uca yeni bir `action` ekle. Örnek:
   sayacı var. İstemci yalnızca DOKUNDUĞU alanları `degisenAlanlar` ile bildirir;
   sunucu yalnızca onların sayacına bakar ve yalnızca onları yazar. Tek genel bir
   sayaca dönmek, üç kişi aynı anda çalıştığında sistemi kilitler — bu yaşandı.
+  **`cekimIsleri` koşulsuz eklenmez**: aşama onarımı ve stok motoru kartlara
+  dokunabiliyor ama her zaman dokunmuyor. Koşulsuz eklendiğinde yalnızca reklam
+  kaydeden biri kart üzerinde çalışan herkesi 409'a düşürüyordu — ölçüldü. Sayaç
+  yalnızca `merged.cekimIsleri !== existing.cekimIsleri` ise artar.
+- **Çakışma birleştirmesi kartın İÇİNDEKİ medyayı da korur** (`medyalariBirlestir`).
+  `yeniKayitlariKoru` yalnızca yeni KAYDI koruyor; var olan bir karta az önce
+  yüklenen dosya "düzenleme" sayılıp siliniyordu — dosya Drive'da duruyor ama
+  kartta görünmüyordu. Slot çakışırsa yeni dosya boş bir slota alınır; başkasının
+  SİLDİĞİ dosya diriltilmez.
 - **Eylem uçlarında işlem kimliği (`lib/islem-kimligi.js`).** `api/paylasim.js` gibi FARK
   bildiren uçlar ("stoğu bir artır", "plan ekle") aynı istek iki kez gidince iki kez
   uyguluyordu. İstemci her işleme benzersiz `islemId` takar; sunucu kilit İÇİNDE bakar,
@@ -226,6 +235,11 @@ koleksiyon yok, o kayda `subeId` eklendi. **`subeId` yoksa marka geneli** sayıl
 - **Şube kurulumu müşteri kartında** (Müşteriler → Düzenle); Paylaşımlar'daki giriş de duruyor.
   Aynı marka içinde **aynı adla ikinci şube açılmaz** (sunucu 409) — ad her paylaşım
   kaydına kopyalandığı için iki aynı ad geçmişi okunamaz hale getirir.
+- **Plan silmek TAM GERİ ALMADIR**: paylaşıldı işaretli bir plan silinince kart
+  aşaması geri alınır, stok geri gelir ve Drive dosyası ONAYLANANLAR'a döner.
+  Eskiden karta hiç dokunulmuyordu; kart "Teslim Edildi"de kaldığı için seçicide de
+  çıkmıyor, aynı içerik bir daha planlanamıyordu. Kart seçicide **"Daha önce
+  paylaşılmış"** ayrı bölümü var — aynı içerik başka güne/şubeye tekrar planlanabilir.
 - Planı ya da kilitli kartı olan şube **sessizce silinmez** (409 + `onayGerekli`); istemci
   onay alıp `onayliSil` ile tekrar gönderir. Şube adı kayıtta kopyalı olduğu için geçmiş
   okunabilir kalır.
@@ -248,7 +262,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 20 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t81, ~1708 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t82, ~1736 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
