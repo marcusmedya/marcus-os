@@ -2139,6 +2139,64 @@ const DURUM_BASLIKLARI = [
 ];
 const DURUM_ADI = Object.fromEntries(DURUM_BASLIKLARI);
 
+/**
+ * ALT YAZI KUTUSU — göster, düzenle, kopyala.
+ *
+ * Personel içeriği Instagram'a koyarken alt yazıyı da elle taşıyor. Metin uygulamada
+ * duruyordu ama yalnızca müşteri panelinde görünüyordu; paylaşan kişi onu görmek için
+ * başka ekrana gidiyor, seçip kopyalıyordu. Artık paylaşımın YAPILDIĞI yerde.
+ *
+ * KOPYALAMA GERİ BİLDİRİM VERİYOR: sessiz bir kopyalama düğmesinde kullanıcı çalışıp
+ * çalışmadığını bilemiyor ve ikinci kez basıyor.
+ */
+function AltYaziKutusu({ deger, onDegis, duzenlenebilir, satir = 4 }) {
+  const [kopyalandi, setKopyalandi] = useState(false);
+  const metin = String(deger || "");
+
+  const kopyala = () => {
+    if (!metin.trim()) return;
+    const bitir = () => { setKopyalandi(true); setTimeout(() => setKopyalandi(false), 1800); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(metin).then(bitir).catch(() => window.alert("Kopyalanamadı — metni elle seçip kopyala."));
+    } else {
+      window.alert("Bu tarayıcıda otomatik kopyalama desteklenmiyor — metni elle seç.");
+    }
+  };
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+        <span style={{ fontSize: 11, color: T.textFaint, fontWeight: 600, letterSpacing: 0.3 }}>ALT YAZI</span>
+        <button
+          onClick={kopyala}
+          disabled={!metin.trim()}
+          style={{ background: "none", border: "none", padding: 0, fontSize: 11.5, fontFamily: "Inter",
+            color: metin.trim() ? (kopyalandi ? T.success : T.accentText) : T.textFaint,
+            cursor: metin.trim() ? "pointer" : "default", fontWeight: 600 }}
+        >{kopyalandi ? "✓ Kopyalandı" : "Kopyala"}</button>
+      </div>
+      {duzenlenebilir ? (
+        <textarea
+          value={metin}
+          onChange={(e) => onDegis(e.target.value)}
+          rows={satir}
+          placeholder="Alt yazı yok — buraya yazabilirsin."
+          style={{ width: "100%", resize: "vertical", padding: "8px 10px", borderRadius: 8,
+            border: `1px solid ${T.border}`, background: T.surface, color: T.text,
+            fontSize: 12.5, fontFamily: "Inter", lineHeight: 1.5, boxSizing: "border-box" }}
+        />
+      ) : (
+        <div style={{ padding: "8px 10px", borderRadius: 8, background: T.surface,
+          border: `1px solid ${T.borderSoft}`, fontSize: 12.5, lineHeight: 1.5, whiteSpace: "pre-wrap",
+          color: metin.trim() ? T.textDim : T.textFaint, fontStyle: metin.trim() ? "normal" : "italic",
+          maxHeight: 150, overflowY: "auto" }}>
+          {metin.trim() || "Alt yazı yok."}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* Rapordaki kart satırı — tıklanınca Operasyon'da o kart açılıyor.
  *
  * Rapor kartı adıyla söylüyordu ama kullanıcı onu elle aramak zorundaydı: doğru sekmeyi
@@ -2532,6 +2590,11 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
    * yatay kaydırmalı bir kapsayıcının içinde, kutuyu içeride mutlak konumlandırmak
    * onu kırpardı. */
   const [acikPlan, setAcikPlan] = useState(null);
+  /* PAYLAŞIM EKRANI — "paylaşıldı" işaretlemeden önce alt yazının gösterildiği adım.
+   * Eskiden burada düz bir onay kutusu vardı; personel alt yazıyı başka ekrandan
+   * bulup kopyalamak zorundaydı. */
+  const [paylasimEkrani, setPaylasimEkrani] = useState(null);
+  const [altYaziTaslak, setAltYaziTaslak] = useState("");
   const [gonderiliyor, setGonderiliyor] = useState(false);
 
   const hucreAc = (p, dugme) => {
@@ -2564,10 +2627,27 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
       satirlar.push("• Operasyon kartı 'Teslim Edildi'ye geçecek");
       satirlar.push("• Drive'da dosya '3 PAYLAŞILDI' klasörüne taşınacak");
     }
-    satirlar.push("", "Paylaşıldığını onaylıyor musun?");
-    if (!window.confirm(satirlar.join("\n"))) return;
+    /* DÜZ ONAY KUTUSU YERİNE ALT YAZI EKRANI. Personel paylaşımı burada yapıyor:
+     * alt yazıyı görüyor, kopyalıyor, gerekirse yazıyor — sonra işaretliyor. */
+    setAltYaziTaslak(String(p.altMetin || ""));
+    setPaylasimEkrani({ plan: p, sonuclar: satirlar });
+    setAcikPlan(null);
+  };
+
+  /* Alt yazı ekranından ONAY. Alt yazı değiştiyse ÖNCE kaydediliyor: işaretleme
+   * kartı ve Drive dosyasını hareket ettiriyor, metnin arkada kalması istenmez. */
+  const paylasimiTamamla = () => {
+    if (gonderiliyor || !paylasimEkrani) return;
+    const p = paylasimEkrani.plan;
+    const yeniMetin = altYaziTaslak.trim();
+    const degisti = yeniMetin !== String(p.altMetin || "").trim();
     setGonderiliyor(true);
-    Promise.resolve(onToggleYapildi(p.id)).finally(() => { setGonderiliyor(false); setAcikPlan(null); });
+    const once = (degisti && typeof onAltMetin === "function")
+      ? Promise.resolve(onAltMetin(p.id, yeniMetin))
+      : Promise.resolve();
+    once
+      .then(() => onToggleYapildi(p.id))
+      .finally(() => { setGonderiliyor(false); setPaylasimEkrani(null); });
   };
 
   /* PLAN SİLME = TAM GERİ ALMA.
@@ -2786,6 +2866,13 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
                 borderRadius: 8, display: "block", marginBottom: 10, background: T.surfaceRaised }} />
             ) : null}
 
+            {/* ALT YAZI — paylaşımın yapıldığı yerde, kopyalanabilir.
+              * Buradaki hâli SALT OKUNUR: hızlı bakış ve kopyalama için. Yazma/düzenleme
+              * paylaşım ekranında, çünkü orada kaydetme akışı var. */}
+            <div style={{ marginBottom: 10 }}>
+              <AltYaziKutusu deger={p.altMetin} duzenlenebilir={false} />
+            </div>
+
             {/* DRIVE ÖN UYARISI — işlemden SONRA öğrenmek geç.
               * Taşımanın sessizce atlandığı iki durum kartın kendisinden okunabiliyor:
               * markanın Drive klasörü tanımlı değil, ya da kartta yüklü dosya yok. */}
@@ -2876,6 +2963,77 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
                   </span>
                 </div>
               ))}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* PAYLAŞIM EKRANI — alt yazıyı göster, kopyalat, sonra işaretle.
+        *
+        * Personel içeriği Instagram'a koyarken alt yazıyı elle taşıyor. Eskiden burada
+        * düz bir onay kutusu vardı; metni bulmak için müşteri paneline gitmek gerekiyordu.
+        * Artık akış tek yerde: kopyala → yapıştır → işaretle. */}
+      {paylasimEkrani && (() => {
+        const p = paylasimEkrani.plan;
+        const c = aktifMarkalar.find((x) => x.id === p.clientId);
+        const bosMu = !altYaziTaslak.trim();
+        return (
+          <div
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", zIndex: 95,
+              display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}
+            onClick={() => { if (!gonderiliyor) setPaylasimEkrani(null); }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{ width: "100%", maxWidth: 420, maxHeight: "88vh", overflowY: "auto",
+                background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 14,
+                padding: "18px 20px", fontFamily: "Inter", boxShadow: "0 18px 50px rgba(0,0,0,.45)" }}
+            >
+              <div style={{ fontSize: 11, color: T.textFaint, fontWeight: 600, letterSpacing: 0.3, marginBottom: 4 }}>
+                {p.gun} · {c ? c.ad : ""} · {p.tur}
+              </div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 12 }}>
+                {p.isAdi || "Kart bağlı değil"}
+              </div>
+
+              {p.isId && (
+                <div style={{ marginBottom: 12 }}>
+                  <DriveGorsel isId={p.isId} yukseklik={200} radius={8} boyut={400} />
+                </div>
+              )}
+
+              {/* BURADA DÜZENLENEBİLİR: alt yazı yoksa personel oracakta yazıp
+                * işaretleyebilsin; akış paylaşım anında kesilmesin. */}
+              <AltYaziKutusu deger={altYaziTaslak} onDegis={setAltYaziTaslak} duzenlenebilir satir={6} />
+
+              {/* BOŞ ALT YAZI ENGEL DEĞİL, UYARI: bazı içerikler alt yazısız paylaşılıyor. */}
+              {bosMu && (
+                <div style={{ marginTop: 8, fontSize: 11.5, color: T.warning, lineHeight: 1.5 }}>
+                  Bu plan için alt yazı yok. Yazmadan da işaretleyebilirsin.
+                </div>
+              )}
+
+              <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: T.surface,
+                fontSize: 11.5, color: T.textFaint, lineHeight: 1.6 }}>
+                {paylasimEkrani.sonuclar.filter((x) => x.startsWith("•")).map((x) => (
+                  <div key={x}>{x}</div>
+                ))}
+              </div>
+
+              <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                <button
+                  onClick={paylasimiTamamla}
+                  disabled={gonderiliyor}
+                  style={{ ...saveBtnStyle, flex: 1, padding: "10px 14px", fontSize: 13,
+                    opacity: gonderiliyor ? 0.6 : 1, cursor: gonderiliyor ? "default" : "pointer" }}
+                >{gonderiliyor ? "Gönderiliyor…" : "Paylaşıldı olarak işaretle"}</button>
+                <button
+                  onClick={() => setPaylasimEkrani(null)}
+                  disabled={gonderiliyor}
+                  style={{ ...addBtnStyle, padding: "10px 14px", fontSize: 13,
+                    cursor: gonderiliyor ? "default" : "pointer" }}
+                >Vazgeç</button>
+              </div>
             </div>
           </div>
         );
@@ -3027,7 +3185,7 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
   );
 }
 
-function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, isler, onAddHaftalikPlan, onToggleHaftalikYapildi, onDeleteHaftalikPlan, subeler, onAddSube, onDeleteSube, onSubeStokDegis, driveSonuc, onDriveSonucKapat, mutabakatVerisi, onStokDuzelt, onDriveEslestir, onDriveStokUygula, onKartAc, onKartaGit }) {
+function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, isler, onAddHaftalikPlan, onToggleHaftalikYapildi, onDeleteHaftalikPlan, subeler, onAddSube, onDeleteSube, onSubeStokDegis, driveSonuc, onDriveSonucKapat, mutabakatVerisi, onStokDuzelt, onDriveEslestir, onDriveStokUygula, onKartAc, onKartaGit, onAltMetin }) {
   const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
   /* ESKİ TÜR ANAHTARLARI YENİ TÜRLERE TOPLANIYOR. Belgede `1_Görsel`, `1_Video`,
    * `1_Story`, `1_Tasarım` gibi anahtarlar duruyor; toplanmasaydı türler üçe indikten
@@ -9668,7 +9826,8 @@ export default function MarcusOS() {
             onDriveStokUygula={driveStokUygula} onKartAc={kartsizdanKartAc}
             /* Operasyon yetkisi yoksa düğme HİÇ çıkmıyor — tıklanınca hiçbir şey
               * olmayan bir bağlantı, yetkisi olmadığını söylememekten kötü. */
-            onKartaGit={izinler.cekimEdit ? ((isId) => { setGidilecekIs(isId); setTab("cekim-edit"); }) : undefined} />}
+            onKartaGit={izinler.cekimEdit ? ((isId) => { setGidilecekIs(isId); setTab("cekim-edit"); }) : undefined}
+            onAltMetin={setPlanAltMetin} />}
           {/* Günlük Kontrol artık haftalık planı okur ve AYNI sunucu işlemine yazar
             (toggleHaftalikYapildi) — iki panelin ayrışması mümkün değil. */}
           {staffTab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="staff" />}
@@ -10116,7 +10275,8 @@ export default function MarcusOS() {
             mutabakatVerisi={{ clients: data.clients || [], cekimIsleri: data.cekimIsleri || [], haftalikPaylasimlar: data.haftalikPaylasimlar || [], subeler: data.subeler || [], stoklar: data.stoklar || {} }}
             onStokDuzelt={stokDuzelt} onDriveEslestir={driveEslestir}
             onDriveStokUygula={driveStokUygula} onKartAc={kartsizdanKartAc}
-            onKartaGit={(isId) => { setGidilecekIs(isId); setTab("cekim-edit"); }} />}
+            onKartaGit={(isId) => { setGidilecekIs(isId); setTab("cekim-edit"); }}
+            onAltMetin={setPlanAltMetin} />}
           {tab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="owner" />}
           {tab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} isler={data.cekimIsleri || []} plan={data.haftalikPaylasimlar || []} />}
           {tab === "cekim-edit" && <CekimEditTakibi role="owner" acilacakIsId={gidilecekIs} onKartAcildi={() => setGidilecekIs(null)} clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} isUcretleri={data.isUcretleri || {}} onSaveIsUcreti={setIsUcreti} isUcretDetaylari={data.isUcretDetaylari || {}} onSaveIsUcretDetayi={setIsUcretDetayi} avanslar={data.avanslar || []} hesaplar={data.hesaplar || []} onAddAvans={addAvans} onDeleteAvans={deleteAvans} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={true} firmaAdi={data.firmaAdi} />}

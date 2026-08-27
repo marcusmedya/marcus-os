@@ -4560,3 +4560,40 @@ kaldırmak 1 kontrol düşürüyor.
 Ayrıca `res.writableEnded` kontrolü kaldırıldı: hiçbir davranışı değiştirmediği ölçüldü
 (bozulduğunda hiçbir kontrol düşmedi). Ölçülemeyen koruma tutmak yerine sadeleştirildi.
 Toplam **1935 kontrol**.
+
+### 162 — Paylaşım ekranı: alt yazıyı gör, kopyala, sonra işaretle
+
+Personel içeriği Instagram'a koyarken alt yazıyı da elle taşıyor. Metin uygulamada
+duruyordu (`altMetin`) ama yalnızca müşteri panelinde görünüyordu: paylaşan kişi onu
+görmek için başka ekrana gidiyor, seçip kopyalıyor, geri dönüp işaretliyordu.
+
+**İki yere eklendi:**
+
+- **Hücrenin kutusunda** alt yazı görünüyor ve tek tuşla kopyalanıyor (salt okunur).
+- **"Paylaşıldı olarak işaretle"** artık düz bir onay kutusu açmıyor: içeriğin karesi,
+  alt yazı ve kopyala düğmesi olan bir ekran açılıyor. Personel kopyalar, yapıştırır,
+  sonra işaretler.
+
+Alt yazı bu ekrandan **yazılabiliyor** da — yoksa akış paylaşım anında kesilmesin diye.
+Boş alt yazı **engel değil, uyarı**: bazı içerikler alt yazısız paylaşılıyor.
+
+**Sıra önemli:** alt yazı değiştiyse işaretlemeden ÖNCE kaydediliyor. Sonra kaydedilseydi
+kart "Teslim Edildi"ye geçip Drive dosyası taşındıktan sonra metin arkada kalırdı.
+
+#### Sınanmamış bir korunma ortaya çıktı
+
+Yeni akış alt yazıyı **tek başına** kaydediyor. Uç yalnızca gönderilen alanı değiştiriyor
+(`if (gorselUrl !== undefined)`) — bu korunma vardı ama **hiçbir kontrol onu
+sınamıyordu**. Bozulsaydı her paylaşımda planın müşteri panelindeki görseli sessizce
+silinirdi. t12'ye altı kontrol eklendi; korunma kaldırıldığında üçü düşüyor.
+
+#### Kural değişikliği
+
+t81 onayı "Paylaşıldığını onaylıyor musun?" metnini arayarak sınıyordu — yani onay
+KUTUSUNUN sözünü, niyetini değil. Kontroller niyete çevrildi: paylaş doğrudan
+işaretlemiyor, ayrı bir onay adımı var, sonuçlar listeleniyor, alt yazı kutusu ekranda,
+kaydetme işaretlemeden önce.
+
+"Kaydetme önce" kontrolü ilk yazımda **sırayı sınamıyordu** (iki çağrı da kodda geçiyor
+mu diye bakıyordu; işaretlemeyi başa alıp geçmek mümkündü — ölçüldü). Zincirin kendisine
+bağlandı ve tekrar ölçüldü. Toplam **1946 kontrol**.

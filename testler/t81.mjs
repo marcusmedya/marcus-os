@@ -245,11 +245,34 @@ await bolum("5) HÜCRE KUTUSU — kart görünüyor, işaretleme onay istiyor", 
   t("kutu planlanan KARTI gösteriyor", /\{p\.isAdi \|\| "Kart bağlı değil"\}/.test(app));
   t("paylaş düğmesi kutuda", /paylasimiOnayla\(p\)/.test(app));
 
-  /* SON ONAY: işlemin görünmeyen üç sonucu var — stok, kart aşaması, Drive. */
-  t("son onay soruluyor", /Paylaşıldığını onaylıyor musun\?/.test(app));
-  t("onay metni Drive taşımasını söylüyor",
-    /Drive'da dosya '3 PAYLAŞILDI' klasörüne taşınacak/.test(app),
+  /* SON ONAY: işlemin görünmeyen üç sonucu var — stok, kart aşaması, Drive.
+   *
+   * KURAL DEĞİŞİKLİĞİ — v162: onay artık düz bir `confirm` kutusu DEĞİL, alt yazı
+   * ekranı. Personel içeriği Instagram'a koyarken alt yazıyı elle taşıyor; metin
+   * uygulamada duruyordu ama yalnızca müşteri panelinde görünüyordu. Akış tek yerde
+   * toplandı: kopyala → yapıştır → işaretle.
+   *
+   * Kontroller ONAY KUTUSUNUN SÖZÜNÜ değil, NİYETİ sınıyor: sonuçlar gösteriliyor mu,
+   * ayrı ve bilinçli bir onay adımı var mı. Eski hâli "Paylaşıldığını onaylıyor musun?"
+   * metnini arıyordu — metin değişince kontrol düşüyor ama davranış bozulmuş olmuyordu. */
+  t("paylaş, doğrudan işaretlemiyor — önce ekran açılıyor",
+    /setPaylasimEkrani\(\{ plan: p, sonuclar: satirlar \}\)/.test(app),
+    "tek tıkla işaretleme geri gelmiş");
+  t("ayrı ve bilinçli bir onay adımı var", /onClick=\{paylasimiTamamla\}/.test(app));
+  t("ekran sonuçları listeliyor", /paylasimEkrani\.sonuclar\.filter/.test(app),
     "kullanıcı neye evet dediğini bilmeli");
+  t("sonuç metni Drive taşımasını söylüyor",
+    /Drive'da dosya '3 PAYLAŞILDI' klasörüne taşınacak/.test(app));
+
+  /* ALT YAZI — bu ekranın var oluş sebebi. */
+  t("alt yazı kutusu ekranda", /<AltYaziKutusu deger=\{altYaziTaslak\}/.test(app));
+  t("alt yazı kopyalanabiliyor", /navigator\.clipboard\.writeText\(metin\)/.test(app));
+  /* SIRA: kaydetme sözü ÖNCE, işaretleme onun `.then`inde. "İkisi de kodda geçiyor mu"
+   * demek yetmiyor — ölçüldü: işaretlemeyi başa alıp kontrolü geçirmek mümkündü. */
+  t("alt yazı işaretlemeden ÖNCE kaydediliyor",
+    /const once = \(degisti && typeof onAltMetin === "function"\)/.test(app)
+    && /once\s*\n\s*\.then\(\(\) => onToggleYapildi\(p\.id\)\)/.test(app),
+    "sonra kaydedilseydi kart ve Drive hareket ettikten sonra metin arkada kalırdı");
 
   /* UÇUŞTA KORUMASI: çift tık iki ayrı işlem demek, toggle olduğu için ikincisi
    * birincisini geri alır ve sonuç "hiçbir şey olmadı" olur — görünmeyen bir hata. */
