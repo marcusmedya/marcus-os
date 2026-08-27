@@ -2944,7 +2944,7 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
                   disabled={gonderiliyor}
                   style={{ ...saveBtnStyle, padding: "8px 12px", fontSize: 12.5, flex: 1,
                     opacity: gonderiliyor ? 0.6 : 1, cursor: gonderiliyor ? "default" : "pointer" }}
-                >{gonderiliyor ? "Kaydediliyor…" : (paylasimEkrani.sadeceAltYazi ? "Alt yazıyı kaydet" : "Paylaşıldı olarak işaretle")}</button>
+                >{gonderiliyor ? "Gönderiliyor…" : "Paylaşıldı olarak işaretle"}</button>
               ) : (
                 <button
                   onClick={() => paylasimiGeriAl(p)}
@@ -3073,7 +3073,9 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
                   disabled={gonderiliyor}
                   style={{ ...saveBtnStyle, flex: 1, padding: "10px 14px", fontSize: 13,
                     opacity: gonderiliyor ? 0.6 : 1, cursor: gonderiliyor ? "default" : "pointer" }}
-                >{gonderiliyor ? "Gönderiliyor…" : "Paylaşıldı olarak işaretle"}</button>
+                >{gonderiliyor
+                  ? "Kaydediliyor…"
+                  : (paylasimEkrani.sadeceAltYazi ? "Alt yazıyı kaydet" : "Paylaşıldı olarak işaretle")}</button>
                 <button
                   onClick={() => setPaylasimEkrani(null)}
                   disabled={gonderiliyor}

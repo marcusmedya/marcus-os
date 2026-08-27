@@ -4629,3 +4629,22 @@ t91 eklendi (14 kontrol). Bozmalar: müşteri yükünde devralmayı kaldırmak 3
 kartla aynı metni plana yazmak 2, boşluğu "yazılmış" saymak 1 kontrol düşürüyor.
 
 Toplam **1960 kontrol**, 22 statik denetim.
+
+### 162.2 — Paylaşımlar açılmıyordu: düzeltme yanlış düğmeye gitmişti
+
+Planlı bir hücrenin üstüne gelince bölüm `null is not an object (evaluating
+'paylasimEkrani.sadeceAltYazi')` ile açılmıyordu.
+
+Sebep bir düzenleme hatası: "yalnızca alt yazı" kipinin düğme yazısını eklerken metin
+dosyada **iki yerde** geçiyordu — popover'ın düğmesi ve paylaşım ekranının düğmesi.
+Değişiklik ilk eşleşmeye, yani **popover'a** uygulanmıştı. Popover `paylasimEkrani`
+null'ken de görünüyor; dolayısıyla üstüne gelmek bölümü düşürüyordu. Paylaşım ekranının
+düğmesi ise hiç güncellenmemişti.
+
+Popover düğmesi eski hâline döndü, kip yazısı doğru düğmeye taşındı. Artık
+`paylasimEkrani` okumalarının hepsi kendi koruma bloğunun içinde.
+
+**Bu sınıf hatanın üçüncü tekrarı** (önce `KATEGORILER`, sonra `izinler`/`setStaffTab`).
+Üçünde de ortak nokta aynı: arayüz kodu değişiyor, derleme ve 1960 kontrol geçiyor, hata
+ancak ekranda görünüyor. Bu turda düzenlemeler tekil eşleşme doğrulamasıyla yapıldı
+(`count(...) == 1`); asıl boşluk ise duruyor — hiçbir test arayüzü render etmiyor.
