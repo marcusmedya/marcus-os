@@ -2762,6 +2762,30 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
               {p.yapildi && <span style={{ color: T.success, fontWeight: 700 }}> · ✓ paylaşıldı{p.yapildigiTarih ? ` (${p.yapildigiTarih})` : ""}</span>}
             </div>
 
+            {/* PLANLANAN İÇERİĞİN KENDİSİ.
+              *
+              * Kutu kartın ADINI söylüyordu ama içeriği göstermiyordu; "AKIM REELS" yazısı
+              * hangi videonun planlandığını hatırlamayan biri için bir şey ifade etmiyor.
+              * Kapak karesi eklendi — hafta planına bakarken ne paylaşılacağı okunmadan
+              * görülüyor.
+              *
+              * İstek YALNIZCA kutu açıkken atılıyor (bileşen o an takılıyor) ve önizleme
+              * önbelleğe giriyor; hücrelerin hepsi için baştan önizleme çekmek panoyu
+              * otuz isteğe boğardı — bu projede bir kez kaba kuvvet korumasını tetikledi.
+              *
+              * `kapak` KULLANILMIYOR: dikey bir Reels'i sabit yüksekliğe kırpmak kareyi
+              * tanınmaz hale getiriyor. Tam kare gösteriliyor, kutu kadar yer kaplıyor. */}
+            {p.isId ? (
+              <div style={{ marginBottom: 10 }}>
+                <DriveGorsel isId={p.isId} yukseklik={170} radius={8} boyut={400} />
+              </div>
+            ) : p.gorselUrl ? (
+              /* Karta bağlı olmayan planın kendi görseli varsa o gösteriliyor —
+                * müşteri panelinde de bu görünüyor. */
+              <img src={p.gorselUrl} alt="" style={{ width: "100%", maxHeight: 170, objectFit: "contain",
+                borderRadius: 8, display: "block", marginBottom: 10, background: T.surfaceRaised }} />
+            ) : null}
+
             {/* DRIVE ÖN UYARISI — işlemden SONRA öğrenmek geç.
               * Taşımanın sessizce atlandığı iki durum kartın kendisinden okunabiliyor:
               * markanın Drive klasörü tanımlı değil, ya da kartta yüklü dosya yok. */}
