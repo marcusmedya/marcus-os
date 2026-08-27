@@ -117,6 +117,10 @@ eklerken yeni dosya AÇMA** — mevcut bir uca yeni bir `action` ekle. Örnek:
 **Video akışı istek BAŞINA ucuz olmalı** (`api/data.js` video dalı). Tarayıcı videoda her
 ileri-geri sarmada YENİ bir aralık isteği atıyor; bir isteğin maliyeti doğrudan sarma
 deneyimidir. Üç kural:
+- **Jetonun bitiş zamanı BİR SAATLİK ızgaraya oturur** (`lib/video-jeton.js`), böylece
+  adres o süre boyunca aynı kalır ve indirilen parçalar yeniden kullanılır. Saniye saniye
+  değişirken aynı videoyu ikinci kez açmak ilk kezle aynı maliyetteydi. Izgara TABANA
+  oturtulur — yukarı yuvarlansa jeton ömrü iki saatten üçe çıkardı.
 - **Dosya kimliği jetonun içinde** (`lib/video-jeton.js`, `2|` önekli v2 biçim). Eskiden
   video ucu kimliği bulmak için TÜM belgeyi okuyordu — gömülü görsellerle megabaytlarca,
   her sarmada. Eski jetonlar dosya kimliği taşımıyor; onlar için eski yol duruyor.
@@ -375,7 +379,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 22 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t89, ~1913 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t89, ~1922 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

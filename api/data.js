@@ -575,7 +575,11 @@ export default async function handler(req, res) {
       if (deger) res.setHeader(ad, deger);
     }
     if (!g.headers.get("accept-ranges")) res.setHeader("accept-ranges", "bytes");
-    res.setHeader("cache-control", "private, max-age=600");
+    /* ÖNBELLEK, ADRESİN KARARLI KALDIĞI PENCEREYE EŞİT. Jetonun bitiş zamanı bir saatlik
+     * ızgaraya oturtulduğu için adres o süre boyunca aynı; parçalar yeniden kullanılıyor.
+     * Bayatlama riski yok: yeni versiyon Drive'a YENİ DOSYA olarak yükleniyor, yeni dosya
+     * kimliği yeni jeton ve yeni adres demek. */
+    res.setHeader("cache-control", "private, max-age=3600");
     if (!g.body) { bitti = true; res.end(); return; }
     const kaynak = Readable.fromWeb(g.body);
     /* Akış bittiğinde iptal bağı gevşetiliyor: normal bitişte `close` olayı da geliyor

@@ -4476,3 +4476,28 @@ gereksiz aktarım olurdu. Sondan aralık (`bytes=-500`) olduğu gibi geçiyor.
 
 Ölçüm: aralığı aynen iletmek 3 kontrol, küçük aralığı da parçaya büyütmek 1 kontrol
 düşürüyor. Toplam **1913 kontrol**.
+
+### 161.2 — Adres kararlı: aynı videoyu ikinci kez açmak artık bedava
+
+Jetonun bitiş zamanı jetonun **içinde** ve imzalı. Saniye saniye değiştiği için her
+açılışta bambaşka bir adres üretiliyordu; adres değişince tarayıcı önbelleği de
+değişiyor, yani **hiçbir parça yeniden kullanılmıyordu**. Aynı videoyu ikinci kez açmak
+ilk kez açmakla birebir aynı maliyetteydi.
+
+Bitiş zamanı artık bir saatlik ızgaraya oturuyor: aynı saat içinde aynı kayıt için
+üretilen jetonlar birebir aynı, dolayısıyla adres de aynı. Önbellek süresi de bu
+pencereye eşitlendi (`max-age=3600`).
+
+**Ömür UZAMADI.** Izgara `simdi`nin tabanına oturtuluyor: jeton en fazla 2 saat (pencere
+başında), en az 1 saat (pencere sonunda) yaşıyor. Üst sınır eskisiyle aynı. Yukarı
+yuvarlansaydı üç saate çıkardı.
+
+**Bayatlama riski yok:** yeni versiyon Drive'a *yeni dosya* olarak yükleniyor
+(`uploadType=resumable`), yeni dosya kimliği yeni jeton ve yeni adres demek. Önbellekte
+eski görüntü kalamaz.
+
+Ölçüm: bitişi yine saniyeye bağlamak ve yukarı yuvarlamak kararlılık kontrolünü,
+önbellek süresini kısaltmak başlık kontrolünü düşürüyor. Ömür kontrolü ilk yazımda
+pencerenin BAŞINDAN ölçüyordu — orada taban ve tavan yuvarlama aynı sonucu verdiği için
+kuralı sınamıyordu; pencere ortasına alındı ve yukarı yuvarlama bozmasında artık
+düşüyor (10500 sn ≈ 3 saat). Toplam **1922 kontrol**.
