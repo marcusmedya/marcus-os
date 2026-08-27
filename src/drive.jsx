@@ -108,6 +108,9 @@ export function useVideoAdresi({ isId, icerikId, alan, slot }) {
    * aynı önekle temizlediği için eski dosyanın adresi takılı kalmıyor. */
   const bellektekiAdres = videoAdresOku(videoAdresAnahtari({ isId, icerikId, alan, slot }));
   const [adres, setAdres] = useState(bellektekiAdres);
+  /* FAST START TEŞHİSİ — sunucu jetonla birlikte söylüyor. Önbellekten gelen adreste
+   * bu bilgi yok; bilinmiyorsa arayüz bir şey demiyor (yanlış uyarı vermemek için). */
+  const [hizliBaslangic, setHizliBaslangic] = useState(null);
   const [durum, setDurum] = useState(anahtar ? (bellektekiAdres ? "hazir" : "yukleniyor") : "yok");
 
   useEffect(() => {
@@ -125,14 +128,19 @@ export function useVideoAdresi({ isId, icerikId, alan, slot }) {
       .then((r) => r.json())
       .then((r) => {
         if (iptal) return;
-        if (r.ok && r.adres) { videoAdresYaz(bellekAnahtari, r.adres); setAdres(r.adres); setDurum("hazir"); }
+        if (r.ok && r.adres) {
+          videoAdresYaz(bellekAnahtari, r.adres);
+          setAdres(r.adres);
+          if (r.hizliBaslangic !== undefined) setHizliBaslangic(r.hizliBaslangic);
+          setDurum("hazir");
+        }
         else setDurum("olmadi");
       })
       .catch(() => { if (!iptal) setDurum("olmadi"); });
     return () => { iptal = true; };
   }, [anahtar, isId, icerikId, alan, slot]);
 
-  return { durum, adres };
+  return { durum, adres, hizliBaslangic };
 }
 
 export function useSunucuOnizleme({ isId, icerikId, alan, boyut = 800, slot }) {

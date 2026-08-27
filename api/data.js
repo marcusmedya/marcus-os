@@ -8,7 +8,8 @@ import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, bir
 import { belgedekiCakismalariOnar, turetilmisleriAyikla } from "../lib/kimlik.js";
 import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
 import { epostaGonder, revizeBildirimHtml } from "../lib/eposta.js";
-import { onaylananiTasi, kartKlasorunuTasi, bosaldiysaKartKlasorunuCopeAt, driveSagligi, DURUM_KLASORLERI, klasorDurumu, driveDosyaIdCikar, videoAkisi } from "../lib/drive-tasima.js";
+import { onaylananiTasi, kartKlasorunuTasi, bosaldiysaKartKlasorunuCopeAt, driveSagligi, DURUM_KLASORLERI, klasorDurumu, driveDosyaIdCikar, videoAkisi, dosyaBasligi } from "../lib/drive-tasima.js";
+import { hizliBaslangicMi } from "../lib/mp4-faststart.js";
 import { jetonUret, jetonCoz, aralikDarailt } from "../lib/video-jeton.js";
 import { Readable } from "stream";
 import { dosyasizKontroleGirenleriGeriAl, medyaVarMi, asamalariDuzelt,
@@ -868,9 +869,22 @@ export default async function handler(req, res) {
       const kayitId = tur === "icerik" ? icerikId : oIsId;
       /* DOSYA KİMLİĞİ JETONA KONUYOR — video ucu belgeyi hiç okumasın diye. Burada
        * zaten çözülmüş durumda; yetki kontrolü de burada yapıldı. */
-      const jeton = jetonUret(tur, kayitId, Date.now(), driveDosyaIdCikar(link));
+      const videoDosyaId = driveDosyaIdCikar(link);
+      const jeton = jetonUret(tur, kayitId, Date.now(), videoDosyaId);
       if (!jeton) return res.status(200).json({ ok: false, sebep: "Video akışı için sunucu sırrı tanımlı değil." });
-      return res.status(200).json({ ok: true, jeton, adres: `/api/data?video=${encodeURIComponent(kayitId)}&j=${encodeURIComponent(jeton)}` });
+
+      /* FAST START TEŞHİSİ — "video neden geç açılıyor" sorusunun cevabı.
+       *
+       * Oynatma bilgisi (`moov`) dosyanın SONUNDA ise tarayıcı önce sonu indirmek
+       * zorunda; kendi sunucumuz üzerinden bu onlarca saniyeye çıkabiliyor ve bekleme
+       * dosyadan dosyaya değişiyor. Yalnızca ilk birkaç kilobayt okunuyor.
+       *
+       * TEŞHİS BAŞARISIZ OLURSA VİDEO YİNE AÇILIR: null dönüyor, arayüz bir şey demiyor. */
+      const baslik = videoDosyaId ? await dosyaBasligi(videoDosyaId) : null;
+      const hizliBaslangic = baslik ? hizliBaslangicMi(baslik) : null;
+
+      return res.status(200).json({ ok: true, jeton, hizliBaslangic,
+        adres: `/api/data?video=${encodeURIComponent(kayitId)}&j=${encodeURIComponent(jeton)}` });
     }
 
     const sonuc = await kucukResimGetir(kimlik, boyut);

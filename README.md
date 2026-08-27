@@ -4674,3 +4674,38 @@ süresi dolmuş), yanında "Tekrar dene" ve "Drive'da Aç". Tekrar denemede adre
 ekleniyor: bozuk bir yanıt tarayıcı önbelleğine girmişse onu aşabilsin.
 
 Ölçüm: hata mesajını boş döndürmek 1 kontrol düşürüyor (t90). Toplam **1965 kontrol**.
+
+### 162.4 — "Bazen 30 sn, bazen 1 dk bekliyor": dosyanın kendisi ölçüldü
+
+Parça büyütüldükten sonra donma bitti ama yeni tarif geldi: *"oynatıyor ama burada 30 sn,
+1 dk bekliyor bazen."* **"Bazen"** kelimesi belirleyici — bekleme dosyadan dosyaya
+değişiyorsa sebep ağ ya da sunucu değil, **dosyanın kendisi**.
+
+Bir MP4/MOV dosyasında oynatma bilgisi `moov` kutusunda durur. Kutu **sonda** ise tarayıcı
+videoyu başlatmadan önce onu bulmak zorunda: önce dosyanın sonunu istiyor, sonra başa
+dönüyor. Kendi sunucumuz üzerinden geçen bir dosyada bu iki fazladan tur demek. Premiere /
+After Effects'in varsayılan çıktısı `moov`u sona koyar; "fast start" seçeneği açıldığında
+başa alır — bu yüzden bazı dosyalar hızlı, bazıları çok yavaş.
+
+**Artık ölçülüyor.** Jeton verilirken dosyanın ilk birkaç kilobaytı okunuyor ve kutuların
+sırası çıkarılıyor. Sonuç oynatıcının altında yazıyor:
+
+> Bu dosya web için optimize değil (oynatma bilgisi dosyanın sonunda) — ilk açılış yavaş
+> olabilir. Dışa aktarırken "fast start" seçeneğini açmak bunu kökten çözer.
+
+**Uygulama dosyayı değiştirmiyor.** Remux etmek bu uygulamanın işi değil; doğrusu dışa
+aktarımı düzeltmek. Ama hangi dosyanın yavaş olduğunu söylemek, soruyu tahminden
+çıkarıyor — üç turdur tahminle ilerleniyordu.
+
+**Teşhis yapılamazsa hiçbir şey yazılmıyor.** Yanlış bir uyarı, uyarı olmamasından kötü:
+kullanıcıyı olmayan bir sorunla uğraştırır.
+
+Ölçüm (t92, 13 kontrol): `mdat` kontrolünü kaldırmak 3, uyarıyı "teşhis edilemeyen"
+dosyalara da vermek 1 kontrol düşürüyor. Kutu boyutu frenini kaldırmak testi **sonsuz
+döngüye** sokuyor (çıkış kodu 124) — bozuk bir dosyanın sunucuyu kilitlemesini engelleyen
+koruma.
+
+Statik denetim `Uint8Array`'i tanımsız çağrı sanıyordu; tipli dizi kurucuları bilinen
+küresellere eklendi, denetimin gerçek hatayı hâlâ yakaladığı ölçüldü.
+
+Toplam **1978 kontrol**.

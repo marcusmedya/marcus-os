@@ -26,6 +26,7 @@ GLOBALLER = {
     "requestAnimationFrame","cancelAnimationFrame","matchMedia","CustomEvent","Event",
     # Node (api/ ve lib/ için)
     "Buffer","process","crypto","module","exports","__dirname","global",
+    "Uint8Array","Uint16Array","Uint32Array","Int8Array","Float32Array","ArrayBuffer","DataView",
     # React
     "React","createRoot",
 }
