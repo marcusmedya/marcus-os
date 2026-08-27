@@ -141,9 +141,10 @@ deneyimidir. Üç kural:
 - **Oynatıcı kutusunun oranı ilk kareden itibaren doğru** (`lib/video-yon.js` →
   `oynaticiOrani`). Oran verilmezse kutunun boyunu POSTER belirliyor; Drive küçük resmi
   yatay olduğu için dikey Reels önce yatay açılıp metadata gelince atlıyordu.
-- **İstemci vazgeçince üst akış iptal ediliyor** (`AbortController` + `req.on("close")`).
-  Bağ yokken tarayıcı isteği kesse bile Google'dan indirme sürüyordu; hızlı sarmada ölü
-  indirmeler birikip yeni istekleri eşzamanlılık sınırına düşürüyordu.
+- **İstemci vazgeçince üst akış iptal ediliyor** — sinyal **YANIT** (`res.on("close")`)
+  üzerinden, İSTEK üzerinden DEĞİL. Bir süre `req.on("close")` kullanıldı ve video HİÇ
+  OYNAMADI: GET isteğinin gövdesi olmadığı için Node o olayı hemen yayıyor, akış daha
+  başlamadan iptal ediliyordu. `bitti` bayrağı normal bitişi iptalden ayırır.
 
 
 
@@ -387,7 +388,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 22 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t90, ~1933 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t90, ~1935 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
