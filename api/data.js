@@ -10,7 +10,7 @@ import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
 import { epostaGonder, revizeBildirimHtml } from "../lib/eposta.js";
 import { onaylananiTasi, kartKlasorunuTasi, bosaldiysaKartKlasorunuCopeAt, driveSagligi, DURUM_KLASORLERI, klasorDurumu, driveDosyaIdCikar, videoAkisi, dosyaBasligi } from "../lib/drive-tasima.js";
 import { hizliBaslangicMi } from "../lib/mp4-faststart.js";
-import { jetonUret, jetonCoz, aralikDarailt } from "../lib/video-jeton.js";
+import { jetonUret, jetonCoz } from "../lib/video-jeton.js";
 import { Readable } from "stream";
 import { dosyasizKontroleGirenleriGeriAl, medyaVarMi, asamalariDuzelt,
          guncelMedyalar, slotSonrakiVersiyon, slotGecerliMi, slotKategoriyeUygunMu, medyaSlotu,
@@ -577,12 +577,18 @@ export default async function handler(req, res) {
     };
     if (typeof res.on === "function") res.on("close", istemciAyrildi);
 
-    /* ARALIK DARALTILIYOR — tek yanıtta tüm dosya akıtılmasın. Tarayıcı `bytes=0-`
-     * diyor ("sonuna kadar"); aynen iletilirse fonksiyon dosyanın tamamını akıtmaya
-     * çalışıyor ve 60 saniyelik çalışma sınırına takılıp ORTASINDAN kesiliyor — izlerken
-     * yaşanan donmanın kaynağı bu. Her istek sınırlı bir parça döndürüyor, tarayıcı
-     * kaldığı yerden devam ediyor; normal bir dosya sunucusu da böyle davranır. */
-    const akis = await videoAkisi(dosyaId, aralikDarailt(req.headers.range), iptal.signal);
+    /* ARALIK AYNEN İLETİLİYOR — TARAYICI NE İSTEDİYSE O.
+     *
+     * Bir süre burada aralık 12 MB'lık parçalara daraltıldı; gerekçe 60 saniyelik
+     * fonksiyon sınırıydı. O gerekçe KODDAN ÇIKARILMIŞTI, ölçülmemişti — ve ölçüm tersini
+     * söyledi: parçalama her sınırda yeni bir istek (yeni fonksiyon + yeni Google turu)
+     * demek ve video birkaç saniyede bir takılıyor. Daraltma yokken dosya TEK bağlantıda
+     * akıyor ve sorunsuz oynuyordu; kullanıcı farkı bu şekilde bildirdi.
+     *
+     * 60 saniye sınırı hâlâ var ama zararı çok daha az: akış tarayıcının oynattığı
+     * noktanın ÖNÜNDE ilerliyor, kesilirse tarayıcı kalan aralığı yeniden istiyor —
+     * bir kez, oynatmanın çok ilerisinde. Her parçada bir duraklamadan iyi. */
+    const akis = await videoAkisi(dosyaId, req.headers.range, iptal.signal);
     if (!akis.ok) return res.status(502).json({ error: akis.sebep || "Video alınamadı." });
 
     const g = akis.yanit;

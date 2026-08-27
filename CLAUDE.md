@@ -135,10 +135,12 @@ deneyimidir. Üç kural:
   jeton unutulup TEK kez yeniden deneniyor — yoksa erken geçersiz kılınan bir jeton süre
   dolana kadar takılırdı. OAuth jetonu AYRI modülde (`lib/drive-yukleme.js`), önbellek
   onu kapsamıyor: iki kimlik karışmamalı.
-- **Her istek SINIRLI bir parça döndürür** (`aralikDarailt`, 12 MB — 3 MB'ken video birkaç saniyede bir donuyordu, ölçüldü). Tarayıcı `bytes=0-`
-  diyor ("sonuna kadar"); aynen iletilince fonksiyon dosyanın tamamını tek yanıtta
-  akıtmaya çalışıyor ve 60 saniyelik çalışma sınırına takılıp ORTASINDAN kesiliyordu —
-  izlerken donmanın kaynağı buydu. Küçük aralıklar büyütülmez (Safari önce iki bayt ister).
+- **Aralık AYNEN iletilir, parçalanmaz.** Bir süre 12 MB'lık parçalara daraltıldı;
+  gerekçe 60 sn'lik fonksiyon sınırıydı ve o gerekçe KODDAN ÇIKARILMIŞTI, ölçülmemişti.
+  Ölçüm tersini söyledi: her parça sınırı yeni bir istek (yeni fonksiyon + yeni Google
+  turu) demek ve video birkaç saniyede bir takılıyor. Daraltma yokken dosya tek
+  bağlantıda akıyor. 60 sn sınırı hâlâ var ama akış oynatmanın önünde ilerlediği için
+  zararı çok daha az.
 - **Adres tarayıcıda önbellekli** (`lib/onizleme-bellegi.js` → `videoAdresOku/Yaz`).
   Her kart açılışında jeton isteniyordu: bir tur ağ gecikmesi + sunucuda belge okuması,
   hepsi video başlamadan. Anahtar `is:<id>:` önekiyle duruyor ki yükleme/silme sonrası
@@ -402,7 +404,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 22 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t92, ~1978 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t92, ~1977 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
