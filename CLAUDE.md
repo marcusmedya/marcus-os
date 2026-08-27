@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     90 test dosyası (t1…t90) + 22 statik denetim betiği
+testler/     91 test dosyası (t1…t91) + 22 statik denetim betiği
 ```
 
 ---
@@ -322,6 +322,14 @@ koleksiyon yok, o kayda `subeId` eklendi. **`subeId` yoksa marka geneli** sayıl
   onay alıp `onayliSil` ile tekrar gönderir. Şube adı kayıtta kopyalı olduğu için geçmiş
   okunabilir kalır.
 
+**Alt yazı KARTIN özelliği, plan devralır** (`lib/alt-yazi.js`). Metin Operasyon kartında
+yazılıyor (onaydan önce de); plan kendi metnini yazmamışsa kartınki geçerli. Aynı kart
+dört şubede paylaşılabildiği için plan üzerinde değiştirilebiliyor ve o değişiklik
+yalnızca o planı etkiliyor. **Kartla AYNI metin plana yazılmaz** — yazılsaydı kart metni
+güncellendiğinde o plan eski metinde takılı kalırdı. Devralma **müşteri yükünde de
+çözülür** (`lib/musteri-gorunumu.js`); çözülmezse kartta yazılan metin müşteriye hiç
+ulaşmaz.
+
 ### 7. Stok kuralları — `lib/stok.js`
 
 Türler: **Reels · Post · Carousel** — kategorilerle aynı liste (`lib/kategori.js`).
@@ -388,7 +396,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 22 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t90, ~1946 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t91, ~1960 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

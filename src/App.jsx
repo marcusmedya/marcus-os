@@ -48,6 +48,7 @@ import StokMutabakat from "./stokMutabakat.jsx";
  * satırı hiç görünmezdi. */
 import { PAYLASIM_TURLERI, stokAnahtari, stokYanitiniUygula, stoklariBirlestir } from "../lib/stok.js";
 import { turunDagilimi } from "../lib/drive-eslestirme.js";
+import { etkinAltMetin, altMetinKaynagi, planaYazilacak } from "../lib/alt-yazi.js";
 import { planSubesi, subeStokAnahtari, markaninSubeleri, kullanabilenSubeler,
          icerikSubeOzeti, subeListeleri, hazirIcerikSayisi } from "../lib/sube-kullanimi.js";
 import { SUBE_PAYLASIM_ASAMASI, medyalariBirlestir } from "../lib/asamalar.js";
@@ -2629,7 +2630,9 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
     }
     /* DÜZ ONAY KUTUSU YERİNE ALT YAZI EKRANI. Personel paylaşımı burada yapıyor:
      * alt yazıyı görüyor, kopyalıyor, gerekirse yazıyor — sonra işaretliyor. */
-    setAltYaziTaslak(String(p.altMetin || ""));
+    /* Taslak KARTIN metniyle doluyor (plan kendi metnini yazmışsa onunla). Boş açmak,
+     * personelin hazır metni görmeden yazmaya başlaması demekti. */
+    setAltYaziTaslak(etkinAltMetin(p, (isler || []).find((j) => String(j.id) === String(p.isId))));
     setPaylasimEkrani({ plan: p, sonuclar: satirlar });
     setAcikPlan(null);
   };
@@ -2639,11 +2642,23 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
   const paylasimiTamamla = () => {
     if (gonderiliyor || !paylasimEkrani) return;
     const p = paylasimEkrani.plan;
-    const yeniMetin = altYaziTaslak.trim();
-    const degisti = yeniMetin !== String(p.altMetin || "").trim();
+    /* YALNIZCA ALT YAZI KİPİ: planlama sırasında metin yazmak için. İşaretleme
+     * yapılmıyor — stok düşmüyor, kart ve Drive dosyası yerinde kalıyor. */
+    if (paylasimEkrani.sadeceAltYazi) {
+      const kartY = (isler || []).find((j) => String(j.id) === String(p.isId));
+      setGonderiliyor(true);
+      Promise.resolve(onAltMetin(p.id, planaYazilacak(altYaziTaslak, kartY) || ""))
+        .finally(() => { setGonderiliyor(false); setPaylasimEkrani(null); });
+      return;
+    }
+    const kartAlt = (isler || []).find((j) => String(j.id) === String(p.isId));
+    /* KARTINKİYLE AYNIYSA PLANA YAZILMIYOR: aynı metni plana da kopyalamak, sonradan
+     * kartın metni güncellendiğinde bu planın eski metinde takılı kalması demekti. */
+    const yeniMetin = planaYazilacak(altYaziTaslak, kartAlt);
+    const degisti = (yeniMetin || "") !== String(p.altMetin || "").trim();
     setGonderiliyor(true);
     const once = (degisti && typeof onAltMetin === "function")
-      ? Promise.resolve(onAltMetin(p.id, yeniMetin))
+      ? Promise.resolve(onAltMetin(p.id, yeniMetin || ""))
       : Promise.resolve();
     once
       .then(() => onToggleYapildi(p.id))
@@ -2867,11 +2882,36 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
             ) : null}
 
             {/* ALT YAZI — paylaşımın yapıldığı yerde, kopyalanabilir.
-              * Buradaki hâli SALT OKUNUR: hızlı bakış ve kopyalama için. Yazma/düzenleme
-              * paylaşım ekranında, çünkü orada kaydetme akışı var. */}
-            <div style={{ marginBottom: 10 }}>
-              <AltYaziKutusu deger={p.altMetin} duzenlenebilir={false} />
-            </div>
+              *
+              * Metin KARTIN özelliği; plan onu devralıyor. Plan üzerinde değiştirilmişse
+              * o gösteriliyor. Kaynağı yazılıyor: kullanıcı düzenlerken neyi
+              * değiştirdiğini bilmeli — kartın metnini mi, yoksa bu güne özel olanı mı. */}
+            {(() => {
+              const kartAlt = (isler || []).find((j) => String(j.id) === String(p.isId));
+              const kaynak = altMetinKaynagi(p, kartAlt);
+              return (
+                <div style={{ marginBottom: 10 }}>
+                  <AltYaziKutusu deger={etkinAltMetin(p, kartAlt)} duzenlenebilir={false} />
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 3, gap: 8 }}>
+                    <span style={{ fontSize: 10.5, color: T.textFaint }}>
+                      {kaynak === "kart" ? "kartın alt yazısı" : kaynak === "plan" ? "bu güne özel yazılmış" : ""}
+                    </span>
+                    {/* PLANLAMA EKRANINDA DA YAZILABİLSİN. Paylaşım anını beklemek geç:
+                      * metin hafta planlanırken düşünülüyor. Aynı ekran "yalnızca alt yazı"
+                      * kipinde açılıyor — işaretleme yapmıyor, sadece kaydediyor. */}
+                    <button
+                      onClick={() => {
+                        setAltYaziTaslak(etkinAltMetin(p, kartAlt));
+                        setPaylasimEkrani({ plan: p, sonuclar: [], sadeceAltYazi: true });
+                        setAcikPlan(null);
+                      }}
+                      style={{ background: "none", border: "none", padding: 0, fontSize: 11,
+                        color: T.accentText, cursor: "pointer", fontFamily: "Inter", fontWeight: 600, whiteSpace: "nowrap" }}
+                    >Alt yazıyı düzenle</button>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* DRIVE ÖN UYARISI — işlemden SONRA öğrenmek geç.
               * Taşımanın sessizce atlandığı iki durum kartın kendisinden okunabiliyor:
@@ -2904,7 +2944,7 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
                   disabled={gonderiliyor}
                   style={{ ...saveBtnStyle, padding: "8px 12px", fontSize: 12.5, flex: 1,
                     opacity: gonderiliyor ? 0.6 : 1, cursor: gonderiliyor ? "default" : "pointer" }}
-                >{gonderiliyor ? "Gönderiliyor…" : "Paylaşıldı olarak işaretle"}</button>
+                >{gonderiliyor ? "Kaydediliyor…" : (paylasimEkrani.sadeceAltYazi ? "Alt yazıyı kaydet" : "Paylaşıldı olarak işaretle")}</button>
               ) : (
                 <button
                   onClick={() => paylasimiGeriAl(p)}
@@ -3007,18 +3047,25 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
               <AltYaziKutusu deger={altYaziTaslak} onDegis={setAltYaziTaslak} duzenlenebilir satir={6} />
 
               {/* BOŞ ALT YAZI ENGEL DEĞİL, UYARI: bazı içerikler alt yazısız paylaşılıyor. */}
-              {bosMu && (
+              {bosMu && !paylasimEkrani.sadeceAltYazi && (
                 <div style={{ marginTop: 8, fontSize: 11.5, color: T.warning, lineHeight: 1.5 }}>
                   Bu plan için alt yazı yok. Yazmadan da işaretleyebilirsin.
                 </div>
               )}
 
-              <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: T.surface,
-                fontSize: 11.5, color: T.textFaint, lineHeight: 1.6 }}>
-                {paylasimEkrani.sonuclar.filter((x) => x.startsWith("•")).map((x) => (
-                  <div key={x}>{x}</div>
-                ))}
-              </div>
+              {paylasimEkrani.sadeceAltYazi ? (
+                <div style={{ marginTop: 10, fontSize: 11.5, color: T.textFaint, lineHeight: 1.6 }}>
+                  Yalnızca metin kaydedilir — paylaşıldı işaretlenmez, stok düşmez.
+                  Kartın metniyle aynı bırakırsan bu plan kartı izlemeye devam eder.
+                </div>
+              ) : (
+                <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: T.surface,
+                  fontSize: 11.5, color: T.textFaint, lineHeight: 1.6 }}>
+                  {paylasimEkrani.sonuclar.filter((x) => x.startsWith("•")).map((x) => (
+                    <div key={x}>{x}</div>
+                  ))}
+                </div>
+              )}
 
               <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
                 <button
@@ -5051,7 +5098,9 @@ function MusteriPanelEkleri({ marka, plan, reklamlar, isler, onAltMetin }) {
                   tur={p.tur}
                   gun={p.gun}
                   gorselUrl={p.gorselUrl}
-                  altMetin={p.altMetin}
+                  /* Devralınan metin burada da görünmeli — yönetici müşterinin ne
+                    * göreceğine bakıyor; kartta yazılan metin görünmezse eksik sanılır. */
+                  altMetin={etkinAltMetin(p, (isler || []).find((j) => String(j.id) === String(p.isId)))}
                   yapildi={p.yapildi}
                   isId={p.isId}
                   kompakt

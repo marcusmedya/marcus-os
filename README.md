@@ -4597,3 +4597,35 @@ kaydetme işaretlemeden önce.
 "Kaydetme önce" kontrolü ilk yazımda **sırayı sınamıyordu** (iki çağrı da kodda geçiyor
 mu diye bakıyordu; işaretlemeyi başa alıp geçmek mümkündü — ölçüldü). Zincirin kendisine
 bağlandı ve tekrar ölçüldü. Toplam **1946 kontrol**.
+
+### 162.1 — Alt yazı kartın özelliği oldu, plan devralıyor
+
+Alt yazı yalnızca paylaşım anında yazılabiliyordu. Oysa metin **içerik üretilirken**
+düşünülüyor; paylaşan kişi onu sadece taşıyor.
+
+**Yeni yapı:** alt yazı Operasyon kartının alanı — **onaydan önce de** yazılabiliyor.
+Kart planlandığı her güne ve her şubeye metni kendiliğinden götürüyor.
+
+Aynı kart dört şubede paylaşılabildiği için plan üzerinde **değiştirilebiliyor**; o
+değişiklik yalnızca o planı etkiliyor. Kutuda hangisinin geçerli olduğu yazıyor:
+*"kartın alt yazısı"* / *"bu güne özel yazılmış"*.
+
+**Planlama ekranında da yazılabiliyor:** hücrenin kutusundaki "Alt yazıyı düzenle" aynı
+ekranı *yalnızca alt yazı* kipinde açıyor — işaretleme yapmıyor, stok düşmüyor.
+
+#### İki sessiz tuzak kapatıldı
+
+**Kartla aynı metin plana yazılmıyor.** Yazılsaydı kart metni sonradan güncellendiğinde
+o plan eski metinde takılı kalırdı — kullanıcı "değiştirmedim" derken devralmanın
+kopması.
+
+**Devralma müşteri yükünde de çözülüyor.** Müşteri paneli veriyi sunucudan alıyor ve
+kartları görmüyor; orada çözülmeseydi kartta yazılan metin müşteriye **hiç ulaşmazdı** ve
+özellik "yazdım ama görünmüyor" diye geri gelirdi.
+
+#### Ölçüm
+
+t91 eklendi (14 kontrol). Bozmalar: müşteri yükünde devralmayı kaldırmak 3 kontrol,
+kartla aynı metni plana yazmak 2, boşluğu "yazılmış" saymak 1 kontrol düşürüyor.
+
+Toplam **1960 kontrol**, 22 statik denetim.
