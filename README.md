@@ -4501,3 +4501,31 @@ eski görüntü kalamaz.
 pencerenin BAŞINDAN ölçüyordu — orada taban ve tavan yuvarlama aynı sonucu verdiği için
 kuralı sınamıyordu; pencere ortasına alındı ve yukarı yuvarlama bozmasında artık
 düşüyor (10500 sn ≈ 3 saat). Toplam **1922 kontrol**.
+
+### 161.3 — Açılış: adres artık tarayıcıda; ve "önce yatay, sonra dikey" giderildi
+
+Sahadan iki belirti geldi: video hâlâ geç açılıyor, ve **oynatıcı önce yatay çıkıp
+sonra dikeye dönüyor** (müşteri paneli dahil).
+
+**Geç açılma — kalan sebep.** Video adresi (imzalı jeton) her kart açılışında sunucudan
+yeniden isteniyordu: bir tur ağ gecikmesi ARTI sunucuda belge okuması, hepsi video daha
+başlamadan. Adres bir önceki turda saatlik ızgaraya oturtulmuştu; artık tarayıcıda
+saklanıyor ve ikinci açılışta ağa hiç çıkılmıyor.
+
+Önbellek anahtarı bilerek `is:<kartId>:` önekiyle duruyor: kart yükleme/silme yaptığında
+`onizlemeyiTazele` aynı önekle temizliyor ve adres de düşüyor. Düşmeseydi yeni versiyon
+yüklendikten sonra **eski dosya** oynatılırdı — jeton dosya kimliğini taşıyor. Ömrü
+30 dakika, yani jetonun en kısa ömrünün (1 saat) altında: süresi dolmuş bir adres
+önbellekten çıkıp oynatıcıyı sessizce boş bırakmasın.
+
+**Önce yatay, sonra dikey.** `<video>` etiketine oran verilmediğinde, metadata gelene
+kadar kutunun boyunu **poster görseli** belirliyor. Drive'ın küçük resmi çoğu zaman
+yatay olduğu için dikey bir Reels önce yatay açılıyor, metadata gelince dikeye
+atlıyordu. Artık oran ilk kareden itibaren veriliyor: gerçek oran gelene kadar kartın
+kayıtlı yönü (varsayılan dikey — içeriğin çoğu Reels), sonra gerçek oran devralıyor.
+
+Yön mantığı `lib/video-yon.js`'e taşındı: React dosyasının içinde kalsaydı Node
+testinden çağrılamazdı ve test kodun bir KOPYASINI sınardı.
+
+Ölçüm (t90, 11 kontrol): oranı vermemek 4, önbelleğin sönmemesi 1, anahtarın kart
+önekini taşımaması 2 kontrol düşürüyor. Toplam **1933 kontrol**.

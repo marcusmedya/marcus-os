@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     89 test dosyası (t1…t89) + 22 statik denetim betiği
+testler/     90 test dosyası (t1…t90) + 22 statik denetim betiği
 ```
 
 ---
@@ -133,6 +133,14 @@ deneyimidir. Üç kural:
   diyor ("sonuna kadar"); aynen iletilince fonksiyon dosyanın tamamını tek yanıtta
   akıtmaya çalışıyor ve 60 saniyelik çalışma sınırına takılıp ORTASINDAN kesiliyordu —
   izlerken donmanın kaynağı buydu. Küçük aralıklar büyütülmez (Safari önce iki bayt ister).
+- **Adres tarayıcıda önbellekli** (`lib/onizleme-bellegi.js` → `videoAdresOku/Yaz`).
+  Her kart açılışında jeton isteniyordu: bir tur ağ gecikmesi + sunucuda belge okuması,
+  hepsi video başlamadan. Anahtar `is:<id>:` önekiyle duruyor ki yükleme/silme sonrası
+  `onizlemeyiTazele` onu da düşürsün — düşmezse yeni versiyon yüklendikten sonra ESKİ
+  dosya oynatılır. Ömrü 30 dk: jetonun en kısa ömrünün (1 saat) altında.
+- **Oynatıcı kutusunun oranı ilk kareden itibaren doğru** (`lib/video-yon.js` →
+  `oynaticiOrani`). Oran verilmezse kutunun boyunu POSTER belirliyor; Drive küçük resmi
+  yatay olduğu için dikey Reels önce yatay açılıp metadata gelince atlıyordu.
 - **İstemci vazgeçince üst akış iptal ediliyor** (`AbortController` + `req.on("close")`).
   Bağ yokken tarayıcı isteği kesse bile Google'dan indirme sürüyordu; hızlı sarmada ölü
   indirmeler birikip yeni istekleri eşzamanlılık sınırına düşürüyordu.
@@ -379,7 +387,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 22 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t89, ~1922 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t90, ~1933 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

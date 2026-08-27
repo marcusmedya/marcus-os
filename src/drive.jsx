@@ -9,7 +9,9 @@
  */
 import React, { useState, useEffect } from "react";
 import { T, authHeaders } from "./tema.jsx";
-import { onizlemeAnahtari, onizlemeOku, onizlemeYaz, onizlemeyiTazele, tazelemeyiDinle } from "../lib/onizleme-bellegi.js";
+import { videoYonuBul, oynaticiOrani } from "../lib/video-yon.js";
+import { onizlemeAnahtari, onizlemeOku, onizlemeYaz, onizlemeyiTazele, tazelemeyiDinle,
+  videoAdresAnahtari, videoAdresOku, videoAdresYaz } from "../lib/onizleme-bellegi.js";
 
 /**
  * ÖNİZLEME SUNUCUDAN — TEK KAYNAK.
@@ -99,11 +101,20 @@ export function useVideoAdresi({ isId, icerikId, alan, slot }) {
    * girmezse ikinci slayt birincinin adresini kullanır ve hep aynı video oynar. */
   const anahtar = isId !== undefined && isId !== null ? `is:${isId}:${slot || ""}`
                 : icerikId !== undefined && icerikId !== null ? `icerik:${icerikId}:${alan || ""}` : null;
-  const [adres, setAdres] = useState(null);
-  const [durum, setDurum] = useState(anahtar ? "yukleniyor" : "yok");
+  /* ADRES ÖNBELLEKTEN GELİYORSA AĞA HİÇ ÇIKILMIYOR. Her kart açılışında bir tur ağ
+   * gecikmesi ARTI sunucuda belge okuması vardı ve bunlar video daha başlamadan önce
+   * ödeniyordu. Adres saatlik ızgaraya oturduğu için (lib/video-jeton.js) aynı saat
+   * içinde aynı; saklanabiliyor. Kart yükleme/silme yaptığında `onizlemeyiTazele`
+   * aynı önekle temizlediği için eski dosyanın adresi takılı kalmıyor. */
+  const bellektekiAdres = videoAdresOku(videoAdresAnahtari({ isId, icerikId, alan, slot }));
+  const [adres, setAdres] = useState(bellektekiAdres);
+  const [durum, setDurum] = useState(anahtar ? (bellektekiAdres ? "hazir" : "yukleniyor") : "yok");
 
   useEffect(() => {
     if (!anahtar) { setDurum("yok"); setAdres(null); return undefined; }
+    const bellekAnahtari = videoAdresAnahtari({ isId, icerikId, alan, slot });
+    const hazirAdres = videoAdresOku(bellekAnahtari);
+    if (hazirAdres) { setAdres(hazirAdres); setDurum("hazir"); return undefined; }
     let iptal = false;
     setDurum("yukleniyor"); setAdres(null);
     fetch("/api/data", {
@@ -114,7 +125,8 @@ export function useVideoAdresi({ isId, icerikId, alan, slot }) {
       .then((r) => r.json())
       .then((r) => {
         if (iptal) return;
-        if (r.ok && r.adres) { setAdres(r.adres); setDurum("hazir"); } else setDurum("olmadi");
+        if (r.ok && r.adres) { videoAdresYaz(bellekAnahtari, r.adres); setAdres(r.adres); setDurum("hazir"); }
+        else setDurum("olmadi");
       })
       .catch(() => { if (!iptal) setDurum("olmadi"); });
     return () => { iptal = true; };
@@ -293,20 +305,8 @@ export function driveEmbedUrl(link) {
  * Varsayılan "dikey" — sosyal medya içeriklerinin neredeyse tamamı 9:16 olduğu için.
  * Yön kayıtta belirtilmemişse de dikey kabul edilir.
  */
-export const VIDEO_YONLERI = [
-  { key: "dikey", label: "Dikey (Reels/Story)", oran: "9 / 16", maxGenislik: 340 },
-  { key: "kare", label: "Kare (1:1)", oran: "1 / 1", maxGenislik: 440 },
-  { key: "yatay", label: "Yatay (16:9)", oran: "16 / 9", maxGenislik: 640 },
-];
-export const videoYonuBul = (yon) => VIDEO_YONLERI.find((y) => y.key === yon) || VIDEO_YONLERI[0];
+export { VIDEO_YONLERI, videoYonuBul, oynaticiOrani } from "../lib/video-yon.js";
 
-/**
- * Videonun KENDİ oranına göre azami genişlik.
- *
- * Elle girilen "yön" ayarının yerini alıyor: oran videonun metadata'sından okunuyor, kimse
- * bir şey seçmek zorunda kalmıyor ve yanlış seçilemiyor. Dikey bir Reels geniş çerçevede
- * ya devasa çıkıyor ya iki yanı siyah bantla doluyordu.
- */
 export function videoEni(oran) {
   if (!oran) return 420;          // metadata gelmeden makul bir başlangıç
   if (oran < 0.9) return 340;     // dikey — Reels / Story
@@ -339,7 +339,10 @@ export function DriveVideo({ link, yon, baslik, isId, icerikId, alan, slot }) {
             const v = e.currentTarget;
             if (v.videoWidth && v.videoHeight) setOran(v.videoWidth / v.videoHeight);
           }}
-          style={{ width: "100%", maxHeight: "70vh", borderRadius: 10, background: "#000", display: "block" }}
+          /* Oran ilk karede veriliyor — yoksa kutu poster görselinin oranını alıp
+            * sonra metadata gelince atlıyor. */
+          style={{ width: "100%", maxHeight: "70vh", borderRadius: 10, background: "#000",
+            display: "block", aspectRatio: oynaticiOrani(oran, yon), objectFit: "contain" }}
         />
       </div>
     );
