@@ -125,6 +125,10 @@ deneyimidir. Üç kural:
   jeton unutulup TEK kez yeniden deneniyor — yoksa erken geçersiz kılınan bir jeton süre
   dolana kadar takılırdı. OAuth jetonu AYRI modülde (`lib/drive-yukleme.js`), önbellek
   onu kapsamıyor: iki kimlik karışmamalı.
+- **Her istek SINIRLI bir parça döndürür** (`aralikDarailt`, 3 MB). Tarayıcı `bytes=0-`
+  diyor ("sonuna kadar"); aynen iletilince fonksiyon dosyanın tamamını tek yanıtta
+  akıtmaya çalışıyor ve 60 saniyelik çalışma sınırına takılıp ORTASINDAN kesiliyordu —
+  izlerken donmanın kaynağı buydu. Küçük aralıklar büyütülmez (Safari önce iki bayt ister).
 - **İstemci vazgeçince üst akış iptal ediliyor** (`AbortController` + `req.on("close")`).
   Bağ yokken tarayıcı isteği kesse bile Google'dan indirme sürüyordu; hızlı sarmada ölü
   indirmeler birikip yeni istekleri eşzamanlılık sınırına düşürüyordu.
@@ -371,7 +375,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 22 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t89, ~1908 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t89, ~1913 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

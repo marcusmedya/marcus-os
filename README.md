@@ -4454,3 +4454,25 @@ isteklerini sayarak yedek yolu gözlüyordu, önbellek bunu kör ettiği için t
 yanlış alarm giderildi, gerçek tanımsız çağrıyı hâlâ yakalıyor (ölçüldü).
 
 Toplam **1908 kontrol**, 22 statik denetim.
+
+### 161.1 — İzlerken donma: tek yanıtta tüm dosya akıtılıyordu
+
+İstek başına maliyet düşürüldükten sonra bile video **izlerken donuyordu**. Sebep
+başlangıç gecikmesi değil, akışın kendisiydi.
+
+Tarayıcı videoyu açarken `Range: bytes=0-` diyor — "buradan dosyanın sonuna kadar".
+Bu aralık Google'a aynen iletiliyordu, yani fonksiyon **dosyanın tamamını tek yanıtta**
+akıtmaya çalışıyordu. Sunucusuz fonksiyonun çalışma süresi sınırlı (60 sn); uzun bir
+akış o sınıra takılıp **ortasından kesiliyor** ve video donuyordu. Büyük gövdeler ayrıca
+yanıt boyutu sınırlarına da yaklaşıyor.
+
+Artık her istek en fazla **3 MB**'lık bir parça döndürüyor; tarayıcı kaldığı yerden yeni
+bir aralık istiyor — normal bir dosya sunucusu da böyle davranır. Her parça saniyeler
+içinde bitiyor, kesilecek uzun bir akış kalmıyor. Yan fayda: parça sınırları sabit
+olduğu için geri sarmada tarayıcı önbelleği devreye giriyor.
+
+Küçük aralıklar **büyütülmüyor**: Safari önce iki bayt istiyor, onu 3 MB'a çıkarmak
+gereksiz aktarım olurdu. Sondan aralık (`bytes=-500`) olduğu gibi geçiyor.
+
+Ölçüm: aralığı aynen iletmek 3 kontrol, küçük aralığı da parçaya büyütmek 1 kontrol
+düşürüyor. Toplam **1913 kontrol**.

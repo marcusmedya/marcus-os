@@ -9,7 +9,7 @@ import { belgedekiCakismalariOnar, turetilmisleriAyikla } from "../lib/kimlik.js
 import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
 import { epostaGonder, revizeBildirimHtml } from "../lib/eposta.js";
 import { onaylananiTasi, kartKlasorunuTasi, bosaldiysaKartKlasorunuCopeAt, driveSagligi, DURUM_KLASORLERI, klasorDurumu, driveDosyaIdCikar, videoAkisi } from "../lib/drive-tasima.js";
-import { jetonUret, jetonCoz } from "../lib/video-jeton.js";
+import { jetonUret, jetonCoz, aralikDarailt } from "../lib/video-jeton.js";
 import { Readable } from "stream";
 import { dosyasizKontroleGirenleriGeriAl, medyaVarMi, asamalariDuzelt,
          guncelMedyalar, slotSonrakiVersiyon, slotGecerliMi, slotKategoriyeUygunMu, medyaSlotu,
@@ -558,7 +558,12 @@ export default async function handler(req, res) {
      * onları çökertiyordu. Olay yoksa iptal bağı kurulmuyor, akış yine çalışıyor. */
     if (typeof req.on === "function") req.on("close", () => { if (!bitti) iptal.abort(); });
 
-    const akis = await videoAkisi(dosyaId, req.headers.range, iptal.signal);
+    /* ARALIK DARALTILIYOR — tek yanıtta tüm dosya akıtılmasın. Tarayıcı `bytes=0-`
+     * diyor ("sonuna kadar"); aynen iletilirse fonksiyon dosyanın tamamını akıtmaya
+     * çalışıyor ve 60 saniyelik çalışma sınırına takılıp ORTASINDAN kesiliyor — izlerken
+     * yaşanan donmanın kaynağı bu. Her istek sınırlı bir parça döndürüyor, tarayıcı
+     * kaldığı yerden devam ediyor; normal bir dosya sunucusu da böyle davranır. */
+    const akis = await videoAkisi(dosyaId, aralikDarailt(req.headers.range), iptal.signal);
     if (!akis.ok) return res.status(502).json({ error: akis.sebep || "Video alınamadı." });
 
     const g = akis.yanit;

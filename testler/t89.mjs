@@ -229,5 +229,57 @@ await bolum("5) ÖNBELLEKTEKİ JETON GEÇERSİZSE — kendini onarıyor", 3, asy
   } finally { globalThis.fetch = gercek; }
 });
 
+/* ---------------------------------------------------------------- */
+await bolum("6) ARALIK PARÇALANIYOR — tek yanıtta tüm dosya akmıyor", 5, async () => {
+  /* İZLERKEN DONMANIN KAYNAĞI. Tarayıcı `Range: bytes=0-` diyor: "buradan sonuna
+   * kadar". Aynen iletilirse fonksiyon dosyanın TAMAMINI tek yanıtta akıtmaya çalışıyor
+   * ve 60 saniyelik çalışma sınırına takılıp ortasından kesiliyor. Her istek sınırlı bir
+   * parça döndürmeli; tarayıcı kaldığı yerden devam eder. */
+  const { VIDEO_PARCA_BAYT, aralikDarailt } = await import("../lib/video-jeton.js");
+  await kv.set("marcus-os-data", BELGE());
+
+  const istenenAraliklar = [];
+  const gercek = globalThis.fetch;
+  globalThis.fetch = async (u, o = {}) => {
+    const s3 = String(u);
+    if (s3.includes("oauth2.googleapis.com/token")) {
+      return { ok: true, status: 200, json: async () => ({ access_token: "j", expires_in: 3600 }) };
+    }
+    istenenAraliklar.push(String((o.headers && o.headers.Range) || ""));
+    const govde = new ReadableStream({ start(kt) { kt.enqueue(new Uint8Array([1])); kt.close(); } });
+    return { ok: true, status: 206, body: govde,
+      headers: new Map([["content-type", "video/mp4"], ["content-range", "bytes 0-1/999999999"]]) };
+  };
+  try {
+    const jeton = jetonUret("is", 7, Date.now(), DOSYA);
+    const cagir2 = async (aralik) => {
+      const { req, res } = istekYanit({ video: "7", j: jeton });
+      if (aralik === null) delete req.headers.range; else req.headers.range = aralik;
+      await dataUcu(req, res);
+      await new Promise((r) => setTimeout(r, 10));
+      return res;
+    };
+
+    await cagir2("bytes=0-");
+    t("AÇIK UÇLU ARALIK DARALTILIYOR", istenenAraliklar[0] === `bytes=0-${VIDEO_PARCA_BAYT - 1}`,
+      istenenAraliklar[0] + " — 'sonuna kadar' iletilirse tüm dosya tek yanıtta akar ve süre sınırında kesilir");
+
+    await cagir2("bytes=5000000-");
+    t("ortadan başlayan aralık da daraltılıyor",
+      istenenAraliklar[1] === `bytes=5000000-${5000000 + VIDEO_PARCA_BAYT - 1}`, istenenAraliklar[1]);
+
+    await cagir2("bytes=0-1");
+    t("küçük aralık BÜYÜTÜLMÜYOR", istenenAraliklar[2] === "bytes=0-1",
+      istenenAraliklar[2] + " — Safari önce iki bayt ister, büyütmek gereksiz aktarım olur");
+
+    await cagir2(null);
+    t("aralık gelmezse ilk parça isteniyor", istenenAraliklar[3] === `bytes=0-${VIDEO_PARCA_BAYT - 1}`,
+      istenenAraliklar[3]);
+
+    t("parça boyu süre sınırına göre ölçülü", VIDEO_PARCA_BAYT > 0 && VIDEO_PARCA_BAYT <= 4 * 1024 * 1024,
+      String(VIDEO_PARCA_BAYT) + " — büyük parça süre/boyut sınırlarına yaklaşır");
+  } finally { globalThis.fetch = gercek; }
+});
+
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);
 if (k > 0) process.exitCode = 1;
