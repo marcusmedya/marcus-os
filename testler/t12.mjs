@@ -49,4 +49,41 @@ son = await kv.get("marcus-os-data");
 kontrol("bayat sekme reddedildi (409)", w.kod === 409, `HTTP ${w.kod}`);
 kontrol("araya giren değişiklik korundu", son.stoklar["1_Post"] === 101, String(son.stoklar["1_Post"]));
 
+/* ---------------------------------------------------------------- */
+/* ALT YAZI TEK BAŞINA KAYDEDİLİNCE GÖRSEL SİLİNMEMELİ.
+ *
+ * Paylaşım ekranı (v162) alt yazıyı "paylaşıldı" işaretlemeden hemen ÖNCE tek başına
+ * kaydediyor. Uç yalnızca GÖNDERİLEN alanı değiştiriyor; bu korunma bozulursa her
+ * paylaşımda planın müşteri panelindeki görseli sessizce silinirdi — kimse fark etmeden.
+ * Korunma vardı ama hiçbir kontrol onu sınamıyordu. */
+console.log("\n ALT YAZI / GÖRSEL — biri diğerini silmiyor");
+{
+  const veri = TEMIZ_VERI();
+  veri.haftalikPaylasimlar = [{ id: 1, clientId: 1, gun: "Pzt", tur: "Reels",
+    altMetin: "eski metin", gorselUrl: "https://ornek/gorsel.jpg" }];
+  await kv.set("marcus-os-data", veri);
+
+  await cagir(pay, { method: "POST", headers: OWNER, query: {},
+    body: { action: "haftalikAltMetin", planId: 1, altMetin: "yeni metin" } });
+  let d = await kv.get("marcus-os-data");
+  let plan = d.haftalikPaylasimlar[0];
+  kontrol("alt yazı güncellendi", plan.altMetin === "yeni metin", plan.altMetin);
+  kontrol("GÖRSEL SİLİNMEDİ", plan.gorselUrl === "https://ornek/gorsel.jpg",
+    String(plan.gorselUrl) + " — her paylaşımda müşteri panelindeki görsel uçardı");
+
+  await cagir(pay, { method: "POST", headers: OWNER, query: {},
+    body: { action: "haftalikAltMetin", planId: 1, gorselUrl: "https://ornek/yeni.jpg" } });
+  d = await kv.get("marcus-os-data");
+  plan = d.haftalikPaylasimlar[0];
+  kontrol("görsel güncellendi", plan.gorselUrl === "https://ornek/yeni.jpg", String(plan.gorselUrl));
+  kontrol("ALT YAZI SİLİNMEDİ", plan.altMetin === "yeni metin", String(plan.altMetin));
+
+  await cagir(pay, { method: "POST", headers: OWNER, query: {},
+    body: { action: "haftalikAltMetin", planId: 1, altMetin: "   " } });
+  d = await kv.get("marcus-os-data");
+  kontrol("boş alt yazı temizleniyor", d.haftalikPaylasimlar[0].altMetin === null,
+    String(d.haftalikPaylasimlar[0].altMetin));
+  kontrol("boşaltmada da görsel duruyor", d.haftalikPaylasimlar[0].gorselUrl === "https://ornek/yeni.jpg");
+}
+
 console.log(`\nSONUÇ: ${g} geçti, ${k} kaldı`);
