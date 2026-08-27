@@ -1543,6 +1543,27 @@ function IsDetayModal({ job, clients, subeler, planlar, role, staffName, islemYe
             )}
             <label style={labelStyle}>Brief / Çekim Notları</label>
             <textarea style={{ ...inputStyle, marginBottom: 10 }} rows={3} value={taslak.brief || ""} onChange={(e) => setTaslak((s) => ({ ...s, brief: e.target.value }))} />
+
+            {/* ALT YAZI — İÇERİĞİN KENDİ METNİ.
+              *
+              * Paylaşım anında yazmak geç kalıyordu: metin içerik üretilirken düşünülüyor,
+              * paylaşan kişi ise sadece taşıyor. Burada yazıldığında kart planlandığı her
+              * güne ve her şubeye kendiliğinden gidiyor.
+              *
+              * Onaydan ÖNCE de yazılabiliyor — kart hangi aşamada olursa olsun bu alan
+              * açık; müşteri onayını beklemeye gerek yok. */}
+            <label style={labelStyle}>Alt Yazı (paylaşım metni)</label>
+            <textarea
+              style={{ ...inputStyle, marginBottom: 4 }}
+              rows={4}
+              value={taslak.altMetin || ""}
+              onChange={(e) => setTaslak((s) => ({ ...s, altMetin: e.target.value }))}
+              placeholder="Bu içerik paylaşılırken kullanılacak metin. Planladığın her güne ve şubeye gider."
+            />
+            <div style={{ fontSize: 11, color: C.textFaint, marginBottom: 10, lineHeight: 1.5 }}>
+              Paylaşımlar ekranında bu metin hazır gelir; o güne özel değiştirmek gerekirse
+              orada düzenlenir ve yalnızca o planı etkiler.
+            </div>
             <label style={labelStyle}>Ham Dosya Klasör Bağlantısı</label>
             <input style={{ ...inputStyle, marginBottom: 10 }} value={taslak.hamDosyaLink || ""} onChange={(e) => setTaslak((s) => ({ ...s, hamDosyaLink: e.target.value }))} placeholder="Google Drive / WeTransfer linki" />
             <label style={labelStyle}>Editlenmiş Dosya Bağlantısı</label>
