@@ -53,7 +53,12 @@ console.log("VİDEO AKIŞI VE JETON\n");
 console.log(" Jeton");
 const j = jetonUret("is", "10");
 t("jeton üretiliyor", typeof j === "string" && j.includes("."));
-t("çözülüyor", JSON.stringify(jetonCoz(j)) === JSON.stringify({ tur: "is", kimlik: "10" }));
+/* v161: jeton artık DOSYA KİMLİĞİNİ de taşıyor — video ucu tüm belgeyi okumasın diye.
+ * Eski biçimde üretilen jetonda alan `null` geliyor ve eski yol çalışmaya devam ediyor. */
+t("çözülüyor", JSON.stringify(jetonCoz(j)) === JSON.stringify({ tur: "is", kimlik: "10", dosyaId: null }),
+  JSON.stringify(jetonCoz(j)));
+t("dosya kimliği taşıyan jeton da çözülüyor",
+  JSON.stringify(jetonCoz(jetonUret("is", "10", Date.now(), "DOSYA1"))) === JSON.stringify({ tur: "is", kimlik: "10", dosyaId: "DOSYA1" }));
 t("imzası bozulmuş jeton REDDEDİLİYOR", jetonCoz(j.slice(0, -4) + "AAAA") === null);
 t("gövdesi değiştirilmiş jeton reddediliyor", (() => {
   const sahte = Buffer.from("is:11:99999999999", "utf8").toString("base64url") + "." + j.split(".")[1];

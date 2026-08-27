@@ -82,7 +82,11 @@ if __name__ == "__main__":
         cagrilar = {c for c in cagrilar if not re.search(r"[çğıöşüÇĞİÖŞÜ]", c)}
         # anahtar kelimeler
         cagrilar -= {"if","for","while","switch","catch","return","function","typeof","await",
-                     "new","do","else","try","case","in","of","yield","delete","void","instanceof"}
+                     "new","do","else","try","case","in","of","yield","delete","void","instanceof",
+                     # `async () => {}` ve `async function` bir çağrı DEĞİL — parantez
+                     # hemen ardından geldiği için çağrı sanılıyordu ve "tanımsız çağrı:
+                     # async" diye yanlış alarm veriyordu.
+                     "async"}
         # get/set kısayolları çağrı değil, tanımdır:  get bg() { ... }
         cagrilar -= set(re.findall(r"(?:get|set)\s+([A-Za-z_]\w*)\s*\(", kod))
         eksik = sorted(a for a in cagrilar if a not in mevcut)

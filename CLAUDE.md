@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     88 test dosyası (t1…t88) + 22 statik denetim betiği
+testler/     89 test dosyası (t1…t89) + 22 statik denetim betiği
 ```
 
 ---
@@ -113,6 +113,27 @@ eklerken yeni dosya AÇMA** — mevcut bir uca yeni bir `action` ekle. Örnek:
   silinmiştir** — diriltilmez.
 
 ### 3. Google Drive — iki ayrı kimlik, ikisi de eksik yetkili
+
+**Video akışı istek BAŞINA ucuz olmalı** (`api/data.js` video dalı). Tarayıcı videoda her
+ileri-geri sarmada YENİ bir aralık isteği atıyor; bir isteğin maliyeti doğrudan sarma
+deneyimidir. Üç kural:
+- **Dosya kimliği jetonun içinde** (`lib/video-jeton.js`, `2|` önekli v2 biçim). Eskiden
+  video ucu kimliği bulmak için TÜM belgeyi okuyordu — gömülü görsellerle megabaytlarca,
+  her sarmada. Eski jetonlar dosya kimliği taşımıyor; onlar için eski yol duruyor.
+- **Servis hesabı jetonu modül düzeyinde önbellekli** (`lib/drive-tasima.js`). Bir saat
+  geçerli olduğu hâlde her çağrıda RSA imza + ayrı HTTP turu yapılıyordu. 401 gelirse
+  jeton unutulup TEK kez yeniden deneniyor — yoksa erken geçersiz kılınan bir jeton süre
+  dolana kadar takılırdı. OAuth jetonu AYRI modülde (`lib/drive-yukleme.js`), önbellek
+  onu kapsamıyor: iki kimlik karışmamalı.
+- **Her istek SINIRLI bir parça döndürür** (`aralikDarailt`, 3 MB). Tarayıcı `bytes=0-`
+  diyor ("sonuna kadar"); aynen iletilince fonksiyon dosyanın tamamını tek yanıtta
+  akıtmaya çalışıyor ve 60 saniyelik çalışma sınırına takılıp ORTASINDAN kesiliyordu —
+  izlerken donmanın kaynağı buydu. Küçük aralıklar büyütülmez (Safari önce iki bayt ister).
+- **İstemci vazgeçince üst akış iptal ediliyor** (`AbortController` + `req.on("close")`).
+  Bağ yokken tarayıcı isteği kesse bile Google'dan indirme sürüyordu; hızlı sarmada ölü
+  indirmeler birikip yeni istekleri eşzamanlılık sınırına düşürüyordu.
+
+
 
 - **Servis hesabı**: tam `drive` yetkisi var ama **depolama kotası yok** — klasör
   oluşturabilir, dosya taşıyabilir, **yükleyemez**.
@@ -354,7 +375,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 22 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t88, ~1894 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t89, ~1913 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

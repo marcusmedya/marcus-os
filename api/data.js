@@ -9,7 +9,7 @@ import { belgedekiCakismalariOnar, turetilmisleriAyikla } from "../lib/kimlik.js
 import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
 import { epostaGonder, revizeBildirimHtml } from "../lib/eposta.js";
 import { onaylananiTasi, kartKlasorunuTasi, bosaldiysaKartKlasorunuCopeAt, driveSagligi, DURUM_KLASORLERI, klasorDurumu, driveDosyaIdCikar, videoAkisi } from "../lib/drive-tasima.js";
-import { jetonUret, jetonCoz } from "../lib/video-jeton.js";
+import { jetonUret, jetonCoz, aralikDarailt } from "../lib/video-jeton.js";
 import { Readable } from "stream";
 import { dosyasizKontroleGirenleriGeriAl, medyaVarMi, asamalariDuzelt,
          guncelMedyalar, slotSonrakiVersiyon, slotGecerliMi, slotKategoriyeUygunMu, medyaSlotu,
@@ -517,22 +517,53 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: "Bağlantı bu içerik için geçerli değil." });
     }
 
-    const veriV = (await kv.get(KEY)) || {};
-    let link = null;
-    if (cozum.tur === "icerik") {
-      const ic = (veriV.musteriIcerikleri || []).find((x) => String(x.id) === String(cozum.kimlik));
-      link = ic && ic.driveLinki;
-    } else {
-      const is = (veriV.cekimIsleri || []).find((j) => String(j.id) === String(cozum.kimlik));
-      const medya = is && Array.isArray(is.medya) ? is.medya : [];
-      const son = medya.length ? medya[medya.length - 1] : null;
-      link = (son && son.dosyaId) ? `https://drive.google.com/file/d/${son.dosyaId}/view`
-           : (is && (is.editliDosyaLink || is.hamDosyaLink || is.dosyaLinki));
+    /* DOSYA KİMLİĞİ JETONDAN GELİYOR — BELGE OKUNMUYOR.
+     *
+     * Eskiden burada `kv.get(KEY)` vardı: dosyanın Drive kimliğini bulmak için TÜM
+     * uygulama belgesi Redis'ten çekiliyordu. O belge tek bir JSON ve içinde gömülü
+     * görseller var — megabaytlarca. Tarayıcı videoda her ileri-geri sarışında YENİ bir
+     * istek attığı için bu okuma her sarmada yeniden yapılıyor, oynatma geç başlıyordu.
+     *
+     * Eski jetonlar (iki saat ömürlü) dosya kimliği taşımıyor; onlar için eski yol
+     * duruyor, yoksa dağıtım anında video izleyen birinin oynatıcısı yarıda kesilirdi. */
+    let dosyaId = cozum.dosyaId || null;
+    if (!dosyaId) {
+      const veriV = (await kv.get(KEY)) || {};
+      let link = null;
+      if (cozum.tur === "icerik") {
+        const ic = (veriV.musteriIcerikleri || []).find((x) => String(x.id) === String(cozum.kimlik));
+        link = ic && ic.driveLinki;
+      } else {
+        const is = (veriV.cekimIsleri || []).find((j) => String(j.id) === String(cozum.kimlik));
+        const medya = is && Array.isArray(is.medya) ? is.medya : [];
+        const son = medya.length ? medya[medya.length - 1] : null;
+        link = (son && son.dosyaId) ? `https://drive.google.com/file/d/${son.dosyaId}/view`
+             : (is && (is.editliDosyaLink || is.hamDosyaLink || is.dosyaLinki));
+      }
+      dosyaId = driveDosyaIdCikar(link);
     }
-    const dosyaId = driveDosyaIdCikar(link);
     if (!dosyaId) return res.status(404).json({ error: "Bu kayıtta dosya yok." });
 
-    const akis = await videoAkisi(dosyaId, req.headers.range);
+    /* TARAYICI VAZGEÇERSE İNDİRME DE DURUYOR.
+     *
+     * İleri sarmada tarayıcı önceki isteği kesiyor. Eskiden burada bir iptal bağı yoktu:
+     * istemci gitmiş olsa bile Google'dan indirme sürüyor ve fonksiyon ayakta kalıyordu.
+     * Hızlı ileri-geri yapınca arka planda ölü indirmeler birikiyor, yeni istekler
+     * eşzamanlılık sınırına takılıp kuyruğa giriyordu — "sarma yapınca takılıyor"
+     * davranışının kaynağı buydu. */
+    const iptal = new AbortController();
+    let bitti = false;
+    /* `req.on` VARSA bağlanıyor: Vercel'de `req` bir IncomingMessage, olay yayıcı. Ama
+     * her ortam öyle değil (testlerdeki sade istek nesneleri gibi) — koşulsuz çağırmak
+     * onları çökertiyordu. Olay yoksa iptal bağı kurulmuyor, akış yine çalışıyor. */
+    if (typeof req.on === "function") req.on("close", () => { if (!bitti) iptal.abort(); });
+
+    /* ARALIK DARALTILIYOR — tek yanıtta tüm dosya akıtılmasın. Tarayıcı `bytes=0-`
+     * diyor ("sonuna kadar"); aynen iletilirse fonksiyon dosyanın tamamını akıtmaya
+     * çalışıyor ve 60 saniyelik çalışma sınırına takılıp ORTASINDAN kesiliyor — izlerken
+     * yaşanan donmanın kaynağı bu. Her istek sınırlı bir parça döndürüyor, tarayıcı
+     * kaldığı yerden devam ediyor; normal bir dosya sunucusu da böyle davranır. */
+    const akis = await videoAkisi(dosyaId, aralikDarailt(req.headers.range), iptal.signal);
     if (!akis.ok) return res.status(502).json({ error: akis.sebep || "Video alınamadı." });
 
     const g = akis.yanit;
@@ -545,8 +576,14 @@ export default async function handler(req, res) {
     }
     if (!g.headers.get("accept-ranges")) res.setHeader("accept-ranges", "bytes");
     res.setHeader("cache-control", "private, max-age=600");
-    if (!g.body) { res.end(); return; }
-    Readable.fromWeb(g.body).pipe(res);
+    if (!g.body) { bitti = true; res.end(); return; }
+    const kaynak = Readable.fromWeb(g.body);
+    /* Akış bittiğinde iptal bağı gevşetiliyor: normal bitişte `close` olayı da geliyor
+     * ve bayrak olmasa tamamlanmış bir indirme "iptal edildi" diye işaretlenirdi. */
+    kaynak.on("end", () => { bitti = true; });
+    kaynak.on("error", () => { try { res.end(); } catch (e) { /* istemci gitmiş */ } });
+    if (typeof res.on === "function") res.on("close", () => { if (!bitti) kaynak.destroy(); });
+    kaynak.pipe(res);
     return;
   }
 
@@ -808,7 +845,9 @@ export default async function handler(req, res) {
     if (req.body.onizlemeAction === "videoJetonu") {
       const tur = (icerikId !== undefined && icerikId !== null) ? "icerik" : "is";
       const kayitId = tur === "icerik" ? icerikId : oIsId;
-      const jeton = jetonUret(tur, kayitId);
+      /* DOSYA KİMLİĞİ JETONA KONUYOR — video ucu belgeyi hiç okumasın diye. Burada
+       * zaten çözülmüş durumda; yetki kontrolü de burada yapıldı. */
+      const jeton = jetonUret(tur, kayitId, Date.now(), driveDosyaIdCikar(link));
       if (!jeton) return res.status(200).json({ ok: false, sebep: "Video akışı için sunucu sırrı tanımlı değil." });
       return res.status(200).json({ ok: true, jeton, adres: `/api/data?video=${encodeURIComponent(kayitId)}&j=${encodeURIComponent(jeton)}` });
     }
