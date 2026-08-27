@@ -110,5 +110,37 @@ t("müşteriye verilen adres kendi kaydını gösteriyor", q.video === "i1", q.v
 r = await getIstek({ video: "i2", j: q.j });
 t("o adresle başka müşterinin videosu istenemiyor", r.kod === 403, `HTTP ${r.kod}`);
 
+/* ---- ADRES KARARLILIĞI ---- */
+console.log("\n Adres kararlılığı (önbellek için)");
+{
+  /* Bitiş zamanı jetonun içinde ve imzalı; saniye saniye değişince her açılışta bambaşka
+   * bir adres üretiliyordu ve tarayıcı önbelleği hiç kullanılamıyordu — aynı videoyu
+   * ikinci kez açmak ilk kezle aynı maliyetteydi. Bitiş bir saatlik ızgaraya oturtuldu. */
+  const t0 = Date.UTC(2026, 7, 27, 10, 0, 0);
+  const dk = (n) => t0 + n * 60 * 1000;
+  const omru = (jt, an) => Number(Buffer.from(jt.split(".")[0], "base64url").toString().split(":").pop()) - Math.floor(an / 1000);
+
+  const a = jetonUret("is", "7", t0, "D1");
+  const b = jetonUret("is", "7", dk(5), "D1");
+  const c = jetonUret("is", "7", dk(59), "D1");
+  t("AYNI SAAT İÇİNDE ADRES DEĞİŞMİYOR", a === b && b === c,
+    "değişirse hiçbir parça önbellekten gelmez");
+  t("sonraki saatte jeton yenileniyor", jetonUret("is", "7", dk(61), "D1") !== a);
+  t("başka kaydın jetonu farklı", jetonUret("is", "8", t0, "D1") !== a);
+  t("başka dosyanın jetonu farklı", jetonUret("is", "7", t0, "D2") !== a);
+
+  /* ÖMÜR UZAMAMALI: ızgara tabana oturtuluyor, yukarı yuvarlansaydı jeton üç saat
+   * yaşardı. Üst sınır eskisiyle aynı kalıyor. */
+  /* PENCERE ORTASINDAN ölçülüyor: pencerenin tam başında taban ve tavan yuvarlama aynı
+   * sonucu veriyor, o yüzden orada ölçmek ömür kuralını sınamıyordu — yukarı yuvarlama
+   * bozmasında bu kontrol düşmedi, kararlılık kontrolü düştü. */
+  t("ömür ÜST SINIRI aşmıyor (2 saat)", omru(b, dk(5)) <= 2 * 60 * 60,
+    String(omru(b, dk(5))) + " — yukarı yuvarlansa üç saate çıkardı");
+  t("pencere sonunda bile en az bir saat kalıyor", omru(c, dk(59)) >= 60 * 60, String(omru(c, dk(59))));
+  t("kararlı jeton yine de çözülüyor",
+    JSON.stringify(jetonCoz(a, dk(5))) === JSON.stringify({ tur: "is", kimlik: "7", dosyaId: "D1" }));
+  t("süresi dolan kararlı jeton reddediliyor", jetonCoz(a, dk(200)) === null);
+}
+
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);
 if (k > 0) process.exitCode = 1;

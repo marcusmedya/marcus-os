@@ -143,6 +143,9 @@ await bolum("2) BELGE OKUNMUYOR — dosya kimliği jetonda", 4, async () => {
       `${sayac.okuma} okuma — her sarmada megabaytlarca JSON çekiliyordu`);
     t("dosya doğru kimlikle isteniyor", google.medyaCagrisi === 1);
     t("aralık yanıtı 206 dönüyor", res.kod === 206, String(res.kod));
+    t("önbellek başlığı adres penceresine eşit",
+      /private/.test(String(res.basliklar["cache-control"])) && /max-age=3600/.test(String(res.basliklar["cache-control"])),
+      String(res.basliklar["cache-control"]) + " — kısa tutulursa kararlı adres işe yaramaz, uzun tutulmasında sakınca yok (yeni versiyon YENİ dosya kimliği demek)");
     t("aralık başlıkları geçiyor",
       res.basliklar["content-range"] === "bytes 0-1023/999999" && res.basliklar["accept-ranges"] === "bytes",
       JSON.stringify(res.basliklar));
