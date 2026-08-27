@@ -259,12 +259,17 @@ await bolum("5) ÖNBELLEKTEKİ JETON GEÇERSİZSE — kendini onarıyor", 3, asy
 });
 
 /* ---------------------------------------------------------------- */
-await bolum("6) ARALIK PARÇALANIYOR — tek yanıtta tüm dosya akmıyor", 5, async () => {
-  /* İZLERKEN DONMANIN KAYNAĞI. Tarayıcı `Range: bytes=0-` diyor: "buradan sonuna
-   * kadar". Aynen iletilirse fonksiyon dosyanın TAMAMINI tek yanıtta akıtmaya çalışıyor
-   * ve 60 saniyelik çalışma sınırına takılıp ortasından kesiliyor. Her istek sınırlı bir
-   * parça döndürmeli; tarayıcı kaldığı yerden devam eder. */
-  const { VIDEO_PARCA_BAYT, aralikDarailt } = await import("../lib/video-jeton.js");
+await bolum("6) ARALIK AYNEN İLETİLİYOR — parçalanmıyor", 5, async () => {
+  /* KURAL DEĞİŞİKLİĞİ — v163, ÖLÇÜMLE.
+   *
+   * Bir süre burada aralık 12 MB'lık parçalara daraltıldı; gerekçe 60 saniyelik fonksiyon
+   * sınırıydı. O gerekçe KODDAN ÇIKARILMIŞTI, ölçülmemişti. Sahada ölçüldüğünde tersi
+   * çıktı: parçalama her sınırda yeni bir istek (yeni fonksiyon + yeni Google turu) demek
+   * ve video birkaç saniyede bir takılıyor. Daraltma yokken dosya TEK bağlantıda akıyor
+   * ve sorunsuz oynuyordu — kullanıcı "eskiden takılmıyordu" diye bildirdi.
+   *
+   * Bu bölüm dersi sabitliyor: tarayıcı ne isterse Google'a O gitmeli. Daraltma geri
+   * konursa kontroller düşer. */
   await kv.set("marcus-os-data", BELGE());
 
   const istenenAraliklar = [];
@@ -274,7 +279,7 @@ await bolum("6) ARALIK PARÇALANIYOR — tek yanıtta tüm dosya akmıyor", 5, a
     if (s3.includes("oauth2.googleapis.com/token")) {
       return { ok: true, status: 200, json: async () => ({ access_token: "j", expires_in: 3600 }) };
     }
-    istenenAraliklar.push(String((o.headers && o.headers.Range) || ""));
+    istenenAraliklar.push(String((o.headers && o.headers.Range) === undefined ? "(yok)" : o.headers.Range));
     const govde = new ReadableStream({ start(kt) { kt.enqueue(new Uint8Array([1])); kt.close(); } });
     return { ok: true, status: 206, body: govde,
       headers: new Map([["content-type", "video/mp4"], ["content-range", "bytes 0-1/999999999"]]) };
@@ -290,31 +295,26 @@ await bolum("6) ARALIK PARÇALANIYOR — tek yanıtta tüm dosya akmıyor", 5, a
     };
 
     await cagir2("bytes=0-");
-    t("AÇIK UÇLU ARALIK DARALTILIYOR", istenenAraliklar[0] === `bytes=0-${VIDEO_PARCA_BAYT - 1}`,
-      istenenAraliklar[0] + " — 'sonuna kadar' iletilirse tüm dosya tek yanıtta akar ve süre sınırında kesilir");
+    t("AÇIK UÇLU ARALIK DARALTILMIYOR", istenenAraliklar[0] === "bytes=0-",
+      istenenAraliklar[0] + " — daraltılırsa her sınırda yeni istek gerekir ve video takılır");
 
     await cagir2("bytes=5000000-");
-    t("ortadan başlayan aralık da daraltılıyor",
-      istenenAraliklar[1] === `bytes=5000000-${5000000 + VIDEO_PARCA_BAYT - 1}`, istenenAraliklar[1]);
+    t("ortadan başlayan aralık aynen gidiyor", istenenAraliklar[1] === "bytes=5000000-", istenenAraliklar[1]);
 
     await cagir2("bytes=0-1");
-    t("küçük aralık BÜYÜTÜLMÜYOR", istenenAraliklar[2] === "bytes=0-1",
-      istenenAraliklar[2] + " — Safari önce iki bayt ister, büyütmek gereksiz aktarım olur");
+    t("küçük aralık aynen gidiyor", istenenAraliklar[2] === "bytes=0-1",
+      istenenAraliklar[2] + " — Safari önce iki bayt ister");
+
+    await cagir2("bytes=-500");
+    t("sondan aralık aynen gidiyor", istenenAraliklar[3] === "bytes=-500",
+      istenenAraliklar[3] + " — moov sondaysa tarayıcı bunu ister");
 
     await cagir2(null);
-    t("aralık gelmezse ilk parça isteniyor", istenenAraliklar[3] === `bytes=0-${VIDEO_PARCA_BAYT - 1}`,
-      istenenAraliklar[3]);
-
-    /* PARÇA BOYU İKİ UÇTAN DA SINIRLI:
-     *  - ÇOK KÜÇÜK olursa video birkaç saniyede bir donuyor (sahada 3 MB ile yaşandı:
-     *    "oynuyor, 1-2 sn sonra donuyor, sonra devam ediyor").
-     *  - ÇOK BÜYÜK olursa tek yanıt fonksiyonun 60 saniyelik süre sınırına yaklaşır. */
-    t("parça boyu donmayı önleyecek kadar büyük", VIDEO_PARCA_BAYT >= 8 * 1024 * 1024,
-      String(VIDEO_PARCA_BAYT) + " — küçük parça birkaç saniyede bir yeni tur demek");
-    t("parça boyu süre sınırını zorlamıyor", VIDEO_PARCA_BAYT <= 24 * 1024 * 1024,
-      String(VIDEO_PARCA_BAYT));
+    t("aralık yoksa Google'a da aralık gitmiyor", istenenAraliklar[4] === "(yok)",
+      istenenAraliklar[4] + " — uydurma bir aralık dosyanın tamamını istemeyi engellerdi");
   } finally { globalThis.fetch = gercek; }
 });
+
 
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);
 if (k > 0) process.exitCode = 1;

@@ -4709,3 +4709,32 @@ Statik denetim `Uint8Array`'i tanımsız çağrı sanıyordu; tipli dizi kurucul
 küresellere eklendi, denetimin gerçek hatayı hâlâ yakaladığı ölçüldü.
 
 Toplam **1978 kontrol**.
+
+### 163 — Parçalama geri alındı: takılmanın sebebi bendim
+
+Kullanıcı belirleyici bilgiyi verdi: *"Drive'dan alınan videolar **eskiden** daha hızlı
+açılıyor ve sorunsuz oynuyordu, takılmıyordu."*
+
+Karşılaştırma net:
+
+| | eskiden (`fa95061`) | parçalamadan sonra |
+|---|---|---|
+| tarayıcı `bytes=0-` diyor | **aynen** iletiliyor → dosya **tek bağlantıda** akıyor | 12 MB'lık parçaya kırpılıyor |
+| sonuç | sınır yok, kesinti yok | her 12 MB'ta yeni istek + yeni fonksiyon + yeni Google turu |
+
+Parçalamayı 60 saniyelik fonksiyon sınırına karşı eklemiştim. **O gerekçe koddan
+çıkarılmıştı, ölçülmemişti** — ve gerçek ölçüm (kullanıcının kendi deneyimi) tersini
+söyledi. Daraltma kaldırıldı; aralık artık tarayıcı ne istediyse o şekilde gidiyor.
+
+60 saniye sınırı hâlâ duruyor ama zararı çok daha az: akış oynatılan noktanın **önünde**
+ilerliyor, kesilirse tarayıcı kalan aralığı bir kez yeniden istiyor. Her 12 MB'ta bir
+duraklamadan iyi.
+
+`VIDEO_PARCA_BAYT` ve `aralikDarailt` **silindi** — ölçülmemiş bir varsayıma dayanan kodu
+tutmak, bir sonraki kişiye o varsayımı doğruymuş gibi devretmek olurdu.
+
+Ölçüm: parçalamayı geri koymak t89'da 3 kontrol düşürüyor. Bölüm artık dersin kendisini
+sabitliyor — tarayıcı ne isterse Google'a o gitmeli (açık uçlu, ortadan, küçük, sondan
+aralık ve "aralık yok" hâlleri ayrı ayrı).
+
+Toplam **1977 kontrol**.
