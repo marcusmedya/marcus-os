@@ -553,10 +553,28 @@ export default async function handler(req, res) {
      * davranışının kaynağı buydu. */
     const iptal = new AbortController();
     let bitti = false;
-    /* `req.on` VARSA bağlanıyor: Vercel'de `req` bir IncomingMessage, olay yayıcı. Ama
-     * her ortam öyle değil (testlerdeki sade istek nesneleri gibi) — koşulsuz çağırmak
-     * onları çökertiyordu. Olay yoksa iptal bağı kurulmuyor, akış yine çalışıyor. */
-    if (typeof req.on === "function") req.on("close", () => { if (!bitti) iptal.abort(); });
+    let kaynak = null;
+
+    /* İSTEMCİNİN AYRILDIĞI, YANIT (`res`) ÜZERİNDEN ANLAŞILIYOR — İSTEK (`req`) ÜZERİNDEN DEĞİL.
+     *
+     * Bir süre `req.on("close")` kullanıldı ve VİDEO HİÇ OYNAMADI: GET isteğinin gövdesi
+     * yok, dolayısıyla istek anında "tamamlanmış" sayılıyor ve Node `close` olayını
+     * HEMEN yayıyor. Bu, "istemci gitti" demek değil; ama iptal ona bağlıydı, akış daha
+     * başlamadan üst akış iptal ediliyor ve oynatıcı boş kalıyordu. Sahada ölçüldü.
+     *
+     * Doğru sinyal, YANIT kapanırken akışın henüz BİTMEMİŞ olması. Normal bitişte de
+     * `close` geliyor; `bitti` bayrağı olmasa tamamlanmış bir aktarım "iptal edildi"
+     * sanılırdı. Bayrak akışın `end` olayında kalkıyor ve o olay `close`tan önce geliyor,
+     * ayrıca gövdesiz yanıt yolunda da elle kaldırılıyor — ek bir koşula gerek yok.
+     * (`res.writableEnded` de eklenmişti; hiçbir kontrolü değiştirmediği ölçüldü,
+     * ölçülemeyen koruma tutmak yerine sadeleştirildi.) */
+    const istemciAyrildi = () => {
+      if (bitti) return;
+      bitti = true;
+      if (kaynak) kaynak.destroy();
+      iptal.abort();
+    };
+    if (typeof res.on === "function") res.on("close", istemciAyrildi);
 
     /* ARALIK DARALTILIYOR — tek yanıtta tüm dosya akıtılmasın. Tarayıcı `bytes=0-`
      * diyor ("sonuna kadar"); aynen iletilirse fonksiyon dosyanın tamamını akıtmaya
@@ -581,12 +599,11 @@ export default async function handler(req, res) {
      * kimliği yeni jeton ve yeni adres demek. */
     res.setHeader("cache-control", "private, max-age=3600");
     if (!g.body) { bitti = true; res.end(); return; }
-    const kaynak = Readable.fromWeb(g.body);
-    /* Akış bittiğinde iptal bağı gevşetiliyor: normal bitişte `close` olayı da geliyor
-     * ve bayrak olmasa tamamlanmış bir indirme "iptal edildi" diye işaretlenirdi. */
+    kaynak = Readable.fromWeb(g.body);
+    /* Akış bittiğinde bayrak kalkıyor: normal bitişte de `close` geliyor ve bayrak
+     * olmasa tamamlanmış bir aktarım "iptal edildi" diye işaretlenirdi. */
     kaynak.on("end", () => { bitti = true; });
     kaynak.on("error", () => { try { res.end(); } catch (e) { /* istemci gitmiş */ } });
-    if (typeof res.on === "function") res.on("close", () => { if (!bitti) kaynak.destroy(); });
     kaynak.pipe(res);
     return;
   }

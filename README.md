@@ -4529,3 +4529,34 @@ testinden çağrılamazdı ve test kodun bir KOPYASINI sınardı.
 
 Ölçüm (t90, 11 kontrol): oranı vermemek 4, önbelleğin sönmemesi 1, anahtarın kart
 önekini taşımaması 2 kontrol düşürüyor. Toplam **1933 kontrol**.
+
+### 161.4 — Video hiç oynamıyordu: iptal sinyali yanlış olaydan okunuyordu
+
+Bir önceki turda eklenen iptal bağı videoyu tamamen durdurdu: oynatıcı açılıyor, süre
+`--:--` kalıyor, hiçbir şey oynamıyordu.
+
+Sebep, "istemci ayrıldı" sinyalinin **istek** (`req.on("close")`) üzerinden okunmasıydı.
+GET isteğinin gövdesi yok; istek anında "tamamlanmış" sayılıyor ve Node `close` olayını
+**hemen** yayıyor. Bu "istemci gitti" demek değil — ama iptal ona bağlıydı, dolayısıyla
+akış daha başlamadan üst akış iptal ediliyordu.
+
+Doğru sinyal **yanıtın** kapanması ve akışın henüz bitmemiş olması: `res.on("close")` +
+`bitti` bayrağı. Bayrak normal bitişi iptalden ayırıyor; bitişte de `close` geliyor.
+
+#### Testin kendisi hatalıydı
+
+Bu hatanın kullanıcıya kadar gitmesinin sebebi, testin **yanlış davranışı sabitlemesiydi**:
+iptali `req.emit("close")` ile ölçüyordu, yani gerçek hayatta hemen gelen bir olayı
+"istemci ayrıldı" sayan kodu doğruluyordu. Test geçtiği için hata görünmedi.
+
+Bölüm yeniden yazıldı ve artık üç şeyi birden sınıyor:
+- **istek kapanması tek başına iptal ETMEMELİ** (yaşanan hatanın koruması)
+- yanıt kapanınca ve akış bitmemişse iptal edilmeli
+- tamamlanan aktarım iptal sayılmamalı
+
+Ölçüm: hatayı birebir geri koymak (iptali `req`e bağlamak) 1 kontrol, `bitti` bayrağını
+kaldırmak 1 kontrol düşürüyor.
+
+Ayrıca `res.writableEnded` kontrolü kaldırıldı: hiçbir davranışı değiştirmediği ölçüldü
+(bozulduğunda hiçbir kontrol düşmedi). Ölçülemeyen koruma tutmak yerine sadeleştirildi.
+Toplam **1935 kontrol**.

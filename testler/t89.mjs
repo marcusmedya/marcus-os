@@ -172,23 +172,49 @@ await bolum("3) ESKİ JETON — hâlâ çalışıyor", 2, async () => {
 
 /* ---------------------------------------------------------------- */
 /* ---------------------------------------------------------------- */
-await bolum("4) İSTEMCİ VAZGEÇİNCE İNDİRME DURUYOR", 2, async () => {
-  /* İleri sarmada tarayıcı önceki isteği keser. Bağ yoksa Google'dan indirme sürer ve
-   * fonksiyon ayakta kalır; hızlı sarmada ölü indirmeler birikip yeni istekleri
-   * eşzamanlılık sınırına düşürüyordu. */
+await bolum("4) İSTEMCİ VAZGEÇİNCE İNDİRME DURUYOR — sinyal YANITTAN", 4, async () => {
+  /* İleri sarmada tarayıcı önceki isteği keser; bağ olmadan Google'dan indirme sürer.
+   *
+   * AMA SİNYAL DOĞRU YERDEN OKUNMALI. Bir süre `req.on("close")` kullanıldı ve VİDEO HİÇ
+   * OYNAMADI: GET isteğinin gövdesi yok, istek anında tamamlanmış sayılıyor ve Node
+   * `close`u HEMEN yayıyor — "istemci gitti" demek değil. Akış daha başlamadan iptal
+   * ediliyordu. Bu bölüm o hatayı da sınıyor; ÖNCEKİ HÂLİ yalnızca `req` üzerinden
+   * ölçtüğü için hatayı yakalayamamış, üstelik yanlış davranışı sabitlemişti. */
   await kv.set("marcus-os-data", BELGE());
   const google = googleTaklidi({ govdeSonsuz: true });
   try {
     const jeton = jetonUret("is", 7, Date.now(), DOSYA);
+
     const { req, res } = istekYanit({ video: "7", j: jeton });
     await dataUcu(req, res);
     const sinyal = google.sinyaller[0];
     t("Drive isteğine iptal bağı takılıyor", Boolean(sinyal),
       "sinyal yoksa istemci gitse bile indirme sürer");
-    req.emit("close");                                // tarayıcı vazgeçti
+
+    /* GET'te bu olay HEMEN geliyor — iptal ETMEMELİ. */
+    req.emit("close");
     await new Promise((r) => setTimeout(r, 10));
-    t("İSTEMCİ KAPANINCA ÜST AKIŞ İPTAL EDİLİYOR", Boolean(sinyal && sinyal.aborted),
+    t("İSTEK KAPANMASI TEK BAŞINA İPTAL ETMİYOR", Boolean(sinyal) && !sinyal.aborted,
+      "GET'te req 'close' anında gelir; buna bağlanınca video hiç oynamıyordu");
+
+    /* Asıl sinyal: yanıt kapandı ve akış bitmemişti. */
+    res.emit("close");
+    await new Promise((r) => setTimeout(r, 10));
+    t("YANIT KAPANINCA ÜST AKIŞ İPTAL EDİLİYOR", Boolean(sinyal && sinyal.aborted),
       "iptal edilmezse ölü indirme fonksiyon süresi boyunca sürer");
+
+    /* Normal bitişte iptal edilmemeli: tamamlanan aktarım "iptal" sayılırsa her
+     * istekte gereksiz bir iptal üretilir. */
+    const bitenGoogle = googleTaklidi();          // sonlu gövde
+    const { req: r2, res: r2y } = istekYanit({ video: "7", j: jeton });
+    await dataUcu(r2, r2y);
+    await new Promise((r) => setTimeout(r, 20));
+    r2y.emit("close");
+    await new Promise((r) => setTimeout(r, 10));
+    const sinyal2 = bitenGoogle.sinyaller[0];
+    t("TAMAMLANAN aktarım iptal sayılmıyor", Boolean(sinyal2) && !sinyal2.aborted,
+      "normal bitişte de close geliyor; `bitti` bayrağı olmasa iptal sanılırdı");
+    bitenGoogle.geriAl();
   } finally { google.geriAl(); }
 });
 
