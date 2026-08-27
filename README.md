@@ -4407,3 +4407,50 @@ Gürültülü bir denetim, olmayan denetimden kötüdür (öğrenilen refleks: g
 Bu yüzden eklenmedi. **Gerçek boşluk şu: hiçbir test arayüzü render etmiyor.** Bunun
 karşılığı bir tarayıcı duman testidir (yüklenen sayfada yakalanmamış hata var mı) —
 ayrı bir iş olarak duruyor.
+
+### 161 — Video: istek başına maliyet düşürüldü
+
+Sahadan: *"Müşteri panelinde ve Operasyon'da video geç başlıyor, ileri geri yaparken
+sorun çıkıyor."* Önce hiçbir değişiklik yapmadan kod okundu; aralık (Range) desteğinin
+zaten çalıştığı, sorunun **her isteğin maliyetinde** olduğu görüldü. Tarayıcı her sarmada
+yeni bir aralık isteği attığı için bu maliyet doğrudan sarma deneyimi demek.
+
+Üç düzeltme — hiçbiri davranışı değiştirmiyor, aynı işi ucuza yapıyor:
+
+**1. Belge okuması kalktı.** Video ucu, dosyanın Drive kimliğini bulmak için tüm uygulama
+belgesini Redis'ten çekiyordu (tek JSON, içinde gömülü görseller, megabaytlar). Kimlik
+artık jetonun içinde ve imzalı. Eski jetonlar (iki saat ömürlü) kimlik taşımadığı için
+onlarda eski yol duruyor — dağıtım anında video izleyenin oynatıcısı kesilmesin.
+
+**2. Google jetonu yeniden kullanılıyor.** Bir saat geçerli olduğu hâlde her çağrıda RSA
+imza + ayrı HTTP turu yapılıyordu. Modül düzeyinde önbelleklendi, süresinden 60 saniye
+önce yenileniyor, uçuştaki istek paylaşılıyor.
+
+**3. İstemci vazgeçince indirme duruyor.** İleri sarmada tarayıcı isteği keser; bağ
+olmadığı için Google'dan indirme sürüyor ve fonksiyon ayakta kalıyordu. Hızlı sarmada ölü
+indirmeler birikip yeni istekleri eşzamanlılık sınırına düşürüyordu.
+
+#### Önbelleğin getirdiği yeni risk — kapatıldı
+
+Jeton süresi dolmadan geçersiz kılınabiliyor (anahtar döndürüldü, saat kayması). Körü
+körüne tutulsa istekler süre dolana kadar 401 alırdı — **önbellekten önce olmayan** bir
+takılma. 401 gelince jeton unutuluyor ve tek kez yeniden deneniyor.
+
+OAuth jetonu ayrı modülde duruyor; önbellek onu kapsamıyor, iki kimlik karışmıyor.
+
+#### Ölçümler
+
+t89 eklendi (13 kontrol). Bozmalar: kimliği jetondan okumamak 1, jeton önbelleğini
+kaldırmak 1, iptal bağını kaldırmak 2, 401 onarımını kaldırmak 1 kontrol düşürüyor.
+
+Test yazarken üç ölçüm **hiçbir şey sınamıyordu** ve düzeltildi: jeton bölümü sonda
+dururken önbellek zaten sıcak olduğu için "0 çağrı" veriyordu (başa alındı); 401
+bölümünde taklit tesadüfen aynı jeton metnini üretiyordu (ayırt edilir yapıldı); "iki
+jeton çağrısı" beklentisi sıcak önbellekte yanlıştı (jetonun değişmesine bağlandı).
+
+Yan etkiler: `jetonCoz` artık `dosyaId` de dönüyor (t42 güncellendi); t52 jeton
+isteklerini sayarak yedek yolu gözlüyordu, önbellek bunu kör ettiği için taklitleri kısa
+ömürlü jeton döndürüyor. Statik denetim `async () =>` kalıbını "async çağrısı" sanıyordu —
+yanlış alarm giderildi, gerçek tanımsız çağrıyı hâlâ yakalıyor (ölçüldü).
+
+Toplam **1908 kontrol**, 22 statik denetim.

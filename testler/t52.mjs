@@ -171,7 +171,7 @@ globalThis.fetch = async (url) => {
   const adres = String(url);
   // Jeton adımı geçilsin; asıl ilgilendiğimiz hangi DOSYANIN istendiği.
   if (adres.includes("oauth2.googleapis.com/token")) {
-    return { ok: true, status: 200, json: async () => ({ access_token: "test-jeton" }), text: async () => "{}" };
+    return { ok: true, status: 200, json: async () => ({ access_token: "test-jeton", expires_in: 1 }), text: async () => "{}" };
   }
   const m = adres.match(/files\/([^/?]+)/);
   if (m) secilenId = m[1];
@@ -214,7 +214,7 @@ globalThis.fetch = async (url, secenekler) => {
   const adres = String(url);
   const yontem = (secenekler && secenekler.method) || "GET";
   if (adres.includes("oauth2.googleapis.com/token")) {
-    return { ok: true, status: 200, json: async () => ({ access_token: "test-jeton" }), text: async () => "{}" };
+    return { ok: true, status: 200, json: async () => ({ access_token: "test-jeton", expires_in: 1 }), text: async () => "{}" };
   }
   /* Klasör listeleme (GET) ve klasör oluşturma (POST) aynı adrese gidiyor; ayrımı yöntem
    * yapıyor. Oluşturma da cevaplanmalı — yalnızca listelemeyi karşılamak "Klasör
@@ -307,7 +307,7 @@ globalThis.fetch = async (url, secenekler) => {
      * hangisi olduğunu söylüyor. */
     const govde = String((secenekler && secenekler.body) || "");
     istekler.push({ jeton: govde.includes("refresh_token") ? "oauth" : "servis" });
-    return { ok: true, status: 200, json: async () => ({ access_token: "t" }), text: async () => "{}" };
+    return { ok: true, status: 200, json: async () => ({ access_token: "t", expires_in: 1 }), text: async () => "{}" };
   }
   const m = adres.match(/\/drive\/v3\/files\/([^/?]+)/);
   if (m && yontem === "PATCH") {
@@ -373,7 +373,13 @@ globalThis.fetch = async (url, secenekler) => {
   if (adres.includes("oauth2.googleapis.com/token")) {
     const govde = String((secenekler && secenekler.body) || "");
     sira.push(govde.includes("refresh_token") ? "oauth" : "servis");
-    return { ok: true, status: 200, json: async () => ({ access_token: "t" }), text: async () => "{}" };
+    /* `expires_in: 1` BİLEREK: v161'de servis hesabı jetonu modül düzeyinde
+     * önbellekleniyor (videoda her sarmada yeniden alınmasın diye). Uzun ömür
+     * verilirse ikinci çağrıda jeton isteği HİÇ yapılmıyor ve bu testin ölçüm yöntemi
+     * — jeton isteklerini saymak — kör kalıyor: yedek yol çalıştığı hâlde "servis"
+     * satırı hiç görünmüyordu. Kısa ömür önbelleği devre dışı bırakıp gözlemi
+     * geri veriyor; ölçülen davranış aynı. */
+    return { ok: true, status: 200, json: async () => ({ access_token: "t", expires_in: 1 }), text: async () => "{}" };
   }
   const oauthMu = sira[sira.length - 1] === "oauth";
   if (oauthMu) return { ok: false, status: 404, json: async () => ({ error: { message: "File not found" } }), text: async () => "yok" };
@@ -386,7 +392,7 @@ t("yedek yol başarılıysa silme başarılı sayılıyor", sr.kod === 200 && sr
 /* Drive silinemezse kart TEMİZLENMEMELİ — "silindi" sanılan ama duran dosya üretirdi. */
 globalThis.fetch = async (url) => {
   if (String(url).includes("oauth2.googleapis.com/token")) {
-    return { ok: true, status: 200, json: async () => ({ access_token: "t" }), text: async () => "{}" };
+    return { ok: true, status: 200, json: async () => ({ access_token: "t", expires_in: 1 }), text: async () => "{}" };
   }
   return { ok: false, status: 403, json: async () => ({ error: { message: "izin yok" } }), text: async () => "yok" };
 };
