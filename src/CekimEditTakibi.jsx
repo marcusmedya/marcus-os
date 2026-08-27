@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { medyaVarMi, asamalariDuzelt, guncelMedyalar, slotGecmisi, slotEtiketi,
          bosSlot, medyaSlotu, STORY_SLOT, EN_FAZLA_SLAYT, enFazlaSlayt, kapakBaglantisi} from "../lib/asamalar.js";
 import { videoHataMesaji } from "../lib/video-yon.js";
+import { faststartUyarisi } from "../lib/mp4-faststart.js";
 import { useSunucuOnizleme, useVideoAdresi, videoEni, oynaticiOrani, gomuluEngelliMi, GOMULU_ACIKLAMA, onizlemeyiTazele } from "./drive.jsx";
 import { sunucuyuBekle } from "../lib/onizleme-bellegi.js";
 import { isBasladi, isBitti } from "../lib/suren-isler.js";
@@ -642,6 +643,15 @@ function SunucuOnizleme({ isId, slot, versiyon, video, drivedeAc, gomuluUrl, yon
           style={{ width: "100%", maxHeight: "70vh", borderRadius: 8, background: "#000",
             display: "block", aspectRatio: oynaticiOrani(oran, yon), objectFit: "contain" }}
         />
+        {/* "VİDEO NEDEN GEÇ AÇILIYOR" — cevabı burada.
+          * Oynatma bilgisi dosyanın sonundaysa tarayıcı önce sonu indirmek zorunda ve
+          * bekleme onlarca saniyeye çıkabiliyor. Teşhis yapılamadıysa hiçbir şey
+          * yazılmıyor — yanlış uyarı, uyarı olmamasından kötü. */}
+        {faststartUyarisi(akis.hizliBaslangic) && (
+          <div style={{ marginTop: 6, fontSize: 11, color: C.textFaint, lineHeight: 1.5 }}>
+            {faststartUyarisi(akis.hizliBaslangic)}
+          </div>
+        )}
       </div>
     );
   }

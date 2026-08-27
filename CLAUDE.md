@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     91 test dosyası (t1…t91) + 22 statik denetim betiği
+testler/     92 test dosyası (t1…t92) + 22 statik denetim betiği
 ```
 
 ---
@@ -113,6 +113,12 @@ eklerken yeni dosya AÇMA** — mevcut bir uca yeni bir `action` ekle. Örnek:
   silinmiştir** — diriltilmez.
 
 ### 3. Google Drive — iki ayrı kimlik, ikisi de eksik yetkili
+
+**Dosyanın kendisi de önemli: `moov` başta mı sonda mı** (`lib/mp4-faststart.js`).
+Oynatma bilgisi dosyanın SONUNDAysa tarayıcı videoyu başlatmadan önce sonu indirmek
+zorunda; proxy üzerinden bu onlarca saniye sürebiliyor ve bekleme dosyadan dosyaya
+değişiyor. Uygulama dosyayı DEĞİŞTİRMEZ — teşhis eder ve oynatıcının altında söyler;
+çözüm dışa aktarımda "fast start" açmak.
 
 **Video akışı istek BAŞINA ucuz olmalı** (`api/data.js` video dalı). Tarayıcı videoda her
 ileri-geri sarmada YENİ bir aralık isteği atıyor; bir isteğin maliyeti doğrudan sarma
@@ -396,7 +402,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 22 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t91, ~1965 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t92, ~1978 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
