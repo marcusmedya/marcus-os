@@ -13,7 +13,7 @@
  */
 import { videoAdresAnahtari, videoAdresOku, videoAdresYaz, onizlemeyiTazele, bellegiBosalt }
   from "../lib/onizleme-bellegi.js";
-import { oynaticiOrani, videoYonuBul } from "../lib/video-yon.js";
+import { oynaticiOrani, videoYonuBul, videoHataMesaji } from "../lib/video-yon.js";
 
 let g = 0, k = 0;
 const t = (ad, kosul, not) => {
@@ -63,6 +63,17 @@ bolum("2) KUTU ORANI — ilk kareden itibaren doğru", 5, () => {
     oynaticiOrani(null, undefined) + " — içeriğin çoğu Reels");
   t("bozuk oran kayıtlı yöne düşüyor",
     oynaticiOrani(0, "kare") === videoYonuBul("kare").oran && oynaticiOrani(NaN, "kare") === videoYonuBul("kare").oran);
+});
+
+/* ---------------------------------------------------------------- */
+bolum("3) OYNATMA HATASI KONUŞUYOR", 4, () => {
+  /* Hata yakalanmadığında ekran SESSİZCE siyah kalıyordu; "neden oynamıyor" sorusu üç
+   * tur boyunca tahminle cevaplandı. Kod tarayıcıdan geliyor (MediaError.code). */
+  t("ağ hatası anlatılıyor", /ağ|indirilemedi/i.test(videoHataMesaji(2)), videoHataMesaji(2));
+  t("çözümleme hatası anlatılıyor", /çözümlenemedi|bozuk/i.test(videoHataMesaji(3)), videoHataMesaji(3));
+  t("kaynak hatası anlatılıyor", /açılamadı|süresi/i.test(videoHataMesaji(4)), videoHataMesaji(4));
+  t("bilinmeyen kod da sessiz kalmıyor", videoHataMesaji(99).trim().length > 0 && videoHataMesaji(undefined).trim().length > 0,
+    "boş dönseydi kutu yine hiçbir şey söylemezdi");
 });
 
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);

@@ -305,8 +305,14 @@ await bolum("6) ARALIK PARÇALANIYOR — tek yanıtta tüm dosya akmıyor", 5, a
     t("aralık gelmezse ilk parça isteniyor", istenenAraliklar[3] === `bytes=0-${VIDEO_PARCA_BAYT - 1}`,
       istenenAraliklar[3]);
 
-    t("parça boyu süre sınırına göre ölçülü", VIDEO_PARCA_BAYT > 0 && VIDEO_PARCA_BAYT <= 4 * 1024 * 1024,
-      String(VIDEO_PARCA_BAYT) + " — büyük parça süre/boyut sınırlarına yaklaşır");
+    /* PARÇA BOYU İKİ UÇTAN DA SINIRLI:
+     *  - ÇOK KÜÇÜK olursa video birkaç saniyede bir donuyor (sahada 3 MB ile yaşandı:
+     *    "oynuyor, 1-2 sn sonra donuyor, sonra devam ediyor").
+     *  - ÇOK BÜYÜK olursa tek yanıt fonksiyonun 60 saniyelik süre sınırına yaklaşır. */
+    t("parça boyu donmayı önleyecek kadar büyük", VIDEO_PARCA_BAYT >= 8 * 1024 * 1024,
+      String(VIDEO_PARCA_BAYT) + " — küçük parça birkaç saniyede bir yeni tur demek");
+    t("parça boyu süre sınırını zorlamıyor", VIDEO_PARCA_BAYT <= 24 * 1024 * 1024,
+      String(VIDEO_PARCA_BAYT));
   } finally { globalThis.fetch = gercek; }
 });
 
