@@ -586,7 +586,13 @@ function SunucuOnizleme({ isId, slot, versiyon, video, drivedeAc, gomuluUrl, yon
           poster={durum === "hazir" ? veri : undefined}
           controls
           playsInline
-          preload="metadata"
+          /* ARABELLEK KART AÇILIR AÇILMAZ BAŞLIYOR.
+            *
+            * `metadata` yalnızca başlık bilgisini indiriyordu; kullanıcı oynata basınca
+            * ilk parça O AN isteniyor ve bekleme orada yaşanıyordu. Kart detayında tek
+            * video açık oluyor, önden arabelleğe almanın maliyeti düşük — listelerde
+            * BÖYLE YAPILMIYOR, orada onlarca video aynı anda indirmeye başlardı. */
+          preload="auto"
           onLoadedMetadata={(e) => {
             const v = e.currentTarget;
             if (v.videoWidth && v.videoHeight) setOran(v.videoWidth / v.videoHeight);
