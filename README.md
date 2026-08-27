@@ -4648,3 +4648,29 @@ Popover düğmesi eski hâline döndü, kip yazısı doğru düğmeye taşındı
 Üçünde de ortak nokta aynı: arayüz kodu değişiyor, derleme ve 1960 kontrol geçiyor, hata
 ancak ekranda görünüyor. Bu turda düzenlemeler tekil eşleşme doğrulamasıyla yapıldı
 (`count(...) == 1`); asıl boşluk ise duruyor — hiçbir test arayüzü render etmiyor.
+
+### 162.3 — "Oynuyor, 1-2 sn sonra donuyor": parça çok küçüktü
+
+Sahadan gelen tarif belirleyiciydi: *"çok geç oynuyor ve 1-2 sn sonra donup bir süre
+sonra tekrar oynuyor."* Bu, parça sınırının tarifi.
+
+Aralık parçalama 3 MB'a ayarlıydı. Yüksek bit hızlı bir Reels'te 3 MB ancak birkaç
+saniyelik görüntü; her parça bitişinde yeni bir istek atılıyor ve donma tam orada
+yaşanıyordu. **12 MB**'a çıkarıldı — aynı videoda on saniyeye yakın görüntü, tarayıcı
+arabelleği tükenmeden bir sonrakini isteyebiliyor. Süre sınırı hâlâ uzakta: 200 KB/s gibi
+kötü bir hatta bile 60 saniyenin altında iniyor.
+
+Kontrol iki uçtan da sınırlıyor: **8 MB'dan küçük olamaz** (donma geri gelir), **24 MB'dan
+büyük olamaz** (süre sınırına yaklaşır).
+
+#### Oynatıcı artık konuşuyor
+
+`<video>` başarısız olduğunda ekran **sessizce siyah kalıyordu** — ne kullanıcı ne de
+geliştirici ne olduğunu görebiliyordu. "Neden oynamıyor" sorusu üç tur boyunca tahminle
+cevaplandı; her tur bir dağıtım ve bir deneme demekti.
+
+Artık hata yakalanıyor ve sebebi yazılıyor (ağ hatası / dosya çözümlenemedi / bağlantının
+süresi dolmuş), yanında "Tekrar dene" ve "Drive'da Aç". Tekrar denemede adrese bir sayaç
+ekleniyor: bozuk bir yanıt tarayıcı önbelleğine girmişse onu aşabilsin.
+
+Ölçüm: hata mesajını boş döndürmek 1 kontrol düşürüyor (t90). Toplam **1965 kontrol**.

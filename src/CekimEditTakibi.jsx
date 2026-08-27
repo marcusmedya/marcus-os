@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { medyaVarMi, asamalariDuzelt, guncelMedyalar, slotGecmisi, slotEtiketi,
          bosSlot, medyaSlotu, STORY_SLOT, EN_FAZLA_SLAYT, enFazlaSlayt, kapakBaglantisi} from "../lib/asamalar.js";
+import { videoHataMesaji } from "../lib/video-yon.js";
 import { useSunucuOnizleme, useVideoAdresi, videoEni, oynaticiOrani, gomuluEngelliMi, GOMULU_ACIKLAMA, onizlemeyiTazele } from "./drive.jsx";
 import { sunucuyuBekle } from "../lib/onizleme-bellegi.js";
 import { isBasladi, isBitti } from "../lib/suren-isler.js";
@@ -568,6 +569,13 @@ function SunucuOnizleme({ isId, slot, versiyon, video, drivedeAc, gomuluUrl, yon
   const akis = useVideoAdresi(video ? { isId, slot } : {});
   const [gomulu, setGomulu] = useState(false);
   const [oran, setOran] = useState(null);
+  /* OYNATMA HATASI GÖRÜNÜR OLMALI. Hata yakalanmadığında ekran sessizce siyah kalıyordu;
+   * ne kullanıcı ne de geliştirici ne olduğunu görebiliyordu — "neden oynamıyor" sorusu
+   * üç tur boyunca tahminle cevaplandı. `deneme` sayacı adrese eklenip önbelleği atlıyor:
+   * bozuk bir yanıt önbelleğe girmişse tekrar denemek onu aşabilsin. */
+  const [videoHatasi, setVideoHatasi] = useState(null);
+  const [deneme, setDeneme] = useState(0);
+  useEffect(() => { setVideoHatasi(null); }, [akis.adres]);
   /* Slot değişince gömülü oynatıcı tercihi sıfırlanır — 3. slayttan story boyutuna
    * geçildiğinde önceki karenin durumu taşınmasın. */
   useEffect(() => { setGomulu(false); }, [isId, slot, versiyon]);
@@ -575,6 +583,33 @@ function SunucuOnizleme({ isId, slot, versiyon, video, drivedeAc, gomuluUrl, yon
   /* VİDEO: gerçek <video> etiketi. Gömülü Drive oynatıcısı üçüncü taraf çerezi istiyor ve
    * Safari'de siyah kalıyordu; kendi sunucumuzdan akıtınca o sorun yok. Ayrıca oynatıcı
    * videonun KENDİ en-boy oranını alıyor — dikey Reels dikey görünüyor. */
+  /* HATA VARSA OYNATICI YERİNE SEBEP GÖSTERİLİYOR — siyah kutu hiçbir şey söylemiyordu. */
+  if (video && videoHatasi !== null && akis.adres) {
+    return (
+      <div style={{ maxWidth: videoEni(oran), margin: "0 auto", width: "100%",
+        padding: "14px 16px", borderRadius: 8, background: C.panel, border: `1px solid ${C.border}` }}>
+        <div style={{ color: C.warning || "#F59E0B", fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+          Video oynatılamadı
+        </div>
+        <div style={{ color: C.textDim, fontSize: 12.5, lineHeight: 1.6, marginBottom: 10 }}>
+          {videoHataMesaji(videoHatasi)}
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button
+            onClick={() => { setVideoHatasi(null); setDeneme((n) => n + 1); }}
+            style={{ background: "none", border: `1px solid ${C.border}`, borderRadius: 8,
+              padding: "6px 10px", color: C.text, fontSize: 12, cursor: "pointer", fontFamily: "Inter" }}
+          >Tekrar dene</button>
+          {drivedeAc && (
+            <a href={drivedeAc} target="_blank" rel="noreferrer"
+              style={{ padding: "6px 10px", fontSize: 12, color: C.accent || "#6366F1", textDecoration: "none" }}
+            >Drive'da Aç ↗</a>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (video && akis.durum === "hazir" && akis.adres && !gomulu) {
     /* GENİŞLİK VİDEONUN KENDİ ORANINDAN GELİYOR, elle girilen bir "yön" ayarından değil.
      * Dikey bir Reels geniş çerçevede ya devasa çıkıyor ya iki yanı siyah bantla doluyordu.
@@ -582,7 +617,12 @@ function SunucuOnizleme({ isId, slot, versiyon, video, drivedeAc, gomuluUrl, yon
     return (
       <div style={{ maxWidth: videoEni(oran), margin: "0 auto", width: "100%" }}>
         <video
-          src={akis.adres}
+          key={deneme}
+          src={deneme > 0 ? `${akis.adres}&deneme=${deneme}` : akis.adres}
+          onError={(e) => {
+            const h = e.currentTarget.error;
+            setVideoHatasi(h ? h.code : 0);
+          }}
           poster={durum === "hazir" ? veri : undefined}
           controls
           playsInline
