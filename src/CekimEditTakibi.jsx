@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { medyaVarMi, asamalariDuzelt, guncelMedyalar, slotGecmisi, slotEtiketi,
          bosSlot, medyaSlotu, STORY_SLOT, EN_FAZLA_SLAYT, enFazlaSlayt, kapakBaglantisi} from "../lib/asamalar.js";
-import { useSunucuOnizleme, useVideoAdresi, videoEni, gomuluEngelliMi, GOMULU_ACIKLAMA, onizlemeyiTazele } from "./drive.jsx";
+import { useSunucuOnizleme, useVideoAdresi, videoEni, oynaticiOrani, gomuluEngelliMi, GOMULU_ACIKLAMA, onizlemeyiTazele } from "./drive.jsx";
 import { sunucuyuBekle } from "../lib/onizleme-bellegi.js";
 import { isBasladi, isBitti } from "../lib/suren-isler.js";
 import { kartiIsleyebilirMi } from "../lib/is-yetkisi.js";
@@ -563,7 +563,7 @@ function YeniIsFormu({ clients, subeler, personelRosteri, varsayilanKategori, on
  * Google kendi oturumunu kullanabildiği için orada sorun çıkmıyor. Gömülü oynatıcı isteyen
  * için ayrıca bir düğme var; Chrome'da çalışıyor.
  */
-function SunucuOnizleme({ isId, slot, versiyon, video, drivedeAc, gomuluUrl }) {
+function SunucuOnizleme({ isId, slot, versiyon, video, drivedeAc, gomuluUrl, yon }) {
   const { durum, veri } = useSunucuOnizleme({ isId, slot, boyut: 1200 });
   const akis = useVideoAdresi(video ? { isId, slot } : {});
   const [gomulu, setGomulu] = useState(false);
@@ -591,7 +591,10 @@ function SunucuOnizleme({ isId, slot, versiyon, video, drivedeAc, gomuluUrl }) {
             const v = e.currentTarget;
             if (v.videoWidth && v.videoHeight) setOran(v.videoWidth / v.videoHeight);
           }}
-          style={{ width: "100%", maxHeight: "70vh", borderRadius: 8, background: "#000", display: "block" }}
+          /* Oran ilk karede veriliyor — yoksa kutu poster görselinin oranını alıp sonra
+            * metadata gelince atlıyor ("önce yatay, sonra dikey"). */
+          style={{ width: "100%", maxHeight: "70vh", borderRadius: 8, background: "#000",
+            display: "block", aspectRatio: oynaticiOrani(oran, yon), objectFit: "contain" }}
         />
       </div>
     );
@@ -1142,6 +1145,7 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
                   versiyon={m.versiyon}
                   video={videoMu(m)}
                   drivedeAc={m.url}
+                  yon={job.videoYonu}
                   gomuluUrl={`https://drive.google.com/file/d/${m.dosyaId}/preview`}
                 />
                 {gecmisSlot === m.slot && gecmis.length > 0 && (
