@@ -25,7 +25,7 @@ process.env.KILIT_DENEME = "2";
 import { kv } from "@vercel/kv";
 import { cagir } from "./denetim.mjs";
 import { readFileSync } from "node:fs";
-import { enFazlaSlayt, slotKategoriyeUygunMu, bosSlot, guncelMedyalar, EN_FAZLA_SLAYT } from "../lib/asamalar.js";
+import { enFazlaSlayt, slotKategoriyeUygunMu, bosSlot, guncelMedyalar, slotGecerliMi, EN_FAZLA_SLAYT } from "../lib/asamalar.js";
 const { default: veriUcu } = await import("../api/data.js");
 
 let g = 0, k = 0;
@@ -143,6 +143,28 @@ await bolum("6) ARAYÜZ — çoklu seçim tek slaytlık kartta kapalı", 3, () =
   t("'ayrı parçaya taşı' tek slaytlık kartta kapalı",
     /parcaYapilabilir = bosSlotVar && slaytSiniri > 1/.test(cekim),
     "gidecek ikinci yuva yokken düğme anlamsız");
+});
+
+/* ---------------------------------------------------------------- */
+await bolum("KAROSEL SINIRI — 30 slayt", 5, () => {
+  /* Sınır 10'du, kullanıcı isteğiyle 30'a çıkarıldı. Kontroller SAYIYA değil DAVRANIŞA
+   * bakıyor: 30. slayt kabul edilmeli, 31. reddedilmeli. Sabiti sabitle karşılaştırmak
+   * ("EN_FAZLA_SLAYT === EN_FAZLA_SLAYT") hiçbir şey sınamaz.
+   *
+   * ÜÇ YER AYNI SABİTE BAKIYOR: sunucu doğrulaması, boş slot bulma, arayüz uyarısı.
+   * Biri ayrışırsa tarayıcı 30 slayt gösterirken sunucu 11'inciyi reddeder — ya da tersi,
+   * sunucu kabul ederken arayüz yeni yuva açmaz. */
+  t("30. slayt kabul ediliyor", slotGecerliMi("30") === true, "sunucu doğrulaması");
+  t("31. slayt REDDEDİLİYOR", slotGecerliMi("31") === false,
+    "sınır kalkarsa slot numarası sınırsız büyür");
+  t("story slotu sınırın dışında", slotGecerliMi("story") === true,
+    "story ikinci bir slayt değil, aynı gönderinin story boyutu");
+
+  const karosel = (adet) => ({ kategori: "Carousel",
+    medya: Array.from({ length: adet }, (_, i) => ({ slot: String(i + 1) })) });
+  t("29 doluyken 30. yuva açılıyor", bosSlot(karosel(29)) === "30");
+  t("30 doluyken yeni yuva YOK", bosSlot(karosel(30)) === null,
+    "boş slot bulma ile doğrulama aynı sınıra bakmalı");
 });
 
 console.log(`\n${k === 0 ? "TAMAM" : "HATA VAR"} — ${g} geçti, ${k} kaldı`);

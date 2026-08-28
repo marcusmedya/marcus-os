@@ -71,9 +71,13 @@ const dolu = { medya: Array.from({ length: EN_FAZLA_SLAYT }, (_, i) => ({ slot: 
 t("slaytlar dolunca null dönüyor", bosSlot(dolu) === null);
 
 console.log("\n   Slot doğrulaması (sunucu tarayıcıya güvenmiyor)");
-t("geçerli slaytlar kabul", slotGecerliMi("1") && slotGecerliMi("10"));
+/* SINIR SABİTTEN OKUNUYOR, SAYIYLA YAZILMIYOR. Eskiden "11 reddedilmeli" diye yazılıydı;
+ * sınır 10'dan 30'a çıkarılınca test, davranış doğru olduğu hâlde düştü. Kontrol artık
+ * KURALI sınıyor: son slayt kabul, bir fazlası ret. */
+t("geçerli slaytlar kabul", slotGecerliMi("1") && slotGecerliMi(String(EN_FAZLA_SLAYT)));
 t("story kabul", slotGecerliMi(STORY_SLOT));
-t("sınır dışı reddediliyor", !slotGecerliMi("0") && !slotGecerliMi("11") && !slotGecerliMi("-1"));
+t("sınır dışı reddediliyor",
+  !slotGecerliMi("0") && !slotGecerliMi(String(EN_FAZLA_SLAYT + 1)) && !slotGecerliMi("-1"));
 t("uydurma ad reddediliyor", !slotGecerliMi("__proto__") && !slotGecerliMi("abc") && !slotGecerliMi(""));
 t("ondalık reddediliyor", !slotGecerliMi("1.5"));
 

@@ -284,7 +284,7 @@ ile onarılır.
 
 **Slayt sayısı kategoriye bağlı — `enFazlaSlayt`.** Fotoğraf **tek görsellik**; çoklu
 gönderi Carousel'in işi (ikisi de çoklu olduğunda "kaydırmalı gönderi mi, ayrı postlar mı"
-ayrımı kayboluyor ve stok yanlış türe yazılıyordu). Diğer kategorilerde 10 slayt.
+ayrımı kayboluyor ve stok yanlış türe yazılıyordu). Diğer kategorilerde 30 slayt.
 **Story yuvası bu sınırın dışında** — o ikinci bir görsel değil, aynı gönderinin story
 boyutu. Kural hem tarayıcıda hem sunucuda (`slotKategoriyeUygunMu`); sınır yalnızca YENİ
 yuva açmaya uygulanır, eski çok slaytlı Fotoğraf kartlarının dosyaları görünmeye devam eder.
@@ -404,7 +404,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 22 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t92, ~1977 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t92, ~1982 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

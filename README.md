@@ -4738,3 +4738,22 @@ sabitliyor — tarayıcı ne isterse Google'a o gitmeli (açık uçlu, ortadan, 
 aralık ve "aralık yok" hâlleri ayrı ayrı).
 
 Toplam **1977 kontrol**.
+
+### 164 — Karosel slayt sınırı 10'dan 30'a
+
+Kullanıcı isteği: Operasyon'da karosel gönderilerin 10 fotoğraf sınırı 30'a çıkarıldı.
+
+Sayı **tek bir sabitte** duruyor (`EN_FAZLA_SLAYT`) ve üç yer ona bakıyor: sunucu
+doğrulaması (`slotGecerliMi`), boş slot bulma (`bosSlot`) ve arayüzdeki uyarı metni.
+Ayrışsalardı tarayıcı 30 yuva gösterirken sunucu 11'inciyi reddederdi — ya da tersi.
+Post'un tek görsellik kuralı bundan bağımsız (`enFazlaSlayt`), değişmedi.
+
+Kontroller **sayıya değil davranışa** bakıyor: son slayt kabul, bir fazlası ret, story
+slotu sınırın dışında. Ölçüm: sınırı 10'a geri çevirmek 2 kontrol, doğrulamayı sabitten
+koparmak (arayüz 30 / sunucu 10) 1 kontrol düşürüyor.
+
+Bu arada t52'de eskiden beri duran bir kusur çıktı: sınır oraya **sayıyla** yazılmıştı
+("11 reddedilmeli"). Davranış doğru olduğu hâlde test düştü. Sabitten okuyacak şekilde
+düzeltildi — kuralı sınıyor, sayıyı değil.
+
+Toplam **1982 kontrol**.
