@@ -264,6 +264,25 @@ await bolum("5) HÜCRE KUTUSU — kart görünüyor, işaretleme onay istiyor", 
   t("sonuç metni Drive taşımasını söylüyor",
     /Drive'da dosya '3 PAYLAŞILDI' klasörüne taşınacak/.test(app));
 
+
+  /* KUTU EKRANIN DIŞINA TAŞMAMALI — SAHADAN GELEN HATA.
+   *
+   * Kutu her zaman hücrenin ALTINA açılıyordu ve yüksekliği sınırsızdı. İçine önizleme
+   * görseli ve alt yazı eklenince boyu iki katına çıktı; alt satırlardaki bir hücrede
+   * işlem düğmeleri EKRANIN ALTINDA kalıyor ve tıklanamıyordu. Kullanıcı "paylaştık ama
+   * tıklayınca yeşile dönmedi" diye bildirdi — işlem hiç çalışmamıştı.
+   *
+   * Üç koruma birden gerekiyor; biri eksik olsa düğme yine kaçabilir. */
+  t("altta yer yoksa kutu YUKARI açılıyor",
+    /const yukari = altBosluk < 260 && ustBosluk > altBosluk/.test(app),
+    "her zaman aşağı açılırsa alt satırlarda düğmeler ekran dışında kalır");
+  t("kutunun boyu kalan alana göre sınırlanıyor",
+    /maxHeight: acikPlan\.enFazlaYukseklik, overflowY: "auto"/.test(app),
+    "sınırsız yükseklikte içerik ekranı taşar ve kaydırılamaz");
+  t("işlem düğmeleri kutunun dibine SABİT",
+    /position: "sticky", bottom: -12/.test(app),
+    "kaydırma alanının dibinde bırakılsalardı kullanıcı onları hiç görmezdi");
+
   /* ALT YAZI — bu ekranın var oluş sebebi. */
   t("alt yazı kutusu ekranda", /<AltYaziKutusu deger=\{altYaziTaslak\}/.test(app));
   t("alt yazı kopyalanabiliyor", /navigator\.clipboard\.writeText\(metin\)/.test(app));

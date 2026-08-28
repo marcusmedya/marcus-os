@@ -4757,3 +4757,34 @@ Bu arada t52'de eskiden beri duran bir kusur çıktı: sınır oraya **sayıyla*
 düzeltildi — kuralı sınıyor, sayıyı değil.
 
 Toplam **1982 kontrol**.
+
+### 165 — "Paylaştık ama yeşile dönmedi": kutu ekranın dışına taşıyordu
+
+Sahadan (Şişçi İbo ekibi): *"bunu paylaştık ama tıklayınca yeşile dönmedi, bir de buradan
+seçmiştim ama stok kartıyla birleşmedi."*
+
+İkisi de tek bir sebebe çıkıyor: **işlem hiç çalışmamış.**
+
+Hücrenin kutusu her zaman hücrenin **altına** açılıyor ve yüksekliği **sınırsızdı**.
+Kutuya önizleme görseli (v161) ve alt yazı bölümü (v162) eklenince boyu ~200 px'ten
+~470 px'e çıktı. Alt satırlardaki bir hücrede kutu ekranın altını taşıyor, **"Paylaşıldı
+olarak işaretle" düğmesi görünmeyen bölgede kalıyor** ve tıklanamıyordu. Kutu `fixed` ve
+kaydırılamaz olduğu için düğmeye ulaşmanın yolu da yoktu.
+
+Üç koruma birden kondu — biri eksik olsa düğme yine kaçabilir:
+
+1. Altta yer yoksa kutu **yukarı** açılıyor.
+2. Boyu kalan alana göre **sınırlanıyor** ve taşarsa kaydırılıyor.
+3. İşlem düğmeleri kutunun dibine **sabit** — içerik kaydırılsa bile görünür kalıyorlar.
+
+Önizleme yüksekliği de 170'ten 130'a indirildi; kutu daha az taşıyor.
+
+**"Stok kartıyla birleşmedi" kısmı yanlış alarm:** ekran görüntüsündeki uyarı ("Bu marka
+için Drive onay klasörü tanımlı değil") yalnızca **karta bağlı** planlarda çıkıyor — yani
+plan "SALON" kartına bağlıydı. Stok düşmemesinin sebebi bağlantı değil, işlemin hiç
+çalışmamasıydı.
+
+Ayrı bir gerçek eksik: **Şişçi İbo markasında Drive onay klasörü tanımlı değil.** İşaretleme
+düzelse bile o marka için dosya taşınmaz; müşteri kartından tanımlanması gerekiyor.
+
+Ölçüm: üç korumayı da kaldırmak t81'de 3 kontrol düşürüyor. Toplam **1985 kontrol**.
