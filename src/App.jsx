@@ -2600,7 +2600,25 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
 
   const hucreAc = (p, dugme) => {
     const r = dugme.getBoundingClientRect();
-    setAcikPlan({ plan: p, x: r.left + r.width / 2, y: r.bottom + 6 });
+    /* KUTU EKRANIN DIŞINA TAŞMAMALI.
+     *
+     * Kutu her zaman hücrenin ALTINA açılıyordu ve yüksekliği sınırsızdı. İçine önizleme
+     * görseli ve alt yazı eklenince boyu iki katına çıktı; alt satırlardaki bir hücrede
+     * "Paylaşıldı olarak işaretle" düğmesi EKRANIN ALTINDA kalıyor ve tıklanamıyordu.
+     * Sahadan "paylaştık ama tıklayınca yeşile dönmedi" diye bildirildi.
+     *
+     * Artık: altta yer varsa aşağı, yoksa YUKARI açılıyor; her iki durumda da kutunun
+     * boyu kalan alana göre sınırlanıyor ve içerik kaydırılabiliyor. */
+    const altBosluk = window.innerHeight - r.bottom - 16;
+    const ustBosluk = r.top - 16;
+    const yukari = altBosluk < 260 && ustBosluk > altBosluk;
+    setAcikPlan({
+      plan: p,
+      x: r.left + r.width / 2,
+      y: yukari ? window.innerHeight - r.top + 6 : r.bottom + 6,
+      yukari,
+      enFazlaYukseklik: Math.max(220, (yukari ? ustBosluk : altBosluk)),
+    });
   };
 
   /* Bu planın stoğu — şube planında O ŞUBENİN sayısı, genel sayı o şubede ne
@@ -2838,8 +2856,12 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
           <div
             onMouseLeave={() => setAcikPlan(null)}
             style={{
-              position: "fixed", left: acikPlan.x, top: acikPlan.y, transform: "translateX(-50%)",
+              position: "fixed", left: acikPlan.x, transform: "translateX(-50%)",
+              ...(acikPlan.yukari ? { bottom: acikPlan.y } : { top: acikPlan.y }),
               zIndex: 60, width: 268, padding: "12px 14px",
+              /* Kalan alana sığıyor ve taşarsa KAYDIRILIYOR — düğmeler her hâlükârda
+               * erişilebilir kalmalı. */
+              maxHeight: acikPlan.enFazlaYukseklik, overflowY: "auto",
               background: T.surfaceRaised, border: `1px solid ${T.border}`, borderRadius: 12,
               boxShadow: "0 10px 30px rgba(0,0,0,.35)", fontFamily: "Inter",
             }}
@@ -2872,7 +2894,7 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
               * tanınmaz hale getiriyor. Tam kare gösteriliyor, kutu kadar yer kaplıyor. */}
             {p.isId ? (
               <div style={{ marginBottom: 10 }}>
-                <DriveGorsel isId={p.isId} yukseklik={170} radius={8} boyut={400} />
+                <DriveGorsel isId={p.isId} yukseklik={130} radius={8} boyut={400} />
               </div>
             ) : p.gorselUrl ? (
               /* Karta bağlı olmayan planın kendi görseli varsa o gösteriliyor —
@@ -2937,7 +2959,12 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
               );
             })()}
 
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {/* DÜĞMELER KUTUNUN DİBİNE SABİT. İçerik kaydırılsa bile görünür kalıyorlar;
+              * kaydırma alanının dibinde bırakılsalardı kullanıcı önizleme ve alt yazıyı
+              * geçip aşağı inmeden işlemi göremezdi — sahada yaşanan da buydu. */}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap",
+              position: "sticky", bottom: -12, paddingTop: 8, paddingBottom: 4,
+              background: T.surfaceRaised }}>
               {!p.yapildi ? (
                 <button
                   onClick={() => paylasimiOnayla(p)}
