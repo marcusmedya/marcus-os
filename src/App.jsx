@@ -282,10 +282,6 @@ const CLIENT_FIELDS = [
   // Müşteri panelinin üst kısmındaki ortak logo bandında kullanılır (Marcus Medya × Marka).
   { key: "logoUrl", label: "Marka Logosu (opsiyonel — Drive bağlantısı, müşteri panelinde görünür)", type: "text", placeholder: "https://drive.google.com/file/d/..." },
   { key: "aylikUcret", label: "Aylık Ücret (₺)", type: "number" },
-  /* ŞUBE BAZLI ÜCRET — şubelere ayrı ücret kesilen markalarda toplam burada değil,
-   * "temel + şube ücretleri" olarak hesaplanıyor. Boş bırakılan markalarda hiçbir şey
-   * değişmez; yukarıdaki tek kalem geçerli kalır. */
-  { key: "temelUcret", label: "Marka Temel Ücreti (₺/ay) — yalnızca şubelere ayrı ücret kesiyorsan doldur, şube ücretleri bunun üstüne eklenir", type: "number" },
   { key: "karMarji", label: "Kâr Marjı (%) — müşteri detayında maliyet eklersen otomatik hesaplanır", type: "number" },
   { key: "odemeGunu", label: "Ödeme Günü (ayın kaçı — opsiyonel, örn. 5)", type: "number" },
   { key: "faturaliTutar", label: "Faturalı Tutar (₺/ay) — aylık ücretin ne kadarı faturalı? Kalanı otomatik faturasız sayılır", type: "number" },
@@ -309,10 +305,11 @@ const CLIENT_FIELDS = [
  * Stok DÜZENLEME burada YOK: o günlük bir iş ve yeri Paylaşımlar ekranı. Burası
  * kurulum, orası kullanım.
  */
-function MusteriSubeleri({ client, subeler, onAddSube, onDeleteSube, onSubeUcret }) {
+function MusteriSubeleri({ client, subeler, onAddSube, onDeleteSube, onSubeUcret, onTemelUcret }) {
   const [ad, setAd] = useState("");
   const [acik, setAcik] = useState(false);
   const [ucretler, setUcretler] = useState({});
+  const [temel, setTemel] = useState(null);
   const kendiSubeleri = markaninSubeleri(subeler, client.id);
   const dagilim = ucretDagilimi(client, subeler);
   const gecmis = Array.isArray(client.ucretGecmisi) ? client.ucretGecmisi : [];
@@ -329,6 +326,16 @@ function MusteriSubeleri({ client, subeler, onAddSube, onDeleteSube, onSubeUcret
     onAddSube(client.id, temiz);
     setAd("");
     setAcik(false);
+  };
+
+  const temelYaz = () => {
+    if (temel === null) return;
+    const girilen = temel;
+    setTemel(null);
+    const t = String(girilen).trim();
+    if (t === "" && client.temelUcret === undefined) return;
+    if (t !== "" && Number(t) === Number(client.temelUcret)) return;
+    onTemelUcret(client.id, t === "" ? "" : Number(t) || 0);
   };
 
   const ucretYaz = (sube) => {
@@ -348,6 +355,26 @@ function MusteriSubeleri({ client, subeler, onAddSube, onDeleteSube, onSubeUcret
       <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, letterSpacing: 0.3, marginBottom: 8 }}>
         ŞUBELER {kendiSubeleri.length > 0 ? `(${kendiSubeleri.length})` : ""}
       </div>
+
+      {/* ŞUBE BAZLI ÜCRETİN KURULUMU BURADA, TEK BLOKTA. Müşteri formunun alan listesine
+        * konsaydı iki sütunlu ızgarada altındaki bütün alanların eşleşmesi kayardı; ayrıca
+        * temel ücret ancak şube ücretleriyle BİRLİKTE anlam taşıyor. */}
+      {onTemelUcret && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, fontSize: 12.5, fontFamily: "Inter", color: T.textFaint }}>
+          <span>Marka temel ücreti</span>
+          <input
+            type="number"
+            value={temel !== null ? temel : (client.temelUcret === undefined ? "" : client.temelUcret)}
+            onChange={(e) => setTemel(e.target.value)}
+            onBlur={temelYaz}
+            onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+            placeholder="₺/ay"
+            title="Şubelerine ayrı ücret kesiyorsan doldur. Marka toplamı = bu tutar + şube ücretleri; Aylık Ücret alanına otomatik yazılır. Boş bırakılırsa marka tek kalemli kalır."
+            style={{ ...inputStyle, width: 120, padding: "4px 8px", fontSize: 12.5, textAlign: "right" }}
+          />
+          <span style={{ fontSize: 11.5 }}>+ aşağıdaki şube ücretleri = aylık toplam</span>
+        </div>
+      )}
 
       {kendiSubeleri.length === 0 ? (
         <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 8 }}>
@@ -428,7 +455,7 @@ function MusteriSubeleri({ client, subeler, onAddSube, onDeleteSube, onSubeUcret
   );
 }
 
-function Musteriler({ clients, subeler, onAddSube, onDeleteSube, onSubeUcret, bekleyenTahsilatlar, hesaplar, freelancerlar, onAdd, onUpdate, onDelete, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, openClient, onOpenClientHandled, duzenleyenAdi, musteriIcerikleri, onAddIcerik, onUpdateIcerik, onDeleteIcerik, onOnaylaIcerik, firmaAdi }) {
+function Musteriler({ clients, subeler, onAddSube, onDeleteSube, onSubeUcret, onTemelUcret, bekleyenTahsilatlar, hesaplar, freelancerlar, onAdd, onUpdate, onDelete, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, openClient, onOpenClientHandled, duzenleyenAdi, musteriIcerikleri, onAddIcerik, onUpdateIcerik, onDeleteIcerik, onOnaylaIcerik, firmaAdi }) {
   const [filter, setFilter] = useState("hepsi");
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -561,7 +588,7 @@ function Musteriler({ clients, subeler, onAddSube, onDeleteSube, onSubeUcret, be
                       initial={{ ...c, faturaliTutar: clientFaturaliTutar(c) }}
                       onSubmit={(v) => { onUpdate(c.id, v); setEditingId(null); }}
                       onCancel={() => setEditingId(null)}
-                      ekBolum={onAddSube ? <MusteriSubeleri client={c} subeler={subeler} onAddSube={onAddSube} onDeleteSube={onDeleteSube} onSubeUcret={onSubeUcret} /> : null}
+                      ekBolum={onAddSube ? <MusteriSubeleri client={c} subeler={subeler} onAddSube={onAddSube} onDeleteSube={onDeleteSube} onSubeUcret={onSubeUcret} onTemelUcret={onTemelUcret} /> : null}
                     />
                   </td>
                 </tr>
@@ -9187,6 +9214,9 @@ export default function MarcusOS() {
   const setSubeUcreti = (subeId, aylikUcret) => paylasimIstek(
     { action: "subeUcret", subeId, aylikUcret },
     "Bağlantı hatası — şube ücreti kaydedilemedi, tekrar dene.");
+  const setTemelUcret = (clientId, temelUcret) => paylasimIstek(
+    { action: "markaTemelUcret", clientId, temelUcret },
+    "Bağlantı hatası — marka temel ücreti kaydedilemedi, tekrar dene.");
   const deleteSube = (subeId) => paylasimIstek({ action: "subeSil", subeId }, SUBE_SIL_HATASI, {
     /* Onay gelirse aynı istek `onayliSil` ile TEKRAR gönderiliyor — yeni bir işlem
      * olduğu için yeni bir işlem kimliği alıyor, bu doğru: kullanıcı ikinci kez ve
@@ -10395,7 +10425,7 @@ export default function MarcusOS() {
             />
           )}
           {tab === "musteriler" && (
-            <Musteriler subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeUcret={setSubeUcreti}
+            <Musteriler subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeUcret={setSubeUcreti} onTemelUcret={setTemelUcret}
               clients={data.clients}
               bekleyenTahsilatlar={data.bekleyenTahsilatlar}
               hesaplar={data.hesaplar}

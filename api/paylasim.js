@@ -690,8 +690,28 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, _v, subeler: yanitSuz(data.subeler), ...(yoneticiMi ? { clients: data.clients } : {}) });
     }
 
-    /* ŞUBE ÜCRETİ. Marka toplamı = temel ücret + şube ücretleri; bu uç şube tarafını
-     * yazar, temel ücret müşteri kartından (api/data.js) geçer. Boş gönderilirse alan
+    /* MARKA TEMEL ÜCRETİ. Şube ücretleriyle AYNI blokta girildiği için (ikisi ayrı
+     * ekranda olsaydı "60.000 neyin toplamı" sorusu yine cevapsız kalırdı) müşteri
+     * kartının form listesinden değil buradan yazılıyor. Boş gönderilirse alan silinir
+     * ve şube ücreti de yoksa marka eski tek kalemli düzenine döner. */
+    if (action === "markaTemelUcret") {
+      if (!yoneticiMi) return res.status(403).json({ error: "Marka ücretini yalnızca yönetici değiştirebilir." });
+      const { clientId } = body;
+      const hedef = (data.clients || []).find((c) => String(c.id) === String(clientId));
+      if (!hedef) return res.status(404).json({ error: "Marka bulunamadı." });
+      const bosalt = body.temelUcret === undefined || body.temelUcret === null || body.temelUcret === "";
+      data.clients = (data.clients || []).map((c) => {
+        if (String(c.id) !== String(clientId)) return c;
+        if (bosalt) { const { temelUcret, ...kalan } = c; return kalan; }
+        return { ...c, temelUcret: Number(body.temelUcret) || 0 };
+      });
+      ucretiTazele(data);
+      const _v = await kaydetVeYedekle(data, ["clients"]);
+      return res.status(200).json({ ok: true, _v, clients: data.clients });
+    }
+
+    /* ŞUBE ÜCRETİ. Marka toplamı = temel ücret + şube ücretleri; bu uç ikisini de
+     * yazar. Boş gönderilirse alan
      * SİLİNİR — "0 ₺ alıyoruz" ile "bu markada şube bazlı ücret kullanmıyoruz" farklı
      * şeyler ve ikincisi markayı eski tek kalemli düzenine geri döndürür. */
     if (action === "subeUcret") {

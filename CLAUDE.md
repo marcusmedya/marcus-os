@@ -361,7 +361,12 @@ oraya taşındı, çünkü `.jsx` Node'da çalışmadığı için para hesabı h
 60.000'i ilk kez "15.000 temel + 3×15.000" diye tanımlamak tam olarak budur: tutar
 korunur, geçmiş aylar aynı rakamla ama artık şube şube okunabilir olur.
 
-Şube ücretini **yalnızca yönetici** değiştirebilir (`subeUcret` → 403). Bu uca `paylasimlar`
+Ücret kurulumu **tek blokta**: müşteri kartındaki ŞUBELER bölümünde temel ücret, şube
+ücretleri ve toplamın dökümü yan yana. `temelUcret` bilerek `CLIENT_FIELDS`'e KONMADI —
+o liste iki sütunlu ızgaraya sırayla diziliyor, araya tek alan eklemek altındaki bütün
+alanların eşleşmesini kaydırıyor. Bu yüzden temel ücretin kendi ucu var (`markaTemelUcret`).
+
+Şube ücretini **yalnızca yönetici** değiştirebilir (`subeUcret`, `markaTemelUcret` → 403). Bu uca `paylasimlar`
 izni olan herkes girebiliyor; stok işaretlemeye yeten izin fiyat belirlemeye yetmez.
 Aynı sebeple yanıtta `clients` yalnızca yöneticiye gönderilir — içinde `aylikUcret`,
 `maliyetler`, `odemeKayitlari` var.
@@ -436,7 +441,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 22 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t94, ~2050 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t94, ~2055 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

@@ -261,5 +261,23 @@ await asyncBolum("11) UÇ: PERSONEL DE MÜŞTERİ KARTINI DÜZENLEYEBİLİYOR (a
   t("geçmiş ay eski tutarda kalıyor", ayinUcreti(veri.clients[0], "2026-01") === 60000);
 });
 
+await asyncBolum("12) UÇ: MARKA TEMEL ÜCRETİ (şube bloğundan)", 5, async () => {
+  /* Temel ücret müşteri formunun alan listesinden ÇIKARILDI (iki sütunlu ızgarada
+   * altındaki alanların eşleşmesini kaydırıyordu) ve şube ücretleriyle aynı bloktan
+   * yazılıyor. Yani kendi ucu olmak zorunda. */
+  await sifirla();
+  const r = await gonder({ action: "markaTemelUcret", clientId: 1, temelUcret: 30000 });
+  t("yönetici temel ücreti yazabiliyor", r.kod === 200, "gelen: " + r.kod);
+  let veri = await kv.get(KEY);
+  t("temel ücret kaydedildi", veri.clients[0].temelUcret === 30000);
+  t("toplam aynı istekte tazeleniyor", veri.clients[0].aylikUcret === 75000,
+    `bulunan ${veri.clients[0].aylikUcret} — 30.000 temel + 3×15.000`);
+  t("önceki aylar 60.000 kalıyor", ayinUcreti(veri.clients[0], "2026-01") === 60000);
+
+  const personel = { "x-staff-username": "personel", "x-staff-password": "pw", "content-type": "application/json" };
+  const p = await gonder({ action: "markaTemelUcret", clientId: 1, temelUcret: 1 }, personel);
+  t("personel marka ücretini değiştiremiyor", p.kod === 403, `gelen ${p.kod}`);
+});
+
 console.log(`\n${g} geçti, ${k} kaldı`);
 process.exit(k > 0 ? 1 : 0);

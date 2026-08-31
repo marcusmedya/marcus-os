@@ -4846,9 +4846,15 @@ yazmıyordu. Kullanıcının isteği açıktı: eski veriyi silmeden ücreti şu
 
 Toplam yine `client.aylikUcret`'te duruyor — ciro, kâr marjı, ödeme takvimi, tebligat
 mektubu ve dışa aktarımlar dahil 19 yerde okunuyor, hiçbiri değişmek zorunda kalmadı —
-ama artık sunucu yazıyor. Şube eklenince/çıkınca toplam kendiliğinden değişiyor. Marka
-kartında (Müşteriler → Düzenle) her şubenin yanında ücret alanı ve altında "60.000 =
-temel 15.000 + Merkez 15.000 + …" dökümü var; rakamın neyin toplamı olduğu ilk kez yazıyor.
+ama artık sunucu yazıyor. Şube eklenince/çıkınca toplam kendiliğinden değişiyor.
+
+**Kurulum tek blokta:** Müşteriler → Düzenle → ŞUBELER. Üstte marka temel ücreti, altında
+her şubenin kendi ücreti, en altta "60.000 = temel 15.000 + Merkez 15.000 + …" dökümü;
+rakamın neyin toplamı olduğu ilk kez yazıyor. Temel ücret bilerek müşteri formunun alan
+listesine KONMADI: o liste iki sütunlu ızgaraya sırayla diziliyor, araya tek alan eklemek
+altındaki bütün alanların eşleşmesini kaydırıyordu (Kâr Marjı ile Ödeme Günü yan yana
+düşüyordu) — istenmemiş bir arayüz değişikliği. Ayrıca temel ücret ancak şube ücretleriyle
+birlikte anlam taşıyor, yeri onların yanı.
 
 **Asıl tehlike ücret değil, GEÇMİŞTİ.** Ödeme durumu geçmiş ayları saklamıyor, her ay için
 **bugünkü** ücretten hesaplıyordu. Ücret 60.000'den 45.000'e düşürülünce Temmuz da geriye
@@ -4886,7 +4892,7 @@ Node'da çalışmadığı için para hesabı yapan bu üç işlev hiçbir testte
 yalnızca kaynak metnine bakılabiliyordu — bu projede açıkça yasak olan şey. Arayüz için
 hiçbir şey değişmedi, `tema.jsx` üçünü de yeniden dışa veriyor.
 
-**Ölçüm (t94, 51 kontrol).** Korumalar tek tek geri konulup kaç kontrolün düştüğü ölçüldü.
+**Ölçüm (t94, 56 kontrol).** Korumalar tek tek geri konulup kaç kontrolün düştüğü ölçüldü.
 Saf mantıkta: geçmiş ay dondurmasını kaldırmak **4**, ücret dönemi kaydını kaldırmak **4**,
 şubelerin marka süzgecini kaldırmak **17**, "değişiklik yoksa `null`" korumasını kaldırmak
 **2**, aynı ay tek dönem kuralını kaldırmak **1**, geriye dönük döküm yazımını kaldırmak
@@ -4905,4 +4911,4 @@ kontrolünü kaldırmak **2**, boş ücret alanının silinmesini kaldırmak **1
   değiştirdiğinde toplam eski hâlinde kalıyordu — günlük kullanımdaki en sık yol. Saf
   modül testleri bunu göremezdi.
 
-Toplam **2051 kontrol**.
+Toplam **2056 kontrol**.

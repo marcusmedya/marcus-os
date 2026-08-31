@@ -101,6 +101,7 @@ yazabildiği **tek** üç işlem.
 | `haftalikSil` · `haftalikAltMetin` | Plan silme (**tam geri alma**: aşama, stok, Drive), alt metin |
 | `subeEkle` · `subeSil` | Şube yönetimi (aynı ad 409, kayıtlı şube onay ister; silme kart kapsamını AÇMAZ) |
 | `subeUcret` | Şubenin aylık ücreti — **yalnızca yönetici** (403), boş gönderilirse alan silinir. Şube ekleme/silme ile birlikte marka toplamını tazeler |
+| `markaTemelUcret` | Markanın temel ücreti — **yalnızca yönetici** (403). Şube ücretleriyle aynı blokta girildiği için müşteri formundan değil buradan geçer |
 | `uyelikEkle` · `uyelikGuncelle` · `uyelikSil` | Abonelik/üyelik takibi |
 
 **Marka kilidi tek yerde çözülür**: uç, `clientId` / `planId` / `subeId` / `uyelikId` /
@@ -410,7 +411,7 @@ dosya hâlâ ekibin çalışma alanındadır.
 
 ```bash
 bash testler/hepsinidenetle.sh     # 22 statik denetim
-./testler/sunucutestleri.sh        # t1…t94, ~2050 kontrol — SAHTE veritabanı
+./testler/sunucutestleri.sh        # t1…t94, ~2055 kontrol — SAHTE veritabanı
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
