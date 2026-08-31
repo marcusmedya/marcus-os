@@ -1872,7 +1872,7 @@ function AyOdemeModal({ client, ayObj, hesaplar, onAddKaydi, onDeleteKaydi, onAd
   );
 }
 
-function OdemeTakvimi({ bekleyenTahsilatlar, onAddBekleyen, onDeleteBekleyen, clients, hesaplar, transferler, avanslar, odemeler, duzeltmeler, onUpdateClient, onAddOdemeKaydi, onDeleteOdemeKaydi, onTransfer, onDeleteTransfer, onAddHesap, onDeleteHesap, onUpdateHesap, onAddDuzeltme, onDeleteDuzeltme, firmaAdi }) {
+function OdemeTakvimi({ bekleyenTahsilatlar, onAddBekleyen, onDeleteBekleyen, clients, hesaplar, transferler, avanslar, odemeler, duzeltmeler, onUpdateClient, onAddOdemeKaydi, onDeleteOdemeKaydi, onAddFatura, onDeleteFatura, onTransfer, onDeleteTransfer, onAddHesap, onDeleteHesap, onUpdateHesap, onAddDuzeltme, onDeleteDuzeltme, firmaAdi }) {
   const [ayCount, setAyCount] = useState(6);
   const [activeCell, setActiveCell] = useState(null); // { client, ayObj }
   const [hatirlatmaClient, setHatirlatmaClient] = useState(null);
@@ -2066,6 +2066,12 @@ function OdemeTakvimi({ bekleyenTahsilatlar, onAddBekleyen, onDeleteBekleyen, cl
           hesaplar={hesaplar}
           onAddKaydi={(kayit) => onAddOdemeKaydi(activeCell.client.id, kayit)}
           onDeleteKaydi={(kayitId) => onDeleteOdemeKaydi(activeCell.client.id, kayitId)}
+          /* GEÇMİŞ AYIN FATURASI BURADAN GİRİLİR. Müşteri kartındaki aynı kutu yalnızca
+           * İÇİNDE BULUNULAN ayı açıyor (`monthKey()`); Temmuz'da kesilmiş bir faturayı
+           * kaydetmenin tek yolu ödeme takviminde o ayın hücresine tıklamak. Buraya
+           * bağlanmasaydı ekstre geçmiş faturaları hiç gösteremezdi. */
+          onAddFatura={onAddFatura ? (fatura) => onAddFatura(activeCell.client.id, fatura) : null}
+          onDeleteFatura={onDeleteFatura ? (faturaId) => onDeleteFatura(activeCell.client.id, faturaId) : null}
           onClose={() => setActiveCell(null)}
         />
       )}
@@ -10211,6 +10217,8 @@ export default function MarcusOS() {
               onUpdateClient={(id, patch) => setOdemeGunuSafe(id, patch.odemeGunu)}
               onAddOdemeKaydi={addOdemeKaydi}
               onDeleteOdemeKaydi={deleteOdemeKaydi}
+              onAddFatura={addFatura}
+              onDeleteFatura={deleteFatura}
               onTransfer={transferEt}
               onDeleteTransfer={deleteTransfer}
               onUpdateHesap={updateHesap}
@@ -10665,6 +10673,8 @@ export default function MarcusOS() {
               onUpdateClient={(id, patch) => setOdemeGunuSafe(id, patch.odemeGunu)}
               onAddOdemeKaydi={addOdemeKaydi}
               onDeleteOdemeKaydi={deleteOdemeKaydi}
+              onAddFatura={addFatura}
+              onDeleteFatura={deleteFatura}
               onTransfer={transferEt}
               onDeleteTransfer={deleteTransfer}
               onUpdateHesap={updateHesap}

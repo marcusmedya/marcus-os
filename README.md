@@ -4986,4 +4986,18 @@ t95 · **44 kontrol**. Korumalar tek tek geri konuldu:
 | Aysız fatura reddi | 1 |
 | Kontrol sayısı bekçisi | 1 |
 
+### Sonradan çıkan eksik: geçmiş ayın faturası girilemiyordu
+
+Fatura kutusu ilk turda yalnızca müşteri kartındaki ödeme kutusuna bağlanmıştı; o kutu
+`monthKey()` ile **içinde bulunulan ayı** açıyor. Yani Temmuz'da kesilmiş bir faturayı
+kaydetmenin yolu yoktu ve ekstre geçmiş faturaları hiç gösteremezdi. Ödeme Takvimi'ndeki
+aynı kutu (hangi aya tıklarsan o ay) da bağlandı.
+
+Bu, bu turda ikinci kez tekrarlayan bir hata sınıfı: **bir işleyici tanımlanıyor ama
+bileşenin bütün çağrı yerlerine geçirilmiyor.** Aynısı şube ücretinde de oldu
+(`api/data.js`in iki kayıt yolundan yalnızca birine bağlanmıştı). Derleme ve testler
+ikisini de göremiyor; ilkini uca istek atan bir test yakaladı, ikincisini kullanım
+adımlarını anlatırken koddan doğrularken fark ettim. Arayüzü gerçekten çizen bir test
+katmanı olmadığı sürece bu sınıf açık kalıyor.
+
 Toplam **2100 kontrol**.
