@@ -42,10 +42,18 @@ export default async function handler(req, res) {
   if (!(await yetkiliMi(req))) return res.status(401).json({ error: "Yetkisiz." });
 
   try {
-    const { action, clientId, kayit, kayitId, odemeGunu, islemId } = req.body || {};
+    const { action, clientId, kayit, kayitId, odemeGunu, fatura, faturaId, islemId } = req.body || {};
     if (!clientId) return res.status(400).json({ error: "clientId gerekli." });
     if (action === "addKaydi" && (!kayit || !kayit.tutar)) return res.status(400).json({ error: "Geçerli bir ödeme kaydı gerekli." });
     if (action === "deleteKaydi" && !kayitId) return res.status(400).json({ error: "kayitId gerekli." });
+    /* FATURA KAYDI. Ay zorunlu: ekstre ay bazlı, aysız bir fatura hiçbir satıra
+     * düşmez ve sessizce kaybolur. Tutar zorunlu değil (0 ₺ fatura yok ama
+     * kullanıcı önce numarayı girip tutarı sonra düzeltebilsin diye esnek değil —
+     * tutarsız fatura ekstrede yanlış belgeleme oranı gösterirdi). */
+    if (action === "addFatura" && (!fatura || !fatura.ay || !fatura.tutar)) {
+      return res.status(400).json({ error: "Fatura için ay ve tutar gerekli." });
+    }
+    if (action === "deleteFatura" && !faturaId) return res.status(400).json({ error: "faturaId gerekli." });
 
     /* Kilit altında, en güncel veri okunarak yapılır ve versiyon sayacını artırır —
      * böylece bu ödeme kaydı, açık duran başka bir sekme tarafından ezilemez.
@@ -66,6 +74,17 @@ export default async function handler(req, res) {
         client.odemeKayitlari = [...(client.odemeKayitlari || []), { ...kayit, id: nid() }];
       } else if (action === "deleteKaydi") {
         client.odemeKayitlari = (client.odemeKayitlari || []).filter((k) => k.id !== kayitId);
+      } else if (action === "addFatura") {
+        client.faturalar = [...(client.faturalar || []), {
+          id: nid(),
+          ay: String(fatura.ay).trim(),
+          no: String(fatura.no || "").trim(),
+          tarih: String(fatura.tarih || "").trim(),
+          tutar: Number(fatura.tutar) || 0,
+          not: String(fatura.not || "").trim(),
+        }];
+      } else if (action === "deleteFatura") {
+        client.faturalar = (client.faturalar || []).filter((f) => f.id !== faturaId);
       } else if (action === "setOdemeGunu") {
         client.odemeGunu = odemeGunu || null;
       } else {

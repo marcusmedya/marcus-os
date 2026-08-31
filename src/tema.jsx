@@ -10,6 +10,7 @@
  * bir bileşen buraya değil, kendi dosyasına aittir.
  */
 import React, { useState, useEffect, useRef } from "react";
+import { ekstreHtml } from "../lib/ekstre-belgesi.js";
 // Marka adı eşleştirme anahtarı sunucuyla ORTAK olmalı — iki taraf farklı kural kullanırsa
 // arayüzde "bağlandı" görünen bir kart sunucuda bağlanmamış olabilir.
 export { markaAnahtari } from "../lib/marka-kilidi.js";
@@ -344,6 +345,19 @@ export function tebligHtmlFromText(text, client, firmaAdi) {
 
 export function yazdirTebligMetni(text, client, firmaAdi) {
   const html = tebligHtmlFromText(text, client, firmaAdi);
+  const win = window.open("", "_blank");
+  if (!win) { window.alert("Yeni pencere açılamadı — tarayıcının pop-up engelleyicisini kontrol et."); return; }
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 300);
+}
+
+/** Hesap özetini yeni pencerede açıp yazdırma kutusunu getirir — tebliğ mektubuyla
+ * aynı yol. Belgenin HTML'i `lib/ekstre-belgesi.js`te: orası saf, testten çağrılabiliyor;
+ * burada yalnızca pencere açma var, o zaten sınanamaz. */
+export function yazdirEkstre(client, secenekler) {
+  const html = ekstreHtml(client, secenekler);
   const win = window.open("", "_blank");
   if (!win) { window.alert("Yeni pencere açılamadı — tarayıcının pop-up engelleyicisini kontrol et."); return; }
   win.document.write(html);

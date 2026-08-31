@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     94 test dosyası (t1…t94) + 22 statik denetim betiği
+testler/     95 test dosyası (t1…t95) + 22 statik denetim betiği
 ```
 
 ---
@@ -375,6 +375,16 @@ Gecikmiş borç toplamı **`clientOverdueBalance`** ile hesaplanır, `aylikUcret
 ile DEĞİL: çarpım bütün geçmişi bugünkü ücretle sayar ve ücret değişmiş markada tebligata
 yanlış tutar yazar.
 
+**Müşteri hesap özeti (ekstre) — `lib/ekstre.js`.** Müşteriye verilen dökümde üç kavram
+karışmamalı: **tahakkuk** o ayın hizmet bedeli (`ayinUcreti`, bugünkü ücret DEĞİL),
+**fatura** o bedelin BELGELENEN kısmı, **tahsilat** ödemeler. `bakiye = tahakkuk −
+tahsilat`; **fatura bakiyeye EKLENMEZ** — eklenirse faturalı ay müşteriye iki kez
+borçlandırılır. Ücret dönemlerinin ilki `0000-00` olduğu için geriye doğru sorulan ekstre
+markanın **hiç çalışmadığı aylara da bedel yazıyordu** (ölçüldü); `client.baslangic`
+öncesi aylarda tahakkuk sıfırdır ama o aylardaki ödeme/fatura kayıtları yine gösterilir.
+Belge müşteriye gittiği için `lib/ekstre-belgesi.js` **iç bilgi taşımaz** (maliyet, kâr
+marjı, diğer markalar) ve marka adı HTML'e kaçırılarak girer.
+
 ### 8. Stok kuralları — `lib/stok.js`
 
 Türler: **Reels · Post · Carousel** — kategorilerle aynı liste (`lib/kategori.js`).
@@ -441,7 +451,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 22 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t94, ~2055 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t95, ~2100 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
@@ -450,6 +460,11 @@ ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 değiştirir ve `trap` ile geri koyar. **Testler gerçek Redis'e asla dokunmaz.**
 
 ### Test disiplini — bu projede zorunlu
+
+**Bölümleri `await` etmeyi unutma.** t95 bir kez sessizce bozuldu: bölümler `await`
+edilmediği için hiç çalışmadı, test "0 kaldı" deyip BAŞARIYLA çıktı — koşucu da yakalamadı
+(çıkış kodu 0, ✗ yok). Bu yüzden t95 sonunda çalışan kontrol sayısını sabitle karşılaştıran
+bir bekçi var.
 
 Bir düzeltme yaptıktan sonra **korumayı geri koyup kaç kontrolün düştüğünü ölç.**
 "Test geçti" tek başına hiçbir şey söylemiyor: bu projede daha önce, iddia ettiği

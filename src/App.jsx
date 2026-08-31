@@ -23,7 +23,7 @@ import {
   T, FONTS, fmt, fmtShort, nextId, islemKimligiUret, uyelikEfektifAktifMi,
   computeLive, monthKey, monthPaidAmount, monthRemaining, isMonthPaid, clientPaymentStatus,
   clientOverdueMonths, clientOverdueBalance, DEFAULT_TEBLIG_SABLONU, renderTeblig, escapeHtml, tebligHtmlFromText,
-  yazdirTebligMetni, kopyalaMetin, clientFaturaliTutar, clientKarMarji, PW_KEY, OTURUM_KEY,
+  yazdirTebligMetni, yazdirEkstre, kopyalaMetin, clientFaturaliTutar, clientKarMarji, PW_KEY, OTURUM_KEY,
   OTURUM_BITIS_KEY, getOturum, setOturum, clearOturum, getPw, setPw,
   STAFF_USER_KEY, STAFF_PW_KEY, getStaffCreds, setStaffCreds, clearStaffCreds, MUSTERI_USER_KEY,
   MUSTERI_PW_KEY, getMusteriCreds, setMusteriCreds, musteriHatirlaniyorMu, clearMusteriCreds, basligaCevir,
@@ -40,7 +40,8 @@ import { surumDinle, surumBildir } from "./surum.js";
 import { InstagramOnizleme, InstagramIzgara, aylikRaporAc } from "./instagram.jsx";
 import { MusteriPaneli } from "./musteriPaneli.jsx";
 import { hazirIcerikleriUret, musteriKayitlariniSuz } from "../lib/musteri-gorunumu.js";
-import { ucretDagilimi, ACIK_BASLANGIC } from "../lib/marka-ucreti.js";
+import { ekstreUret, varsayilanBaslangic } from "../lib/ekstre.js";
+import { ucretDagilimi, ayinUcreti, ACIK_BASLANGIC } from "../lib/marka-ucreti.js";
 import { markaEslestirici } from "../lib/marka-kilidi.js";
 import SistemSagligi from "./sistemSagligi.jsx";
 import StokMutabakat from "./stokMutabakat.jsx";
@@ -455,7 +456,7 @@ function MusteriSubeleri({ client, subeler, onAddSube, onDeleteSube, onSubeUcret
   );
 }
 
-function Musteriler({ clients, subeler, onAddSube, onDeleteSube, onSubeUcret, onTemelUcret, bekleyenTahsilatlar, hesaplar, freelancerlar, onAdd, onUpdate, onDelete, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, openClient, onOpenClientHandled, duzenleyenAdi, musteriIcerikleri, onAddIcerik, onUpdateIcerik, onDeleteIcerik, onOnaylaIcerik, firmaAdi }) {
+function Musteriler({ clients, subeler, onAddSube, onDeleteSube, onSubeUcret, onTemelUcret, bekleyenTahsilatlar, hesaplar, freelancerlar, onAdd, onUpdate, onDelete, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, onAddFatura, onDeleteFatura, openClient, onOpenClientHandled, duzenleyenAdi, musteriIcerikleri, onAddIcerik, onUpdateIcerik, onDeleteIcerik, onOnaylaIcerik, firmaAdi }) {
   const [filter, setFilter] = useState("hepsi");
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -667,6 +668,8 @@ function Musteriler({ clients, subeler, onAddSube, onDeleteSube, onSubeUcret, on
           onMarkUnpaid={() => onMarkUnpaid(detailClientId)}
           onOpenTeblig={onOpenTeblig}
           onAddOdemeKaydi={onAddOdemeKaydi}
+          onAddFatura={onAddFatura}
+          onDeleteFatura={onDeleteFatura}
           onDeleteOdemeKaydi={onDeleteOdemeKaydi}
           onClose={() => setDetailClientId(null)}
           duzenleyenAdi={duzenleyenAdi}
@@ -1445,9 +1448,10 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
   );
 }
 
-function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, freelancerlar, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, onClose, kilitleyen, musteriIcerikleri, onAddIcerik, onUpdateIcerik, onDeleteIcerik, onOnaylaIcerik, firmaAdi }) {
+function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, freelancerlar, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, onAddFatura, onDeleteFatura, onClose, kilitleyen, musteriIcerikleri, onAddIcerik, onUpdateIcerik, onDeleteIcerik, onOnaylaIcerik, firmaAdi }) {
   const [addingCost, setAddingCost] = useState(false);
   const [odemeModalOpen, setOdemeModalOpen] = useState(false);
+  const [ekstreAcik, setEkstreAcik] = useState(false);
   if (!client) return null;
   const cd = CLIENT_DURUM[client.durum] || CLIENT_DURUM.aktif;
   const bekleyenToplam = bekleyenTahsilatlar.reduce((s, b) => s + (Number(b.tutar) || 0), 0);
@@ -1506,6 +1510,18 @@ function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, freelancerlar, on
             Bu müşteri için ödeme günü tanımlı değil — düzenle butonundan "Ödeme Günü" alanını doldurursan otomatik takip başlar.
           </div>
         )}
+
+        {/* HESAP ÖZETİ ödeme gününden BAĞIMSIZ. Yukarıdaki blok yalnızca ödeme günü
+          * tanımlıyken görünüyor; ekstre oraya konsaydı takibi kapalı markanın dökümü
+          * hiç alınamazdı — oysa geçmişi olan her müşteriye verilebilmeli. */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 20, padding: "12px 15px", background: T.surfaceRaised, borderRadius: 12, border: `1px solid ${T.border}` }}>
+          <div>
+            <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 3 }}>HESAP ÖZETİ</div>
+            <div style={{ fontSize: 12, color: T.textDim, fontFamily: "Inter" }}>Müşteriye verilecek döküm — ay ay hizmet bedeli, faturalar, tahsilatlar, bakiye</div>
+          </div>
+          <button style={saveBtnStyle} onClick={() => setEkstreAcik(true)}>Hesap Özeti</button>
+        </div>
+        {ekstreAcik && <EkstreModal client={client} firmaAdi={firmaAdi} onClose={() => setEkstreAcik(false)} />}
         {odemeModalOpen && (
           <AyOdemeModal
             client={client}
@@ -1513,6 +1529,8 @@ function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, freelancerlar, on
             hesaplar={hesaplar}
             onAddKaydi={(kayit) => onAddOdemeKaydi(client.id, kayit)}
             onDeleteKaydi={(kayitId) => onDeleteOdemeKaydi(client.id, kayitId)}
+            onAddFatura={onAddFatura ? (fatura) => onAddFatura(client.id, fatura) : null}
+            onDeleteFatura={onDeleteFatura ? (faturaId) => onDeleteFatura(client.id, faturaId) : null}
             onClose={() => setOdemeModalOpen(false)}
           />
         )}
@@ -1640,13 +1658,106 @@ function OdemeGunuHucre({ client, onUpdateClient }) {
   );
 }
 
-function AyOdemeModal({ client, ayObj, hesaplar, onAddKaydi, onDeleteKaydi, onClose }) {
+/* ------------------------------------------------------------------ */
+/* HESAP ÖZETİ (EKSTRE)                                                 */
+/* ------------------------------------------------------------------ */
+/**
+ * Müşteriye verilecek "ne tahakkuk etti, ne fatura edildi, ne ödendi, ne kaldı" dökümü.
+ * Aralık seçilip yazdırılıyor; PDF olarak kaydedilip WhatsApp/e-posta ile gönderiliyor —
+ * tebliğ mektubuyla aynı yol.
+ *
+ * Ekranda gösterilen özet ile basılan belge AYNI hesaptan üretiliyor (`ekstre` nesnesi
+ * belgeye olduğu gibi veriliyor); iki kez hesaplansaydı arada bir kayıt eklendiğinde
+ * ekranda gördüğünle kâğıda basılan farklı çıkabilirdi.
+ */
+function EkstreModal({ client, firmaAdi, onClose }) {
+  const buAy = monthKey();
+  const [bas, setBas] = useState(varsayilanBaslangic(client) || buAy);
+  const [bit, setBit] = useState(buAy);
+  const gecersizAralik = !!(bas && bit && bas > bit);
+  const ekstre = gecersizAralik ? null : ekstreUret(client, { baslangicAy: bas, bitisAy: bit });
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 110, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <div onClick={(e) => e.stopPropagation()} className="marcus-card" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 18, width: 480, maxWidth: "100%", maxHeight: "85vh", overflowY: "auto", padding: "18px 22px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+          <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 600, color: T.text, margin: 0 }}>{client.ad} — Hesap Özeti</h2>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><X size={17} color={T.textFaint} /></button>
+        </div>
+        <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter", marginBottom: 16 }}>
+          Müşteriye verilecek döküm: her ayın hizmet bedeli, kesilen faturalar, tahsilatlar ve kalan bakiye.
+        </div>
+
+        <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+          <label style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter" }}>
+            <div style={{ marginBottom: 4 }}>Başlangıç</div>
+            <input type="month" value={bas} onChange={(e) => setBas(e.target.value)} style={{ ...inputStyle, width: 150, padding: "6px 9px", fontSize: 12.5 }} />
+          </label>
+          <label style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter" }}>
+            <div style={{ marginBottom: 4 }}>Bitiş</div>
+            <input type="month" value={bit} onChange={(e) => setBit(e.target.value)} style={{ ...inputStyle, width: 150, padding: "6px 9px", fontSize: 12.5 }} />
+          </label>
+        </div>
+
+        {gecersizAralik ? (
+          <div style={{ fontSize: 13, color: T.danger, fontFamily: "Inter", marginBottom: 14 }}>
+            Başlangıç ayı bitiş ayından sonra olamaz.
+          </div>
+        ) : (
+          <div style={{ marginBottom: 16, padding: "12px 15px", background: T.surfaceRaised, borderRadius: 12 }}>
+            {ekstre.satirlar.length === 0 ? (
+              <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>Bu dönemde hareket yok.</div>
+            ) : (
+              <>
+                <div style={{ fontSize: 12, color: T.textFaint, fontFamily: "Inter", marginBottom: 6 }}>
+                  {ekstre.toplam.aySayisi} ay · {ekstre.toplam.faturaSayisi} fatura · {ekstre.toplam.odemeSayisi} tahsilat
+                </div>
+                <div style={{ display: "flex", gap: 18, flexWrap: "wrap" }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>HİZMET BEDELİ</div>
+                    <div style={{ fontSize: 14, color: T.text, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600 }}>{fmt(ekstre.toplam.tahakkuk)}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>TAHSİLAT</div>
+                    <div style={{ fontSize: 14, color: T.text, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600 }}>{fmt(ekstre.toplam.tahsilat)}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>BAKİYE</div>
+                    <div style={{ fontSize: 14, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700, color: ekstre.toplam.bakiye > 0 ? T.danger : ekstre.toplam.bakiye < 0 ? T.success : T.textDim }}>
+                      {fmt(ekstre.toplam.bakiye)}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            style={{ ...saveBtnStyle, opacity: gecersizAralik ? 0.5 : 1, cursor: gecersizAralik ? "not-allowed" : "pointer" }}
+            disabled={gecersizAralik}
+            onClick={() => yazdirEkstre(client, { baslangicAy: bas, bitisAy: bit, firmaAdi, ekstre })}
+          >Yazdır / PDF</button>
+          <button style={cancelBtnStyle} onClick={onClose}>Kapat</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AyOdemeModal({ client, ayObj, hesaplar, onAddKaydi, onDeleteKaydi, onAddFatura, onDeleteFatura, onClose }) {
   const listeHesap = hesaplar && hesaplar.length ? hesaplar : [{ id: "ana", ad: "Marcus Medya", anaHesap: true }];
   const [tutar, setTutar] = useState(monthRemaining(client, ayObj.key) || client.aylikUcret || 0);
   const [hesapId, setHesapId] = useState(listeHesap[0].id);
   const [tarih, setTarih] = useState(bugunISOTarih());
   const [not, setNot] = useState("");
+  const [faturaAcik, setFaturaAcik] = useState(false);
+  const [faturaNo, setFaturaNo] = useState("");
+  const [faturaTarih, setFaturaTarih] = useState(bugunISOTarih());
+  const [faturaTutar, setFaturaTutar] = useState("");
   const kayitlar = (client.odemeKayitlari || []).filter((k) => k.ay === ayObj.key);
+  const ayFaturalari = (client.faturalar || []).filter((f) => f.ay === ayObj.key);
   const odenen = monthPaidAmount(client, ayObj.key);
   const kalan = monthRemaining(client, ayObj.key);
 
@@ -1666,8 +1777,53 @@ function AyOdemeModal({ client, ayObj, hesaplar, onAddKaydi, onDeleteKaydi, onCl
           <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><X size={17} color={T.textFaint} /></button>
         </div>
         <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginBottom: 16 }}>
-          Aylık ücret {fmt(client.aylikUcret)} · Ödenen {fmt(odenen)} · <span style={{ color: kalan > 0 ? T.danger : T.success, fontWeight: 600 }}>Kalan {fmt(kalan)}</span>
+          {/* O AYIN ücreti — bugünkü değil. Ücret sonradan düşmüş bir markada bugünküyle
+            * yazmak, geçmiş ayın ekranda gösterilen borcunu da düşürürdü. */}
+          Aylık ücret {fmt(ayinUcreti(client, ayObj.key))} · Ödenen {fmt(odenen)} · <span style={{ color: kalan > 0 ? T.danger : T.success, fontWeight: 600 }}>Kalan {fmt(kalan)}</span>
         </div>
+
+        {/* FATURA KAYDI — hesap özetinde "hangi fatura" sorusunun cevabı buradan geliyor.
+          * Faturalanan tutar hizmet bedeline EKLENMEZ, onun belgelenen kısmıdır; bu yüzden
+          * kalan bakiyeyi değiştirmez ve ekranda ayrı durur. */}
+        {onAddFatura && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 6 }}>
+              FATURA {ayFaturalari.length > 0 ? `(${ayFaturalari.length})` : ""}
+            </div>
+            {ayFaturalari.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
+                {ayFaturalari.map((f) => (
+                  <div key={f.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", background: T.surfaceRaised, borderRadius: 9 }}>
+                    <div>
+                      <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{fmt(f.tutar)}{f.no ? ` · No ${f.no}` : ""}</div>
+                      <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>{tarihGoster(f.tarih)}{f.not ? ` · ${f.not}` : ""}</div>
+                    </div>
+                    <button onClick={() => { if (window.confirm("Fatura kaydı silinsin mi?")) onDeleteFatura(f.id); }}
+                      style={{ background: "none", border: "none", cursor: "pointer", padding: 4, display: "flex" }}>
+                      <Trash2 size={13} color={T.textFaint} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {faturaAcik ? (
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <input autoFocus value={faturaNo} onChange={(e) => setFaturaNo(e.target.value)} placeholder="Fatura no" style={{ ...inputStyle, width: 120, padding: "5px 9px", fontSize: 12.5 }} />
+                <input type="date" value={faturaTarih} onChange={(e) => setFaturaTarih(e.target.value)} style={{ ...inputStyle, width: 140, padding: "5px 9px", fontSize: 12.5 }} />
+                <input type="number" value={faturaTutar} onChange={(e) => setFaturaTutar(e.target.value)} placeholder="Tutar ₺" style={{ ...inputStyle, width: 110, padding: "5px 9px", fontSize: 12.5, textAlign: "right" }} />
+                <button style={{ ...saveBtnStyle, padding: "5px 11px", fontSize: 12.5 }} onClick={() => {
+                  const n = Number(faturaTutar);
+                  if (!n || n <= 0) { window.alert("Fatura tutarı gir."); return; }
+                  onAddFatura({ ay: ayObj.key, no: faturaNo.trim(), tarih: faturaTarih.trim(), tutar: n });
+                  setFaturaNo(""); setFaturaTutar(""); setFaturaAcik(false);
+                }}>Ekle</button>
+                <button style={{ ...cancelBtnStyle, padding: "5px 11px", fontSize: 12.5 }} onClick={() => setFaturaAcik(false)}>İptal</button>
+              </div>
+            ) : (
+              <button onClick={() => setFaturaAcik(true)} style={{ background: "none", border: "none", color: T.accentText, fontSize: 12, cursor: "pointer", padding: 0, fontFamily: "Inter" }}>+ Fatura Ekle</button>
+            )}
+          </div>
+        )}
 
         {kayitlar.length > 0 && (
           <div style={{ marginBottom: 16 }}>
@@ -8730,6 +8886,29 @@ export default function MarcusOS() {
       .then((res) => { if (res.ok && res.client) mergeClientLocally(res.client); else if (res.error) window.alert(res.error); })
       .catch(() => window.alert("Bağlantı hatası — silinemedi, tekrar dene."));
   };
+  /* FATURA KAYITLARI — ödeme kayıtlarıyla aynı uçtan, aynı yetkiyle, aynı işlem
+   * kimliğiyle. Para verisinde sessiz tekrar en pahalı hata: ağ kesilip istek yeniden
+   * gidince fatura iki kez düşerdi. */
+  const addFatura = (clientId, fatura) => {
+    fetch("/api/client-payment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ action: "addFatura", clientId, fatura, islemId: islemKimligiUret() }),
+    })
+      .then((r) => r.json()).then(surumBildir)
+      .then((res) => { if (res.ok && res.client) mergeClientLocally(res.client); else if (res.error) window.alert(res.error); })
+      .catch(() => window.alert("Bağlantı hatası — fatura kaydedilemedi, tekrar dene."));
+  };
+  const deleteFatura = (clientId, faturaId) => {
+    fetch("/api/client-payment", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ action: "deleteFatura", clientId, faturaId, islemId: islemKimligiUret() }),
+    })
+      .then((r) => r.json()).then(surumBildir)
+      .then((res) => { if (res.ok && res.client) mergeClientLocally(res.client); else if (res.error) window.alert(res.error); })
+      .catch(() => window.alert("Bağlantı hatası — silinemedi, tekrar dene."));
+  };
   const setOdemeGunuSafe = (clientId, odemeGunu) => {
     fetch("/api/client-payment", {
       method: "POST",
@@ -9983,6 +10162,8 @@ export default function MarcusOS() {
               onOpenTeblig={openTeblig}
               onAddOdemeKaydi={addOdemeKaydi}
               onDeleteOdemeKaydi={deleteOdemeKaydi}
+              onAddFatura={addFatura}
+              onDeleteFatura={deleteFatura}
               openClient={detailClientFromSearch}
               onOpenClientHandled={() => setDetailClientFromSearch(null)}
               duzenleyenAdi={loggedStaffName || "Personel"}
@@ -10435,6 +10616,8 @@ export default function MarcusOS() {
               onOpenTeblig={openTeblig}
               onAddOdemeKaydi={addOdemeKaydi}
               onDeleteOdemeKaydi={deleteOdemeKaydi}
+              onAddFatura={addFatura}
+              onDeleteFatura={deleteFatura}
               openClient={detailClientFromSearch}
               onOpenClientHandled={() => setDetailClientFromSearch(null)}
               duzenleyenAdi="Yönetici (CEO)"
