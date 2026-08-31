@@ -37,7 +37,7 @@ Kod ve arayüz tamamen Türkçe — değişken ve fonksiyon adları dahil.
 | `src/` | React arayüzü (Vite ile derlenir) |
 | `api/` | Serverless fonksiyonlar — **her dosya bir fonksiyon**, Hobby sınırı 12 |
 | `lib/` | Ortak mantık — hem `api/` hem `src/` buradan import eder, **fonksiyon sayılmaz** |
-| `testler/` | 94 test dosyası (t1…t94) + 22 statik denetim betiği |
+| `testler/` | 95 test dosyası (t1…t95) + 22 statik denetim betiği |
 
 En büyük dosyalar: `src/App.jsx` (9.653), `src/CekimEditTakibi.jsx` (2.734),
 `api/data.js` (2.008), `src/musteriPaneli.jsx` (1.383), `src/tema.jsx` (1.039).
@@ -112,9 +112,12 @@ ile kontrol eder. Action başına ayrı kontrol yazılmıyor — biri unutulurdu
 `ekle` · `guncelle` · `sil` · `silByClientId` · `sifreSifirla`.
 Şifreler `scrypt` ile tuzlanarak saklanır. Güvenlik defterine yazar.
 
-### `api/client-payment.js` (90 satır) — ödeme kayıtları
-`addKaydi` · `deleteKaydi` · `setOdemeGunu`. **Marka kilitli hesap bu ucu hiç
-kullanamaz** — veri finansal iç bilgi; izin ayarı yanlış yapılsa bile ikinci emniyet.
+### `api/client-payment.js` — ödeme ve fatura kayıtları
+`addKaydi` · `deleteKaydi` · `setOdemeGunu` · `addFatura` · `deleteFatura`. **Marka kilitli
+hesap bu ucu hiç kullanamaz** — veri finansal iç bilgi; izin ayarı yanlış yapılsa bile ikinci
+emniyet. Fatura kaydı (`{ ay, no, tarih, tutar, not }`) hesap özetinde "hangi fatura"
+sorusunu cevaplar; **ay zorunlu** — ekstre ay bazlı olduğu için aysız fatura hiçbir satıra
+düşmez ve sessizce kaybolurdu. Yeni uç açılmadı, mevcut ödeme ucuna eklendi (12 sınırı).
 
 ### `api/kasa.js` (125 satır) — şifre kasası
 `dogrula` · `degistir`. Kasa şifresi ayrı; **değiştirmeyi yalnızca owner yapabilir.**
@@ -177,6 +180,8 @@ Artık **tanımsızsa kimse giremez.**
 | `alt-yazi.js` | Alt yazı devralma — kartın metni, plan gerekirse değiştirir (**saf**) |
 | `marka-ucreti.js` | **Şube bazlı aylık ücret** — toplam = temel + şube ücretleri; ücret dönemleriyle geçmiş ayın tutarı dondurulur (**saf**) |
 | `odeme-hesabi.js` | Aylık ödeme durumu (ödenen/kalan/ödendi mi) — o AYIN ücretine göre. `src/tema.jsx`ten testler çağırabilsin diye taşındı (**saf**) |
+| `ekstre.js` | **Müşteri hesap özeti** — ay ay tahakkuk/fatura/tahsilat/bakiye; fatura bedele EKLENMEZ, başlamadığı aya bedel yazılmaz (**saf**) |
+| `ekstre-belgesi.js` | Hesap özetinin yazdırılabilir HTML'i — müşteriye giden belge, iç bilgi taşımaz (**saf**) |
 | `video-yon.js` | Video yönü ve oynatıcı kutusunun oranı — metadata gelene kadar kartın kayıtlı yönü (**saf**) |
 | `kategori.js` | **Kategoriler ve stok türlerinin TEK kaynağı** — Reels/Post/Carousel + eski adların eşlemesi (**saf**) |
 | `drive-denetimi.js` | Kayıtlı stok ile Drive'ın söylediği stoğun farkı + uygulama frenleri (**saf, ağ yok**) |
@@ -210,6 +215,12 @@ sayaçları · `paylasimGecmisi` — stok hareketleri defteri · `subeler` — m
 `musteriIcerikleri` — müşteri onayına sunulan kayıtlar · `musteriTalepleri` — müşteriden
 gelen içerik istekleri · `musteriGirisleri` — şifre kasası kayıtları ·
 `bekleyenTahsilatlar` — ödeme kayıtları
+
+**Müşteri kaydındaki fatura ve ödeme alanları.** `odemeKayitlari[]` = `{ id, ay, tutar,
+hesapId, banka, tarih, not }` — tahsilatlar. `faturalar[]` = `{ id, ay, no, tarih, tutar,
+not }` — kesilen faturalar. Fatura, hizmet bedelinin **belgelenen kısmıdır**; bedele
+EKLENMEZ, bakiyeyi değiştirmez. Eklenseydi faturalı bir ay müşteriye iki kez
+borçlandırılırdı — belge müşteriye gittiği için en pahalı hata orası.
 
 **Müşteri kaydındaki ücret alanları.** `aylikUcret` toplam tutar — ciro, kâr marjı, ödeme
 takvimi ve tebligat dahil 19 yerde okunuyor, bu yüzden yerinde bırakıldı. Şubelerine ayrı
@@ -411,7 +422,7 @@ dosya hâlâ ekibin çalışma alanındadır.
 
 ```bash
 bash testler/hepsinidenetle.sh     # 22 statik denetim
-./testler/sunucutestleri.sh        # t1…t94, ~2055 kontrol — SAHTE veritabanı
+./testler/sunucutestleri.sh        # t1…t95, ~2100 kontrol — SAHTE veritabanı
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

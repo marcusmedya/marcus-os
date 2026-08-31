@@ -4912,3 +4912,78 @@ kontrolünü kaldırmak **2**, boş ücret alanının silinmesini kaldırmak **1
   modül testleri bunu göremezdi.
 
 Toplam **2056 kontrol**.
+
+---
+
+## Güncelleme 159: Müşteri Hesap Özeti (Ekstre) ve Fatura Kaydı
+
+**İstek.** "Fatura kesildi, faturadan kalan ödeme, diğer ödemeler — hepsinin detaylı
+dökümanını müşterime iletmek istiyorum."
+
+**Eksik olan tek şeydi: fatura kaydı.** Sistemde fatura no, fatura tarihi, fatura tutarı
+yoktu; yalnızca "aylık ücretin ne kadarı faturalı" diye tek bir sayı vardı ve o ay bazlı
+değildi. Artık ödeme kaydının yanında **fatura kaydı** da tutuluyor
+(`{ ay, no, tarih, tutar, not }`), ödeme kayıtlarıyla aynı uçtan, aynı yetkiyle, aynı işlem
+kimliğiyle — para verisinde sessiz tekrar en pahalı hata. Yeni fonksiyon dosyası açılmadı.
+
+**Hesap özeti.** Müşteri kartında "Hesap Özeti" düğmesi: tarih aralığı seçiliyor, ekranda
+özet görünüyor, **Yazdır / PDF** ile tebliğ mektubuyla aynı yoldan çıktı alınıyor. Belgede
+her ay için hizmet bedeli (varsa şube dökümüyle), o ayın faturaları, tahsilatları ve kalan
+bakiye; altta toplam.
+
+**Üç kavram karışmıyor — karışsaydı müşteriye yanlış borç gösterirdik:**
+
+| | |
+|---|---|
+| **Tahakkuk** | O ayın hizmet bedeli. Kaynağı `ayinUcreti` — o ayda **yürürlükte olan** ücret, bugünkü değil. |
+| **Fatura** | Tahakkukun **belgelenen** kısmı. Tahakkuka **eklenmez**, onun içindedir. |
+| **Tahsilat** | O aya işlenmiş ödeme kayıtları. |
+
+`bakiye = tahakkuk − tahsilat`. Fatura bakiyeyi değiştirmez; eklenseydi faturalı bir ay
+müşteriye **iki kez** borçlandırılırdı — belge müşteriye gittiği için en pahalı hata orası.
+
+Ödemeler tek tek faturalara **bağlanmıyor**: veride böyle bir bağ yok ve olmayan bir
+eşleştirmeyi uydurmak, müşterinin belgesinde doğrulanamayan bir iddia olurdu. Ekstrenin
+birimi ay — ödeme kayıtları zaten ay taşıyor.
+
+**Belge müşteriye gidiyor**, bu yüzden `lib/ekstre-belgesi.js` iç bilgi taşımıyor (maliyet,
+kâr marjı, diğer markalar) ve marka adı HTML'e kaçırılarak giriyor.
+
+### Testin yakaladığı iki şey
+
+**1. Başlamadığı aya bedel yazılıyordu.** Ücret dönemlerinin ilki `0000-00` ("geçmişin
+tamamı") olduğu için geriye doğru sorulan bir ekstre, markanın **hiç çalışmadığı** aylara
+da hizmet bedeli yazıyordu: Haziran 2026'da başlayan marka 2020'den beri borçlu çıkıyordu.
+Müşteriye giden bir belgede olmayan bir alacağın iddia edilmesi olurdu. `client.baslangic`
+öncesinde tahakkuk sıfır; o aylardaki ödeme/fatura kayıtları yine gösteriliyor — kayıt
+varsa gerçekten olmuştur.
+
+**2. Testin kendisi hiçbir şey ölçmüyordu.** Bölümler `await` edilmediği için hiç çalışmadı;
+dosya "43 kontrolden 15'i geçti, 0 kaldı" deyip **başarıyla** çıktı ve koşucu da yakalayamadı
+(çıkış kodu 0, ✗ yok). Hiçbir şey ölçmeyen bir testin geçmesi, testin hiç olmamasından
+tehlikeli: koruma var sanılır. Bölümler `await`e alındı ve dosyanın sonuna, çalışan kontrol
+sayısını sabitle karşılaştıran bir bekçi kondu.
+
+Ayrıca **olmayan bir koruma anlattığım bir yorum silindi**: "toplam bakiye satır
+bakiyelerinin toplamı değildir" diye uzun bir gerekçe yazmıştım — ölçüldü, ikisi
+matematiksel olarak aynı şey (Σ(a−b) = Σa−Σb). Olmayan bir korumayı anlatan yorum sonraki
+oturumu yanlış yönlendirir.
+
+### Ölçüm
+
+t95 · **44 kontrol**. Korumalar tek tek geri konuldu:
+
+| Kaldırılan koruma | Düşen kontrol |
+|---|---|
+| Fatura bakiyeye eklenmiyor | 28 |
+| Her ay kendi ücretiyle | 11 |
+| Ay normalleme (`2025-1` → `2025-01`) | 12 |
+| Hareketsiz ay atlama | 22 |
+| Başlangıç öncesi aya bedel yazılmaması | 4 |
+| Fazla ödemenin sıfırlanmaması | 1 |
+| Ters aralık koruması | 1 |
+| HTML kaçırma | 1 |
+| Aysız fatura reddi | 1 |
+| Kontrol sayısı bekçisi | 1 |
+
+Toplam **2100 kontrol**.
