@@ -49,6 +49,7 @@ import StokMutabakat from "./stokMutabakat.jsx";
 import { PAYLASIM_TURLERI, stokAnahtari, stokYanitiniUygula, stoklariBirlestir } from "../lib/stok.js";
 import { turunDagilimi } from "../lib/drive-eslestirme.js";
 import { etkinAltMetin, altMetinKaynagi, planaYazilacak } from "../lib/alt-yazi.js";
+import { siraliGruplar, sirayiTasi, elleSiraVarMi } from "../lib/cekim-sirasi.js";
 import { planSubesi, subeStokAnahtari, markaninSubeleri, kullanabilenSubeler,
          icerikSubeOzeti, subeListeleri, hazirIcerikSayisi } from "../lib/sube-kullanimi.js";
 import { SUBE_PAYLASIM_ASAMASI, medyalariBirlestir } from "../lib/asamalar.js";
@@ -3352,7 +3353,7 @@ function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, isle
  */
 const bugunISO = () => tarihIso(new Date());
 
-function CekimListesi({ clients, stoklar, subeler, gecmis, isler, plan }) {
+function CekimListesi({ clients, stoklar, subeler, gecmis, isler, plan, cekimSirasi, onSiraDegis }) {
   const ESIK = 4;
   /* Hangi markanın şube dökümü açık. Kapalıyken tek satır — liste kısa kalıyor. */
   const [acikMarka, setAcikMarka] = useState(null);
@@ -3418,11 +3419,35 @@ function CekimListesi({ clients, stoklar, subeler, gecmis, isler, plan }) {
     (g.subeOzetleri || []).forEach((x) => x.turler.sort((a, b) => a.adet - b.adet));
     (g.subeOzetleri || []).sort((a, b) => a.toplam - b.toplam);
   });
-  gruplar.sort((a, b) => a.toplam - b.toplam);
+  /* ELLE SIRA VARSA O GEÇERLİ; olmayan markalar otomatik kurala (stoğu az olan üstte)
+   * göre arkadan geliyor. Sıra hiç verilmemişse liste bugünkü davranışını sürdürüyor. */
+  siraliGruplar(gruplar, cekimSirasi);
+  const gorunenIdler = gruplar.map((g) => String(g.clientId));
+  const siraliyabilir = typeof onSiraDegis === "function";
+  const tasi = (clientId, yon) => {
+    if (!siraliyabilir) return;
+    onSiraDegis(sirayiTasi(cekimSirasi, gorunenIdler, clientId, yon));
+  };
 
   return (
     <div>
-      <SayacRozetleri ogeler={[{ etiket: "çekim gereken marka", deger: gruplar.length, renk: gruplar.length > 0 ? T.danger : T.success }]} />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+        <SayacRozetleri ogeler={[{ etiket: "çekim gereken marka", deger: gruplar.length, renk: gruplar.length > 0 ? T.danger : T.success }]} />
+        {/* ELLE SIRA AÇIKKEN GERİ DÖNÜŞ YOLU AÇIK KALMALI: yeni giren markalar listenin
+          * sonuna geldiği için, sıra unutulursa acil bir marka aşağıda kalabilir. */}
+        {siraliyabilir && elleSiraVarMi(cekimSirasi) && (
+          <button
+            onClick={() => onSiraDegis([])}
+            style={{ background: "none", border: "none", padding: 0, color: T.accentText,
+              fontSize: 11.5, fontFamily: "Inter", cursor: "pointer" }}
+          >Otomatik sıraya dön</button>
+        )}
+      </div>
+      {siraliyabilir && elleSiraVarMi(cekimSirasi) && (
+        <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 4 }}>
+          Elle sıralama açık — yeni eklenen markalar listenin sonuna gelir.
+        </div>
+      )}
 
       {gruplar.length === 0 ? (
         <Card style={{ padding: "24px", textAlign: "center" }}>
@@ -3430,7 +3455,7 @@ function CekimListesi({ clients, stoklar, subeler, gecmis, isler, plan }) {
         </Card>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {gruplar.map((g) => {
+          {gruplar.map((g, sira) => {
             const kenarRenk = g.toplam <= 1 ? T.danger : g.toplam <= 2 ? T.warning : T.border;
             const subeliMi = Array.isArray(g.subeOzetleri) && g.subeOzetleri.length > 0;
             const acik = subeliMi && acikMarka === g.anahtar;
@@ -3441,6 +3466,33 @@ function CekimListesi({ clients, stoklar, subeler, gecmis, isler, plan }) {
                   style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: g.turler.length > 0 || acik ? 8 : 0, cursor: subeliMi ? "pointer" : "default" }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                    {/* SIRAYI ELLE DEĞİŞTİRME. Sürükle-bırak yerine yukarı/aşağı tuşları:
+                      * dokunmatik ekranda da çalışıyor, yanlışlıkla sürüklenip sıra
+                      * bozulmuyor ve ek bir kütüphane gerektirmiyor.
+                      *
+                      * `stopPropagation` ŞART: satıra tıklamak şube listesini açıyor;
+                      * olmasa her sıra değişikliğinde panel de açılıp kapanırdı. */}
+                    {siraliyabilir && (
+                      <span style={{ display: "flex", flexDirection: "column", gap: 1, marginRight: 2 }}>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); tasi(g.clientId, -1); }}
+                          disabled={sira === 0}
+                          title="Yukarı taşı"
+                          style={{ background: "none", border: "none", padding: 0, lineHeight: 1,
+                            color: sira === 0 ? T.textFaint : T.textDim, fontSize: 11,
+                            cursor: sira === 0 ? "default" : "pointer", opacity: sira === 0 ? 0.35 : 1 }}
+                        >▲</button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); tasi(g.clientId, 1); }}
+                          disabled={sira === gruplar.length - 1}
+                          title="Aşağı taşı"
+                          style={{ background: "none", border: "none", padding: 0, lineHeight: 1,
+                            color: sira === gruplar.length - 1 ? T.textFaint : T.textDim, fontSize: 11,
+                            cursor: sira === gruplar.length - 1 ? "default" : "pointer",
+                            opacity: sira === gruplar.length - 1 ? 0.35 : 1 }}
+                        >▼</button>
+                      </span>
+                    )}
                     <div style={{ fontSize: 15, color: T.text, fontWeight: 700, fontFamily: "Inter" }}>{g.marka}</div>
                     {subeliMi && (
                       <span style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>
@@ -9091,6 +9143,10 @@ export default function MarcusOS() {
     "Bağlantı hatası — stok düzeltilemedi, tekrar dene.");
   /* Kartsız dosya listesi de sunucuda yeniden hesaplanıyor; buradan giden yalnızca
    * "şu dosyalar için kart açmak istiyorum" isteği. */
+  /* Çekim listesinin elle sırası — herkes aynı sırayı görsün diye sunucuya yazılıyor. */
+  const cekimSirasiKaydet = (sira) => paylasimIstek({ action: "cekimSirasiKaydet", sira },
+    "Bağlantı hatası — sıra kaydedilemedi, tekrar dene.");
+
   const kartsizdanKartAc = (clientId, dosyaIdleri) =>
     paylasimIstek({ action: "kartsizdanKartAc", clientId, dosyaIdleri },
       "Bağlantı hatası — kart açılamadı, tekrar dene.");
@@ -9909,7 +9965,8 @@ export default function MarcusOS() {
           {/* Günlük Kontrol artık haftalık planı okur ve AYNI sunucu işlemine yazar
             (toggleHaftalikYapildi) — iki panelin ayrışması mümkün değil. */}
           {staffTab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="staff" />}
-          {staffTab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} isler={data.cekimIsleri || []} plan={data.haftalikPaylasimlar || []} />}
+          {staffTab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} isler={data.cekimIsleri || []} plan={data.haftalikPaylasimlar || []}
+            cekimSirasi={data.cekimSirasi || []} onSiraDegis={cekimSirasiKaydet} />}
           {staffTab === "cekim-edit" && <CekimEditTakibi role="staff" acilacakIsId={gidilecekIs} onKartAcildi={() => setGidilecekIs(null)} clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} girisYapanAd={loggedStaffName} islemYetkisi={izinler.cekimEdit === true} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={izinler.markaYoneticisi} firmaAdi={data.firmaAdi} />}
           {staffTab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} duzenleyenAdi={loggedStaffName || "Personel"} />}
           {staffTab === "birikim" && (
@@ -10356,7 +10413,8 @@ export default function MarcusOS() {
             onKartaGit={(isId) => { setGidilecekIs(isId); setTab("cekim-edit"); }}
             onAltMetin={setPlanAltMetin} />}
           {tab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="owner" />}
-          {tab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} isler={data.cekimIsleri || []} plan={data.haftalikPaylasimlar || []} />}
+          {tab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} isler={data.cekimIsleri || []} plan={data.haftalikPaylasimlar || []}
+            cekimSirasi={data.cekimSirasi || []} onSiraDegis={cekimSirasiKaydet} />}
           {tab === "cekim-edit" && <CekimEditTakibi role="owner" acilacakIsId={gidilecekIs} onKartAcildi={() => setGidilecekIs(null)} clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} isUcretleri={data.isUcretleri || {}} onSaveIsUcreti={setIsUcreti} isUcretDetaylari={data.isUcretDetaylari || {}} onSaveIsUcretDetayi={setIsUcretDetayi} avanslar={data.avanslar || []} hesaplar={data.hesaplar || []} onAddAvans={addAvans} onDeleteAvans={deleteAvans} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={true} firmaAdi={data.firmaAdi} />}
           {tab === "personel" && (
             <Personel

@@ -125,7 +125,10 @@ const PERMISSION_DATA_FIELDS = {
   teklif: ["teklifler", "teklifSablonlari", "sozlesmeSablonlari", "markaKimligiGorseli"],
   reklamlar: ["reklamlar", "clients", "hesapOlcumleri"],
   paylasimlar: ["stoklar", "paylasimGecmisi", "gunlukKontrol", "clients", "haftalikPaylasimlar", "subeler"],
-  cekimListesi: ["stoklar", "paylasimGecmisi", "clients", "subeler"],
+  /* `cekimSirasi` OKUMA İZNİNDE: liste elle sıralanabiliyor ve sıra herkes için aynı.
+   * Gönderilmezse personel elle sırayı hiç görmez, kendi ekranında otomatik sırayı görür
+   * ve ekip aynı önceliğe bakmaz. Yazma bu uçtan DEĞİL, paylasim.js üzerinden. */
+  cekimListesi: ["stoklar", "paylasimGecmisi", "clients", "subeler", "cekimSirasi"],
   cekimEdit: ["cekimIsleri", "clients", "markalasmaSurecleri", "musteriIcerikleri"],
   personel: ["personel"],
   birikim: ["birikimler"],
@@ -171,7 +174,7 @@ const DEFAULT_FIELD_VALUES = {
   clients: [], monthly: [], gelirKalemleri: [], giderKalemleri: [], ofisGiderleri: [], bekleyenTahsilatlar: [],
   personel: [], vergiTakvimi: [], hesaplar: [{ id: "ana", ad: "Marcus Medya", anaHesap: true }], hesapTransferleri: [],
   teklifler: [], teklifSablonlari: [], sozlesmeSablonlari: [], markaKimligiGorseli: null,
-  reklamlar: [], stoklar: {}, paylasimGecmisi: [], gunlukKontrol: null, cekimIsleri: [], birikimler: [], haftalikPaylasimlar: [], subeler: [], markalasmaSurecleri: [], musteriIcerikleri: [], uyelikler: [],
+  reklamlar: [], stoklar: {}, paylasimGecmisi: [], gunlukKontrol: null, cekimIsleri: [], birikimler: [], haftalikPaylasimlar: [], subeler: [], markalasmaSurecleri: [], musteriIcerikleri: [], uyelikler: [], cekimSirasi: [],
 };
 const DEFAULT_PERMS = {
   dashboard: false, musteriler: false, finans: false, takvim: false, odemeTakvimi: false,

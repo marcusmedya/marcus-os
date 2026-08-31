@@ -4788,3 +4788,45 @@ Ayrı bir gerçek eksik: **Şişçi İbo markasında Drive onay klasörü tanım
 düzelse bile o marka için dosya taşınmaz; müşteri kartından tanımlanması gerekiyor.
 
 Ölçüm: üç korumayı da kaldırmak t81'de 3 kontrol düşürüyor. Toplam **1985 kontrol**.
+
+### 166 — Çekim listesi elle sıralanabiliyor
+
+Liste "stoğu en az olan üstte" diye sıralanıyordu. Ama aciliyet her zaman stokla
+ölçülmüyor: çekim mekâna, havaya, müşterinin uygunluğuna bağlı olabiliyor.
+
+Artık her satırda **▲▼** var; sıra sunucuya kaydediliyor ve **herkes aynı sırayı
+görüyor** — ekip aynı önceliğe bakıyor. Sıra verilmemiş markalar otomatik kurala göre
+arkadan geliyor, yani sıralama hiç kullanılmazsa liste bugünkü davranışını sürdürüyor.
+Üstteki "Otomatik sıraya dön" ile tek tuşla geri alınıyor.
+
+**Sürükle-bırak yerine yukarı/aşağı tuşu:** dokunmatik ekranda da çalışıyor, yanlışlıkla
+sürüklenip sıra bozulmuyor ve ek bir kütüphane gerektirmiyor.
+
+#### Dinamik listeye dayanması gerekiyordu
+
+Marka yalnızca stoğu eşiğin altındayken listede; çekim yapılınca çıkıyor, stok azalınca
+geri geliyor. Görünmeyen markanın sırası **kayıtta korunuyor** — düşseydi kullanıcı her
+turda listeyi yeniden dizerdi.
+
+Elle sıra açıkken yeni giren markalar sona geliyor; bu, acil bir markanın aşağıda
+kalabileceği anlamına geliyor. Bu yüzden ekranda uyarı yazıyor ve otomatiğe dönüş yolu
+her zaman açık.
+
+#### Ölçüm ve iki düzeltilen kusur
+
+t93 eklendi (15 kontrol). Bozmalar: görünmeyen markanın sırasını korumamak 1, otomatik
+kuralı kaldırmak 2, tekilleştirmeyi kaldırmak 1 kontrol düşürüyor.
+
+İki ölçüm ilk turda **hiçbir şey sınamıyordu**:
+
+- Otomatik sıra kontrolü, girdiyi zaten doğru sırada veriyordu — sıralama hiç çalışmasa
+  bile geçiyordu. Girdi bilerek yanlış sıraya çevrildi.
+- Uca yazdığım marka kilidi kontrolü bozulduğunda hiçbir kontrol düşmedi: ucun **merkezî**
+  fail-close kuralı bu işlemi zaten reddediyormuş. Ölçülemeyen koruma **kaldırıldı** —
+  tutmak, sonraki kişiye çalışıyormuş gibi görünen bir güvence devretmek olurdu.
+
+Ayrıca t69'un `CekimListesi` gövdesini **sabit 6000 karakterle** kesmesi düzeltildi:
+bileşene bir şey eklenince pencerenin dışında kalan kontroller, davranış bozulmadığı
+hâlde düşüyordu — daha kötüsü, pencere kodun bir kısmını sessizce sınamayı bırakıyordu.
+
+Toplam **2000 kontrol**.

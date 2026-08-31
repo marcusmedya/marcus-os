@@ -177,7 +177,15 @@ console.log("\n5) BAĞLANTI ÇİTİ — arayüze var olan alan geçiliyor mu");
 /* ---------------------------------------------------------------- */
 bolum("6) ÇEKİM LİSTESİ SATIRLARI — şube ayrı kart değil, markanın altında", 8, () => {
   const app = readFileSync(new URL("../src/App.jsx", import.meta.url), "utf8");
-  const govde = app.slice(app.indexOf("function CekimListesi"), app.indexOf("function CekimListesi") + 6000);
+  /* GÖVDE, BİLEŞENİN TAMAMI — sabit karakter penceresi DEĞİL.
+   *
+   * Eskiden 6000 karakter kesiliyordu. Bileşene yeni bir şey eklendiğinde (elle sıralama
+   * tuşları) pencerenin dışında kalan kontroller, davranış hiç bozulmadığı hâlde düştü.
+   * Daha kötüsü tersi: pencere daralınca test kodun bir kısmını sessizce sınamayı
+   * bırakıyor ve bunu kimse fark etmiyor. */
+  const cekimBas = app.indexOf("function CekimListesi");
+  const cekimSon = app.indexOf("\nfunction ", cekimBas + 20);
+  const govde = app.slice(cekimBas, cekimSon === -1 ? app.length : cekimSon);
 
   /* ÖNCE HER ŞUBE KENDİ KARTIYDI: dört şubeli marka listeyi beş satırla dolduruyor,
    * "hangi markaya çekim gerekiyor" sorusu okunamaz hale geliyordu. */

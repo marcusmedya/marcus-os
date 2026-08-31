@@ -226,7 +226,7 @@ function gecmiseEkle(data, clientId, marka, tur, tip, ek) {
  * çalıştığımız sorunun aynısı, küçük ölçekte. O işlem alanı kendisi bildiriyor. */
 const BU_UCUN_ALANLARI = [
   "stoklar", "paylasimGecmisi", "gunlukKontrol", "haftalikPaylasimlar",
-  "subeler", "uyelikler",
+  "subeler", "uyelikler", "cekimSirasi",
 ];
 
 /** Her kayıtta ana veriyi VE o günün yedeğini birlikte yazar — bu uç nokta üzerinden yapılan
@@ -902,6 +902,39 @@ export default async function handler(req, res) {
       await kilitBirak(kilitAlindi); kilitAlindi = false;
       return res.status(200).json({ ok: true, _v: _vKart, cekimIsleri: kartlariSuz(taze.cekimIsleri),
         acilanKartlar: yeniKartlar.map((j) => ({ isId: j.id, isAdi: j.icerikTuru, asama: j.asama })) });
+    }
+
+    /* ÇEKİM LİSTESİNİN ELLE SIRASI.
+     *
+     * Liste "stoğu en az olan üstte" diye sıralanıyordu; aciliyet her zaman stokla
+     * ölçülmüyor (mekân, hava, müşterinin uygunluğu). Sıra elle düzenlenip kaydediliyor
+     * ve HERKES aynı sırayı görüyor — ekip aynı önceliğe baksın.
+     *
+     * MARKA KİLİTLİ HESAP KAYDEDEMEZ. Bu liste ajans geneli; kendi markalarını gören bir
+     * çözüm ortağı, göremediği markaların sırasını da değiştirmiş olurdu. Fail-close. */
+    if (action === "cekimSirasiKaydet") {
+      /* MARKA KİLİDİ AYRICA KONTROL EDİLMİYOR — ucun merkezî kuralı zaten reddediyor:
+       * hedef marka çözülemeyen bir işlemde kilitli hesap fail-close ile 403 alıyor. Burada
+       * ikinci bir kontrol yazılmıştı; bozulduğunda hiçbir kontrol düşmedi (ölçüldü), yani
+       * hiç çalışmıyordu. Ölçülemeyen koruma tutmak, sonraki kişiye çalışıyormuş gibi
+       * görünen bir güvence devretmek olurdu. */
+      const gelen = Array.isArray(body.sira) ? body.sira : null;
+      if (!gelen) return res.status(400).json({ error: "Sıra listesi gönderilmedi." });
+
+      /* TEKİLLEŞTİRME VE SINIR: aynı kimlik iki kez gelirse sıralama belirsizleşir; sınır
+       * ise belgenin sınırsız büyümesini engelliyor (tek JSON belge, boyut sınırı var). */
+      const gorulen = new Set();
+      const temiz = [];
+      for (const x of gelen) {
+        const k = String(x === null || x === undefined ? "" : x).trim();
+        if (!k || gorulen.has(k)) continue;
+        gorulen.add(k);
+        temiz.push(k);
+        if (temiz.length >= 300) break;
+      }
+      data.cekimSirasi = temiz;
+      const _vSira = await kaydetVeYedekle(data, ["cekimSirasi"]);
+      return res.status(200).json({ ok: true, _v: _vSira, cekimSirasi: data.cekimSirasi });
     }
 
     if (action === "stokDuzelt") {
