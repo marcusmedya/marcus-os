@@ -4830,3 +4830,85 @@ bileşene bir şey eklenince pencerenin dışında kalan kontroller, davranış 
 hâlde düşüyordu — daha kötüsü, pencere kodun bir kısmını sessizce sınamayı bırakıyordu.
 
 Toplam **2000 kontrol**.
+
+---
+
+## Güncelleme 158: Şube Bazlı Aylık Ücret — Toplam Şubelerden Türer, Geçmiş Ay Dondurulur
+
+**Sorun.** Smell Coffee'nin üç şubesi ayrı ayrı faturalanıyor ve toplam 60.000 ₺ ediyordu.
+Bir şube ayrılınca toplamın 45.000'e düşmesi gerekiyordu ama `aylikUcret` müşteri kaydında
+**tek bir sayı** olduğu için düşmedi; ücretin neyin toplamı olduğu da hiçbir yerde
+yazmıyordu. Kullanıcının isteği açıktı: eski veriyi silmeden ücreti şubelere bölmek.
+
+**Çözüm — toplam artık elle girilmiyor.** Şubelerine ayrı ücret kesilen markalarda
+
+> **aylık toplam = `client.temelUcret` + o markanın `subeler[].aylikUcret` toplamı**
+
+Toplam yine `client.aylikUcret`'te duruyor — ciro, kâr marjı, ödeme takvimi, tebligat
+mektubu ve dışa aktarımlar dahil 19 yerde okunuyor, hiçbiri değişmek zorunda kalmadı —
+ama artık sunucu yazıyor. Şube eklenince/çıkınca toplam kendiliğinden değişiyor.
+
+**Kurulum tek blokta:** Müşteriler → Düzenle → ŞUBELER. Üstte marka temel ücreti, altında
+her şubenin kendi ücreti, en altta "60.000 = temel 15.000 + Merkez 15.000 + …" dökümü;
+rakamın neyin toplamı olduğu ilk kez yazıyor. Temel ücret bilerek müşteri formunun alan
+listesine KONMADI: o liste iki sütunlu ızgaraya sırayla diziliyor, araya tek alan eklemek
+altındaki bütün alanların eşleşmesini kaydırıyordu (Kâr Marjı ile Ödeme Günü yan yana
+düşüyordu) — istenmemiş bir arayüz değişikliği. Ayrıca temel ücret ancak şube ücretleriyle
+birlikte anlam taşıyor, yeri onların yanı.
+
+**Asıl tehlike ücret değil, GEÇMİŞTİ.** Ödeme durumu geçmiş ayları saklamıyor, her ay için
+**bugünkü** ücretten hesaplıyordu. Ücret 60.000'den 45.000'e düşürülünce Temmuz da geriye
+dönük 45.000 oluyordu: kısmi ödenmiş bir ay "kapanmış" görünüyor, 10.000'lik alacak
+sessizce siliniyor, tahsil edilmiş 60.000 ise "fazla ödeme" gibi duruyordu. Yani ücreti
+güncellemek fatura geçmişini bozuyordu.
+
+Artık ücret her değiştiğinde `client.ucretGecmisi`'ne bir **dönem** düşülüyor
+(`{ baslangicAy, tutar, dagilim }`) ve ödeme hesabı o ayı kapsayan dönemin tutarını
+kullanıyor. Ay ay değil dönem kaydı tutuluyor: liste yalnızca ücret değiştikçe uzuyor.
+`0000-00` "geçmişin tamamı" demek.
+
+**Tutar aynıyken dağılım değişirse yeni dönem AÇILMIYOR**, yürürlükteki döneme yazılıyor.
+60.000'i ilk kez "15.000 temel + 3×15.000 şube" diye tanımlamak tam olarak bu: **tutar
+korunuyor, geçmiş aylar aynı rakamla ama artık şube şube okunabilir hale geliyor** —
+kullanıcının istediği "eski veriyi silmeden bölmek".
+
+**Özelliği kullanmayan markada hiçbir şey değişmiyor.** İkisi de girilmemişse
+`ucretleriTazele` `null` dönüyor ve `clients` alanına dokunulmuyor — dokunsaydı sürüm
+sayacı boş yere artar, aynı anda çalışan başkası 409 alırdı.
+
+**Yan düzeltme: gecikmiş borç `aylikUcret × ay sayısı` ile hesaplanmıyor artık.** Panodaki
+"Ödenmeyen Ödemeler" bu çarpımı kullanıyordu; ücret değişmiş bir markada bütün geçmişi
+YENİ ücretle sayar ve tebligata yanlış tutar yazardı. Müşteri detayının zaten kullandığı
+`clientOverdueBalance` (ay ay gerçek bakiye) buraya da bağlandı — iki ekran artık aynı
+rakamı gösteriyor.
+
+**Yetki.** Şube ücretini yalnızca yönetici değiştirebiliyor (`subeUcret` → 403). Bu uca
+`paylasimlar` izni olan herkes girebiliyor; stok işaretlemeye yeten izin fiyat belirlemeye
+yetmez. Aynı sebeple yanıtta `clients` yalnızca yöneticiye gönderiliyor — içinde
+`aylikUcret`, `maliyetler`, `odemeKayitlari` var.
+
+**Ödeme hesabı `src/tema.jsx`'ten `lib/odeme-hesabi.js`'e taşındı.** Sebep tek: `.jsx`
+Node'da çalışmadığı için para hesabı yapan bu üç işlev hiçbir testten **çağrılamıyordu**,
+yalnızca kaynak metnine bakılabiliyordu — bu projede açıkça yasak olan şey. Arayüz için
+hiçbir şey değişmedi, `tema.jsx` üçünü de yeniden dışa veriyor.
+
+**Ölçüm (t94, 56 kontrol).** Korumalar tek tek geri konulup kaç kontrolün düştüğü ölçüldü.
+Saf mantıkta: geçmiş ay dondurmasını kaldırmak **4**, ücret dönemi kaydını kaldırmak **4**,
+şubelerin marka süzgecini kaldırmak **17**, "değişiklik yoksa `null`" korumasını kaldırmak
+**2**, aynı ay tek dönem kuralını kaldırmak **1**, geriye dönük döküm yazımını kaldırmak
+**9**. Uç bağlantılarında: `api/paylasim.js` tazelemesini kaldırmak **5**, yönetici
+kontrolünü kaldırmak **2**, boş ücret alanının silinmesini kaldırmak **1**,
+`api/data.js`in yönetici yolunu kaldırmak **3**, personel yolunu kaldırmak **1**.
+
+İki kez ölçüm bir şey yakaladı:
+
+- İlk yazımda iki kontrol **hiçbir şey ölçmüyordu**: geçmiş ayı *tam* ödenmiş seçmiştim ve
+  60.000'lik ödeme 45.000'lik ayı da kapattığı için koruma kaldırıldığında da geçiyorlardı.
+  Senaryo kısmi ödemeye çevrildi; o iki kontrol artık gerçekten düşüyor.
+- Uca gerçek istek atan bölüm eklenince **gerçek bir eksik** çıktı: `api/data.js`in İKİ
+  ayrı kayıt yolu var (yönetici blob'u ve personelin alan bazlı birleştirmesi) ve tazeleme
+  yalnızca ikincisine bağlanmıştı. Yani yönetici müşteri kartından temel ücreti
+  değiştirdiğinde toplam eski hâlinde kalıyordu — günlük kullanımdaki en sık yol. Saf
+  modül testleri bunu göremezdi.
+
+Toplam **2056 kontrol**.

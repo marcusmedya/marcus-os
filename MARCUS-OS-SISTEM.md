@@ -37,7 +37,7 @@ Kod ve arayüz tamamen Türkçe — değişken ve fonksiyon adları dahil.
 | `src/` | React arayüzü (Vite ile derlenir) |
 | `api/` | Serverless fonksiyonlar — **her dosya bir fonksiyon**, Hobby sınırı 12 |
 | `lib/` | Ortak mantık — hem `api/` hem `src/` buradan import eder, **fonksiyon sayılmaz** |
-| `testler/` | 93 test dosyası (t1…t93) + 22 statik denetim betiği |
+| `testler/` | 94 test dosyası (t1…t94) + 22 statik denetim betiği |
 
 En büyük dosyalar: `src/App.jsx` (9.653), `src/CekimEditTakibi.jsx` (2.734),
 `api/data.js` (2.008), `src/musteriPaneli.jsx` (1.383), `src/tema.jsx` (1.039).
@@ -100,6 +100,8 @@ yazabildiği **tek** üç işlem.
 | `haftalikToggle` | Paylaşıldı işaretleme, stok düşümü, kart aşama geçişi |
 | `haftalikSil` · `haftalikAltMetin` | Plan silme (**tam geri alma**: aşama, stok, Drive), alt metin |
 | `subeEkle` · `subeSil` | Şube yönetimi (aynı ad 409, kayıtlı şube onay ister; silme kart kapsamını AÇMAZ) |
+| `subeUcret` | Şubenin aylık ücreti — **yalnızca yönetici** (403), boş gönderilirse alan silinir. Şube ekleme/silme ile birlikte marka toplamını tazeler |
+| `markaTemelUcret` | Markanın temel ücreti — **yalnızca yönetici** (403). Şube ücretleriyle aynı blokta girildiği için müşteri formundan değil buradan geçer |
 | `uyelikEkle` · `uyelikGuncelle` · `uyelikSil` | Abonelik/üyelik takibi |
 
 **Marka kilidi tek yerde çözülür**: uç, `clientId` / `planId` / `subeId` / `uyelikId` /
@@ -173,6 +175,8 @@ Artık **tanımsızsa kimse giremez.**
 | `cekim-sirasi.js` | Çekim listesinin elle sırası — dinamik listeye dayanan sıralama (**saf**) |
 | `mp4-faststart.js` | MP4 oynatma bilgisi başta mı sonda mı — "video neden geç açılıyor" teşhisi (**saf**) |
 | `alt-yazi.js` | Alt yazı devralma — kartın metni, plan gerekirse değiştirir (**saf**) |
+| `marka-ucreti.js` | **Şube bazlı aylık ücret** — toplam = temel + şube ücretleri; ücret dönemleriyle geçmiş ayın tutarı dondurulur (**saf**) |
+| `odeme-hesabi.js` | Aylık ödeme durumu (ödenen/kalan/ödendi mi) — o AYIN ücretine göre. `src/tema.jsx`ten testler çağırabilsin diye taşındı (**saf**) |
 | `video-yon.js` | Video yönü ve oynatıcı kutusunun oranı — metadata gelene kadar kartın kayıtlı yönü (**saf**) |
 | `kategori.js` | **Kategoriler ve stok türlerinin TEK kaynağı** — Reels/Post/Carousel + eski adların eşlemesi (**saf**) |
 | `drive-denetimi.js` | Kayıtlı stok ile Drive'ın söylediği stoğun farkı + uygulama frenleri (**saf, ağ yok**) |
@@ -206,6 +210,16 @@ sayaçları · `paylasimGecmisi` — stok hareketleri defteri · `subeler` — m
 `musteriIcerikleri` — müşteri onayına sunulan kayıtlar · `musteriTalepleri` — müşteriden
 gelen içerik istekleri · `musteriGirisleri` — şifre kasası kayıtları ·
 `bekleyenTahsilatlar` — ödeme kayıtları
+
+**Müşteri kaydındaki ücret alanları.** `aylikUcret` toplam tutar — ciro, kâr marjı, ödeme
+takvimi ve tebligat dahil 19 yerde okunuyor, bu yüzden yerinde bırakıldı. Şubelerine ayrı
+ücret kesilen markalarda toplam artık ELLE girilmiyor: `temelUcret` (marka temel ücreti) +
+o markanın `subeler[].aylikUcret` değerleri toplanıp sunucu `aylikUcret`e yazıyor, böylece
+şube ayrılınca toplam kendiliğinden düşüyor. İkisi de girilmemişse marka eski tek kalemli
+düzeninde kalır ve bu mekanizma hiç çalışmaz. `ucretGecmisi` ücret DÖNEMLERİ tutar
+(`{ baslangicAy, tutar, dagilim }`) — ödeme durumu geçmiş ayları saklamayıp bugünkü
+ücretten hesapladığı için, dönem kaydı olmadan ücret düşürüldüğünde tahsil edilmiş geçmiş
+aylar da düşüyordu. Liste yalnızca ücret değiştikçe uzar; `0000-00` "geçmişin tamamı".
 
 ### Para
 `gelirKalemleri` · `giderKalemleri` · `ofisGiderleri` · `monthly` · `vergiTakvimi` ·
@@ -397,7 +411,7 @@ dosya hâlâ ekibin çalışma alanındadır.
 
 ```bash
 bash testler/hepsinidenetle.sh     # 22 statik denetim
-./testler/sunucutestleri.sh        # t1…t93, ~2000 kontrol — SAHTE veritabanı
+./testler/sunucutestleri.sh        # t1…t94, ~2055 kontrol — SAHTE veritabanı
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

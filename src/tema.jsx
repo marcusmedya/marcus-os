@@ -213,26 +213,12 @@ export function computeLive(data) {
 /** Bir müşterinin bu ayki ödeme durumunu, kayıtlı "ödeme günü"ne göre otomatik hesaplar. */
 export const monthKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 
-/** Belirli bir ay için o müşteriden gerçekten tahsil edilen toplam tutar (kısmi ödemeler dahil).
- * Eski sistemde (odemeler dizisinde işaretli ama hiç ödeme kaydı yoksa) geriye dönük uyumluluk için
- * tam ödenmiş sayılır. */
-export function monthPaidAmount(client, key) {
-  const kayitlar = (client.odemeKayitlari || []).filter((k) => k.ay === key);
-  const sum = kayitlar.reduce((s, k) => s + (Number(k.tutar) || 0), 0);
-  if (sum > 0) return sum;
-  if ((client.odemeler || []).includes(key)) return Number(client.aylikUcret) || 0;
-  return 0;
-}
-/** O ay için kalan (henüz ödenmemiş) bakiye. */
-export function monthRemaining(client, key) {
-  return Math.max(0, (Number(client.aylikUcret) || 0) - monthPaidAmount(client, key));
-}
-/** O ay tam olarak ödenmiş mi? */
-export function isMonthPaid(client, key) {
-  const tutar = Number(client.aylikUcret) || 0;
-  if (tutar <= 0) return true;
-  return monthPaidAmount(client, key) >= tutar;
-}
+/* Ödeme hesabı `lib/odeme-hesabi.js`e taşındı — para hesabı yapan bu üç işlevi
+ * testlerin ÇAĞIRABİLMESİ için (.jsx Node'da çalışmıyor). Buradan yeniden dışa
+ * veriliyor; `export ... from` DEĞİL, çünkü aşağıdaki `clientOverdueMonths` ve
+ * `clientOverdueBalance` bunları yerel olarak da kullanıyor. */
+import { monthPaidAmount, monthRemaining, isMonthPaid } from "../lib/odeme-hesabi.js";
+export { monthPaidAmount, monthRemaining, isMonthPaid };
 
 export function clientPaymentStatus(client) {
   if (!client.odemeGunu) return null;

@@ -4,6 +4,7 @@ import { KEY, guvenliGuncelle, kilitAl, kilitBirak, guvenliYaz, deftereYaz, deft
          catisanAlanlar, bugunISO, mesgulYanit,
          belgeOkunabilirMi, BOZUK_KOD, BOZUK_MESAJI } from "../lib/kv-yaz.js";
 import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, tumOturumlariIptalEt, ikiAdimliAktifMi, esitMi, baslikOku } from "../lib/oturum.js";
+import { ucretleriTazele, ayAnahtari } from "../lib/marka-ucreti.js";
 import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, birlestirmedeDusenler, trKucult, markaEslestirici } from "../lib/marka-kilidi.js";
 import { belgedekiCakismalariOnar, turetilmisleriAyikla } from "../lib/kimlik.js";
 import { musteriGorunumuUret } from "../lib/musteri-gorunumu.js";
@@ -1973,6 +1974,18 @@ export default async function handler(req, res) {
             };
           }
 
+          /* ŞUBE BAZLI ÜCRET — toplamı tazele, GEÇMİŞ AYIN TUTARINI DONDUR.
+           *
+           * Müşteri kartından ücret düzenlendiğinde buradan geçer. Kritik olan tazeleme
+           * değil DONDURMA: ödeme durumu geçmiş ayları saklamayıp bugünkü ücretten
+           * hesapladığı için, ücret düşürülünce tahsil edilmiş geçmiş aylar da düşüyordu.
+           * Değişiklik yoksa `null` döner ve `clients` alanına dokunulmaz — sayacı boş
+           * yere artırıp aynı anda çalışan başkasını 409'a düşürmesin. */
+          const tazelenmisMusteriler = ucretleriTazele(
+            existing.clients, merged.clients || existing.clients,
+            merged.subeler || existing.subeler, ayAnahtari());
+          if (tazelenmisMusteriler) { merged.clients = tazelenmisMusteriler; yazilanAlanlar.add("clients"); }
+
           const yeniKayitlar = degisiklikleriTespitEt(existing, merged, staffName || "Personel");
           if (yeniKayitlar.length > 0) {
             merged.islemGecmisi = [...(existing.islemGecmisi || []), ...yeniKayitlar].slice(-200);
@@ -2179,6 +2192,20 @@ export default async function handler(req, res) {
         finalData.cekimIsleri = stokSonucu.cekimIsleri;
         ownerStokBildirimi = { stoklar: stokSonucu.stoklar, isaretlenen: stokSonucu.degisenler };
       }
+
+      /* ŞUBE BAZLI ÜCRET — YÖNETİCİ YOLU.
+       *
+       * Aynı tazeleme personel yolunda da var; İKİSİNE birden bağlanmak zorunda çünkü
+       * müşteri kartı kaydı bu yoldan geçiyor. Yalnızca personel yoluna bağlanmıştı ve
+       * test yakaladı: yönetici temel ücreti değiştirince toplam eski hâlinde kalıyordu.
+       *
+       * Toplam TARAYICIDAN GELEN sayı değil, dökümden hesaplanan sayıdır — stok tablosunda
+       * olduğu gibi son söz sunucunun; yoksa döküm ile toplam birbirini tutmaz. */
+      const tazelenmis = ucretleriTazele(
+        existingFull && existingFull.clients,
+        finalData.clients || (existingFull && existingFull.clients),
+        finalData.subeler || (existingFull && existingFull.subeler), ayAnahtari());
+      if (tazelenmis) finalData.clients = tazelenmis;
 
       // Bu kayıtta ne değişti (müşteri/personel/üyelik eklendi-silindi, durum değişti) —
       // İşlem Geçmişi defterine otomatik not düşülür. Son 200 kayıtla sınırlı tutulur.
