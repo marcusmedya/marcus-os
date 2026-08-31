@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     93 test dosyası (t1…t93) + 22 statik denetim betiği
+testler/     94 test dosyası (t1…t94) + 22 statik denetim betiği
 ```
 
 ---
@@ -338,7 +338,39 @@ güncellendiğinde o plan eski metinde takılı kalırdı. Devralma **müşteri 
 çözülür** (`lib/musteri-gorunumu.js`); çözülmezse kartta yazılan metin müşteriye hiç
 ulaşmaz.
 
-### 7. Stok kuralları — `lib/stok.js`
+### 7. Şube bazlı ücret — `lib/marka-ucreti.js`
+
+Şubelerine ayrı ücret kesilen markada **toplam = `client.temelUcret` + o markanın
+`subeler[].aylikUcret` toplamı**. Toplam yine `client.aylikUcret`'te duruyor (ciro, kâr
+marjı, ödeme takvimi, tebligat dahil 19 yerde okunuyor) ama artık elle değil sunucu
+tarafından yazılıyor — şube ayrılınca toplam kendiliğinden düşsün diye. **İkisi de
+girilmemiş markada bu mekanizma HİÇ çalışmaz**; `ucretleriTazele` `null` döner ve
+`clients` alanına dokunulmaz (dokunsaydı sayaç boşuna artar, aynı anda çalışan 409 alırdı).
+
+**Geçmiş ayın tutarı DONDURULUR — bu modülün asıl sebebi.** Ödeme durumu geçmiş ayları
+saklamıyor, her ay için BUGÜNKÜ ücretten hesaplıyordu. Ücret 60.000'den 45.000'e düşünce
+Temmuz da 45.000 oluyor: tahsil edilmiş 60.000 "fazla ödeme", kısmi ödenmiş bir ay ise
+"kapanmış" görünüyordu. Artık ücret her değiştiğinde `client.ucretGecmisi`'ne bir DÖNEM
+düşülüyor (`{ baslangicAy, tutar, dagilim }`) ve `ayinUcreti(client, ay)` o ayı kapsayan
+dönemi buluyor. Ay ay değil dönem kaydı: liste yalnızca ücret değiştikçe uzar. `0000-00`
+"geçmişin tamamı" demek. **Ödeme hesabı `lib/odeme-hesabi.js`'te** — `src/tema.jsx`'ten
+oraya taşındı, çünkü `.jsx` Node'da çalışmadığı için para hesabı hiçbir testte
+ÇAĞRILAMIYORDU, yalnızca kaynak metnine bakılabiliyordu.
+
+**Tutar aynıyken dağılım değişirse yeni dönem AÇILMAZ**, yürürlükteki döneme yazılır.
+60.000'i ilk kez "15.000 temel + 3×15.000" diye tanımlamak tam olarak budur: tutar
+korunur, geçmiş aylar aynı rakamla ama artık şube şube okunabilir olur.
+
+Şube ücretini **yalnızca yönetici** değiştirebilir (`subeUcret` → 403). Bu uca `paylasimlar`
+izni olan herkes girebiliyor; stok işaretlemeye yeten izin fiyat belirlemeye yetmez.
+Aynı sebeple yanıtta `clients` yalnızca yöneticiye gönderilir — içinde `aylikUcret`,
+`maliyetler`, `odemeKayitlari` var.
+
+Gecikmiş borç toplamı **`clientOverdueBalance`** ile hesaplanır, `aylikUcret × ay sayısı`
+ile DEĞİL: çarpım bütün geçmişi bugünkü ücretle sayar ve ücret değişmiş markada tebligata
+yanlış tutar yazar.
+
+### 8. Stok kuralları — `lib/stok.js`
 
 Türler: **Reels · Post · Carousel** — kategorilerle aynı liste (`lib/kategori.js`).
 
@@ -404,7 +436,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 22 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t93, ~2000 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t94, ~2050 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

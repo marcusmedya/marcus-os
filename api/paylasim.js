@@ -2,6 +2,7 @@ import { kv } from "@vercel/kv";
 import { planSubesi, subeStokAnahtari, planlananlarTamamlandiMi, enAzBirSubedePaylasildi,
          markaninSubeleri } from "../lib/sube-kullanimi.js";
 import { SUBE_PAYLASIM_ASAMASI } from "../lib/asamalar.js";
+import { ucretleriTazele, ayAnahtari, ucretDagilimi } from "../lib/marka-ucreti.js";
 import { KEY, guvenliYaz, kilitAl, kilitBirak, bugunISO, mesgulYanit } from "../lib/kv-yaz.js";
 import { kayitliYanit, yanitiSakla, yanitiYakala } from "../lib/islem-kimligi.js";
 import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
@@ -229,6 +230,20 @@ const BU_UCUN_ALANLARI = [
   "subeler", "uyelikler", "cekimSirasi",
 ];
 
+/** Şube ücreti değişince markanın toplam aylık ücreti de değişir.
+ *
+ * Şube ekleme/silme ve şube ücreti düzenleme bu uçtan geçiyor ama toplam `clients`
+ * alanında duruyor. Tazeleme yapılmazsa şube ayrıldığında toplam eski hâlinde kalır —
+ * kullanıcının bildirdiği sorunun ta kendisi. Yalnızca GERÇEKTEN değiştiğinde
+ * `clients` yazılan alanlara ekleniyor; şube adı düzeltmek gibi ücretle ilgisiz bir
+ * işlem müşteri kartı üzerinde çalışan başkasını bayat yapmasın. */
+function ucretiTazele(data) {
+  const tazelenmis = ucretleriTazele(data.clients, data.clients, data.subeler, ayAnahtari());
+  if (!tazelenmis) return [];
+  data.clients = tazelenmis;
+  return ["clients"];
+}
+
 /** Her kayıtta ana veriyi VE o günün yedeğini birlikte yazar — bu uç nokta üzerinden yapılan
  * (stok/paylaşım/haftalık plan/şube/günlük kontrol) değişiklikler daha önce günlük yedeğe hiç
  * dahil edilmiyordu, bu da bu verinin bir "bu tarihe dön" işleminde kaybolabileceği anlamına geliyordu. */
@@ -268,6 +283,10 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Sadece POST kabul edilir." });
   const kimlik = await yetkiliMi(req);
   if (!kimlik.yetkili) return res.status(401).json({ error: "Yetkisiz." });
+  /* ÜCRET YALNIZCA YÖNETİCİNİN İŞİ. Bu uca `paylasimlar` izni olan herkes girebiliyor —
+   * stok işaretlemek için yeterli olan izin, fiyat belirlemek için değil. Şube ücreti
+   * markanın faturasını doğrudan değiştirdiği için ayrıca yönetici aranıyor. */
+  const yoneticiMi = await ownerYetkiliMi(req);
 
   // Tüm işlem (oku → değiştir → yaz) kilit altında yapılır: iki personel aynı anda
   // stok işaretlediğinde birinin değişikliği diğerini silmesin.
@@ -660,9 +679,34 @@ export default async function handler(req, res) {
       if (ayniAd) return res.status(409).json({ error: `"${temizAd}" adında bir şube zaten var.` });
 
       const yeni = { id: nid(), clientId, ad: temizAd };
+      /* Ücret yalnızca GİRİLDİYSE yazılır. Varsayılan 0 yazılsaydı, ücretlendirmesi
+       * şubeye bağlı olmayan bir markada "şube ücreti kullanılıyor" sayılır ve marka
+       * toplamı bir anda temel ücrete inerdi. */
+      if (yoneticiMi && body.aylikUcret !== undefined && body.aylikUcret !== null && body.aylikUcret !== "") {
+        yeni.aylikUcret = Number(body.aylikUcret) || 0;
+      }
       data.subeler = [...liste, yeni];
-      const _v = await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, _v, subeler: yanitSuz(data.subeler) });
+      const _v = await kaydetVeYedekle(data, ["subeler", ...ucretiTazele(data)]);
+      return res.status(200).json({ ok: true, _v, subeler: yanitSuz(data.subeler), ...(yoneticiMi ? { clients: data.clients } : {}) });
+    }
+
+    /* ŞUBE ÜCRETİ. Marka toplamı = temel ücret + şube ücretleri; bu uç şube tarafını
+     * yazar, temel ücret müşteri kartından (api/data.js) geçer. Boş gönderilirse alan
+     * SİLİNİR — "0 ₺ alıyoruz" ile "bu markada şube bazlı ücret kullanmıyoruz" farklı
+     * şeyler ve ikincisi markayı eski tek kalemli düzenine geri döndürür. */
+    if (action === "subeUcret") {
+      if (!yoneticiMi) return res.status(403).json({ error: "Şube ücretini yalnızca yönetici değiştirebilir." });
+      const { subeId } = body;
+      const mevcut = (data.subeler || []).find((s) => String(s.id) === String(subeId));
+      if (!mevcut) return res.status(404).json({ error: "Şube bulunamadı." });
+      const bosalt = body.aylikUcret === undefined || body.aylikUcret === null || body.aylikUcret === "";
+      data.subeler = (data.subeler || []).map((s) => {
+        if (String(s.id) !== String(subeId)) return s;
+        if (bosalt) { const { aylikUcret, ...kalan } = s; return kalan; }
+        return { ...s, aylikUcret: Number(body.aylikUcret) || 0 };
+      });
+      const _v = await kaydetVeYedekle(data, ["subeler", ...ucretiTazele(data)]);
+      return res.status(200).json({ ok: true, _v, subeler: yanitSuz(data.subeler), ...(yoneticiMi ? { clients: data.clients } : {}) });
     }
 
     if (action === "subeSil") {
@@ -716,8 +760,11 @@ export default async function handler(req, res) {
         return { ...j, sadeceSubeler: kalan };
       });
 
-      const _v = await kaydetVeYedekle(data);
-      return res.status(200).json({ ok: true, _v, subeler: yanitSuz(data.subeler), cekimIsleri: yanitSuz(data.cekimIsleri) });
+      /* ŞUBE AYRILINCA MARKA TOPLAMI DÜŞER. Kullanıcının bildirdiği durum bu: üç şubeli
+       * markada toplam 60.000'di, bir şube gidince 45.000 olmalı. Geçmiş aylar eski
+       * tutarda DONDURULUYOR (`ucretGecmisi`), yani kesilmiş faturalar değişmiyor. */
+      const _v = await kaydetVeYedekle(data, ["subeler", "cekimIsleri", ...ucretiTazele(data)]);
+      return res.status(200).json({ ok: true, _v, subeler: yanitSuz(data.subeler), cekimIsleri: yanitSuz(data.cekimIsleri), ...(yoneticiMi ? { clients: data.clients } : {}) });
     }
 
     /* STOK MUTABAKATI — kayıtlı sayıyı KARTLARA GÖRE düzeltir.

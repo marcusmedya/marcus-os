@@ -40,6 +40,7 @@ import { surumDinle, surumBildir } from "./surum.js";
 import { InstagramOnizleme, InstagramIzgara, aylikRaporAc } from "./instagram.jsx";
 import { MusteriPaneli } from "./musteriPaneli.jsx";
 import { hazirIcerikleriUret, musteriKayitlariniSuz } from "../lib/musteri-gorunumu.js";
+import { ucretDagilimi, ACIK_BASLANGIC } from "../lib/marka-ucreti.js";
 import { markaEslestirici } from "../lib/marka-kilidi.js";
 import SistemSagligi from "./sistemSagligi.jsx";
 import StokMutabakat from "./stokMutabakat.jsx";
@@ -281,6 +282,10 @@ const CLIENT_FIELDS = [
   // Müşteri panelinin üst kısmındaki ortak logo bandında kullanılır (Marcus Medya × Marka).
   { key: "logoUrl", label: "Marka Logosu (opsiyonel — Drive bağlantısı, müşteri panelinde görünür)", type: "text", placeholder: "https://drive.google.com/file/d/..." },
   { key: "aylikUcret", label: "Aylık Ücret (₺)", type: "number" },
+  /* ŞUBE BAZLI ÜCRET — şubelere ayrı ücret kesilen markalarda toplam burada değil,
+   * "temel + şube ücretleri" olarak hesaplanıyor. Boş bırakılan markalarda hiçbir şey
+   * değişmez; yukarıdaki tek kalem geçerli kalır. */
+  { key: "temelUcret", label: "Marka Temel Ücreti (₺/ay) — yalnızca şubelere ayrı ücret kesiyorsan doldur, şube ücretleri bunun üstüne eklenir", type: "number" },
   { key: "karMarji", label: "Kâr Marjı (%) — müşteri detayında maliyet eklersen otomatik hesaplanır", type: "number" },
   { key: "odemeGunu", label: "Ödeme Günü (ayın kaçı — opsiyonel, örn. 5)", type: "number" },
   { key: "faturaliTutar", label: "Faturalı Tutar (₺/ay) — aylık ücretin ne kadarı faturalı? Kalanı otomatik faturasız sayılır", type: "number" },
@@ -304,10 +309,13 @@ const CLIENT_FIELDS = [
  * Stok DÜZENLEME burada YOK: o günlük bir iş ve yeri Paylaşımlar ekranı. Burası
  * kurulum, orası kullanım.
  */
-function MusteriSubeleri({ client, subeler, onAddSube, onDeleteSube }) {
+function MusteriSubeleri({ client, subeler, onAddSube, onDeleteSube, onSubeUcret }) {
   const [ad, setAd] = useState("");
   const [acik, setAcik] = useState(false);
+  const [ucretler, setUcretler] = useState({});
   const kendiSubeleri = markaninSubeleri(subeler, client.id);
+  const dagilim = ucretDagilimi(client, subeler);
+  const gecmis = Array.isArray(client.ucretGecmisi) ? client.ucretGecmisi : [];
 
   const ekle = () => {
     const temiz = ad.trim();
@@ -323,6 +331,18 @@ function MusteriSubeleri({ client, subeler, onAddSube, onDeleteSube }) {
     setAcik(false);
   };
 
+  const ucretYaz = (sube) => {
+    const girilen = ucretler[sube.id];
+    if (girilen === undefined) return;
+    setUcretler((o) => { const k = { ...o }; delete k[sube.id]; return k; });
+    const temiz = String(girilen).trim();
+    /* Boş = "bu şubeye ayrı ücret kesmiyoruz"; 0 = "kesiyoruz ama bedelsiz". İkisi ayrı
+     * karar, ayrı sonuç: boş olan marka toplamını hiç etkilemez. */
+    if (temiz === "" && sube.aylikUcret === undefined) return;
+    if (temiz !== "" && Number(temiz) === Number(sube.aylikUcret)) return;
+    onSubeUcret(sube.id, temiz === "" ? "" : Number(temiz) || 0);
+  };
+
   return (
     <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.borderSoft}` }}>
       <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, letterSpacing: 0.3, marginBottom: 8 }}>
@@ -334,16 +354,56 @@ function MusteriSubeleri({ client, subeler, onAddSube, onDeleteSube }) {
           Bu marka tek şubeli. Şube eklersen paylaşım planı ve stoklar şube bazında ayrılır.
         </div>
       ) : (
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
           {kendiSubeleri.map((sube) => (
-            <span key={sube.id} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 999, background: T.surfaceRaised, fontSize: 13, fontFamily: "Inter" }}>
-              <span style={{ color: T.text, fontWeight: 600 }}>{sube.ad}</span>
+            <div key={sube.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 11px", borderRadius: 9, background: T.surfaceRaised, fontSize: 13, fontFamily: "Inter" }}>
+              <span style={{ color: T.text, fontWeight: 600, flex: 1, minWidth: 0 }}>{sube.ad}</span>
+              {onSubeUcret ? (
+                <input
+                  type="number"
+                  value={ucretler[sube.id] !== undefined ? ucretler[sube.id] : (sube.aylikUcret === undefined ? "" : sube.aylikUcret)}
+                  onChange={(e) => setUcretler((o) => ({ ...o, [sube.id]: e.target.value }))}
+                  onBlur={() => ucretYaz(sube)}
+                  onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+                  placeholder="₺/ay"
+                  title="Bu şubeden alınan aylık ücret. Boş bırakılırsa marka toplamına katılmaz."
+                  style={{ ...inputStyle, width: 110, padding: "4px 8px", fontSize: 12.5, textAlign: "right" }}
+                />
+              ) : sube.aylikUcret !== undefined ? (
+                <span style={{ color: T.textFaint, fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>{fmt(sube.aylikUcret)}</span>
+              ) : null}
               <button
                 onClick={() => { if (window.confirm(`${sube.ad} şubesi silinsin mi?`)) onDeleteSube(sube.id); }}
                 title="Şubeyi sil"
                 style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex" }}
               ><Trash2 size={12} color={T.textFaint} /></button>
-            </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ŞUBE BAZLI ÜCRET ÖZETİ. Toplam elle girilmiyor, temel + şubeler olarak hesaplanıyor;
+        * bir şube ayrılınca kendiliğinden düşsün diye. Rakamın neyin toplamı olduğu burada
+        * yazıyor — eskiden tek bir sayı vardı ve "bu 60.000 neyin toplamı" cevapsızdı. */}
+      {dagilim && (
+        <div style={{ marginBottom: 8, padding: "8px 11px", borderRadius: 9, background: T.surface, border: `1px solid ${T.borderSoft}`, fontSize: 12, fontFamily: "Inter", color: T.textFaint }}>
+          <span style={{ color: T.text, fontWeight: 600 }}>Aylık toplam {fmt(dagilim.toplam)}</span>
+          {" = temel "}{fmt(dagilim.temel)}
+          {dagilim.subeler.map((x) => ` + ${x.ad} ${fmt(x.tutar)}`).join("")}
+          <div style={{ marginTop: 3 }}>Bu toplam müşterinin Aylık Ücret alanına otomatik yazılır; şube eklenince/çıkınca kendiliğinden değişir.</div>
+        </div>
+      )}
+
+      {/* GEÇMİŞ AYLAR DEĞİŞMEZ. Ücret düşünce kesilmiş faturaların da düşmediğini
+        * kullanıcının GÖRMESİ gerekiyor — yoksa "geçmişi bozar mıyım" korkusuyla
+        * ücret hiç güncellenmez. */}
+      {gecmis.length > 1 && (
+        <div style={{ marginBottom: 8, fontSize: 11.5, fontFamily: "Inter", color: T.textFaint }}>
+          <div style={{ fontWeight: 600, marginBottom: 2 }}>Ücret geçmişi (geçmiş aylar kendi tutarıyla hesaplanır)</div>
+          {gecmis.map((d, i) => (
+            <div key={i}>
+              {d.baslangicAy === ACIK_BASLANGIC ? "başlangıçtan" : `${d.baslangicAy}'dan`} itibaren {fmt(d.tutar)}
+            </div>
           ))}
         </div>
       )}
@@ -368,7 +428,7 @@ function MusteriSubeleri({ client, subeler, onAddSube, onDeleteSube }) {
   );
 }
 
-function Musteriler({ clients, subeler, onAddSube, onDeleteSube, bekleyenTahsilatlar, hesaplar, freelancerlar, onAdd, onUpdate, onDelete, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, openClient, onOpenClientHandled, duzenleyenAdi, musteriIcerikleri, onAddIcerik, onUpdateIcerik, onDeleteIcerik, onOnaylaIcerik, firmaAdi }) {
+function Musteriler({ clients, subeler, onAddSube, onDeleteSube, onSubeUcret, bekleyenTahsilatlar, hesaplar, freelancerlar, onAdd, onUpdate, onDelete, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, openClient, onOpenClientHandled, duzenleyenAdi, musteriIcerikleri, onAddIcerik, onUpdateIcerik, onDeleteIcerik, onOnaylaIcerik, firmaAdi }) {
   const [filter, setFilter] = useState("hepsi");
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -417,7 +477,7 @@ function Musteriler({ clients, subeler, onAddSube, onDeleteSube, bekleyenTahsila
                 Ödenmeyen Ödemeler ({odenmeyenler.length})
               </span>
               <span style={{ fontSize: 13, color: T.danger, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 600, whiteSpace: "nowrap" }}>
-                {fmt(odenmeyenler.reduce((t, x) => t + (Number(x.client.aylikUcret) || 0) * x.ay, 0))}
+                {fmt(odenmeyenler.reduce((t, x) => t + clientOverdueBalance(x.client), 0))}
               </span>
             </span>
             <span style={{ fontSize: 11, color: T.textFaint, flexShrink: 0 }}>{odemeAcik ? "▲ gizle" : "▼ göster"}</span>
@@ -426,7 +486,11 @@ function Musteriler({ clients, subeler, onAddSube, onDeleteSube, bekleyenTahsila
             <div style={{ padding: "0 22px 18px" }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {odenmeyenler.map(({ client: c, ay }) => {
-              const toplam = (Number(c.aylikUcret) || 0) * ay;
+              /* "bugünkü ücret × ay sayısı" DEĞİL, ay ay gerçek bakiye. İkisi ücret
+               * hiç değişmediğinde aynı; değiştiğinde (şube ayrıldı, ücret güncellendi)
+               * çarpım bütün geçmişi YENİ ücretle sayar ve tebliğdeki tutar yanlış çıkar.
+               * Müşteri detayı zaten bu hesabı kullanıyordu — iki ekran artık aynı. */
+              const toplam = clientOverdueBalance(c);
               return (
                 <div key={c.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10, padding: "12px 15px", background: T.surfaceRaised, borderRadius: 10 }}>
                   <div>
@@ -497,7 +561,7 @@ function Musteriler({ clients, subeler, onAddSube, onDeleteSube, bekleyenTahsila
                       initial={{ ...c, faturaliTutar: clientFaturaliTutar(c) }}
                       onSubmit={(v) => { onUpdate(c.id, v); setEditingId(null); }}
                       onCancel={() => setEditingId(null)}
-                      ekBolum={onAddSube ? <MusteriSubeleri client={c} subeler={subeler} onAddSube={onAddSube} onDeleteSube={onDeleteSube} /> : null}
+                      ekBolum={onAddSube ? <MusteriSubeleri client={c} subeler={subeler} onAddSube={onAddSube} onDeleteSube={onDeleteSube} onSubeUcret={onSubeUcret} /> : null}
                     />
                   </td>
                 </tr>
@@ -9117,6 +9181,12 @@ export default function MarcusOS() {
 
   const addSube = (clientId, ad) => paylasimIstek({ action: "subeEkle", clientId, ad }, "Bağlantı hatası — şube eklenemedi, tekrar dene.");
   const SUBE_SIL_HATASI = "Bağlantı hatası — şube silinemedi, tekrar dene.";
+  /* Şube ücretini yalnızca yönetici yazabiliyor (sunucu 403 ile reddediyor), bu yüzden
+   * bu işleyici yalnızca yönetici görünümünden geçiriliyor; personel ekranında ücret
+   * alanı okunur olarak görünüyor. */
+  const setSubeUcreti = (subeId, aylikUcret) => paylasimIstek(
+    { action: "subeUcret", subeId, aylikUcret },
+    "Bağlantı hatası — şube ücreti kaydedilemedi, tekrar dene.");
   const deleteSube = (subeId) => paylasimIstek({ action: "subeSil", subeId }, SUBE_SIL_HATASI, {
     /* Onay gelirse aynı istek `onayliSil` ile TEKRAR gönderiliyor — yeni bir işlem
      * olduğu için yeni bir işlem kimliği alıyor, bu doğru: kullanıcı ikinci kez ve
@@ -10325,7 +10395,7 @@ export default function MarcusOS() {
             />
           )}
           {tab === "musteriler" && (
-            <Musteriler subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube}
+            <Musteriler subeler={data.subeler || []} onAddSube={addSube} onDeleteSube={deleteSube} onSubeUcret={setSubeUcreti}
               clients={data.clients}
               bekleyenTahsilatlar={data.bekleyenTahsilatlar}
               hesaplar={data.hesaplar}
