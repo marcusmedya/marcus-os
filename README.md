@@ -5001,3 +5001,35 @@ adımlarını anlatırken koddan doğrularken fark ettim. Arayüzü gerçekten �
 katmanı olmadığı sürece bu sınıf açık kalıyor.
 
 Toplam **2100 kontrol**.
+
+---
+
+## Güncelleme 160: Reklam Listesi Markaya Göre Gruplandı
+
+Liste düz bir dizi olarak basılıyordu ve her satır marka adını tekrar ediyordu —
+"İbo Burger — Chedar", "İbo Burger — Plak", "İbo Burger — Burger Modu"… 49 markalı bir
+ajansta ekran okunmuyordu. Artık marka bir kez başlık olarak yazılıyor (yanında kaç
+reklam / kaç aktif), reklamlar altında sıralanıyor ve satırlar yalnızca kampanya adını
+taşıyor.
+
+**Gruplama anahtarı Türkçe-duyarlı küçültmeyle üretiliyor.** Reklam kaydı markayı
+`clientId` ile değil ADIYLA saklıyor (kartlar gibi); "İbo Burger" ile "ibo burger" ayrı
+gruplara düşseydi aynı marka ekranda iki kez görünür ve gruplama hiçbir işe yaramazdı.
+Başlıkta ilk görülen yazım kullanılıyor, kullanıcının girdiği hâl korunsun diye.
+
+**Sıra bozulmuyor.** Ekran reklamları bitiş tarihine göre diziyordu (yakın olan üstte);
+gruplama bunu bozarsa "yakında bitecek" listesi aşağı kayar ve ekranın işi kaybolur.
+Gruplar içindeki en erken biten reklama göre diziliyor, grup içi sıra girdi sırası.
+**Tarihi girilmemiş kayıt sona atılıyor** — boş dize her şeyden küçük olduğu için,
+atılmasaydı tarihsiz bir reklam en acil grupmuş gibi listenin başına çıkardı.
+
+**Süzgeç önce çalışıyor, gruplama sonra:** "Aktif" seçilince gruplar da yalnızca aktif
+reklamları gösteriyor ve boşalan marka başlığı hiç çıkmıyor. Markası girilmemiş kayıtlar
+"Marka belirtilmemiş" başlığı altında toplanıyor — sessizce kaybolsalardı olmayan bir
+"temiz liste" gösterilirdi.
+
+**Ölçüm (t96, 17 kontrol).** Türkçe-duyarlı küçültmeyi kaldırmak **5**, bozuk kayıt
+korumasını kaldırmak **5**, grup sıralamasını kaldırmak **2**, tarihsiz kaydın sona
+atılmasını kaldırmak **1**, markasız grup başlığını kaldırmak **1** kontrol düşürüyor.
+
+Toplam **2117 kontrol**.

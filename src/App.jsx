@@ -40,6 +40,7 @@ import { surumDinle, surumBildir } from "./surum.js";
 import { InstagramOnizleme, InstagramIzgara, aylikRaporAc } from "./instagram.jsx";
 import { MusteriPaneli } from "./musteriPaneli.jsx";
 import { hazirIcerikleriUret, musteriKayitlariniSuz } from "../lib/musteri-gorunumu.js";
+import { markayaGoreGrupla } from "../lib/reklam-gruplari.js";
 import { ekstreUret, varsayilanBaslangic } from "../lib/ekstre.js";
 import { ucretDagilimi, ayinUcreti, ACIK_BASLANGIC } from "../lib/marka-ucreti.js";
 import { markaEslestirici } from "../lib/marka-kilidi.js";
@@ -2243,6 +2244,11 @@ function Reklamlar({ reklamlar, clients, onAdd, onUpdate, onDelete, duzenleyenAd
 
   const siraliListe = [...reklamlar].sort((a, b) => (a.bitisTarihi || "").localeCompare(b.bitisTarihi || ""));
   const filtered = siraliListe.filter((r) => (filter === "hepsi" ? true : reklamDurumu(r) === filter));
+  /* MARKA BİR KEZ, REKLAMLAR ALTINDA. Liste düzken her satır marka adını tekrar ediyordu
+   * ("İbo Burger — Chedar", "İbo Burger — Plak"…) ve 49 markalı ajansta ekran okunmuyordu.
+   * Süzgeçten GEÇMİŞ liste gruplanıyor: "Aktif"i seçince gruplar da yalnızca aktif
+   * reklamları gösterir, boşalan marka başlığı hiç çıkmaz. */
+  const gruplar = markayaGoreGrupla(filtered);
   const aktifSayisi = reklamlar.filter((r) => reklamDurumu(r) !== "bitti").length;
   const yakindaSayisi = reklamlar.filter((r) => reklamDurumu(r) === "yakinda").length;
 
@@ -2269,31 +2275,48 @@ function Reklamlar({ reklamlar, clients, onAdd, onUpdate, onDelete, duzenleyenAd
 
       {adding && <div style={{ marginBottom: 16 }}><FieldForm fields={REKLAM_FIELDS} clientList={aktifMarkalar} onSubmit={(v) => { onAdd(v); setAdding(false); }} onCancel={() => setAdding(false)} submitLabel="Reklamı Ekle" /></div>}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {filtered.map((r) =>
-          editingId === r.id ? (
-            <Card key={r.id} style={{ padding: "12px 15px" }}>
-              <KilitUyarisi kisi={kilitleyen} />
-              <FieldForm fields={REKLAM_FIELDS} clientList={aktifMarkalar} initial={r} onSubmit={(v) => { onUpdate(r.id, v); setEditingId(null); }} onCancel={() => setEditingId(null)} />
-            </Card>
-          ) : (
-            <Card key={r.id} style={{ padding: "12px 15px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-                <div>
-                  <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{r.marka} — {r.reklamAdi}</div>
-                  <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>
-                    {r.baslangicTarihi} → {r.bitisTarihi}{r.butce ? ` · ${fmt(r.butce)}` : ""}{r.not ? ` · ${r.not}` : ""}
-                  </div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Pill color={durumBilgi[reklamDurumu(r)].color} soft={durumBilgi[reklamDurumu(r)].soft}>{durumBilgi[reklamDurumu(r)].label}</Pill>
-                  <button style={iconBtnStyle} onClick={() => { setEditingId(r.id); setAdding(false); }}><Pencil size={14} color={T.textFaint} /></button>
-                  <button style={iconBtnStyle} onClick={() => { if (window.confirm("Bu reklam kaydı silinsin mi?")) onDelete(r.id); }}><Trash2 size={14} color={T.danger} /></button>
-                </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        {gruplar.map((g) => {
+          const aktifler = g.reklamlar.filter((x) => reklamDurumu(x) !== "bitti").length;
+          return (
+            <div key={g.anahtar}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 7, paddingLeft: 2 }}>
+                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: T.text }}>{g.marka}</span>
+                <span style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>
+                  {g.reklamlar.length} reklam{aktifler > 0 ? ` · ${aktifler} aktif` : ""}
+                </span>
               </div>
-            </Card>
-          )
-        )}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {g.reklamlar.map((r) =>
+                  editingId === r.id ? (
+                    <Card key={r.id} style={{ padding: "12px 15px" }}>
+                      <KilitUyarisi kisi={kilitleyen} />
+                      <FieldForm fields={REKLAM_FIELDS} clientList={aktifMarkalar} initial={r} onSubmit={(v) => { onUpdate(r.id, v); setEditingId(null); }} onCancel={() => setEditingId(null)} />
+                    </Card>
+                  ) : (
+                    <Card key={r.id} style={{ padding: "12px 15px" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+                        <div>
+                          {/* Marka adı BAŞLIKTA yazıyor, satırda tekrar edilmiyor — grubun
+                            * varlık sebebi bu. */}
+                          <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{r.reklamAdi}</div>
+                          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>
+                            {r.baslangicTarihi} → {r.bitisTarihi}{r.butce ? ` · ${fmt(r.butce)}` : ""}{r.not ? ` · ${r.not}` : ""}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <Pill color={durumBilgi[reklamDurumu(r)].color} soft={durumBilgi[reklamDurumu(r)].soft}>{durumBilgi[reklamDurumu(r)].label}</Pill>
+                          <button style={iconBtnStyle} onClick={() => { setEditingId(r.id); setAdding(false); }}><Pencil size={14} color={T.textFaint} /></button>
+                          <button style={iconBtnStyle} onClick={() => { if (window.confirm("Bu reklam kaydı silinsin mi?")) onDelete(r.id); }}><Trash2 size={14} color={T.danger} /></button>
+                        </div>
+                      </div>
+                    </Card>
+                  )
+                )}
+              </div>
+            </div>
+          );
+        })}
         {filtered.length === 0 && (
           <Card style={{ padding: "24px", textAlign: "center" }}><div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Bu filtrede kayıt yok.</div></Card>
         )}

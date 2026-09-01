@@ -37,7 +37,7 @@ Kod ve arayüz tamamen Türkçe — değişken ve fonksiyon adları dahil.
 | `src/` | React arayüzü (Vite ile derlenir) |
 | `api/` | Serverless fonksiyonlar — **her dosya bir fonksiyon**, Hobby sınırı 12 |
 | `lib/` | Ortak mantık — hem `api/` hem `src/` buradan import eder, **fonksiyon sayılmaz** |
-| `testler/` | 95 test dosyası (t1…t95) + 22 statik denetim betiği |
+| `testler/` | 96 test dosyası (t1…t96) + 22 statik denetim betiği |
 
 En büyük dosyalar: `src/App.jsx` (9.653), `src/CekimEditTakibi.jsx` (2.734),
 `api/data.js` (2.008), `src/musteriPaneli.jsx` (1.383), `src/tema.jsx` (1.039).
@@ -182,6 +182,7 @@ Artık **tanımsızsa kimse giremez.**
 | `odeme-hesabi.js` | Aylık ödeme durumu (ödenen/kalan/ödendi mi) — o AYIN ücretine göre. `src/tema.jsx`ten testler çağırabilsin diye taşındı (**saf**) |
 | `ekstre.js` | **Müşteri hesap özeti** — ay ay tahakkuk/fatura/tahsilat/bakiye; fatura bedele EKLENMEZ, başlamadığı aya bedel yazılmaz (**saf**) |
 | `ekstre-belgesi.js` | Hesap özetinin yazdırılabilir HTML'i — müşteriye giden belge, iç bilgi taşımaz (**saf**) |
+| `reklam-gruplari.js` | Reklam listesinin markaya göre gruplanması — ad Türkçe-duyarlı eşleşir, bitiş tarihi sırası korunur (**saf**) |
 | `video-yon.js` | Video yönü ve oynatıcı kutusunun oranı — metadata gelene kadar kartın kayıtlı yönü (**saf**) |
 | `kategori.js` | **Kategoriler ve stok türlerinin TEK kaynağı** — Reels/Post/Carousel + eski adların eşlemesi (**saf**) |
 | `drive-denetimi.js` | Kayıtlı stok ile Drive'ın söylediği stoğun farkı + uygulama frenleri (**saf, ağ yok**) |
@@ -422,7 +423,7 @@ dosya hâlâ ekibin çalışma alanındadır.
 
 ```bash
 bash testler/hepsinidenetle.sh     # 22 statik denetim
-./testler/sunucutestleri.sh        # t1…t95, ~2100 kontrol — SAHTE veritabanı
+./testler/sunucutestleri.sh        # t1…t96, ~2115 kontrol — SAHTE veritabanı
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
