@@ -4,6 +4,7 @@ import { KEY, guvenliGuncelle, kilitAl, kilitBirak, guvenliYaz, deftereYaz, deft
          catisanAlanlar, bugunISO, mesgulYanit,
          belgeOkunabilirMi, BOZUK_KOD, BOZUK_MESAJI } from "../lib/kv-yaz.js";
 import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, tumOturumlariIptalEt, ikiAdimliAktifMi, esitMi, baslikOku } from "../lib/oturum.js";
+import { izinsizKartDegisiklikleriniGeriAl, geriAlmaMesaji } from "../lib/kart-yetkisi.js";
 import { ucretleriTazele, ayAnahtari } from "../lib/marka-ucreti.js";
 import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, birlestirmedeDusenler, trKucult, markaEslestirici } from "../lib/marka-kilidi.js";
 import { belgedekiCakismalariOnar, turetilmisleriAyikla } from "../lib/kimlik.js";
@@ -180,6 +181,9 @@ const DEFAULT_FIELD_VALUES = {
 const DEFAULT_PERMS = {
   dashboard: false, musteriler: false, finans: false, takvim: false, odemeTakvimi: false,
   teklif: false, reklamlar: true, paylasimlar: true, cekimListesi: false, cekimEdit: true, markaYoneticisi: false, personel: false, birikim: false, uyelikler: false, sifreKasasi: false,
+  /* Operasyon alt yetkileri. `kartAcma` AÇIK — bu yetki eklenmeden önceki davranış buydu,
+   * var olan hesaplar kart açamaz hâle gelmemeli. Diğerleri yalnızca yöneticideydi. */
+  kartAcma: true, kartOnaylama: false, kartDuzenleme: false, kartSilme: false,
 };
 
 function hashSifre(sifre, salt) {
@@ -1854,6 +1858,9 @@ export default async function handler(req, res) {
         /* Marka kilidi yüzünden elenen kayıtlar. Kilit içinde dolduruluyor, yanıtta
          * kullanıcıya bildiriliyor. */
         const dusenKayitlar = [];
+        /* Yetki yüzünden geri alınanlar — kullanıcı neden olmadığını GÖRMELİ. Sessiz
+         * geri alma, kullanıcının "kaydettim" sanıp devam etmesine yol açar. */
+        const yetkiGeriAlinanlar = [];
         const onarilanKimlikler = [];
         const sonuc = await guvenliGuncelle(async (existing) => {
           /* Personelde de çakışma yalnızca DOKUNULAN alanlara bakıyor — yöneticideki
@@ -1877,7 +1884,7 @@ export default async function handler(req, res) {
           // bile Finans/Personel gibi ajans geneli alanlara yazamaz.
           const hamYaziPerms = guncelHesap ? { ...DEFAULT_PERMS, ...(guncelHesap.izinler || {}) } : { ...DEFAULT_PERMS, ...(existing.staffPermissions || {}) };
           const perms = izinleriDaralt(hamYaziPerms, yaziKilitli);
-          const merged = { ...existing };
+          let merged = { ...existing };
           /* Gerçekten hangi alanlara yazıldığını topluyoruz; sayaç yalnızca onlar için
            * artsın. Bildirilmezse hepsi artar ve herkes gereksiz yere bayat olur. */
           /* KART ALANI KOŞULSUZ EKLENMİYOR — ölçülerek düzeltildi.
@@ -1935,6 +1942,39 @@ export default async function handler(req, res) {
            * aşaması geri alınıyor ve sebebi kartın geçmişine yazılıyor. */
           /* Kaldırılan ara aşamada kalmış kartlar karşılığına çevrilir — veri zamanla
            * kendiliğinden temizlensin diye. */
+          /* NUMARA ÇAKIŞMASI ONARIMI — asıl ihtiyaç burada.
+           * Marka kilitli hesap eksik liste gördüğü için "en büyük + 1" hesabı var olan bir
+           * kaydın numarasını üretebiliyor; ölçüldü, üretiyor. Son sözü sunucu söylesin.
+           *
+           * YETKİ DENETİMİNDEN ÖNCE ÇALIŞMAK ZORUNDA. Sonra çalıştığında ölçüldü: çözüm
+           * ortağının açtığı yeni kartın numarası GÖREMEDİĞİ bir kartla çakışınca, yetki
+           * denetimi onu "yeni kart" değil "var olan kartın düzenlenmesi" sanıyor, alanları
+           * geri alıyor ve kart sessizce KAYBOLUYORDU — hata da vermeden. */
+          const onarim = belgedekiCakismalariOnar(existing, merged);
+          if (onarim.onarilanlar.length > 0) {
+            onarim.onarilanlar.forEach((x) => { yazilanAlanlar.add(x.alan); onarilanKimlikler.push(x); });
+            merged = onarim.belge;
+          }
+
+          /* OPERASYON ALT YETKİLERİ — kart açma / onaylama / silme / düzenleme.
+           *
+           * `PERMISSION_WRITE_FIELDS` yalnızca "cekimIsleri alanına yazabilir mi" diye
+           * bakıyor; hangi kartın silindiğine ya da onaylandığına bakmıyordu. Onaylama ve
+           * silme ekranda gizliydi ama SUNUCUDA serbestti — gizli düğme güvenlik sınırı
+           * değildir. Sınır burada kuruluyor.
+           *
+           * Stok motorundan ve aşama onarımından ÖNCE: izinsiz bir onay sonradan geri
+           * alınsaydı stok çoktan üretilmiş ve Drive'da dosya taşınmış olurdu.
+           *
+           * İzinsiz değişiklik geri alınır, kaydın tamamı REDDEDİLMEZ — aynı kayıttaki
+           * ilgisiz düzenlemeler de çöpe giderdi. */
+          const yetkiSonucu = izinsizKartDegisiklikleriniGeriAl(
+            existing.cekimIsleri, merged.cekimIsleri, perms);
+          merged.cekimIsleri = yetkiSonucu.isler;
+          if (yetkiSonucu.geriAlinanlar.length > 0) {
+            yetkiGeriAlinanlar.push(...yetkiSonucu.geriAlinanlar);
+          }
+
           merged.cekimIsleri = asamalariDuzelt(merged.cekimIsleri);
           const duzeltilmis = dosyasizKontroleGirenleriGeriAl(
             existing.cekimIsleri, merged.cekimIsleri, new Date().toLocaleString("tr-TR"));
@@ -1993,14 +2033,6 @@ export default async function handler(req, res) {
           if (stokSonuc) yazilanAlanlar.add("stoklar");
           if (yeniKayitlar.length > 0) yazilanAlanlar.add("islemGecmisi");
 
-          /* NUMARA ÇAKIŞMASI ONARIMI — asıl ihtiyaç burada.
-           * Marka kilitli hesap eksik liste gördüğü için "en büyük + 1" hesabı var olan bir
-           * kaydın numarasını üretebiliyor; ölçüldü, üretiyor. Son sözü sunucu söylesin. */
-          const onarim = belgedekiCakismalariOnar(existing, merged);
-          if (onarim.onarilanlar.length > 0) {
-            onarim.onarilanlar.forEach((x) => { yazilanAlanlar.add(x.alan); onarilanKimlikler.push(x); });
-            return { veri: turetilmisleriAyikla(onarim.belge), degisenAlanlar: [...yazilanAlanlar] };
-          }
           /* Aşama onarımı ve stok motoru kartları değiştirmiş olabilir. Değiştirdiyse
            * alan yazılmalı ve sayacı artmalı; değiştirmediyse artmamalı. Karşılaştırma
            * referans üzerinden: iki yol da değiştirdiğinde YENİ dizi üretiyor. */
@@ -2045,6 +2077,8 @@ export default async function handler(req, res) {
            * Marka kilidi yüzünden elenen kayıt, "ok: true" ile birlikte sessizce yok
            * oluyordu. Kullanıcı kartı ekranında görmeye devam ediyor, sunucuda yok. */
           ...(dusenKayitlar.length > 0 ? { kaydedilmeyenler: dusenKayitlar } : {}),
+          ...(yetkiGeriAlinanlar.length > 0
+            ? { yetkiGeriAlinanlar, yetkiUyarisi: geriAlmaMesaji(yetkiGeriAlinanlar) } : {}),
           /* Numarası değiştirilen kayıtlar bildiriliyor: tarayıcıdaki kopya eski numarayla
            * duruyor ve haber verilmezse bir sonraki düzenleme var olmayan bir kayda gider. */
           ...(onarilanKimlikler.length > 0 ? { kimlikOnarildi: onarilanKimlikler } : {}),

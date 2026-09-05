@@ -7461,6 +7461,14 @@ const STAFF_IZIN_LISTESI = [
             { key: "paylasimlar", label: "Paylaşımlar (+ Günlük Kontrol)", varsayilan: true },
             { key: "cekimListesi", label: "Çekim (düşük stok listesi)", varsayilan: false },
             { key: "cekimEdit", label: "Operasyon (Video/Grafik Tasarım)", varsayilan: true },
+            /* OPERASYON ALT YETKİLERİ — yalnızca "Operasyon" açıkken anlamlılar.
+             * `kartAcma` varsayılan AÇIK: bu yetki eklenmeden önce Operasyon izni olan
+             * herkes kart açabiliyordu, var olan hesapların davranışı değişmemeli.
+             * Diğer üçü varsayılan KAPALI — onlar zaten yalnızca yöneticideydi. */
+            { key: "kartAcma", label: "↳ Kart açma (yeni iş oluşturma)", varsayilan: true },
+            { key: "kartOnaylama", label: "↳ Kart onaylama (Onayla / Teslim Edildi) — stok üretir, dosyayı Drive'da taşır", varsayilan: false },
+            { key: "kartDuzenleme", label: "↳ Kart düzenleme (marka, içerik türü, sorumlu, tarih)", varsayilan: false },
+            { key: "kartSilme", label: "↳ Kart silme", varsayilan: false },
             { key: "markaYoneticisi", label: "Marka Yöneticisi (Operasyon'da durum bildirimi e-postası gönderebilir)", varsayilan: false },
             { key: "personel", label: "Personel", varsayilan: false },
             { key: "birikim", label: "Birikim", varsayilan: false },
@@ -10279,7 +10287,7 @@ export default function MarcusOS() {
           {staffTab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="staff" />}
           {staffTab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} isler={data.cekimIsleri || []} plan={data.haftalikPaylasimlar || []}
             cekimSirasi={data.cekimSirasi || []} onSiraDegis={cekimSirasiKaydet} />}
-          {staffTab === "cekim-edit" && <CekimEditTakibi role="staff" acilacakIsId={gidilecekIs} onKartAcildi={() => setGidilecekIs(null)} clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} girisYapanAd={loggedStaffName} islemYetkisi={izinler.cekimEdit === true} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={izinler.markaYoneticisi} firmaAdi={data.firmaAdi} />}
+          {staffTab === "cekim-edit" && <CekimEditTakibi role="staff" acilacakIsId={gidilecekIs} onKartAcildi={() => setGidilecekIs(null)} clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} girisYapanAd={loggedStaffName} islemYetkisi={izinler.cekimEdit === true} kartYetkileri={izinler} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={izinler.markaYoneticisi} firmaAdi={data.firmaAdi} />}
           {staffTab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} duzenleyenAdi={loggedStaffName || "Personel"} />}
           {staffTab === "birikim" && (
             <Birikim

@@ -7,6 +7,7 @@ import { useSunucuOnizleme, useVideoAdresi, videoEni, oynaticiOrani, gomuluEngel
 import { sunucuyuBekle } from "../lib/onizleme-bellegi.js";
 import { isBasladi, isBitti } from "../lib/suren-isler.js";
 import { kartiIsleyebilirMi } from "../lib/is-yetkisi.js";
+import { yetkiVar } from "../lib/kart-yetkisi.js";
 import { markaninIdsi, trKucult } from "../lib/marka-kilidi.js";
 import { panoSuzgeci } from "../lib/pano-suzgeci.js";
 import { paylasimTuru, PAYLASIM_TURLERI } from "../lib/stok.js";
@@ -1312,7 +1313,7 @@ function SlotKucukOnizleme({ isId, slot, video }) {
   );
 }
 
-function IsDetayModal({ job, clients, subeler, planlar, role, staffName, islemYetkisi, personelRosteri, onClose, onUpdate, onDelete, kilitleyen, markaYoneticisiMi, firmaAdi, ucretDetayi, onSaveUcretDetayi }) {
+function IsDetayModal({ job, clients, subeler, planlar, role, staffName, islemYetkisi, kartYetkileri, personelRosteri, onClose, onUpdate, onDelete, kilitleyen, markaYoneticisiMi, firmaAdi, ucretDetayi, onSaveUcretDetayi }) {
   const [yorum, setYorum] = useState("");
   const [revizeMetni, setRevizeMetni] = useState("");
   const [revizeAciliyor, setRevizeAciliyor] = useState(false);
@@ -1322,6 +1323,11 @@ function IsDetayModal({ job, clients, subeler, planlar, role, staffName, islemYe
   const [dosyaTaslak, setDosyaTaslak] = useState({ hamDosyaLink: job.hamDosyaLink || "", editliDosyaLink: job.editliDosyaLink || "" });
 
   const yetkili = duzenleyebilirMi(job, role, islemYetkisi);
+  /* Alt yetkiler tek yerde çözülüyor; üç ayrı yerde `role === "owner" || ...` yazmak
+   * birini güncelleyip diğerini unutmaya davetiye. */
+  const onaylayabilir = yetkiVar(kartYetkileri, "kartOnaylama");
+  const duzenleyebilir = yetkiVar(kartYetkileri, "kartDuzenleme");
+  const silebilir = yetkiVar(kartYetkileri, "kartSilme");
 
   /* ŞUBE BAĞLAMI. Kart markayı ADIYLA saklıyor, şube `clientId` ile bağlı —
    * çeviri tek yerde (lib/marka-kilidi.js). Marka tek şubeliyse aşağıdaki
@@ -1876,10 +1882,13 @@ function IsDetayModal({ job, clients, subeler, planlar, role, staffName, islemYe
                   <button style={{ ...btnGhost, color: C.textDim }} onClick={() => geriAl(asamalar[suankiIndex - 1])}>← Geri Al: {asamalar[suankiIndex - 1]}</button>
                 )}
                 {job.asama === "Kontrol Bekliyor" && !revizeAciliyor && <button style={{ ...btnGhost, color: C.danger, borderColor: C.danger }} onClick={() => setRevizeAciliyor(true)}>Revize İste</button>}
-                {role === "owner" && job.asama === "Kontrol Bekliyor" && <button style={{ ...btnPrimary, background: C.success }} onClick={onayla}>Onayla</button>}
-                {role === "owner" && job.asama === "Onaylandı" && <button style={{ ...btnPrimary, background: C.success }} onClick={teslimEt}>Teslim Edildi Olarak İşaretle</button>}
-                {role === "owner" && <button style={{ ...btnGhost, color: C.danger, borderColor: C.danger }} onClick={() => setDuzenle(true)}><Pencil size={13} /> Düzenle</button>}
-                {role === "owner" && <button style={{ ...btnGhost, color: C.danger, borderColor: C.danger }} onClick={kartiSil}><Trash2 size={13} /> Sil</button>}
+                {/* Düğmeler artık role DEĞİL yetkiye bakıyor. Yönetici hepsine sahip
+                  * (`kartYetkileri` owner için hepsi açık geliyor). Sunucu aynı kuralı
+                  * bağımsız uyguluyor: bu gizleme kolaylık, sınır değil. */}
+                {onaylayabilir && job.asama === "Kontrol Bekliyor" && <button style={{ ...btnPrimary, background: C.success }} onClick={onayla}>Onayla</button>}
+                {onaylayabilir && job.asama === "Onaylandı" && <button style={{ ...btnPrimary, background: C.success }} onClick={teslimEt}>Teslim Edildi Olarak İşaretle</button>}
+                {duzenleyebilir && <button style={{ ...btnGhost, color: C.danger, borderColor: C.danger }} onClick={() => setDuzenle(true)}><Pencil size={13} /> Düzenle</button>}
+                {silebilir && <button style={{ ...btnGhost, color: C.danger, borderColor: C.danger }} onClick={kartiSil}><Trash2 size={13} /> Sil</button>}
               </div>
             )}
 
@@ -2590,7 +2599,7 @@ export function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onS
 /* ------------------------------------------------------------------ */
 /* ANA BİLEŞEN                                                           */
 /* ------------------------------------------------------------------ */
-export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clients, subeler, planlar, jobs, personelRosteri, onRefreshRoster, onAddJob, onUpdateJob, onDeleteJob, girisYapanAd, islemYetkisi = true, isUcretleri, onSaveIsUcreti, isUcretDetaylari, onSaveIsUcretDetayi, avanslar, hesaplar, onAddAvans, onDeleteAvans, markalasmaSurecleri, onToggleMarkalasmaGorev, onSetMarkalasmaYonetici, onAddMarkalasmaGorev, onCompleteMarkalasmaSureci, onDeleteMarkalasmaSureci, markaYoneticisiMi, firmaAdi }) {
+export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clients, subeler, planlar, jobs, personelRosteri, onRefreshRoster, onAddJob, onUpdateJob, onDeleteJob, girisYapanAd, islemYetkisi = true, kartYetkileri, isUcretleri, onSaveIsUcreti, isUcretDetaylari, onSaveIsUcretDetayi, avanslar, hesaplar, onAddAvans, onDeleteAvans, markalasmaSurecleri, onToggleMarkalasmaGorev, onSetMarkalasmaYonetici, onAddMarkalasmaGorev, onCompleteMarkalasmaSureci, onDeleteMarkalasmaSureci, markaYoneticisiMi, firmaAdi }) {
   const [staffName, setStaffNameState] = useState(girisYapanAd || getStaffName());
   const [view, setView] = useState(role === "staff" ? "panom" : "pano");
   /* Varsayılan sekme LİSTEDEN geliyor. Bir süre "Video" yazılıydı: kategori adı
@@ -2607,6 +2616,12 @@ export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clie
   const [adding, setAdding] = useState(false);
   const [acikIs, setAcikIs] = useState(null);
   const duzenleyenAdi = role === "owner" ? "Yönetici (CEO)" : (staffName || "Personel");
+  /* YÖNETİCİ HEPSİNE SAHİP. Alt yetkiler yalnızca personeli sınırlamak için var;
+   * yöneticiye izin kutucuğu tanımlanmadığı için burada açılıyor. Sunucu da aynı
+   * ayrımı yapıyor: denetim yalnızca personel yazma yolunda çalışıyor. */
+  const yetkiler = role === "owner"
+    ? { kartAcma: true, kartOnaylama: true, kartDuzenleme: true, kartSilme: true }
+    : (kartYetkileri || {});
 
   /* DIŞARIDAN "BU KARTA GİT". Paylaşımlar'daki Drive raporu bir kartı adıyla söylüyor
    * ama kullanıcı onu Operasyon'da elle aramak zorundaydı: doğru sekmeyi seç, doğru
@@ -2671,7 +2686,7 @@ export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clie
             <button onClick={() => setView("istatistik")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "12px 15px", borderRadius: 9, border: "none", background: view === "istatistik" ? C.accentSoft : "transparent", color: view === "istatistik" ? C.accentText : C.textDim, fontSize: 13, fontWeight: 600, cursor: "pointer" }}><BarChart3 size={14} /> İstatistikler</button>
           )}
         </div>
-        {view !== "markalasma" && <button style={btnPrimary} onClick={() => { setAdding((v) => !v); if (onRefreshRoster) onRefreshRoster(); }}><Plus size={14} /> Yeni İş</button>}
+        {view !== "markalasma" && yetkiVar(yetkiler, "kartAcma") && <button style={btnPrimary} onClick={() => { setAdding((v) => !v); if (onRefreshRoster) onRefreshRoster(); }}><Plus size={14} /> Yeni İş</button>}
       </div>
 
       {view === "pano" && (
@@ -2771,6 +2786,7 @@ export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clie
           role={role}
           staffName={staffName}
           islemYetkisi={islemYetkisi}
+          kartYetkileri={yetkiler}
           personelRosteri={personelRosteri}
           onClose={() => setAcikIs(null)}
           onUpdate={onUpdateJob}

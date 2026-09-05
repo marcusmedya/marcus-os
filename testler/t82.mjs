@@ -113,8 +113,8 @@ await bolum("4) SÜRÜM SAYACI — yalnızca kartlar gerçekten değişince art�
     cekimIsleri: [{ id: 1, marka: "M", kategori: "Video", icerikTuru: "K1", asama: "Edit Yapılıyor", stokSayildi: false }],
     reklamlar: [], subeler: [], haftalikPaylasimlar: [], stoklar: {}, paylasimGecmisi: [], musteriTalepleri: [],
     personelHesaplari: [
-      { id: "a", kullaniciAdi: "ali", sifreHash: hash("1234", "s"), sifreSalt: "s", ad: "Ali", izinler: { cekimEdit: true, reklamlar: true } },
-      { id: "b", kullaniciAdi: "ayse", sifreHash: hash("1234", "s"), sifreSalt: "s", ad: "Ayşe", izinler: { cekimEdit: true, reklamlar: true } }],
+      { id: "a", kullaniciAdi: "ali", sifreHash: hash("1234", "s"), sifreSalt: "s", ad: "Ali", izinler: { cekimEdit: true, reklamlar: true, kartOnaylama: true, kartDuzenleme: true, kartSilme: true } },
+      { id: "b", kullaniciAdi: "ayse", sifreHash: hash("1234", "s"), sifreSalt: "s", ad: "Ayşe", izinler: { cekimEdit: true, reklamlar: true, kartOnaylama: true, kartDuzenleme: true, kartSilme: true } }],
     staffPermissions: {}, _v: 1, _alanSurumleri: { cekimIsleri: 1, reklamlar: 1 },
   });
 

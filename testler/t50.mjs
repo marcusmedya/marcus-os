@@ -42,7 +42,7 @@ const TEMEL = () => ({
   cekimIsleri: [KART(1, "Reels 1"), KART(2, "Reels 2"), KART(3, "Reels 3")],
   paylasimGecmisi: [], haftalikPaylasimlar: [], subeler: [],
   personelHesaplari: [{ id: "p1", ad: "Editör", kullaniciAdi: "ed", sifreHash: hash("1", "s"), sifreSalt: "s",
-    izinler: { cekimEdit: true, paylasimlar: true }, markalar: [] }],
+    izinler: { cekimEdit: true, paylasimlar: true, kartOnaylama: true, kartDuzenleme: true, kartSilme: true }, markalar: [] }],
   musteriHesaplari: [],
 });
 const KIMLIK = { "x-staff-username-b64": b64("ed"), "x-staff-password-b64": b64("1"), "content-type": "application/json" };
