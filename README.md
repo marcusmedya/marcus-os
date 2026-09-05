@@ -4986,4 +4986,124 @@ t95 · **44 kontrol**. Korumalar tek tek geri konuldu:
 | Aysız fatura reddi | 1 |
 | Kontrol sayısı bekçisi | 1 |
 
+### Sonradan çıkan eksik: geçmiş ayın faturası girilemiyordu
+
+Fatura kutusu ilk turda yalnızca müşteri kartındaki ödeme kutusuna bağlanmıştı; o kutu
+`monthKey()` ile **içinde bulunulan ayı** açıyor. Yani Temmuz'da kesilmiş bir faturayı
+kaydetmenin yolu yoktu ve ekstre geçmiş faturaları hiç gösteremezdi. Ödeme Takvimi'ndeki
+aynı kutu (hangi aya tıklarsan o ay) da bağlandı.
+
+Bu, bu turda ikinci kez tekrarlayan bir hata sınıfı: **bir işleyici tanımlanıyor ama
+bileşenin bütün çağrı yerlerine geçirilmiyor.** Aynısı şube ücretinde de oldu
+(`api/data.js`in iki kayıt yolundan yalnızca birine bağlanmıştı). Derleme ve testler
+ikisini de göremiyor; ilkini uca istek atan bir test yakaladı, ikincisini kullanım
+adımlarını anlatırken koddan doğrularken fark ettim. Arayüzü gerçekten çizen bir test
+katmanı olmadığı sürece bu sınıf açık kalıyor.
+
 Toplam **2100 kontrol**.
+
+---
+
+## Güncelleme 160: Reklam Listesi Markaya Göre Gruplandı
+
+Liste düz bir dizi olarak basılıyordu ve her satır marka adını tekrar ediyordu —
+"İbo Burger — Chedar", "İbo Burger — Plak", "İbo Burger — Burger Modu"… 49 markalı bir
+ajansta ekran okunmuyordu. Artık marka bir kez başlık olarak yazılıyor (yanında kaç
+reklam / kaç aktif), reklamlar altında sıralanıyor ve satırlar yalnızca kampanya adını
+taşıyor.
+
+**Gruplama anahtarı Türkçe-duyarlı küçültmeyle üretiliyor.** Reklam kaydı markayı
+`clientId` ile değil ADIYLA saklıyor (kartlar gibi); "İbo Burger" ile "ibo burger" ayrı
+gruplara düşseydi aynı marka ekranda iki kez görünür ve gruplama hiçbir işe yaramazdı.
+Başlıkta ilk görülen yazım kullanılıyor, kullanıcının girdiği hâl korunsun diye.
+
+**Sıra bozulmuyor.** Ekran reklamları bitiş tarihine göre diziyordu (yakın olan üstte);
+gruplama bunu bozarsa "yakında bitecek" listesi aşağı kayar ve ekranın işi kaybolur.
+Gruplar içindeki en erken biten reklama göre diziliyor, grup içi sıra girdi sırası.
+**Tarihi girilmemiş kayıt sona atılıyor** — boş dize her şeyden küçük olduğu için,
+atılmasaydı tarihsiz bir reklam en acil grupmuş gibi listenin başına çıkardı.
+
+**Süzgeç önce çalışıyor, gruplama sonra:** "Aktif" seçilince gruplar da yalnızca aktif
+reklamları gösteriyor ve boşalan marka başlığı hiç çıkmıyor. Markası girilmemiş kayıtlar
+"Marka belirtilmemiş" başlığı altında toplanıyor — sessizce kaybolsalardı olmayan bir
+"temiz liste" gösterilirdi.
+
+**Ölçüm (t96, 17 kontrol).** Türkçe-duyarlı küçültmeyi kaldırmak **5**, bozuk kayıt
+korumasını kaldırmak **5**, grup sıralamasını kaldırmak **2**, tarihsiz kaydın sona
+atılmasını kaldırmak **1**, markasız grup başlığını kaldırmak **1** kontrol düşürüyor.
+
+Toplam **2117 kontrol**.
+
+---
+
+## Güncelleme 161: Operasyon Alt Yetkileri — Kart Açma / Onaylama / Düzenleme / Silme
+
+**İstek:** "Personellerde operasyon kısmı için kart açma, silme, onaylama gibi yetkileri de
+verebilmek istiyorum."
+
+`cekimEdit` tek parçaydı: açık olan personel kart açabiliyor, aşama ilerletebiliyor, medya
+yükleyebiliyordu. Onaylama, düzenleme ve silme yalnızca yöneticide görünüyordu.
+
+### Asıl bulgu: kısıt yalnızca ekrandaydı
+
+Sunucu `cekimIsleri` alanına yazmayı **sadece `cekimEdit` iznine** bakarak kabul ediyordu;
+hangi kartın silindiğine, hangisinin onaylandığına hiç bakmıyordu. Yani "yalnızca yönetici
+onaylar" gerçek bir güvenlik sınırı değil, **gizli bir düğmeydi** — ekranı atlayıp doğrudan
+istek atan bir personel her kartı onaylayabilir ve silebilirdi.
+
+Bu yüzden özellik sistemi gevşetmiyor, **sıkılaştırıyor**: alt yetkiler eklenirken sunucu
+tarafında gerçek denetim de kuruldu.
+
+### Nasıl çalışıyor
+
+Dört yeni yetki (Ayarlar → Personel → Yetkiler, "Operasyon"un altında):
+
+| Yetki | Varsayılan | Kapsam |
+|---|---|---|
+| `kartAcma` | **Açık** | Yeni iş oluşturma — bu yetkiden önceki davranış buydu, var olan hesaplar bozulmasın |
+| `kartOnaylama` | Kapalı | "Onayla" ve "Teslim Edildi" — stok üretir, dosyayı Drive'da taşır |
+| `kartDuzenleme` | Kapalı | Marka, içerik türü, sorumlu, tarih, öncelik |
+| `kartSilme` | Kapalı | Kartı silme |
+
+Sunucu gelen kart listesini eskisiyle karşılaştırıp **izinsiz değişikliği geri alır, kaydın
+tamamını reddetmez** — reddetmek aynı kayıttaki ilgisiz düzenlemeleri de çöpe atardı. Bu
+projede `dosyasizKontroleGirenleriGeriAl` aynı yöntemi kullanıyor.
+
+Denetim **stok motorundan önce** çalışıyor: sonra çalışsaydı izinsiz bir onay stok üretmiş ve
+Drive'da dosyayı ONAYLANANLAR'a taşımış olurdu; geri alma o yan etkileri temizleyemez.
+
+**Günlük iş engellenmiyor:** aşama ilerletme, medya yükleme ve yorum "düzenleme" sayılmıyor.
+Sayılsaydı medya yükleyen personelin dosyası geri alınırdı.
+
+### Testin yakaladığı kusur
+
+İlk yazımda denetim, numara çakışması onarımından **önce** çalışıyordu. Çözüm ortağının açtığı
+yeni kartın numarası GÖREMEDİĞİ bir kartla çakışınca, denetim onu "yeni kart" değil "var olan
+kartın düzenlenmesi" sanıyor, alanları geri alıyor ve **kart hata vermeden kayboluyordu.**
+t60 bunu yakaladı; onarım denetimin önüne alındı.
+
+Ayrıca alt yetkilerin `KILITLI_IZINLER`'e eklenmesi gerekti: `izinleriDaralt` listede olmayan
+her izni sıfırlıyor ve marka kilitli hesap `cekimEdit` açık olduğu hâlde kart açamaz hâle
+geliyordu.
+
+### Ölçüm
+
+t97 · **42 kontrol**. Korumalar tek tek geri konuldu:
+
+| Kaldırılan koruma | Düşen kontrol |
+|---|---|
+| Onay denetimi | 8 |
+| `KILITLI_IZINLER` kaydı | 7 |
+| Sunucuda uygulama (yalnızca hesaplama) | 5 |
+| Düzenleme denetimi | 5 |
+| Silme denetimi | 4 |
+| `kartAcma` varsayılanının açık olması | 2 |
+| Boş dize / tanımsız eşitliği | 1 |
+| "Değişiklik yoksa aynı referans" | 1 |
+| Numara onarımının sırası | 1 (t60) |
+
+t48, t50, t53 ve t82'nin personel hesaplarına yeni yetkiler eklendi: o testler stok motorunu
+ve sürüm sayaçlarını sınıyor, personelin onaylaması yalnızca araçtı ve araç artık yetki
+istiyor. Testlerin amacı değişmedi.
+
+Toplam **2159 kontrol**.

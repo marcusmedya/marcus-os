@@ -89,7 +89,7 @@ const OWNER = { "x-site-password": "ownerpw", "content-type": "application/json"
 const { default: veriUcu } = await import("../api/data.js");
 const oku = () => kv.get("marcus-os-data");
 
-const IZIN = (ek) => ({ cekimEdit: true, ...ek });
+const IZIN = (ek) => ({ cekimEdit: true, kartOnaylama: true, kartDuzenleme: true, kartSilme: true, ...ek });
 const PERSONEL = (ad, izinler, markalar) => ({
   id: ad, ad, kullaniciAdi: ad, sifreHash: hash("1", "s"), sifreSalt: "s", izinler, markalar: markalar || [],
 });
@@ -174,7 +174,7 @@ await kv.set("marcus-os-data", {
   haftalikPaylasimlar: [{ id: "hp1", clientId: 1, gun: "Pazartesi", haftaKey: "2026-08-17", tur: "Reels", yapildi: true, isId: 51, isAdi: "Reels 4" }],
   personelHesaplari: [
     PERSONEL("ortak", { musteriAkisi: true }, ["İbo Burger"]),
-    PERSONEL("ortaksiz", { cekimEdit: true }, ["İbo Burger"]),
+    PERSONEL("ortaksiz", { cekimEdit: true, kartOnaylama: true, kartDuzenleme: true, kartSilme: true }, ["İbo Burger"]),
   ],
 });
 

@@ -87,7 +87,7 @@ const KUR = async (stok) => {
     _v: 1, clients: MARKALAR, stoklar: stok,
     cekimIsleri: [KART(1), KART(2)],
     personelHesaplari: [{ id: "p1", ad: "Editör", kullaniciAdi: "ed", sifreHash: hash("1", "s"), sifreSalt: "s",
-      izinler: { cekimEdit: true, paylasimlar: true }, markalar: [] }],
+      izinler: { cekimEdit: true, paylasimlar: true, kartOnaylama: true, kartDuzenleme: true, kartSilme: true }, markalar: [] }],
     musteriHesaplari: [], paylasimGecmisi: [], haftalikPaylasimlar: [], subeler: [],
   });
   return await oku();

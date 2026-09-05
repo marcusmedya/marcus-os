@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     95 test dosyası (t1…t95) + 22 statik denetim betiği
+testler/     97 test dosyası (t1…t97) + 22 statik denetim betiği
 ```
 
 ---
@@ -205,6 +205,22 @@ açtı. Bir davranış değiştiğinde personel ve çözüm ortağı panellerini
 
 Çözüm ortağı paneli = müşteri paneli eksi "İçerik İste" sekmesi
 (`ORTAGA_KAPALI_SEKMELER`), artı kendisine atanan markaların paylaşım/stok panelleri.
+
+**Operasyon alt yetkileri — `lib/kart-yetkisi.js`.** `cekimEdit` tek parçaydı; onaylama,
+silme ve düzenleme ekranda yalnızca yöneticiye gösteriliyordu **ama sunucu hiç
+denetlemiyordu** — `PERMISSION_WRITE_FIELDS` yalnızca "cekimIsleri alanına yazabilir mi"
+diye bakıyor. Gizli düğme güvenlik sınırı değildir; sınır artık burada.
+`kartAcma` (varsayılan **AÇIK** — önceki davranış buydu) · `kartOnaylama` · `kartDuzenleme` ·
+`kartSilme` (üçü varsayılan kapalı). Sunucu gelen listeyi eskisiyle karşılaştırıp **izinsiz
+değişikliği geri alır, kaydın tamamını REDDETMEZ** — reddetmek aynı kayıttaki ilgisiz
+düzenlemeleri de çöpe atardı. **Stok motorundan ÖNCE** çalışır: izinsiz onay sonradan geri
+alınsaydı stok üretilmiş ve Drive'da dosya taşınmış olurdu.
+
+**Numara onarımı yetki denetiminden ÖNCE gelir.** Sonra geldiğinde ölçüldü: çözüm ortağının
+açtığı kartın numarası GÖREMEDİĞİ bir kartla çakışınca yetki denetimi onu "yeni kart" değil
+"var olan kartın düzenlenmesi" sanıyor, alanları geri alıyor ve kart hata vermeden
+**kayboluyordu**. Alt yetkiler `KILITLI_IZINLER`'de olmak zorunda — olmasalardı `izinleriDaralt`
+onları sıfırlar ve marka kilitli hesap `cekimEdit` açık olduğu hâlde kart açamazdı.
 
 **Operasyon kartını kim işleyebilir: `lib/is-yetkisi.js`.** Kural yetkiye bakar,
 ATAMAYA DEĞİL — Operasyon (`cekimEdit`) izni olan personel gördüğü her kartı işler.
@@ -451,7 +467,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 22 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t95, ~2100 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t97, ~2160 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

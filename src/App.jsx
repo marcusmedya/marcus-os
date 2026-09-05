@@ -40,6 +40,7 @@ import { surumDinle, surumBildir } from "./surum.js";
 import { InstagramOnizleme, InstagramIzgara, aylikRaporAc } from "./instagram.jsx";
 import { MusteriPaneli } from "./musteriPaneli.jsx";
 import { hazirIcerikleriUret, musteriKayitlariniSuz } from "../lib/musteri-gorunumu.js";
+import { markayaGoreGrupla } from "../lib/reklam-gruplari.js";
 import { ekstreUret, varsayilanBaslangic } from "../lib/ekstre.js";
 import { ucretDagilimi, ayinUcreti, ACIK_BASLANGIC } from "../lib/marka-ucreti.js";
 import { markaEslestirici } from "../lib/marka-kilidi.js";
@@ -1872,7 +1873,7 @@ function AyOdemeModal({ client, ayObj, hesaplar, onAddKaydi, onDeleteKaydi, onAd
   );
 }
 
-function OdemeTakvimi({ bekleyenTahsilatlar, onAddBekleyen, onDeleteBekleyen, clients, hesaplar, transferler, avanslar, odemeler, duzeltmeler, onUpdateClient, onAddOdemeKaydi, onDeleteOdemeKaydi, onTransfer, onDeleteTransfer, onAddHesap, onDeleteHesap, onUpdateHesap, onAddDuzeltme, onDeleteDuzeltme, firmaAdi }) {
+function OdemeTakvimi({ bekleyenTahsilatlar, onAddBekleyen, onDeleteBekleyen, clients, hesaplar, transferler, avanslar, odemeler, duzeltmeler, onUpdateClient, onAddOdemeKaydi, onDeleteOdemeKaydi, onAddFatura, onDeleteFatura, onTransfer, onDeleteTransfer, onAddHesap, onDeleteHesap, onUpdateHesap, onAddDuzeltme, onDeleteDuzeltme, firmaAdi }) {
   const [ayCount, setAyCount] = useState(6);
   const [activeCell, setActiveCell] = useState(null); // { client, ayObj }
   const [hatirlatmaClient, setHatirlatmaClient] = useState(null);
@@ -2066,6 +2067,12 @@ function OdemeTakvimi({ bekleyenTahsilatlar, onAddBekleyen, onDeleteBekleyen, cl
           hesaplar={hesaplar}
           onAddKaydi={(kayit) => onAddOdemeKaydi(activeCell.client.id, kayit)}
           onDeleteKaydi={(kayitId) => onDeleteOdemeKaydi(activeCell.client.id, kayitId)}
+          /* GEÇMİŞ AYIN FATURASI BURADAN GİRİLİR. Müşteri kartındaki aynı kutu yalnızca
+           * İÇİNDE BULUNULAN ayı açıyor (`monthKey()`); Temmuz'da kesilmiş bir faturayı
+           * kaydetmenin tek yolu ödeme takviminde o ayın hücresine tıklamak. Buraya
+           * bağlanmasaydı ekstre geçmiş faturaları hiç gösteremezdi. */
+          onAddFatura={onAddFatura ? (fatura) => onAddFatura(activeCell.client.id, fatura) : null}
+          onDeleteFatura={onDeleteFatura ? (faturaId) => onDeleteFatura(activeCell.client.id, faturaId) : null}
           onClose={() => setActiveCell(null)}
         />
       )}
@@ -2237,6 +2244,11 @@ function Reklamlar({ reklamlar, clients, onAdd, onUpdate, onDelete, duzenleyenAd
 
   const siraliListe = [...reklamlar].sort((a, b) => (a.bitisTarihi || "").localeCompare(b.bitisTarihi || ""));
   const filtered = siraliListe.filter((r) => (filter === "hepsi" ? true : reklamDurumu(r) === filter));
+  /* MARKA BİR KEZ, REKLAMLAR ALTINDA. Liste düzken her satır marka adını tekrar ediyordu
+   * ("İbo Burger — Chedar", "İbo Burger — Plak"…) ve 49 markalı ajansta ekran okunmuyordu.
+   * Süzgeçten GEÇMİŞ liste gruplanıyor: "Aktif"i seçince gruplar da yalnızca aktif
+   * reklamları gösterir, boşalan marka başlığı hiç çıkmaz. */
+  const gruplar = markayaGoreGrupla(filtered);
   const aktifSayisi = reklamlar.filter((r) => reklamDurumu(r) !== "bitti").length;
   const yakindaSayisi = reklamlar.filter((r) => reklamDurumu(r) === "yakinda").length;
 
@@ -2263,31 +2275,48 @@ function Reklamlar({ reklamlar, clients, onAdd, onUpdate, onDelete, duzenleyenAd
 
       {adding && <div style={{ marginBottom: 16 }}><FieldForm fields={REKLAM_FIELDS} clientList={aktifMarkalar} onSubmit={(v) => { onAdd(v); setAdding(false); }} onCancel={() => setAdding(false)} submitLabel="Reklamı Ekle" /></div>}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {filtered.map((r) =>
-          editingId === r.id ? (
-            <Card key={r.id} style={{ padding: "12px 15px" }}>
-              <KilitUyarisi kisi={kilitleyen} />
-              <FieldForm fields={REKLAM_FIELDS} clientList={aktifMarkalar} initial={r} onSubmit={(v) => { onUpdate(r.id, v); setEditingId(null); }} onCancel={() => setEditingId(null)} />
-            </Card>
-          ) : (
-            <Card key={r.id} style={{ padding: "12px 15px" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-                <div>
-                  <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{r.marka} — {r.reklamAdi}</div>
-                  <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>
-                    {r.baslangicTarihi} → {r.bitisTarihi}{r.butce ? ` · ${fmt(r.butce)}` : ""}{r.not ? ` · ${r.not}` : ""}
-                  </div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <Pill color={durumBilgi[reklamDurumu(r)].color} soft={durumBilgi[reklamDurumu(r)].soft}>{durumBilgi[reklamDurumu(r)].label}</Pill>
-                  <button style={iconBtnStyle} onClick={() => { setEditingId(r.id); setAdding(false); }}><Pencil size={14} color={T.textFaint} /></button>
-                  <button style={iconBtnStyle} onClick={() => { if (window.confirm("Bu reklam kaydı silinsin mi?")) onDelete(r.id); }}><Trash2 size={14} color={T.danger} /></button>
-                </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+        {gruplar.map((g) => {
+          const aktifler = g.reklamlar.filter((x) => reklamDurumu(x) !== "bitti").length;
+          return (
+            <div key={g.anahtar}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 7, paddingLeft: 2 }}>
+                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: T.text }}>{g.marka}</span>
+                <span style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>
+                  {g.reklamlar.length} reklam{aktifler > 0 ? ` · ${aktifler} aktif` : ""}
+                </span>
               </div>
-            </Card>
-          )
-        )}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {g.reklamlar.map((r) =>
+                  editingId === r.id ? (
+                    <Card key={r.id} style={{ padding: "12px 15px" }}>
+                      <KilitUyarisi kisi={kilitleyen} />
+                      <FieldForm fields={REKLAM_FIELDS} clientList={aktifMarkalar} initial={r} onSubmit={(v) => { onUpdate(r.id, v); setEditingId(null); }} onCancel={() => setEditingId(null)} />
+                    </Card>
+                  ) : (
+                    <Card key={r.id} style={{ padding: "12px 15px" }}>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+                        <div>
+                          {/* Marka adı BAŞLIKTA yazıyor, satırda tekrar edilmiyor — grubun
+                            * varlık sebebi bu. */}
+                          <div style={{ fontSize: 13, color: T.text, fontWeight: 600, fontFamily: "Inter" }}>{r.reklamAdi}</div>
+                          <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 2 }}>
+                            {r.baslangicTarihi} → {r.bitisTarihi}{r.butce ? ` · ${fmt(r.butce)}` : ""}{r.not ? ` · ${r.not}` : ""}
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <Pill color={durumBilgi[reklamDurumu(r)].color} soft={durumBilgi[reklamDurumu(r)].soft}>{durumBilgi[reklamDurumu(r)].label}</Pill>
+                          <button style={iconBtnStyle} onClick={() => { setEditingId(r.id); setAdding(false); }}><Pencil size={14} color={T.textFaint} /></button>
+                          <button style={iconBtnStyle} onClick={() => { if (window.confirm("Bu reklam kaydı silinsin mi?")) onDelete(r.id); }}><Trash2 size={14} color={T.danger} /></button>
+                        </div>
+                      </div>
+                    </Card>
+                  )
+                )}
+              </div>
+            </div>
+          );
+        })}
         {filtered.length === 0 && (
           <Card style={{ padding: "24px", textAlign: "center" }}><div style={{ color: T.textFaint, fontSize: 13, fontFamily: "Inter" }}>Bu filtrede kayıt yok.</div></Card>
         )}
@@ -7432,6 +7461,14 @@ const STAFF_IZIN_LISTESI = [
             { key: "paylasimlar", label: "Paylaşımlar (+ Günlük Kontrol)", varsayilan: true },
             { key: "cekimListesi", label: "Çekim (düşük stok listesi)", varsayilan: false },
             { key: "cekimEdit", label: "Operasyon (Video/Grafik Tasarım)", varsayilan: true },
+            /* OPERASYON ALT YETKİLERİ — yalnızca "Operasyon" açıkken anlamlılar.
+             * `kartAcma` varsayılan AÇIK: bu yetki eklenmeden önce Operasyon izni olan
+             * herkes kart açabiliyordu, var olan hesapların davranışı değişmemeli.
+             * Diğer üçü varsayılan KAPALI — onlar zaten yalnızca yöneticideydi. */
+            { key: "kartAcma", label: "↳ Kart açma (yeni iş oluşturma)", varsayilan: true },
+            { key: "kartOnaylama", label: "↳ Kart onaylama (Onayla / Teslim Edildi) — stok üretir, dosyayı Drive'da taşır", varsayilan: false },
+            { key: "kartDuzenleme", label: "↳ Kart düzenleme (marka, içerik türü, sorumlu, tarih)", varsayilan: false },
+            { key: "kartSilme", label: "↳ Kart silme", varsayilan: false },
             { key: "markaYoneticisi", label: "Marka Yöneticisi (Operasyon'da durum bildirimi e-postası gönderebilir)", varsayilan: false },
             { key: "personel", label: "Personel", varsayilan: false },
             { key: "birikim", label: "Birikim", varsayilan: false },
@@ -10211,6 +10248,8 @@ export default function MarcusOS() {
               onUpdateClient={(id, patch) => setOdemeGunuSafe(id, patch.odemeGunu)}
               onAddOdemeKaydi={addOdemeKaydi}
               onDeleteOdemeKaydi={deleteOdemeKaydi}
+              onAddFatura={addFatura}
+              onDeleteFatura={deleteFatura}
               onTransfer={transferEt}
               onDeleteTransfer={deleteTransfer}
               onUpdateHesap={updateHesap}
@@ -10248,7 +10287,7 @@ export default function MarcusOS() {
           {staffTab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="staff" />}
           {staffTab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} isler={data.cekimIsleri || []} plan={data.haftalikPaylasimlar || []}
             cekimSirasi={data.cekimSirasi || []} onSiraDegis={cekimSirasiKaydet} />}
-          {staffTab === "cekim-edit" && <CekimEditTakibi role="staff" acilacakIsId={gidilecekIs} onKartAcildi={() => setGidilecekIs(null)} clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} girisYapanAd={loggedStaffName} islemYetkisi={izinler.cekimEdit === true} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={izinler.markaYoneticisi} firmaAdi={data.firmaAdi} />}
+          {staffTab === "cekim-edit" && <CekimEditTakibi role="staff" acilacakIsId={gidilecekIs} onKartAcildi={() => setGidilecekIs(null)} clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} girisYapanAd={loggedStaffName} islemYetkisi={izinler.cekimEdit === true} kartYetkileri={izinler} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={izinler.markaYoneticisi} firmaAdi={data.firmaAdi} />}
           {staffTab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} duzenleyenAdi={loggedStaffName || "Personel"} />}
           {staffTab === "birikim" && (
             <Birikim
@@ -10665,6 +10704,8 @@ export default function MarcusOS() {
               onUpdateClient={(id, patch) => setOdemeGunuSafe(id, patch.odemeGunu)}
               onAddOdemeKaydi={addOdemeKaydi}
               onDeleteOdemeKaydi={deleteOdemeKaydi}
+              onAddFatura={addFatura}
+              onDeleteFatura={deleteFatura}
               onTransfer={transferEt}
               onDeleteTransfer={deleteTransfer}
               onUpdateHesap={updateHesap}
