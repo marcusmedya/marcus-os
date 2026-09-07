@@ -5107,3 +5107,43 @@ ve sürüm sayaçlarını sınıyor, personelin onaylaması yalnızca araçtı v
 istiyor. Testlerin amacı değişmedi.
 
 Toplam **2159 kontrol**.
+
+---
+
+## Güncelleme 162: Alt Yetkiler Kişiye Özel Panelde Görünmüyordu + Denetim 23
+
+Kullanıcı "personele operasyon kısmında nereden yetki vereceğim" diye sorunca, yeri
+söylemeden önce koda bakıldı ve **yetkilerin verilemez olduğu** görüldü.
+
+**Sorun:** yetki kutucukları `src/App.jsx` içinde İKİ ayrı listeden çiziliyor —
+`STAFF_IZIN_LISTESI` (ortak personel şifresi kartı) ve `IZIN_LISTESI` (kişiye özel panel).
+Operasyon alt yetkileri yalnızca birincisine eklenmişti. Yani `kartOnaylama`, `kartSilme`,
+`kartDuzenleme` sunucuda çalışıyordu ama yöneticinin bunları bir personele verebileceği
+kutucuk **yoktu**.
+
+Bu, bu turda **üçüncü** kez tekrarlayan hata sınıfı: bir şey tanımlanıyor ama bütün
+çağrı/render yerlerine geçirilmiyor. (Öncekiler: şube ücretinde `api/data.js`in iki kayıt
+yolundan yalnızca birine bağlanması; fatura kutusunun yalnızca müşteri kartına bağlanması.)
+
+**İkinci bulgu — panel yalan söylüyordu.** Kişiye özel panel kutucuğu
+`taslakIzin[key] === true` diye çiziyordu, yani **varsayılanı yoktu**. Oysa sunucu kişisel
+hesapta da `DEFAULT_PERMS` uyguluyor (`{ ...DEFAULT_PERMS, ...hesap.izinler }`) ve orada
+`reklamlar`, `paylasimlar`, `cekimEdit` **açık**. Panel bu üçünü kapalı gösteriyordu:
+yönetici "kapalı" sanıp güveniyor, oysa yetki açıktı. `kartAcma` da aynı tuzağa düşecekti —
+kapalı görünüp kaydedildiği an personelin kart açma yetkisi sessizce alınırdı.
+
+**Düzeltmeler:** dört alt yetki kişiye özel panele eklendi; kutucuklar artık varsayılanı
+hesaba katıyor ve panel varsayılanları `DEFAULT_PERMS` ile birebir aynı.
+
+### Denetim 23 — bu sınıfı kalıcı kapatıyor
+
+`testler/izinListeleri.mjs` üç yeri birden karşılaştırıyor: iki panel listesi ve sunucudaki
+`DEFAULT_PERMS`. Anahtar eksikse, iki panel ayrışmışsa ya da panel sunucudan farklı bir
+varsayılan gösteriyorsa denetim kırmızı yanıyor.
+
+**Ölçüm:** `kartOnaylama` kişiye özel panelden çıkarılınca denetim *"kişiye özel panelde YOK
+(yetki verilemez)"* diyerek düşüyor; `kartAcma` varsayılanı kapalıya çevrilince hem iki
+panel ayrışması hem *"panelde false, sunucuda true — panel yalan söyler"* olarak iki ayrı
+satırda yakalıyor. Denetim kaldırılınca ikisi de sessizce geçiyor.
+
+Toplam **2159 kontrol** + **23 statik denetim**.

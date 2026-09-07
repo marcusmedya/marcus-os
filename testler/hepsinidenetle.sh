@@ -28,6 +28,7 @@ node testler/fonksiyonSayisi.mjs                                    > /dev/null 
 node testler/temaAnahtari.mjs                                       > /dev/null && echo "✓ 20 tema anahtarları gerçek"
 node testler/yanitAlanlari.mjs                                      > /dev/null && echo "✓ 21 yanıt alanı belgeye sızmıyor"
 node testler/yenidenDisaVerme.mjs                                   > /dev/null && echo "✓ 22 yeniden dışa verilen ad yerel kullanılmıyor"
+node testler/izinListeleri.mjs                                      > /dev/null && echo "✓ 23 izin listeleri ve sunucu varsayılanları aynı"
 echo ""
 echo "── SUNUCU DENETİMLERİ ──"
 echo "(testler/ klasöründe: node t5.mjs … t11.mjs — sahte veritabanı kullanır, gerçek veriye dokunmaz)"

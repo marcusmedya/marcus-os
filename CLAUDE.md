@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     97 test dosyası (t1…t97) + 22 statik denetim betiği
+testler/     97 test dosyası (t1…t97) + 23 statik denetim betiği
 ```
 
 ---
@@ -215,6 +215,13 @@ diye bakıyor. Gizli düğme güvenlik sınırı değildir; sınır artık burad
 değişikliği geri alır, kaydın tamamını REDDETMEZ** — reddetmek aynı kayıttaki ilgisiz
 düzenlemeleri de çöpe atardı. **Stok motorundan ÖNCE** çalışır: izinsiz onay sonradan geri
 alınsaydı stok üretilmiş ve Drive'da dosya taşınmış olurdu.
+
+**Yetki kutucukları İKİ ayrı listeden çiziliyor** (`src/App.jsx`): `STAFF_IZIN_LISTESI`
+(ortak şifre kartı) ve `IZIN_LISTESI` (kişiye özel panel). Bir kez ayrıştı: alt yetkiler
+yalnızca birine eklendi ve kişiye özel panelde HİÇ GÖRÜNMEDİ, yani sunucuda var olan yetki
+verilemez kaldı. Ayrıca panelin varsayılanı `DEFAULT_PERMS` ile aynı olmalı — `reklamlar`,
+`paylasimlar`, `cekimEdit` sunucuda açıkken panelde kapalı gösteriliyordu, yani panel yalan
+söylüyordu. **Denetim 23** üçünü birden karşılaştırır.
 
 **Numara onarımı yetki denetiminden ÖNCE gelir.** Sonra geldiğinde ölçüldü: çözüm ortağının
 açtığı kartın numarası GÖREMEDİĞİ bir kartla çakışınca yetki denetimi onu "yeni kart" değil
@@ -466,7 +473,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 ## Çalıştırma ve doğrulama
 
 ```bash
-bash testler/hepsinidenetle.sh     # 22 statik denetim (sözdizimi, JSX, hook, kapsam…)
+bash testler/hepsinidenetle.sh     # 23 statik denetim (sözdizimi, JSX, hook, kapsam…)
 ./testler/sunucutestleri.sh        # t1…t97, ~2160 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
