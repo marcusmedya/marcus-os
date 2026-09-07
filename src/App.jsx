@@ -7547,22 +7547,33 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
     // eslint-disable-next-line
   }, [hesaplar]);
 
+  /* ANAHTARLARI `STAFF_IZIN_LISTESI` ile AYNI olmak zorunda — denetim 23 bunu zorluyor.
+   * Bu iki liste bir kez ayrıştı: Operasyon alt yetkileri yalnızca ortak şifre kartına
+   * eklendi ve kişiye özel panelde HİÇ GÖRÜNMEDİ, yani yetki verilemez hâlde kaldı.
+   * Etiketler bilerek daha kısa (bu panelde yer dar), anahtarlar aynı. */
   const IZIN_LISTESI = [
-    { key: "dashboard", label: "Dashboard" },
-    { key: "musteriler", label: "Müşteriler" },
-    { key: "finans", label: "Finans" },
-    { key: "odemeTakvimi", label: "Ödeme Takvimi" },
-    { key: "teklif", label: "Teklif & Sözleşme" },
-    { key: "reklamlar", label: "Reklamlar" },
-    { key: "paylasimlar", label: "Paylaşımlar (+ Günlük Kontrol)" },
-    { key: "cekimListesi", label: "Çekim (düşük stok listesi)" },
-    { key: "cekimEdit", label: "Operasyon" },
-    { key: "markaYoneticisi", label: "Marka Yöneticisi (durum bildirimi e-postası gönderebilir)" },
-    { key: "personel", label: "Personel" },
-    { key: "birikim", label: "Birikim" },
-    { key: "uyelikler", label: "Üyelikler (abonelikler)" },
-    { key: "musteriAkisi", label: "İçerik Akışı (salt okunur)" },
-    { key: "sifreKasasi", label: "Şifre Kasası (yine de owner şifresi ister)" },
+    { key: "dashboard", label: "Dashboard", varsayilan: false },
+    { key: "musteriler", label: "Müşteriler", varsayilan: false },
+    { key: "finans", label: "Finans", varsayilan: false },
+    { key: "odemeTakvimi", label: "Ödeme Takvimi", varsayilan: false },
+    { key: "teklif", label: "Teklif & Sözleşme", varsayilan: false },
+    { key: "reklamlar", label: "Reklamlar", varsayilan: true },
+    { key: "paylasimlar", label: "Paylaşımlar (+ Günlük Kontrol)", varsayilan: true },
+    { key: "cekimListesi", label: "Çekim (düşük stok listesi)", varsayilan: false },
+    { key: "cekimEdit", label: "Operasyon", varsayilan: true },
+    /* Operasyon alt yetkileri. `kartAcma` varsayılan AÇIK — sunucudaki varsayılanla aynı
+     * olmak ZORUNDA. Kapalı gösterilseydi yönetici paneli açıp kaydettiği anda personelin
+     * kart açma yetkisini farkında olmadan elinden alırdı. */
+    { key: "kartAcma", label: "↳ Kart açma", varsayilan: true },
+    { key: "kartOnaylama", label: "↳ Kart onaylama (Onayla / Teslim Edildi)", varsayilan: false },
+    { key: "kartDuzenleme", label: "↳ Kart düzenleme", varsayilan: false },
+    { key: "kartSilme", label: "↳ Kart silme", varsayilan: false },
+    { key: "markaYoneticisi", label: "Marka Yöneticisi (durum bildirimi e-postası gönderebilir)", varsayilan: false },
+    { key: "personel", label: "Personel", varsayilan: false },
+    { key: "birikim", label: "Birikim", varsayilan: false },
+    { key: "uyelikler", label: "Üyelikler (abonelikler)", varsayilan: false },
+    { key: "musteriAkisi", label: "İçerik Akışı (salt okunur)", varsayilan: false },
+    { key: "sifreKasasi", label: "Şifre Kasası (yine de owner şifresi ister)", varsayilan: false },
   ];
 
   const yukle = () => {
@@ -7676,7 +7687,7 @@ function PersonelHesaplariKart({ onRosterChange, clients }) {
                     {IZIN_LISTESI.map((m) => (
                       <label key={m.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 15px", background: T.surface, borderRadius: 8, cursor: "pointer" }}>
                         <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter" }}>{m.label}</span>
-                        <input type="checkbox" checked={taslakIzin[m.key] === true} onChange={(e) => setTaslakIzin((s) => ({ ...s, [m.key]: e.target.checked }))} style={{ width: 16, height: 16, cursor: "pointer" }} />
+                        <input type="checkbox" checked={taslakIzin[m.key] !== undefined ? taslakIzin[m.key] === true : m.varsayilan === true} onChange={(e) => setTaslakIzin((s) => ({ ...s, [m.key]: e.target.checked }))} style={{ width: 16, height: 16, cursor: "pointer" }} />
                       </label>
                     ))}
                   </div>
