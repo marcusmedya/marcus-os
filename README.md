@@ -5310,3 +5310,36 @@ kullanıcıya yazılıyor.
 **Test:** t97 42 → 49, t99 38 → 39 kontrol. Kırma ölçümü: yeni kart aşama denetimi
 kaldırılınca 4, kart tamamen düşürülünce (aşamayı düzeltmek yerine) 5 kontrol düşüyor.
 Toplam 2230 kontrol, 24 denetim.
+
+## Güncelleme 168: Kartları Toplu Taşıma + Sessizce Geri Alınan Onaylar Görünür Oldu
+
+**İstek:** "Toplu bir şekilde taşıyabilmek de istiyorum kartları."
+
+Yirmi kartı ilerletmek yirmi kart açılışı, yirmi kayıt ve yirmi bekleme demekti.
+
+**Operasyon → Tüm İşler → "Kart seç".** Mod açılınca kartlara işaret kutusu geliyor; tıklama
+kartı açmak yerine seçiyor. Üstte çıkan çubukta hedef aşamayı seçip "Taşı" diyorsun —
+seçilenler tek kayıtta geçiyor. Seçim modu kapalıyken pano hiç değişmiyor: kart tıklaması
+yine kartı açıyor.
+
+**Hedef aşama listesi seçilen kartların kategorilerinin KESİŞİMİ.** Reels ile Post birlikte
+seçilirse yalnızca ikisinde de bulunan aşamalar sunuluyor; yoksa kullanıcı kartların bir
+kısmının taşınmadığını sonradan öğrenirdi. Kategorisinde olmayan aşamaya taşıma engelleniyor
+— yazılsaydı sunucudaki aşama onarımı o kartı akışın başına çeker, "taşıdım" sanılan kart
+geri düşerdi.
+
+Taşıma her karta geçmiş notu yazıyor ("Toplu taşıma: Çekim Yapıldı → Onaylandı"), kimin
+yaptığıyla birlikte. Onay aşamasına taşımada yetki ekranda da aranıyor (asıl sınır yine
+sunucuda); yetkisiz toplu onay sunucuda geri alınıyor ve stok üretmiyor.
+
+**Bu iş sırasında sessiz bir boşluk bulundu ve kapatıldı.** Dosyası Drive'daki onay
+klasörüne taşınamayan kartın onayı sunucu tarafından geri alınıyor — sunucu bunu yanıtta
+hep bildiriyordu ama **istemci hiç okumuyordu**. Kart sessizce eski aşamasına dönüyor,
+kullanıcı "onayladım" sanıyor, sebep yalnızca kartın geçmişine yazılıyordu. Artık ekranda
+yazıyor: kaç kart, hangileri, sebep ne. Toplu taşımada bu çok daha görünür — çok sayıda
+kart onaya alınırken Drive'ın 20 saniyelik taşıma bütçesi dolarsa kalanların onayı geri
+alınıyor; artık bunu görüyorsun.
+
+**Test:** t100 (19 kontrol). Kırma ölçümü: kategori kontrolü kaldırılınca 4, "zaten orada"
+elemesi kalkınca 3, geçmiş notu yazılmayınca 2, değişiklik yokken yeni dizi üretilince 1
+kontrol düşüyor. Toplam 2249 kontrol, 24 denetim.

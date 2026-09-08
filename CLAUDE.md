@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     99 test dosyası (t1…t99) + 24 statik denetim betiği
+testler/     100 test dosyası (t1…t100) + 24 statik denetim betiği
 ```
 
 ---
@@ -360,6 +360,21 @@ kartı en baştan `Onaylandı` AÇMAK hiç sorulmuyordu; onay yetkisi olmayan pe
 adımda stok üretebiliyordu. Kart açılmaya devam ediyor, yalnızca aşaması akışın başına
 çekiliyor — kullanıcının emeği çöpe atılmıyor, sınır korunuyor (t97 ölçüyor).
 
+**Kartlar panoda TOPLU TAŞINABİLİR — `lib/toplu-tasima.js`.** Panodaki "Kart seç" modu
+kartları seçtiriyor, seçilenler tek kayıtta hedef aşamaya geçiyor. Üç eleme var, üçü de
+veri bozulmasına karşı: **hedef aşama kartın KATEGORİSİNDE yoksa taşınmaz** (yazılsaydı
+`asamalariDuzelt` tanımadığı aşamayı akışın başına çeker, kullanıcı "taşıdım" sanırken kart
+geri düşerdi) · **zaten hedefte olan kart listeye alınmaz** · **hiç taşıma yoksa GELEN DİZİ
+aynen döner** — son ikisi sürüm sayacının boşuna artmasını, yani kart üzerinde çalışan
+herkesin 409 almasını engelliyor. Hedef aşama listesi seçilen kartların kategorilerinin
+KESİŞİMİ; Reels ile Post birlikte seçilirse yalnızca ikisinde de olan aşamalar sunulur.
+
+**Onayı geri alınan kart artık EKRANDA söyleniyor** (`src/App.jsx`, `res.onaylanamadi`).
+Sunucu bunu hep bildiriyordu ama istemci hiç okumuyordu: dosyası Drive'a taşınamayan kart
+sessizce eski aşamasına dönüyor, kullanıcı "onayladım" sanıyordu; sebep yalnızca kartın
+geçmişine yazılıyordu. Toplu taşımada bu çok daha görünür — çok kart onaya alınırken
+Drive'ın 20 sn'lik taşıma bütçesi dolarsa kalanların onayı geri alınıyor.
+
 **Dosya karta NUMARAYLA DEĞİL TOPLU ETİKETİYLE bağlanır** (`topluId` + `topluSira`;
 `api/data.js` yükleme dalı ve `src/App.jsx` → `topluKartaMedyaYaz`). Kartları tarayıcı
 açıyor ve numarayı öneriyor ama son söz sunucuda: çakışma varsa sunucu yeni numara veriyor
@@ -538,7 +553,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 24 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t99, ~2230 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t100, ~2249 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
