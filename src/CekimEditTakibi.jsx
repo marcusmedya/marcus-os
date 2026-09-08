@@ -9,7 +9,7 @@ import { sunucuyuBekle } from "../lib/onizleme-bellegi.js";
 import { isBasladi, isBitti } from "../lib/suren-isler.js";
 import { kartiIsleyebilirMi } from "../lib/is-yetkisi.js";
 import { yetkiVar } from "../lib/kart-yetkisi.js";
-import { topluAdlar, topluIsleriUret, adetiCoz, EN_FAZLA_TOPLU } from "../lib/toplu-kart.js";
+import { topluAdlar, topluIsleriUret, adetiCoz, sonrakiNumara, cakisanAdlar, EN_FAZLA_TOPLU } from "../lib/toplu-kart.js";
 import { markaninIdsi, trKucult } from "../lib/marka-kilidi.js";
 import { panoSuzgeci } from "../lib/pano-suzgeci.js";
 import { paylasimTuru, PAYLASIM_TURLERI } from "../lib/stok.js";
@@ -555,7 +555,7 @@ function YeniIsFormu({ clients, subeler, personelRosteri, varsayilanKategori, on
 function TopluIsFormu({ clients, subeler, personelRosteri, varsayilanKategori, mevcutIsler, onOlustur, onCancel }) {
   const [v, setV] = useState({
     kategori: varsayilanKategori || KATEGORILER[0],
-    marka: "", taban: "Post", adet: 5,
+    marka: "", taban: "Post", adet: 5, baslangic: "",
     cekimTarihi: bugunISO(), teslimTarihi: bugunISO(),
     kameraman: "", editor: "", oncelik: "Normal", brief: "", sadeceSubeler: [],
   });
@@ -574,7 +574,14 @@ function TopluIsFormu({ clients, subeler, personelRosteri, varsayilanKategori, m
   /* Dosya seçildiyse kart sayısını DOSYA belirler — "10 dosya seçip 5 kart" hâli
    * kullanıcıya hangi beşinin yükleneceğini sormak demekti. */
   const adet = dosyalar.length > 0 ? Math.min(dosyalar.length, EN_FAZLA_TOPLU) : adetiCoz(v.adet);
-  const adlar = topluAdlar(v.taban, adet, markaninAdlari);
+  /* Başlangıç ÖNERİLİYOR, dayatılmıyor: kutu boşken serinin devamı yazıyor, kullanıcı
+   * başka bir sayı yazarsa o geçerli. Önerilen değer kutunun ipucunda görünüyor —
+   * "kaçtan devam edecek?" sorusu tahminle değil ekranda cevaplanıyor. */
+  const onerilenBaslangic = sonrakiNumara(markaninAdlari, v.taban);
+  const adlar = topluAdlar(v.taban, adet, markaninAdlari, v.baslangic);
+  /* Elle seçilen başlangıç var olan bir kartın adına denk gelebilir. Engellenmiyor ama
+   * SÖYLENİYOR: aynı ad Drive'da dosya adına ve müşteri paneline gidiyor. */
+  const cakisanlar = cakisanAdlar(adlar, markaninAdlari);
   const hazir = Boolean(v.marka) && adlar.length > 0;
 
   return (
@@ -597,6 +604,12 @@ function TopluIsFormu({ clients, subeler, personelRosteri, varsayilanKategori, m
           <label style={labelStyle}>Dosyalar (isteğe bağlı)</label>
           <input type="file" multiple style={{ ...inputStyle, padding: 8 }}
             onChange={(e) => setDosyalar(Array.from((e.target && e.target.files) || []))} />
+        </div>
+        <div>
+          <label style={labelStyle}>Başlangıç no</label>
+          <input type="number" min="1" style={inputStyle} value={v.baslangic}
+            placeholder={`otomatik: ${onerilenBaslangic}`}
+            onChange={(e) => set("baslangic", e.target.value)} />
         </div>
         <div>
           <label style={labelStyle}>Kaç kart?</label>
@@ -652,6 +665,12 @@ function TopluIsFormu({ clients, subeler, personelRosteri, varsayilanKategori, m
               {adlar.length <= 3 ? adlar.join(", ") : `${adlar[0]}, ${adlar[1]} … ${adlar[adlar.length - 1]}`}
               {dosyalar.length > 0 && <div style={{ marginTop: 4 }}>Her dosya kendi kartına yüklenecek — sırayla, ilk dosya ilk karta.</div>}
               {dosyalar.length === 0 && <div style={{ marginTop: 4 }}>Dosya seçilmedi — kartlar boş açılacak.</div>}
+              {cakisanlar.length > 0 && (
+                <div style={{ marginTop: 6, color: C.warning, fontWeight: 600 }}>
+                  Bu ad{cakisanlar.length > 1 ? "lar" : ""} bu markada zaten var: {cakisanlar.slice(0, 4).join(", ")}
+                  {cakisanlar.length > 4 ? ` (+${cakisanlar.length - 4})` : ""} — aynı adla ikinci kart açılacak.
+                </div>
+              )}
             </>)}
       </div>
       <div style={{ display: "flex", gap: 8 }}>
@@ -664,7 +683,7 @@ function TopluIsFormu({ clients, subeler, personelRosteri, varsayilanKategori, m
               kameraman: v.kameraman, editor: v.editor, oncelik: v.oncelik, brief: v.brief,
               istenenAdet: "", uretilenAdet: "", sadeceSubeler: v.sadeceSubeler,
             },
-            taban: v.taban, adet, dosyalar, mevcutAdlar: markaninAdlari,
+            taban: v.taban, adet, dosyalar, mevcutAdlar: markaninAdlari, baslangic: v.baslangic,
           })}
         >{adlar.length > 0 ? `${adlar.length} Kart Aç` : "Kart Aç"}</button>
       </div>
@@ -2826,10 +2845,10 @@ export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clie
     throw new Error("Kartlar kaydedilirken bağlantı gecikti. Kartlar açıldı; dosyaları kartlardan tek tek yükleyebilirsin.");
   }
 
-  async function topluOlustur({ ortak, taban, adet, dosyalar, mevcutAdlar }) {
+  async function topluOlustur({ ortak, taban, adet, dosyalar, mevcutAdlar, baslangic }) {
     if (typeof onAddJobs !== "function") return;
     const topluId = `tk${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
-    const isler = topluIsleriUret({ taban, adet, mevcutAdlar, ortak, topluId });
+    const isler = topluIsleriUret({ taban, adet, mevcutAdlar, ortak, topluId, baslangic });
     if (isler.length === 0) return;
     onAddJobs(isler);
     setTopluAcik(false);

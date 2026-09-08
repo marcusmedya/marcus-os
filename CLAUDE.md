@@ -336,7 +336,13 @@ olacak": ortak alanlar bir kez giriliyor, ad numaralandırılarak çoğaltılıy
 "Post 14"…). **Numara markanın MEVCUT kartlarından devam eder** — her açılış 1'den
 başlasaydı aynı markada iki "Post 3" olurdu ve kart adı Drive'da dosya adına, planda satır
 etiketine, müşteri paneline gittiği için iki içerik ayırt edilemez hâle gelirdi. Numara
-markaya özeldir (kartlar markayı ADIYLA saklıyor, liste ortak).
+markaya özeldir (kartlar markayı ADIYLA saklıyor, liste ortak). **Başlangıç numarası
+ÖNERİLİR, DAYATILMAZ** (`baslangiciCoz`): kutu boşken serinin devamı yazıyor, kullanıcı
+başka bir sayı yazarsa o geçerli — ayrı bir aralık açmak (101'den başlatmak) ya da silinmiş
+kartların yerini doldurmak isteyebiliyor. Geçersiz giriş (0, eksi, metin) otomatiğe düşer;
+yazarken silinen bir hane "Post 0" açmasın. Elle seçilen başlangıç var olan bir ada denk
+gelirse **engellenmez, SÖYLENİR** (`cakisanAdlar`) — kullanıcı bilerek ikinci bir kart
+açabilir ama bunu bilmeden yapmamalı.
 
 **Dosya karta NUMARAYLA DEĞİL TOPLU ETİKETİYLE bağlanır** (`topluId` + `topluSira`;
 `api/data.js` yükleme dalı ve `src/App.jsx` → `topluKartaMedyaYaz`). Kartları tarayıcı
@@ -516,7 +522,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 24 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t99, ~2214 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t99, ~2222 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

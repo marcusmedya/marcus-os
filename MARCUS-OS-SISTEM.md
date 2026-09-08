@@ -186,7 +186,7 @@ Artık **tanımsızsa kimse giremez.**
 | `kart-yetkisi.js` | **Operasyon alt yetkileri** — kart açma/onaylama/düzenleme/silme; izinsiz değişikliği geri alır, kaydı reddetmez (**saf**) |
 | `video-yon.js` | Video yönü ve oynatıcı kutusunun oranı — metadata gelene kadar kartın kayıtlı yönü (**saf**) |
 | `video-bilgi.js` | Oynatıcının altındaki ölçüm satırı: çözünürlük · boyut · bit hızı · fast start. Eksik/anlamsız değerde o parçayı hiç yazmaz (**saf**) |
-| `toplu-kart.js` | Toplu kart açma: ad numaralandırma (markanın mevcut serisinden devam eder), kart üretimi ve toplu etiketiyle kart bulma (**saf**) |
+| `toplu-kart.js` | Toplu kart açma: ad numaralandırma (seri devam eder, başlangıç elle de seçilebilir), çakışan ad uyarısı, kart üretimi ve toplu etiketiyle kart bulma (**saf**) |
 | `kategori.js` | **Kategoriler ve stok türlerinin TEK kaynağı** — Reels/Post/Carousel + eski adların eşlemesi (**saf**) |
 | `drive-denetimi.js` | Kayıtlı stok ile Drive'ın söylediği stoğun farkı + uygulama frenleri (**saf, ağ yok**) |
 | `drive-yukleme.js` | Yükleme oturumu açma, tamamlama, dosya çöpe atma |
@@ -426,7 +426,7 @@ dosya hâlâ ekibin çalışma alanındadır.
 
 ```bash
 bash testler/hepsinidenetle.sh     # 24 statik denetim
-./testler/sunucutestleri.sh        # t1…t99, ~2214 kontrol — SAHTE veritabanı
+./testler/sunucutestleri.sh        # t1…t99, ~2222 kontrol — SAHTE veritabanı
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
