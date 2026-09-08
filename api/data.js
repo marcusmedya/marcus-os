@@ -895,9 +895,12 @@ export default async function handler(req, res) {
        *
        * TEŞHİS BAŞARISIZ OLURSA VİDEO YİNE AÇILIR: null dönüyor, arayüz bir şey demiyor. */
       const baslik = videoDosyaId ? await dosyaBasligi(videoDosyaId) : null;
-      const hizliBaslangic = baslik ? hizliBaslangicMi(baslik) : null;
+      const hizliBaslangic = baslik ? hizliBaslangicMi(baslik.baytlar) : null;
+      /* Dosya boyutu teşhis satırında gösteriliyor: "geç açılıyor" tartışması aylardır
+       * tahminle yürüyordu, rakam olmadan doğru çözüm seçilemiyor. */
+      const boyut = baslik ? baslik.toplamBoyut : 0;
 
-      return res.status(200).json({ ok: true, jeton, hizliBaslangic,
+      return res.status(200).json({ ok: true, jeton, hizliBaslangic, boyut,
         adres: `/api/data?video=${encodeURIComponent(kayitId)}&j=${encodeURIComponent(jeton)}` });
     }
 
