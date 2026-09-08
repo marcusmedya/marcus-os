@@ -5382,3 +5382,24 @@ alınmış karışık bir hâl üretir ve kullanıcı hangisinin gerçekten taş
 şunu ölçüyor: onay belgede geri alındı mı, `onaylanamadi` bildirildi mi, stok üretilmedi mi.
 Kırma ölçümü: bildirim yanıttan çıkarılınca 1, geri alma tamamen kaldırılınca 2 kontrol
 düşüyor. Toplam 2253 kontrol, 24 denetim.
+
+## Güncelleme 170: Panoda Önizleme Yalnızca Elle Yapıştırılmış Bağlantıda Çıkıyordu
+
+**Bildirim:** "Toplu açılan kartların ön izlemesi gözükmüyor."
+
+Pano kartı önizlemeyi şu koşulla çiziyordu: `job.editliDosyaLink && …` — yani **yalnızca
+elle yapıştırılmış Drive bağlantısı** olan kartlarda. Uygulamadan yüklenen dosya ise
+`medya[]` içinde duruyor. Sonuç: uygulamadan yüklenen her kart panoda boş görünüyordu.
+Toplu açılan yirmi kartta hepsi birden fark edildi ama sorun toplu açılışa özel değildi.
+
+Görüntüyü zaten sunucu üretiyor (`isId` ile isteniyor) ve sunucu dosyayı `medya`dan da
+çözüyor — t52 bunu ölçüyor. Eksik olan tek şey bu koşuldu.
+
+**Koşul saf bir fonksiyona taşındı** (`lib/asamalar.js` → `panoOnizlemesiVarMi`). Sebep:
+JSX içindeki bir koşul Node'da çağrılamıyor, yalnızca kaynak metnine bakılabiliyordu. Bu
+oturumda aynı sınıftan **dört** hata çıktı (elle sıralama ekrana yansımıyordu, alt yetkiler
+panelde görünmüyordu, iki yerde bağlanmamış işleyici, şimdi bu) ve dördü de ancak sahada
+görüldü. Kural artık ölçülüyor.
+
+**Test:** t100 23 → 28 kontrol. Kırma ölçümü: eski koşula dönülünce 1, Reels ayrımı
+kaldırılınca 1 kontrol düşüyor. Toplam 2258 kontrol, 24 denetim.

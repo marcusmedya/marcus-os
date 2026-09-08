@@ -324,6 +324,14 @@ aşamanın `ASAMA_KLASORU` karşılığı **bilerek yok** — Drive'a taşıma e
 Sunucu, istemciden gelen aşamayı doğrular; listede olmayan aşama `asamalariDuzelt`
 ile onarılır.
 
+**Pano kartındaki önizleme koşulu `lib/asamalar.js` → `panoOnizlemesiVarMi`.** JSX içinde
+`job.editliDosyaLink &&` diye yazılıydı: yalnızca ELLE YAPIŞTIRILMIŞ bağlantısı olan kartta
+önizleme çıkıyordu, uygulamadan yüklenen dosya `medya[]` içinde durduğu için o kartlar
+panoda BOŞ görünüyordu. Görüntüyü zaten sunucu veriyor ve dosyayı `medya`dan da çözüyor
+(t52 ölçüyor) — eksik olan tek şey koşuldu. Kural saf modüle taşındı çünkü **JSX içindeki
+bir koşul Node'da çağrılamıyor**; bu projede aynı sınıftan dört hata çıktı, hepsi ancak
+sahada görüldü. Yeni bir görünürlük kuralı yazarken onu JSX'e gömme, saf bir fonksiyona koy.
+
 **Slayt sayısı kategoriye bağlı — `enFazlaSlayt`.** Fotoğraf **tek görsellik**; çoklu
 gönderi Carousel'in işi (ikisi de çoklu olduğunda "kaydırmalı gönderi mi, ayrı postlar mı"
 ayrımı kayboluyor ve stok yanlış türe yazılıyordu). Diğer kategorilerde 30 slayt.
@@ -563,7 +571,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 24 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t100, ~2253 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t100, ~2258 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
