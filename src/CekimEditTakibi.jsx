@@ -3,6 +3,7 @@ import { medyaVarMi, asamalariDuzelt, guncelMedyalar, slotGecmisi, slotEtiketi,
          bosSlot, medyaSlotu, STORY_SLOT, EN_FAZLA_SLAYT, enFazlaSlayt, kapakBaglantisi} from "../lib/asamalar.js";
 import { videoHataMesaji } from "../lib/video-yon.js";
 import { faststartUyarisi } from "../lib/mp4-faststart.js";
+import { videoBilgiSatiri } from "../lib/video-bilgi.js";
 import { useSunucuOnizleme, useVideoAdresi, videoEni, oynaticiOrani, gomuluEngelliMi, GOMULU_ACIKLAMA, onizlemeyiTazele } from "./drive.jsx";
 import { sunucuyuBekle } from "../lib/onizleme-bellegi.js";
 import { isBasladi, isBitti } from "../lib/suren-isler.js";
@@ -576,6 +577,7 @@ function SunucuOnizleme({ isId, slot, versiyon, video, drivedeAc, gomuluUrl, yon
    * üç tur boyunca tahminle cevaplandı. `deneme` sayacı adrese eklenip önbelleği atlıyor:
    * bozuk bir yanıt önbelleğe girmişse tekrar denemek onu aşabilsin. */
   const [videoHatasi, setVideoHatasi] = useState(null);
+  const [videoOlcu, setVideoOlcu] = useState({});
   const [deneme, setDeneme] = useState(0);
   useEffect(() => { setVideoHatasi(null); }, [akis.adres]);
   /* Slot değişince gömülü oynatıcı tercihi sıfırlanır — 3. slayttan story boyutuna
@@ -628,16 +630,24 @@ function SunucuOnizleme({ isId, slot, versiyon, video, drivedeAc, gomuluUrl, yon
           poster={durum === "hazir" ? veri : undefined}
           controls
           playsInline
-          /* ARABELLEK KART AÇILIR AÇILMAZ BAŞLIYOR.
+          /* `auto` DEĞİL — 19 Ağustos'taki hâline geri alındı.
             *
-            * `metadata` yalnızca başlık bilgisini indiriyordu; kullanıcı oynata basınca
-            * ilk parça O AN isteniyor ve bekleme orada yaşanıyordu. Kart detayında tek
-            * video açık oluyor, önden arabelleğe almanın maliyeti düşük — listelerde
-            * BÖYLE YAPILMIYOR, orada onlarca video aynı anda indirmeye başlardı. */
-          preload="auto"
+            * Bir süre `auto` kullanıldı; gerekçe "oynata basınca beklemesin"di ve
+            * ÖLÇÜLMEMİŞTİ. Yan etkisi şu: `auto` ile tarayıcı kart açılır açılmaz
+            * DOSYANIN TAMAMINI çekmeye başlıyor. Büyük bir 1080p dosyada bu tek istek
+            * Vercel'in 60 saniyelik fonksiyon sınırına takılıp kesiliyor, tarayıcı kalanı
+            * yeniden istiyor — kullanıcı tam o sırada oynata basmışsa akış altından
+            * çekiliyor. "Geç açılıyor, sonra donuyor" tam olarak bu.
+            *
+            * `metadata` ile yalnızca başlık iniyor; indirme kullanıcı oynata basınca,
+            * izlediği yerden başlıyor. */
+          preload="metadata"
           onLoadedMetadata={(e) => {
             const v = e.currentTarget;
             if (v.videoWidth && v.videoHeight) setOran(v.videoWidth / v.videoHeight);
+            /* Teşhis satırı için: çözünürlük ve süre YALNIZCA buradan öğrenilebiliyor,
+             * sunucu dosyanın içine bakmıyor. */
+            setVideoOlcu({ genislik: v.videoWidth, yukseklik: v.videoHeight, sureSn: v.duration });
           }}
           /* Oran ilk karede veriliyor — yoksa kutu poster görselinin oranını alıp sonra
             * metadata gelince atlıyor ("önce yatay, sonra dikey"). */
@@ -648,8 +658,15 @@ function SunucuOnizleme({ isId, slot, versiyon, video, drivedeAc, gomuluUrl, yon
           * Oynatma bilgisi dosyanın sonundaysa tarayıcı önce sonu indirmek zorunda ve
           * bekleme onlarca saniyeye çıkabiliyor. Teşhis yapılamadıysa hiçbir şey
           * yazılmıyor — yanlış uyarı, uyarı olmamasından kötü. */}
+        {/* TEŞHİS SATIRI — "geç açılıyor" tartışması tahminle yürümesin.
+          * Çözünürlük · boyut · bit hızı · hızlı başlangıç. Bilinmeyen parça yazılmıyor. */}
+        {videoBilgiSatiri({ ...videoOlcu, boyut: akis.boyut, hizliBaslangic: akis.hizliBaslangic }) && (
+          <div style={{ marginTop: 6, fontSize: 11, color: C.textFaint, fontVariantNumeric: "tabular-nums" }}>
+            {videoBilgiSatiri({ ...videoOlcu, boyut: akis.boyut, hizliBaslangic: akis.hizliBaslangic })}
+          </div>
+        )}
         {faststartUyarisi(akis.hizliBaslangic) && (
-          <div style={{ marginTop: 6, fontSize: 11, color: C.textFaint, lineHeight: 1.5 }}>
+          <div style={{ marginTop: 4, fontSize: 11, color: C.textFaint, lineHeight: 1.5 }}>
             {faststartUyarisi(akis.hizliBaslangic)}
           </div>
         )}

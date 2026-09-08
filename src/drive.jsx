@@ -111,6 +111,8 @@ export function useVideoAdresi({ isId, icerikId, alan, slot }) {
   /* FAST START TEŞHİSİ — sunucu jetonla birlikte söylüyor. Önbellekten gelen adreste
    * bu bilgi yok; bilinmiyorsa arayüz bir şey demiyor (yanlış uyarı vermemek için). */
   const [hizliBaslangic, setHizliBaslangic] = useState(null);
+  /* Dosya boyutu da jetonla geliyor; teşhis satırında bit hızını hesaplamak için. */
+  const [boyut, setBoyut] = useState(0);
   const [durum, setDurum] = useState(anahtar ? (bellektekiAdres ? "hazir" : "yukleniyor") : "yok");
 
   useEffect(() => {
@@ -132,6 +134,7 @@ export function useVideoAdresi({ isId, icerikId, alan, slot }) {
           videoAdresYaz(bellekAnahtari, r.adres);
           setAdres(r.adres);
           if (r.hizliBaslangic !== undefined) setHizliBaslangic(r.hizliBaslangic);
+          if (r.boyut) setBoyut(r.boyut);
           setDurum("hazir");
         }
         else setDurum("olmadi");
@@ -140,7 +143,7 @@ export function useVideoAdresi({ isId, icerikId, alan, slot }) {
     return () => { iptal = true; };
   }, [anahtar, isId, icerikId, alan, slot]);
 
-  return { durum, adres, hizliBaslangic };
+  return { durum, adres, hizliBaslangic, boyut };
 }
 
 export function useSunucuOnizleme({ isId, icerikId, alan, boyut = 800, slot }) {

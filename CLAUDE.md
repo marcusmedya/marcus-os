@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     97 test dosyası (t1…t97) + 23 statik denetim betiği
+testler/     98 test dosyası (t1…t98) + 23 statik denetim betiği
 ```
 
 ---
@@ -119,6 +119,25 @@ Oynatma bilgisi dosyanın SONUNDAysa tarayıcı videoyu başlatmadan önce sonu 
 zorunda; proxy üzerinden bu onlarca saniye sürebiliyor ve bekleme dosyadan dosyaya
 değişiyor. Uygulama dosyayı DEĞİŞTİRMEZ — teşhis eder ve oynatıcının altında söyler;
 çözüm dışa aktarımda "fast start" açmak.
+
+**Kart açılınca video İNDİRİLMEZ, yalnızca başlığı okunur** (`preload="metadata"`,
+`src/CekimEditTakibi.jsx`). Bir süre `preload="auto"` yazıyordu: gerekçe "kullanıcı
+oynata basmadan hazır olsun"du, ölçülmemişti. Sonucu, kart açılır açılmaz tarayıcının
+dosyanın TAMAMINI çekmeye başlaması; 60 sn'lik fonksiyon sınırına dayanan akış ortadan
+kesiliyor ve video takılıyordu. Kullanıcı bunu "Mac/Safari'de kasıyor, Windows'ta akıcı"
+diye bildirdi — fark tarayıcının önden ne kadar çektiğiydi. Video ilk eklendiğinde
+(19 Ağu) `metadata` idi ve sorun yoktu; akış mantığının kalanı bugün o günkü hâliyle
+aynı, tek davranışsal gerileme buydu.
+
+**Oynatıcının altında ÖLÇÜM yazar** (`lib/video-bilgi.js` → `videoBilgiSatiri`):
+çözünürlük · dosya boyutu · bit hızı · fast start durumu. Bu satır süs değil — "video
+neden kasıyor" sorusu bu projede üç kez tahminle cevaplandı ve üçünde de yanlış yere
+dokunuldu. Boyut sunucudan (`content-range`, ek Drive çağrısı YOK), çözünürlük ve süre
+tarayıcının `loadedmetadata` olayından gelir. **Bilinmeyen değer için sayı UYDURULMAZ** —
+eksik ya da anlamsız (negatif, `NaN`, `Infinity`) girdide o parça hiç yazılmaz; ekranda
+"-5 B · -0 kbps" görmek, hiçbir şey görmemekten kötüdür çünkü kullanıcı o rakama bakıp
+karar veriyor. `hizliBaslangic === null` (henüz bilinmiyor) ile `false` (kapalı) ayrı
+hâllerdir.
 
 **Video akışı istek BAŞINA ucuz olmalı** (`api/data.js` video dalı). Tarayıcı videoda her
 ileri-geri sarmada YENİ bir aralık isteği atıyor; bir isteğin maliyeti doğrudan sarma
@@ -474,7 +493,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 23 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t97, ~2160 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t98, ~2184 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

@@ -5147,3 +5147,40 @@ panel ayrışması hem *"panelde false, sunucuda true — panel yalan söyler"* 
 satırda yakalıyor. Denetim kaldırılınca ikisi de sessizce geçiyor.
 
 Toplam **2159 kontrol** + **23 statik denetim**.
+
+## Güncelleme 163: Video Kasması — 27 Ağustos Gerilemesi Geri Alındı, Oynatıcıya Ölçüm Satırı
+
+**Şikâyet:** "Mac'te kasma yapıyor videolar oynarken ama Windows'ta akıcı oynatıyor."
+Ardından önemli bir bilgi: **"Daha önce böyle bir sorun yoktu, bu sonradan oluşan bir
+sorun."** Bu cümle çözümün yerini değiştirdi — yeni bir özellik değil, bir gerileme
+aranıyordu. Öneri üretmeden önce git geçmişi tarandı.
+
+**Bulunan:** Video oynatma **19 Ağustos'ta (846bf1b)** eklendi — düz aralık iletimi,
+`preload="metadata"`. Sorunsuz çalıştığı hâl budur. **27 Ağustos'ta tek günde altı
+değişiklik** yapıldı: #86 (aralığı parçalara böldü), #87, #88 (önbellek — iyi),
+#89 (#86'nın ürettiği "video hiç oynamıyor" hatasının düzeltmesi),
+#91 (`preload="metadata"` → `"auto"`), #95 (parça 3 → 12 MB).
+
+Parçalama sonradan tamamen geri alınmıştı; bugünkü akış mantığı 19 Ağustos'takiyle
+**davranış olarak aynı** (aynı `videoAkisi` çağrısı, aynı iletilen başlıklar; yalnızca
+`cache-control` 600 → 3600 iyileştirildi). Geriye kalan **tek davranışsal fark
+`preload="auto"`ydu**: kart açılır açılmaz tarayıcı dosyanın tamamını çekmeye başlıyor,
+60 sn'lik fonksiyon sınırına dayanan akış ortadan kesiliyor ve video takılıyordu.
+Safari ile Chrome arasındaki fark da buydu — ikisi önden farklı miktarda çekiyor.
+
+**Yapılan:**
+- `preload="auto"` → **`preload="metadata"`** (19 Ağustos'taki hâli).
+- Oynatıcının altına **ölçüm satırı**: `1920×1080 · 67 MB · 31.2 Mbps · hızlı başlangıç KAPALI`
+  (`lib/video-bilgi.js`). Boyut sunucudan `content-range` başlığıyla geliyor — **ek Drive
+  çağrısı yok**; çözünürlük ve süre tarayıcının `loadedmetadata` olayından.
+- Eksik ya da anlamsız değerde (negatif, `NaN`, `Infinity`) o parça **hiç yazılmaz**.
+  Ölçüldü: koruma kalkınca ekrana `-5 B · -0 kbps` düşüyor — yanlış rakam, rakamsızlıktan
+  kötüdür.
+
+**Neden ölçüm satırı:** "Video neden kasıyor" sorusu bu projede daha önce üç kez tahminle
+cevaplandı (parçalama, önbellek, preload) ve üçünde de akış mantığına dokunuldu. Bir
+sonraki karar — dışa aktarımda fast start açmak / uygulamada hafif bir izleme kopyası
+oynatmak / akış servisi (Cloudflare Stream, Mux) — tahminle değil ekrandaki rakamla
+verilecek. Akış mantığına (etag, aralık, bölge) **dokunulmadı**.
+
+**Test:** t98 (25 kontrol). Toplam 2184 kontrol, 23 statik denetim.
