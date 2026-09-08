@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     100 test dosyası (t1…t100) + 24 statik denetim betiği
+testler/     101 test dosyası (t1…t101) + 24 statik denetim betiği
 ```
 
 ---
@@ -247,6 +247,26 @@ açtığı kartın numarası GÖREMEDİĞİ bir kartla çakışınca yetki denet
 "var olan kartın düzenlenmesi" sanıyor, alanları geri alıyor ve kart hata vermeden
 **kayboluyordu**. Alt yetkiler `KILITLI_IZINLER`'de olmak zorunda — olmasalardı `izinleriDaralt`
 onları sıfırlar ve marka kilitli hesap `cekimEdit` açık olduğu hâlde kart açamazdı.
+
+**Operasyon paneli İKİ yerde çiziliyor** (personel ve yönetici) ve ortak prop'lar
+`operasyonOrtakProps` nesnesinde TEK yerde toplanıyor (`src/App.jsx`). Yirmi iki prop iki kez
+yazılıydı ve bu oturumda üç kez yalnızca birine eklendi: yeni yetenek diğer rolde hiç
+görünmedi. Role özel olanlar (yetki alanları, ücret/avans) çağrı yerinde kalır. **Nesne,
+kullandığı fonksiyonlardan SONRA tanımlanmalı** — önce tanımlanırsa çalışma anında
+"before initialization" hatası verir ve derleme bunu yakalamaz.
+
+**Giriş defteri, tek şifreyle açılan oturumu da kaydeder** (`api/data.js` → `authAction`).
+İki adımlı doğrulama yapılandırılmamışsa ya da kod e-postası gönderilemiyorsa sistem
+**bilerek fail-open** davranıyor (kilitlenmeyi önlemek için) — ama eskiden bu girişlerin
+defterde hiç izi yoktu, yani defter tam da riskli girişleri kaçırıyordu. Artık
+`giris-basarili` kaydı `ikiAdimli: false` ile düşüyor, ikinci adım atlandığında
+`giris-ikinci-adim-atlandi` yazılıyor ve **ekranda uyarı gösteriliyor**. Giriş davranışı
+DEĞİŞMEDİ; eklenen şey kayıt ve görünürlük (t101 ölçüyor).
+
+**Uyarılar YIĞIN hâlinde gösterilir** (`src/App.jsx` → `uyarilar`). Tek metin state'iyken
+çakışma uyarısı, kaydedilmeyen kayıt uyarısı ve onayı geri alınan kart uyarısı aynı yere
+yazıyor, sonuncusu öncekini siliyordu — iki sorun aynı anda olduğunda kullanıcı birini hiç
+görmüyordu. Aynı metin ikinci kez gelirse tekrarlanmaz.
 
 **Operasyon kartını kim işleyebilir: `lib/is-yetkisi.js`.** Kural yetkiye bakar,
 ATAMAYA DEĞİL — Operasyon (`cekimEdit`) izni olan personel gördüğü her kartı işler.
@@ -571,7 +591,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 24 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t100, ~2258 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t101, ~2270 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
@@ -646,5 +666,6 @@ yalnızca var/yok bilgisi.
 | `MARCUS-OS-DEVIR-2.md` | İkinci devir notları |
 | `MARCUS-OS-TANITIM.md` | Uygulamanın iş tarafından anlatımı |
 
-En büyük dosyalar: `src/App.jsx` (9653), `src/CekimEditTakibi.jsx` (2734),
-`api/data.js` (2008), `src/musteriPaneli.jsx` (1383).
+En büyük dosyalar: `src/App.jsx` (11.070), `src/CekimEditTakibi.jsx` (3.376),
+`api/data.js` (2.360), `src/musteriPaneli.jsx` (1.384). Bu sayılar Eylül 2026'da ölçüldü;
+kaynak büyüdükçe bayatlar, güncellerken `wc -l` ile doğrula.

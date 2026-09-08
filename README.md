@@ -5403,3 +5403,52 @@ görüldü. Kural artık ölçülüyor.
 
 **Test:** t100 23 → 28 kontrol. Kırma ölçümü: eski koşula dönülünce 1, Reels ayrımı
 kaldırılınca 1 kontrol düşüyor. Toplam 2258 kontrol, 24 denetim.
+
+## Güncelleme 171: Denetim Sonrası — Riski Olmayan Düzeltmeler
+
+Kapsamlı denetimden sonra, **veri yapısına ve çalışan akışa dokunmayan** dört düzeltme
+yapıldı. Denetimde bulunan diğer maddeler (yedek yazma sıklığı, tam belge tazeleme, kart
+geçmişi kırpma, yükleme tür sınırı) bilerek ERTELENDİ: hepsi ya yedekleme/tazeleme
+davranışını değiştiriyor ya veri siliyor ya da meşru bir işlemi reddedebiliyor. Onlar ayrı
+ve ölçülü bir turda yapılmalı.
+
+### 1. Tek şifreyle açılan oturum artık deftere yazılıyor
+
+İki adımlı doğrulama yapılandırılmamışsa (`OWNER_EMAIL` / `RESEND_API_KEY` yok) ya da kod
+e-postası gönderilemiyorsa sistem **bilerek** kod adımını atlayıp girişe izin veriyor —
+yöneticinin sistemden tamamen kilitlenmesini önlemek için. Ama bu girişlerin güvenlik
+defterinde **hiçbir izi yoktu**: `giris-basarili` kaydı yalnızca iki adımın açık olduğu
+yolda düşüyordu. Yani defter tam da riskli girişleri kaçırıyordu.
+
+Proje şu anda tam olarak bu hâlde — Resend alan adı doğrulanmadığı için ikinci faktör fiilen
+kapalı. Artık: `giris-basarili` kaydı `ikiAdimli: false` bilgisiyle düşüyor, ikinci adım
+atlandığında `giris-ikinci-adim-atlandi` yazılıyor, kod doğrulandığında
+`giris-kod-dogrulandi` ekleniyor ve **giriş ekranında uyarı çıkıyor**.
+
+**Giriş davranışı değişmedi** — eklenen şey yalnızca kayıt ve görünürlük.
+
+### 2. Eski personel şifresi sabit süreli karşılaştırılıyor
+
+`api/paylasim.js`, `api/client-payment.js` ve `api/devir-teslim.js` eski ortak personel
+şifresini düz `===` ile karşılaştırıyordu. `api/data.js` bu düzeltmeyi zaten yapmıştı, bu üç
+uç atlanmıştı. Artık `esitMi` (timingSafeEqual) kullanılıyor.
+
+### 3. Uyarılar birbirini ezmiyor
+
+Çakışma uyarısı, kaydedilmeyen kayıt uyarısı ve onayı geri alınan kart uyarısı tek bir metin
+alanını paylaşıyordu; sonuncusu öncekini siliyordu. İki sorun aynı anda olduğunda kullanıcı
+birini hiç görmüyordu. Artık uyarılar yığın hâlinde, her biri ayrı kapatılabilir; aynı metin
+ikinci kez gelirse tekrarlanmaz.
+
+### 4. Operasyon panelinin prop'ları tek yerde
+
+Panel iki yerde çiziliyor (personel ve yönetici) ve yirmi iki prop iki kez yazılıydı. Bu
+oturumda **üç kez** yalnızca birine eklendi ve yeni yetenek diğer rolde hiç görünmedi.
+Ortak prop'lar artık `operasyonOrtakProps` nesnesinde; role özel olanlar çağrı yerinde
+kaldı. (Nesne, kullandığı fonksiyonlardan sonra tanımlanmak zorunda — ilk denemede önce
+konmuştu ve çalışma anında "before initialization" hatası verirdi; derleme bunu yakalamıyor.)
+
+**Test:** t101 (12 kontrol). Kırma ölçümü: defter kaydı kaldırılınca 2, ekrandaki uyarı
+kaldırılınca 1 kontrol düşüyor. Karşılaştırma yöntemi için dürüst not: `esitMi` yerine düz
+`===` konduğunda hiçbir kontrol düşmüyor — iki yöntem davranış olarak aynı, fark yalnızca
+geçen sürede; o bölümün ölçtüğü şey kuralın değişmediği. Toplam 2270 kontrol, 24 denetim.

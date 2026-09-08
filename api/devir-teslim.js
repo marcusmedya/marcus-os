@@ -1,5 +1,5 @@
 import { kv } from "@vercel/kv";
-import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
+import { ownerYetkiliMi, baslikOku, esitMi } from "../lib/oturum.js";
 import { trKucult } from "../lib/marka-kilidi.js";
 import { gonderenAdres } from "../lib/eposta.js";
 
@@ -11,7 +11,10 @@ async function yetkiliMi(req) {
   const provided = baslikOku(req, "x-site-password");
   if (await ownerYetkiliMi(req)) return true;
   if (!ownerPw && !staffPwLegacy && !baslikOku(req, "x-staff-username")) return true;
-  if (staffPwLegacy && provided === staffPwLegacy) return true;
+  /* SABİT SÜRELİ KARŞILAŞTIRMA. Düz `===` karşılaştırma, doğru olan ilk harflerde daha
+   * uzun sürerek şifre hakkında bilgi sızdırabiliyor. `api/data.js` bu düzeltmeyi zaten
+   * yapmıştı; eski ortak personel şifresini karşılaştıran uçlar atlanmıştı. */
+  if (staffPwLegacy && provided && esitMi(provided, staffPwLegacy)) return true;
 
   const username = baslikOku(req, "x-staff-username");
   const password = baslikOku(req, "x-staff-password");

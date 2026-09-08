@@ -689,16 +689,34 @@ export default async function handler(req, res) {
         return res.status(401).json({ error: "Şifre hatalı." });
       }
       if (!ikiAdimliAktifMi()) {
-        // E-posta doğrulaması yapılandırılmamış — kilitlenmeyi önlemek için doğrudan giriş.
+        /* E-posta doğrulaması yapılandırılmamış — kilitlenmeyi önlemek için doğrudan giriş.
+         *
+         * BU GİRİŞ DEFTERE YAZILIYOR. Eskiden yazılmıyordu: "giris-basarili" kaydı yalnızca
+         * iki adımlı doğrulamanın AÇIK olduğu yolda düşülüyordu, yani defter tam da riskli
+         * girişleri kaçırıyordu. Tek şifreyle açılan bir oturumun izi olmalı. */
         await basariliGirisiSifirla(req);
         const { token, sure } = await oturumAc(!!hatirla);
-        return res.status(200).json({ ok: true, token, sure, kodGerekli: false });
+        await deftereYaz("giris-basarili", {
+          rol: "owner", ip: istekIP(req), ikiAdimli: false, sebep: "yapilandirilmamis",
+        });
+        /* Uyarı EKRANDA da söyleniyor (istemci `uyari` alanını zaten gösteriyor):
+         * ikinci adımın kapalı olduğu sessiz kalmamalı. */
+        return res.status(200).json({
+          ok: true, token, sure, kodGerekli: false,
+          uyari: "İki adımlı doğrulama yapılandırılmamış (OWNER_EMAIL / RESEND_API_KEY), "
+               + "bu yüzden kod adımı atlandı. Sistem şu an tek şifreyle korunuyor.",
+        });
       }
       await deftereYaz("giris-basarili", { rol: "owner", ip: istekIP(req) });
       const sonuc = await girisKoduGonder(req.headers["x-forwarded-for"] || null);
       if (!sonuc.gonderildi) {
         // E-posta gönderilemedi — sistemden tamamen kilitlenme, şifreyle devam et.
         const { token, sure } = await oturumAc(!!hatirla);
+        /* İKİNCİ ADIMIN ATLANDIĞI DEFTERE YAZILIYOR. Ekrandaki uyarı kapatılınca kayboluyor;
+         * "o gün ikinci adım çalışmıyordu" bilgisi sonradan sorulabilir olmalı. */
+        await deftereYaz("giris-ikinci-adim-atlandi", {
+          rol: "owner", ip: istekIP(req), sebep: sonuc.sebep || "bilinmiyor",
+        });
         return res.status(200).json({ ok: true, token, sure, kodGerekli: false, uyari: `Kod e-postası gönderilemedi (${sonuc.sebep || "sebep bilinmiyor"}), bu yüzden kod adımı atlandı.` });
       }
       return res.status(200).json({ ok: true, kodGerekli: true });
@@ -715,6 +733,9 @@ export default async function handler(req, res) {
         return res.status(401).json({ error: "Kod hatalı ya da süresi dolmuş." });
       }
       const { token, sure } = await oturumAc(!!hatirla);
+      /* Kod doğrulandı — iki adımın TAMAMLANDIĞI ayrıca kaydediliyor. Şifre adımındaki
+       * kayıt yalnızca "şifre doğruydu" diyor; oturumun gerçekten açıldığı bilgisi ayrı. */
+      await deftereYaz("giris-kod-dogrulandi", { rol: "owner", ip: istekIP(req) });
       return res.status(200).json({ ok: true, token, sure });
     }
 
