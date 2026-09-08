@@ -5,7 +5,7 @@ import { SUBE_PAYLASIM_ASAMASI } from "../lib/asamalar.js";
 import { ucretleriTazele, ayAnahtari, ucretDagilimi } from "../lib/marka-ucreti.js";
 import { KEY, guvenliYaz, kilitAl, kilitBirak, bugunISO, mesgulYanit } from "../lib/kv-yaz.js";
 import { kayitliYanit, yanitiSakla, yanitiYakala } from "../lib/islem-kimligi.js";
-import { ownerYetkiliMi, baslikOku } from "../lib/oturum.js";
+import { ownerYetkiliMi, baslikOku, esitMi } from "../lib/oturum.js";
 import { markaErisimiVarMi } from "../lib/marka-kilidi.js";
 import { onaylananiTasi, kartKlasorunuTasi, driveDosyaIdCikar, markaninDriveDosyalari, DURUM_KLASORLERI } from "../lib/drive-tasima.js";
 import { tasinacakDosyalar, kartKlasorAdi } from "../lib/asamalar.js";
@@ -29,7 +29,10 @@ async function yetkiliMi(req) {
   // { yetkili, markalar } döner. markalar boş dizi = kilit yok (tüm markalar).
   if (await ownerYetkiliMi(req)) return { yetkili: true, markalar: [] };
   if (!ownerPw && !staffPwLegacy && !baslikOku(req, "x-staff-username")) return { yetkili: true, markalar: [] };
-  if (staffPwLegacy && provided === staffPwLegacy) return { yetkili: true, markalar: [] };
+  /* SABİT SÜRELİ KARŞILAŞTIRMA. Düz `===` karşılaştırma, doğru olan ilk harflerde daha
+   * uzun sürerek şifre hakkında bilgi sızdırabiliyor. `api/data.js` bu düzeltmeyi zaten
+   * yapmıştı; eski ortak personel şifresini karşılaştıran uçlar atlanmıştı. */
+  if (staffPwLegacy && provided && esitMi(provided, staffPwLegacy)) return { yetkili: true, markalar: [] };
 
   const username = baslikOku(req, "x-staff-username");
   const password = baslikOku(req, "x-staff-password");

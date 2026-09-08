@@ -8188,7 +8188,23 @@ export default function MarcusOS() {
   const [loadError, setLoadError] = useState(false);
   const [needsSeedConfirm, setNeedsSeedConfirm] = useState(false);
   const [saveBlocked, setSaveBlocked] = useState(null);
-  const [staleConflictMsg, setStaleConflictMsg] = useState("");
+  /* UYARILAR YIĞIN — biri diğerini EZMİYOR.
+   *
+   * Tek bir metin state'iydi: çakışma uyarısı, kaydedilmeyen kayıt uyarısı ve onayı geri
+   * alınan kart uyarısı aynı yere yazıyordu. Aynı kayıtta iki şey birden olduğunda
+   * (yaşanabilir bir hâl: hem başka cihazdan değişiklik hem Drive taşıma hatası) sonuncusu
+   * öncekini siliyor ve kullanıcı sorunlardan birini HİÇ görmüyordu.
+   *
+   * Aynı metin ikinci kez gelirse tekrarlanmıyor — arka arkaya kaydetmede aynı uyarı
+   * üst üste yığılırdı. */
+  const [uyarilar, setUyarilar] = useState([]);
+  const setStaleConflictMsg = React.useCallback((metin) => {
+    setUyarilar((eski) => {
+      if (!metin) return [];
+      if (eski.some((x) => x.metin === metin)) return eski;
+      return [...eski, { id: `u${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, metin }];
+    });
+  }, []);
   const [tebligOpen, setTebligOpen] = useState(null);
   const saveTimer = useRef(null);
   const skipNextSave = useRef(true);
@@ -9093,6 +9109,7 @@ export default function MarcusOS() {
         .catch(() => window.alert(`${kisi.ad} için bildirim e-postası gönderilirken bağlantı hatası oluştu.`));
     });
   };
+
   /* TOPLU KART AÇMA — yirmi kart tek kayıtta.
    *
    * Kartları tek tek eklemek yirmi ayrı `setData` demekti; her biri kaydı tetikler ve
@@ -9681,6 +9698,37 @@ export default function MarcusOS() {
       return { ...c, odemeler: yeni };
     }),
   }));
+
+  /* OPERASYON PANELİNİN ORTAK PROP'LARI — TEK YERDE.
+   *
+   * Bileşen iki yerde çiziliyor (personel ve yönetici) ve yirmi dört prop iki kez
+   * yazılıydı. Bu oturumda ÜÇ kez yalnızca birine eklendi: yeni yetenek diğer rolde
+   * hiç görünmedi ve bunu ancak kullanıcı fark etti. Ortak olanlar burada; role özel
+   * olanlar (yetki alanları, ücret/avans) çağrı yerinde kalıyor. */
+  const operasyonOrtakProps = {
+    acilacakIsId: gidilecekIs,
+    clients: data.clients || [],
+    firmaAdi: data.firmaAdi,
+    jobs: data.cekimIsleri || [],
+    markalasmaSurecleri: data.markalasmaSurecleri || [],
+    onAddJob: addCekimIsi,
+    onAddJobs: addCekimIsleri,
+    onAddMarkalasmaGorev: addMarkalasmaGorev,
+    onCompleteMarkalasmaSureci: tamamlaMarkalasmaSureci,
+    onDeleteJob: deleteCekimIsi,
+    onDeleteMarkalasmaSureci: deleteMarkalasmaSureci,
+    onKartAcildi: () => setGidilecekIs(null),
+    onRefreshRoster: refreshPersonelRosteri,
+    onSetMarkalasmaYonetici: setMarkalasmaYonetici,
+    onToggleMarkalasmaGorev: toggleMarkalasmaGorev,
+    onTopluAsama: topluKartlariAsamayaAl,
+    onTopluMedya: topluKartaMedyaYaz,
+    onTopluTasi: topluKartlariTasi,
+    onUpdateJob: updateCekimIsi,
+    personelRosteri: data.personelRosteri || [],
+    planlar: data.haftalikPaylasimlar || [],
+    subeler: data.subeler || [],
+  };
 
   const addGelir = (g) => setData((d) => ({ ...d, gelirKalemleri: [...d.gelirKalemleri, { ...g, id: nextId(d.gelirKalemleri) }] }));
   const deleteGelir = (id) => {
@@ -10452,7 +10500,7 @@ export default function MarcusOS() {
           {staffTab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="staff" />}
           {staffTab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} isler={data.cekimIsleri || []} plan={data.haftalikPaylasimlar || []}
             cekimSirasi={data.cekimSirasi || []} onSiraDegis={cekimSirasiKaydet} />}
-          {staffTab === "cekim-edit" && <CekimEditTakibi role="staff" acilacakIsId={gidilecekIs} onKartAcildi={() => setGidilecekIs(null)} clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onAddJobs={addCekimIsleri} onTopluMedya={topluKartaMedyaYaz} onTopluAsama={topluKartlariAsamayaAl} onTopluTasi={topluKartlariTasi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} girisYapanAd={loggedStaffName} islemYetkisi={izinler.cekimEdit === true} kartYetkileri={izinler} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={izinler.markaYoneticisi} firmaAdi={data.firmaAdi} />}
+          {staffTab === "cekim-edit" && <CekimEditTakibi {...operasyonOrtakProps} role="staff" girisYapanAd={loggedStaffName} islemYetkisi={izinler.cekimEdit === true} kartYetkileri={izinler} markaYoneticisiMi={izinler.markaYoneticisi} />}
           {staffTab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} duzenleyenAdi={loggedStaffName || "Personel"} />}
           {staffTab === "birikim" && (
             <Birikim
@@ -10904,7 +10952,7 @@ export default function MarcusOS() {
           {tab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="owner" />}
           {tab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} isler={data.cekimIsleri || []} plan={data.haftalikPaylasimlar || []}
             cekimSirasi={data.cekimSirasi || []} onSiraDegis={cekimSirasiKaydet} />}
-          {tab === "cekim-edit" && <CekimEditTakibi role="owner" acilacakIsId={gidilecekIs} onKartAcildi={() => setGidilecekIs(null)} clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onAddJobs={addCekimIsleri} onTopluMedya={topluKartaMedyaYaz} onTopluAsama={topluKartlariAsamayaAl} onTopluTasi={topluKartlariTasi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} isUcretleri={data.isUcretleri || {}} onSaveIsUcreti={setIsUcreti} isUcretDetaylari={data.isUcretDetaylari || {}} onSaveIsUcretDetayi={setIsUcretDetayi} avanslar={data.avanslar || []} hesaplar={data.hesaplar || []} onAddAvans={addAvans} onDeleteAvans={deleteAvans} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={true} firmaAdi={data.firmaAdi} />}
+          {tab === "cekim-edit" && <CekimEditTakibi {...operasyonOrtakProps} role="owner" isUcretleri={data.isUcretleri || {}} onSaveIsUcreti={setIsUcreti} isUcretDetaylari={data.isUcretDetaylari || {}} onSaveIsUcretDetayi={setIsUcretDetayi} avanslar={data.avanslar || []} hesaplar={data.hesaplar || []} onAddAvans={addAvans} onDeleteAvans={deleteAvans} markaYoneticisiMi={true} />}
           {tab === "personel" && (
             <Personel
               /* Giriş hesapları ve yetkiler artık Personel > Hesaplar & Yetkiler altında.
@@ -11036,13 +11084,15 @@ export default function MarcusOS() {
           onForce={forceSave}
         />
       )}
-      {staleConflictMsg && (
-        <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 200, maxWidth: 480, width: "90%" }}>
-          <div style={{ background: T.warningSoft, border: `1px solid ${T.warning}`, borderRadius: 12, padding: "12px 15px", display: "flex", alignItems: "flex-start", gap: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
-            <span style={{ fontSize: 15 }}>⚠️</span>
-            <div style={{ flex: 1, fontSize: 13, color: T.warning, fontFamily: "Inter", lineHeight: 1.6 }}>{staleConflictMsg}</div>
-            <button onClick={() => setStaleConflictMsg("")} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0 }}><X size={15} color={T.warning} /></button>
-          </div>
+      {uyarilar.length > 0 && (
+        <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 200, maxWidth: 480, width: "90%", display: "flex", flexDirection: "column", gap: 8 }}>
+          {uyarilar.map((u) => (
+            <div key={u.id} style={{ background: T.warningSoft, border: `1px solid ${T.warning}`, borderRadius: 12, padding: "12px 15px", display: "flex", alignItems: "flex-start", gap: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
+              <span style={{ fontSize: 15 }}>⚠️</span>
+              <div style={{ flex: 1, fontSize: 13, color: T.warning, fontFamily: "Inter", lineHeight: 1.6 }}>{u.metin}</div>
+              <button onClick={() => setUyarilar((eski) => eski.filter((x) => x.id !== u.id))} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0 }}><X size={15} color={T.warning} /></button>
+            </div>
+          ))}
         </div>
       )}
       {tebligOpen && (
