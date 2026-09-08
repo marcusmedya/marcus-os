@@ -10,6 +10,7 @@ import { isBasladi, isBitti } from "../lib/suren-isler.js";
 import { kartiIsleyebilirMi } from "../lib/is-yetkisi.js";
 import { yetkiVar, ONAY_ASAMALARI } from "../lib/kart-yetkisi.js";
 import { topluAdlar, topluIsleriUret, adetiCoz, sonrakiNumara, cakisanAdlar, EN_FAZLA_TOPLU } from "../lib/toplu-kart.js";
+import { tasimaAdaylari, tasimayiUygula, tasimaOzeti } from "../lib/toplu-tasima.js";
 import { markaninIdsi, trKucult } from "../lib/marka-kilidi.js";
 import { panoSuzgeci } from "../lib/pano-suzgeci.js";
 import { paylasimTuru, PAYLASIM_TURLERI } from "../lib/stok.js";
@@ -2819,7 +2820,7 @@ export function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onS
 /* ------------------------------------------------------------------ */
 /* ANA BİLEŞEN                                                           */
 /* ------------------------------------------------------------------ */
-export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clients, subeler, planlar, jobs, personelRosteri, onRefreshRoster, onAddJob, onAddJobs, onTopluMedya, onTopluAsama, onUpdateJob, onDeleteJob, girisYapanAd, islemYetkisi = true, kartYetkileri, isUcretleri, onSaveIsUcreti, isUcretDetaylari, onSaveIsUcretDetayi, avanslar, hesaplar, onAddAvans, onDeleteAvans, markalasmaSurecleri, onToggleMarkalasmaGorev, onSetMarkalasmaYonetici, onAddMarkalasmaGorev, onCompleteMarkalasmaSureci, onDeleteMarkalasmaSureci, markaYoneticisiMi, firmaAdi }) {
+export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clients, subeler, planlar, jobs, personelRosteri, onRefreshRoster, onAddJob, onAddJobs, onTopluMedya, onTopluAsama, onTopluTasi, onUpdateJob, onDeleteJob, girisYapanAd, islemYetkisi = true, kartYetkileri, isUcretleri, onSaveIsUcreti, isUcretDetaylari, onSaveIsUcretDetayi, avanslar, hesaplar, onAddAvans, onDeleteAvans, markalasmaSurecleri, onToggleMarkalasmaGorev, onSetMarkalasmaYonetici, onAddMarkalasmaGorev, onCompleteMarkalasmaSureci, onDeleteMarkalasmaSureci, markaYoneticisiMi, firmaAdi }) {
   const [staffName, setStaffNameState] = useState(girisYapanAd || getStaffName());
   const [view, setView] = useState(role === "staff" ? "panom" : "pano");
   /* Varsayılan sekme LİSTEDEN geliyor. Bir süre "Video" yazılıydı: kategori adı
@@ -2836,6 +2837,11 @@ export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clie
   const [adding, setAdding] = useState(false);
   const [topluAcik, setTopluAcik] = useState(false);
   const [topluDurum, setTopluDurum] = useState(null);   // { mesaj } | { hata }
+  /* PANODA SEÇİM MODU. Kapalıyken kart tıklaması kartı AÇAR — var olan davranış hiç
+   * değişmiyor; seçim yalnızca kullanıcı bu modu açtığında devreye giriyor. */
+  const [secimModu, setSecimModu] = useState(false);
+  const [secililer, setSecililer] = useState(() => new Set());
+  const [tasimaHedefi, setTasimaHedefi] = useState("");
   const [acikIs, setAcikIs] = useState(null);
   const duzenleyenAdi = role === "owner" ? "Yönetici (CEO)" : (staffName || "Personel");
   /* YÖNETİCİ HEPSİNE SAHİP. Alt yetkiler yalnızca personeli sınırlamak için var;
@@ -2855,6 +2861,42 @@ export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clie
    * Kart NUMARAYLA değil TOPLU ETİKETİYLE bulunuyor (sunucuda da, tarayıcıda da): numara
    * çakışırsa sunucu yenisini veriyor ve o aralıkta numaraya güvenmek dosyayı başka
    * kartın içine koyardı. */
+  /* SEÇİLENLERİ TOPLU TAŞI.
+   *
+   * Tek kayıt gönderiliyor: kart başına ayrı kayıt yirmi tur kilit demekti ve araya giren
+   * her kayıt sırayı bozardı. Onay aşamasına taşımada sunucu her kartın dosyasını Drive'da
+   * taşıyor; toplam süre sınırı dolarsa taşınamayanların onayı geri alınır ve yanıtta
+   * bildirilir (App bunu ekrana yazıyor). Bu yüzden çok sayıda kartı onaya taşırken
+   * kullanıcı uyarılıyor. */
+  const secimiDegistir = (id) => setSecililer((eski) => {
+    const yeni = new Set(eski);
+    if (yeni.has(id)) yeni.delete(id); else yeni.add(id);
+    return yeni;
+  });
+  const secimiBitir = () => { setSecimModu(false); setSecililer(new Set()); setTasimaHedefi(""); };
+
+  function topluTasi(hedefAsama) {
+    if (!hedefAsama || secililer.size === 0) return;
+    const idler = [...secililer];
+    const adaylar = tasimaAdaylari(isler, idler, hedefAsama);
+    if (adaylar.tasinacak.length === 0) {
+      setTopluDurum({ hata: `Taşınacak kart yok — ${tasimaOzeti(adaylar, hedefAsama)}.` });
+      return;
+    }
+    /* ONAY YETKİSİ EKRANDA DA ARANIYOR. Sunucu zaten reddediyor ve geri alıyor; buradaki
+     * kontrol kullanıcıyı boşuna bekletmemek için — sınırın kendisi sunucuda. */
+    if (ONAY_ASAMALARI.includes(hedefAsama) && !yetkiVar(yetkiler, "kartOnaylama")) {
+      setTopluDurum({ hata: "Kart onaylama yetkin yok — bu aşamaya taşıyamazsın. Yöneticine sor." });
+      return;
+    }
+    const sonuc = tasimayiUygula(isler, idler, hedefAsama, duzenleyenAdi);
+    if (typeof onTopluTasi === "function") onTopluTasi(sonuc.isler);
+    setTopluDurum({ mesaj: `${tasimaOzeti(adaylar, hedefAsama)}.`
+      + (ONAY_ASAMALARI.includes(hedefAsama) && adaylar.tasinacak.length > 8
+        ? " Çok sayıda kart onaya alınıyor: Drive taşıması süre sınırına takılırsa taşınamayanların onayı geri alınır ve ekranda yazar." : "") });
+    secimiBitir();
+  }
+
   const bekle = (ms) => new Promise((coz) => setTimeout(coz, ms));
   async function topluDosyaYukle(topluId, sira, dosya) {
     for (let deneme = 0; deneme < 20; deneme += 1) {
@@ -2995,6 +3037,11 @@ export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clie
         </div>
         {view !== "markalasma" && yetkiVar(yetkiler, "kartAcma") && <button style={btnPrimary} onClick={() => { setAdding((v) => !v); if (onRefreshRoster) onRefreshRoster(); }}><Plus size={14} /> Yeni İş</button>}
         {view !== "markalasma" && yetkiVar(yetkiler, "kartAcma") && typeof onAddJobs === "function" && <button style={btnGhost} onClick={() => { setTopluAcik((x) => !x); setTopluDurum(null); if (onRefreshRoster) onRefreshRoster(); }}><Plus size={14} /> Toplu İş</button>}
+        {view === "pano" && typeof onTopluTasi === "function" && (
+          <button style={secimModu ? btnPrimary : btnGhost} onClick={() => (secimModu ? secimiBitir() : setSecimModu(true))}>
+            {secimModu ? "Seçimi bırak" : "Kart seç"}
+          </button>
+        )}
       </div>
 
       {view === "pano" && (
@@ -3062,6 +3109,38 @@ export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clie
         />
       )}
 
+      {/* SEÇİM ÇUBUĞU. Hedef aşama listesi SEÇİLEN kartların kategorilerinin KESİŞİMİ:
+        * Reels ile Post birlikte seçilirse yalnızca ikisinde de olan aşamalar sunulur,
+        * yoksa kullanıcı kartların bir kısmının taşınmadığını sonradan öğrenirdi. */}
+      {view === "pano" && secimModu && (() => {
+        const secilenIsler = isler.filter((j) => secililer.has(j.id));
+        const ortakAsamalar = secilenIsler.length === 0 ? [] : secilenIsler
+          .map((j) => asamaListesi(j.kategori))
+          .reduce((a, b) => a.filter((x) => b.includes(x)));
+        return (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+            background: C.accentSoft, border: `1px solid ${C.accent}`, borderRadius: 12,
+            padding: "10px 12px", marginBottom: 12 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: C.accentText }}>
+              {secililer.size} kart seçildi
+            </span>
+            <select style={{ ...inputStyle, width: "auto", minWidth: 180, margin: 0 }}
+              value={tasimaHedefi} onChange={(e) => setTasimaHedefi(e.target.value)}>
+              <option value="">— Taşınacak aşama —</option>
+              {ortakAsamalar.map((x) => <option key={x} value={x}>{x}</option>)}
+            </select>
+            <button style={{ ...btnPrimary, opacity: tasimaHedefi && secililer.size > 0 ? 1 : 0.5 }}
+              disabled={!tasimaHedefi || secililer.size === 0}
+              onClick={() => topluTasi(tasimaHedefi)}>Taşı</button>
+            <button style={btnGhost} onClick={secimiBitir}>Vazgeç</button>
+            {secililer.size > 0 && ortakAsamalar.length === 0 && (
+              <span style={{ fontSize: 12, color: C.warning }}>
+                Seçilen kartların ortak aşaması yok — farklı kategorileri ayrı ayrı taşı.
+              </span>
+            )}
+          </div>
+        );
+      })()}
       {view === "pano" && (
         <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 8 }}>
           {panoAsamalari.map((asama) => {
@@ -3078,7 +3157,23 @@ export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clie
                   <span style={{ fontSize: 11, color: C.textFaint, background: C.panelAlt, padding: "6px 10px", borderRadius: 999 }}>{asamaIsleri.length}</span>
                 </div>
                 <div style={{ minHeight: 40 }}>
-                  {buAsamadakiler.map((j) => <IsKarti key={j.id} job={j} onClick={() => setAcikIs(j)} />)}
+                  {buAsamadakiler.map((j) => (secimModu ? (
+                    /* Seçim modunda kart TIKLANINCA SEÇİLİYOR, açılmıyor. Kartın kendi
+                     * tıklaması kapatılmasa iki davranış çakışır ve kullanıcı kart açmak
+                     * istemediği hâlde modalı açardı. */
+                    <div key={j.id} onClick={() => secimiDegistir(j.id)}
+                      style={{ position: "relative", cursor: "pointer" }}>
+                      <div style={{ position: "absolute", top: 6, right: 6, zIndex: 2,
+                        width: 20, height: 20, borderRadius: 6, display: "flex",
+                        alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800,
+                        border: `1.5px solid ${secililer.has(j.id) ? C.accent : C.border}`,
+                        background: secililer.has(j.id) ? C.accent : C.panel,
+                        color: secililer.has(j.id) ? "#fff" : "transparent" }}>✓</div>
+                      <div style={{ pointerEvents: "none", opacity: secililer.has(j.id) ? 1 : 0.72 }}>
+                        <IsKarti job={j} onClick={() => {}} />
+                      </div>
+                    </div>
+                  ) : <IsKarti key={j.id} job={j} onClick={() => setAcikIs(j)} />))}
                   {sinirliMi && (
                     <button
                       onClick={() => setGenisletilmisSutunlar((s) => ({ ...s, [asama]: true }))}

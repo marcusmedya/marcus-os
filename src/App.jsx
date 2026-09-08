@@ -8689,6 +8689,24 @@ export default function MarcusOS() {
             }
             setStaleConflictMsg(parcalar.join(" "));
           }
+
+          /* ONAYI GERİ ALINAN KARTLAR EKRANDA SÖYLENİYOR.
+           *
+           * Sunucu bunu hep bildiriyordu ama istemci hiç okumuyordu: dosyası Drive'a
+           * taşınamayan kart sessizce eski aşamasına dönüyor, kullanıcı kartı "onayladım"
+           * sanıyordu. Sebep yalnızca kartın geçmişine yazılıyordu — kimsenin bakmadığı
+           * yere. Toplu taşımada bu çok daha görünür: yirmi kart onaya alınırken Drive
+           * süre sınırına takılanların onayı geri alınıyor. */
+          if (Array.isArray(res.onaylanamadi) && res.onaylanamadi.length > 0) {
+            const adlar = res.onaylanamadi.map((x) => x.isAdi).filter(Boolean).slice(0, 3);
+            const sebepler = [...new Set(res.onaylanamadi.map((x) => x.sebep).filter(Boolean))];
+            setStaleConflictMsg(
+              `${res.onaylanamadi.length} kartın ONAYI GERİ ALINDI — dosya Drive'daki onay `
+              + `klasörüne taşınamadı${adlar.length ? ` (${adlar.join(", ")}${res.onaylanamadi.length > adlar.length ? "…" : ""})` : ""}. `
+              + `${sebepler.length ? `Sebep: ${sebepler.join(" · ")}. ` : ""}`
+              + "Dosya yerine geçmeden onay stoğa yazılmaz — düzeltip tekrar dene.",
+            );
+          }
         })
         .catch(() => setSaveStatus("error"))
         /* BAYRAK EN SONDA BIRAKILIYOR — zincirin başında bırakılsaydı, cevap gövdesi
@@ -9117,6 +9135,12 @@ export default function MarcusOS() {
           tarih: zaman, yazan: "Sistem", aciklama: `Toplu açılışta "${asama}" aşamasına alındı.` }] }
       : j)) };
   });
+
+  /* Toplu taşımada kart listesinin TAMAMI birlikte yazılıyor: kart başına ayrı kayıt
+   * yirmi tur kilit demekti. Liste zaten `lib/toplu-tasima.js` içinde üretildi; değişiklik
+   * yoksa aynı referans geldiği için sürüm sayacı boşuna artmıyor. */
+  const topluTasinanlariYaz = (yeniIsler) => setData((d) => (
+    (!Array.isArray(yeniIsler) || yeniIsler === d.cekimIsleri) ? d : { ...d, cekimIsleri: yeniIsler }));
 
   const updateCekimIsi = (id, patch) => setData((d) => {
     const eskiIs = (d.cekimIsleri || []).find((j) => j.id === id);
@@ -10364,7 +10388,7 @@ export default function MarcusOS() {
           {staffTab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="staff" />}
           {staffTab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} isler={data.cekimIsleri || []} plan={data.haftalikPaylasimlar || []}
             cekimSirasi={data.cekimSirasi || []} onSiraDegis={cekimSirasiKaydet} />}
-          {staffTab === "cekim-edit" && <CekimEditTakibi role="staff" acilacakIsId={gidilecekIs} onKartAcildi={() => setGidilecekIs(null)} clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onAddJobs={addCekimIsleri} onTopluMedya={topluKartaMedyaYaz} onTopluAsama={topluKartlariAsamayaAl} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} girisYapanAd={loggedStaffName} islemYetkisi={izinler.cekimEdit === true} kartYetkileri={izinler} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={izinler.markaYoneticisi} firmaAdi={data.firmaAdi} />}
+          {staffTab === "cekim-edit" && <CekimEditTakibi role="staff" acilacakIsId={gidilecekIs} onKartAcildi={() => setGidilecekIs(null)} clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onAddJobs={addCekimIsleri} onTopluMedya={topluKartaMedyaYaz} onTopluAsama={topluKartlariAsamayaAl} onTopluTasi={topluTasinanlariYaz} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} girisYapanAd={loggedStaffName} islemYetkisi={izinler.cekimEdit === true} kartYetkileri={izinler} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={izinler.markaYoneticisi} firmaAdi={data.firmaAdi} />}
           {staffTab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} duzenleyenAdi={loggedStaffName || "Personel"} />}
           {staffTab === "birikim" && (
             <Birikim
@@ -10816,7 +10840,7 @@ export default function MarcusOS() {
           {tab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="owner" />}
           {tab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} isler={data.cekimIsleri || []} plan={data.haftalikPaylasimlar || []}
             cekimSirasi={data.cekimSirasi || []} onSiraDegis={cekimSirasiKaydet} />}
-          {tab === "cekim-edit" && <CekimEditTakibi role="owner" acilacakIsId={gidilecekIs} onKartAcildi={() => setGidilecekIs(null)} clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onAddJobs={addCekimIsleri} onTopluMedya={topluKartaMedyaYaz} onTopluAsama={topluKartlariAsamayaAl} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} isUcretleri={data.isUcretleri || {}} onSaveIsUcreti={setIsUcreti} isUcretDetaylari={data.isUcretDetaylari || {}} onSaveIsUcretDetayi={setIsUcretDetayi} avanslar={data.avanslar || []} hesaplar={data.hesaplar || []} onAddAvans={addAvans} onDeleteAvans={deleteAvans} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={true} firmaAdi={data.firmaAdi} />}
+          {tab === "cekim-edit" && <CekimEditTakibi role="owner" acilacakIsId={gidilecekIs} onKartAcildi={() => setGidilecekIs(null)} clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onAddJobs={addCekimIsleri} onTopluMedya={topluKartaMedyaYaz} onTopluAsama={topluKartlariAsamayaAl} onTopluTasi={topluTasinanlariYaz} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} isUcretleri={data.isUcretleri || {}} onSaveIsUcreti={setIsUcreti} isUcretDetaylari={data.isUcretDetaylari || {}} onSaveIsUcretDetayi={setIsUcretDetayi} avanslar={data.avanslar || []} hesaplar={data.hesaplar || []} onAddAvans={addAvans} onDeleteAvans={deleteAvans} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={true} firmaAdi={data.firmaAdi} />}
           {tab === "personel" && (
             <Personel
               /* Giriş hesapları ve yetkiler artık Personel > Hesaplar & Yetkiler altında.
