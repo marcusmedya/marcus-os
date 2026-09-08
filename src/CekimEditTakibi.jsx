@@ -9,6 +9,7 @@ import { sunucuyuBekle } from "../lib/onizleme-bellegi.js";
 import { isBasladi, isBitti } from "../lib/suren-isler.js";
 import { kartiIsleyebilirMi } from "../lib/is-yetkisi.js";
 import { yetkiVar } from "../lib/kart-yetkisi.js";
+import { topluAdlar, topluIsleriUret, adetiCoz, EN_FAZLA_TOPLU } from "../lib/toplu-kart.js";
 import { markaninIdsi, trKucult } from "../lib/marka-kilidi.js";
 import { panoSuzgeci } from "../lib/pano-suzgeci.js";
 import { paylasimTuru, PAYLASIM_TURLERI } from "../lib/stok.js";
@@ -538,6 +539,140 @@ function YeniIsFormu({ clients, subeler, personelRosteri, varsayilanKategori, on
 }
 
 /* ------------------------------------------------------------------ */
+/* Toplu İş Formu                                                        */
+/* ------------------------------------------------------------------ */
+/**
+ * "Elimde 20 fotoğraf var, hepsi ayrı kart olacak."
+ *
+ * Aynı markanın, aynı kategorinin, aynı teslim tarihinin yirmi kartını tek tek açmak
+ * yirmi kez aynı formu doldurmak demekti. Burada ortak alanlar BİR kez giriliyor, ad
+ * numaralandırılarak çoğaltılıyor ("Post 13", "Post 14"…) ve numara markanın mevcut
+ * kartlarından devam ediyor — iki "Post 3" olmasın.
+ *
+ * DOSYA SEÇMEK ZORUNLU DEĞİL: dosya seçilirse kart sayısı dosya sayısıdır ve her dosya
+ * kendi kartına yüklenir; seçilmezse yalnızca boş kartlar açılır (içerik sonra gelecekse).
+ */
+function TopluIsFormu({ clients, subeler, personelRosteri, varsayilanKategori, mevcutIsler, onOlustur, onCancel }) {
+  const [v, setV] = useState({
+    kategori: varsayilanKategori || KATEGORILER[0],
+    marka: "", taban: "Post", adet: 5,
+    cekimTarihi: bugunISO(), teslimTarihi: bugunISO(),
+    kameraman: "", editor: "", oncelik: "Normal", brief: "", sadeceSubeler: [],
+  });
+  const [dosyalar, setDosyalar] = useState([]);
+  const set = (k, val) => setV((st) => ({ ...st, [k]: val }));
+  const video = cekimVarMi(v.kategori);
+  const markaId = markaninIdsi(clients, v.marka);
+  const markaSubeleri = markaninSubeleri(subeler, markaId);
+
+  /* Numara YALNIZCA bu markanın kartlarından devam ediyor: başka markanın "Post 40"ı
+   * bu markanın numarasını ileri atmasın. */
+  const markaninAdlari = useMemo(() => (mevcutIsler || [])
+    .filter((j) => j && trKucult(j.marka) === trKucult(v.marka))
+    .map((j) => j.icerikTuru), [mevcutIsler, v.marka]);
+
+  /* Dosya seçildiyse kart sayısını DOSYA belirler — "10 dosya seçip 5 kart" hâli
+   * kullanıcıya hangi beşinin yükleneceğini sormak demekti. */
+  const adet = dosyalar.length > 0 ? Math.min(dosyalar.length, EN_FAZLA_TOPLU) : adetiCoz(v.adet);
+  const adlar = topluAdlar(v.taban, adet, markaninAdlari);
+  const hazir = Boolean(v.marka) && adlar.length > 0;
+
+  return (
+    <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, marginBottom: 16 }}>
+      <div style={{ fontSize: 14, fontWeight: 800, color: C.text, marginBottom: 12 }}>Toplu İş Aç</div>
+      <label style={labelStyle}>Kategori</label>
+      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        {KATEGORILER.map((k) => (
+          <button key={k} onClick={() => set("kategori", k)}
+            style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1.5px solid ${v.kategori === k ? C.accent : C.border}`, background: v.kategori === k ? C.accentSoft : "transparent", color: v.kategori === k ? C.accentText : C.textDim, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{k}</button>
+        ))}
+      </div>
+      <div className="marcus-field-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+        <MarkaSeciciAlan clients={clients} deger={v.marka} onDegis={(x) => setV((st) => ({ ...st, marka: x, sadeceSubeler: [] }))} />
+        <div>
+          <label style={labelStyle}>Ad tabanı</label>
+          <input style={inputStyle} value={v.taban} onChange={(e) => set("taban", e.target.value)} placeholder="örn. Post" />
+        </div>
+        <div>
+          <label style={labelStyle}>Dosyalar (isteğe bağlı)</label>
+          <input type="file" multiple style={{ ...inputStyle, padding: 8 }}
+            onChange={(e) => setDosyalar(Array.from((e.target && e.target.files) || []))} />
+        </div>
+        <div>
+          <label style={labelStyle}>Kaç kart?</label>
+          <input type="number" min="1" max={EN_FAZLA_TOPLU} style={inputStyle}
+            value={dosyalar.length > 0 ? dosyalar.length : v.adet}
+            disabled={dosyalar.length > 0}
+            onChange={(e) => set("adet", e.target.value)} />
+        </div>
+        {video && <div><label style={labelStyle}>Çekim Tarihi</label><input type="date" style={inputStyle} value={v.cekimTarihi} onChange={(e) => set("cekimTarihi", e.target.value)} /></div>}
+        <div><label style={labelStyle}>Teslim Tarihi</label><input type="date" style={inputStyle} value={v.teslimTarihi} onChange={(e) => set("teslimTarihi", e.target.value)} /></div>
+        {video && <div><label style={labelStyle}>Sorumlu Kameraman</label><PersonelSecici value={v.kameraman} onChange={(val) => set("kameraman", val)} personelRosteri={personelRosteri} /></div>}
+        <div><label style={labelStyle}>{v.kategori === "Grafik Tasarım" ? "Sorumlu Tasarımcı" : (v.kategori === "Fotoğraf" || v.kategori === "Carousel") ? "Sorumlu Düzenleyen" : "Sorumlu Editör"}</label><PersonelSecici value={v.editor} onChange={(val) => set("editor", val)} personelRosteri={personelRosteri} /></div>
+        <div>
+          <label style={labelStyle}>Öncelik</label>
+          <select style={inputStyle} value={v.oncelik} onChange={(e) => set("oncelik", e.target.value)}>
+            {ONCELIKLER.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
+      </div>
+      {markaSubeleri.length > 0 && (
+        <div style={{ marginBottom: 12 }}>
+          <label style={labelStyle}>Hangi şubeler kullanabilir?</label>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {[{ id: null, ad: "Tüm şubeler" }, ...markaSubeleri].map((sb) => {
+              const hepsi = sb.id === null;
+              const aktif = hepsi ? v.sadeceSubeler.length === 0 : v.sadeceSubeler.includes(String(sb.id));
+              return (
+                <button key={hepsi ? "hepsi" : sb.id}
+                  onClick={() => setV((st) => {
+                    if (hepsi) return { ...st, sadeceSubeler: [] };
+                    const id = String(sb.id);
+                    const su = st.sadeceSubeler;
+                    return { ...st, sadeceSubeler: su.includes(id) ? su.filter((x) => x !== id) : [...su, id] };
+                  })}
+                  style={{ padding: "7px 12px", borderRadius: 999, cursor: "pointer", fontSize: 13, fontWeight: 700, border: `1.5px solid ${aktif ? C.accent : C.border}`, background: aktif ? C.accentSoft : "transparent", color: aktif ? C.accentText : C.textDim }}
+                >{sb.ad}</button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      <label style={labelStyle}>Brief / Notlar (hepsine aynı)</label>
+      <textarea style={{ ...inputStyle, marginBottom: 12 }} rows={2} value={v.brief} onChange={(e) => set("brief", e.target.value)} />
+
+      {/* ÖN İZLEME: kullanıcı YAZMADAN ÖNCE hangi adların açılacağını görüyor. Numara
+        * markanın mevcut kartlarından devam ettiği için "1'den mi başlayacak?" sorusunun
+        * cevabı tahmin değil, ekranda. */}
+      <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px", marginBottom: 12, fontSize: 12.5, color: C.textDim, lineHeight: 1.6 }}>
+        {!v.marka ? "Önce marka seç."
+          : adlar.length === 0 ? "Ad tabanı ve kart sayısı gerekli."
+          : (<>
+              <b style={{ color: C.text }}>{adlar.length} kart</b> açılacak:{" "}
+              {adlar.length <= 3 ? adlar.join(", ") : `${adlar[0]}, ${adlar[1]} … ${adlar[adlar.length - 1]}`}
+              {dosyalar.length > 0 && <div style={{ marginTop: 4 }}>Her dosya kendi kartına yüklenecek — sırayla, ilk dosya ilk karta.</div>}
+              {dosyalar.length === 0 && <div style={{ marginTop: 4 }}>Dosya seçilmedi — kartlar boş açılacak.</div>}
+            </>)}
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button style={btnGhost} onClick={onCancel}>İptal</button>
+        <button style={{ ...btnPrimary, opacity: hazir ? 1 : 0.5, cursor: hazir ? "pointer" : "default" }}
+          disabled={!hazir}
+          onClick={() => hazir && onOlustur({
+            ortak: {
+              kategori: v.kategori, marka: v.marka, cekimTarihi: v.cekimTarihi, teslimTarihi: v.teslimTarihi,
+              kameraman: v.kameraman, editor: v.editor, oncelik: v.oncelik, brief: v.brief,
+              istenenAdet: "", uretilenAdet: "", sadeceSubeler: v.sadeceSubeler,
+            },
+            taban: v.taban, adet, dosyalar, mevcutAdlar: markaninAdlari,
+          })}
+        >{adlar.length > 0 ? `${adlar.length} Kart Aç` : "Kart Aç"}</button>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* İş Detay Modalı                                                       */
 /* ------------------------------------------------------------------ */
 /**
@@ -759,6 +894,132 @@ function SunucuOnizleme({ isId, slot, versiyon, video, drivedeAc, gomuluUrl, yon
  * Eskiden ikinci dosya yüklendiğinde birincisi "eski versiyon" oluyordu; karosel gönderide
  * 8 slayt birbirini eziyordu. Artık her slaydın kendi versiyon geçmişi var.
  */
+/**
+ * TEK BİR DOSYAYI VERİLEN KARTIN VERİLEN SLOTUNA YÜKLER. Yeni medya kaydını döndürür.
+ *
+ * Bileşenin İÇİNDEN buraya alındı çünkü artık İKİ çağıranı var: kartın kendi yükleyicisi
+ * ve toplu kart açma akışı. İki ayrı kopya tutulsaydı biri düzeltilip diğeri unutulurdu —
+ * bu dosyada XHR düşünce fetch'e geçme, oturum düşmesi mesajı gibi sahada öğrenilmiş
+ * ayrıntılar var; ikinci bir kopya onları taşımazdı.
+ *
+ * Durum ve yüzde ÇAĞIRANA bildiriliyor: kart içindeki yükleyici ilerleme çubuğunu,
+ * toplu akış "3/20" sayacını çiziyor. İkisi de aynı olaylara bakıyor.
+ */
+async function driveyeDosyaYukle({ isId, topluId, topluSira, slot, dosya, durumBildir, yuzdeBildir }) {
+  /* Kart NUMARAYLA ya da TOPLU ETİKETİYLE bulunuyor — ikincisi toplu açılış için:
+   * numara onarımı olmuşsa tarayıcıdaki numara eskidir, etiket kartla birlikte
+   * kaydedildiği için onarımdan etkilenmez. Sunucu hangisi geldiyse ona bakıyor. */
+  const kartHedefi = topluId ? { topluId, topluSira } : { isId };
+  const durumaGec = (d) => { if (typeof durumBildir === "function") durumBildir(d); };
+  const yuzdeyeGec = (y) => { if (typeof yuzdeBildir === "function") yuzdeBildir(y); };
+  // 1) Sunucudan yükleme adresi al (hedef klasörü ve versiyon numarasını o belirliyor)
+  const istekGovdesi = {
+    driveAction: "yuklemeBasla", ...kartHedefi, slot,
+    dosyaAdi: dosya.name, mimeTur: dosya.type, boyut: dosya.size,
+  };
+  const yanit = await fetch("/api/data", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify(istekGovdesi),
+  });
+  /* Oturum düşmüşse sunucu "Yetkisiz. Şifre gerekli." diyor. Bu cümle geliştirici
+   * diliyle yazılmış; dosya yüklemeye çalışan personele bir şey anlatmıyor. */
+  if (yanit.status === 401 || yanit.status === 403) {
+    throw new Error("Oturumun düşmüş görünüyor. Çıkıp tekrar giriş yap, sonra dosyayı yeniden seç.");
+  }
+  const basla = await yanit.json();
+  if (!basla.ok) throw new Error(basla.error || "Yükleme başlatılamadı.");
+
+  // 2) Baytları DOĞRUDAN Google'a gönder.
+  //
+  //    İKİ YÖNTEM DENENİYOR. XMLHttpRequest tercih ediliyor çünkü ilerlemeyi bildiren tek
+  //    yol o — fetch ile 80 MB'lık bir videoda kullanıcı donmuş sanıyor. Ama XHR bazı
+  //    tarayıcı/eklenti kurulumlarında sebep söylemeden düşebiliyor; o durumda fetch ile
+  //    bir kez daha deneniyor.
+  durumaGec("yukleniyor");
+
+  const xhrIleGonder = (url) => new Promise((coz, red) => {
+    const x = new XMLHttpRequest();
+    x.open("PUT", url, true);
+    x.setRequestHeader("Content-Type", dosya.type || "application/octet-stream");
+    x.upload.onprogress = (ev) => {
+      if (ev.lengthComputable) yuzdeyeGec(Math.round((ev.loaded / ev.total) * 100));
+    };
+    x.onload = () => {
+      if (x.status >= 200 && x.status < 300) {
+        try { coz(JSON.parse(x.responseText).id); }
+        catch (err) { red(new Error(`Google beklenmedik yanıt verdi: ${String(x.responseText).slice(0, 120)}`)); }
+      } else {
+        red(new Error(`Google reddetti (HTTP ${x.status}): ${String(x.responseText).slice(0, 160)}`));
+      }
+    };
+    x.onerror = () => red(new Error("XHR-AGHATASI"));
+    x.onabort = () => red(new Error("Yükleme iptal edildi."));
+    x.send(dosya);
+  });
+
+  /* Ok işlevi yerine `async function`: denetleyici `= async (` kalıbını çağrı sanıp
+   * yanlış alarm veriyor. Davranış aynı. */
+  async function fetchIleGonder(url) {
+    const y = await fetch(url, {
+      method: "PUT",
+      headers: { "Content-Type": dosya.type || "application/octet-stream" },
+      body: dosya,
+    });
+    const metin = await y.text();
+    if (!y.ok) throw new Error(`Google reddetti (HTTP ${y.status}): ${metin.slice(0, 160)}`);
+    try { return JSON.parse(metin).id; }
+    catch (err) { throw new Error(`Google beklenmedik yanıt verdi: ${metin.slice(0, 120)}`); }
+  }
+
+  let dosyaId;
+  try {
+    dosyaId = await xhrIleGonder(basla.yuklemeUrl);
+  } catch (e1) {
+    if (String(e1.message) !== "XHR-AGHATASI") throw e1;
+    /* XHR sebep söylemeden düştü. Yükleme oturumu tek kullanımlık olduğu için YENİSİNİ
+     * alıp fetch ile deniyoruz; fetch'in hata metni neyin engellediğini söyler. */
+    yuzdeyeGec(0);
+    const tekrar = await fetch("/api/data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(istekGovdesi),
+    }).then((r) => r.json());
+    if (!tekrar.ok) throw new Error(tekrar.error || "Yükleme başlatılamadı.");
+    try {
+      dosyaId = await fetchIleGonder(tekrar.yuklemeUrl);
+    } catch (e2) {
+      throw new Error(`Tarayıcı Google'a ulaşamadı. ${e2.message || e2}`);
+    }
+  }
+
+  // 3) Sunucuya bildir: servis hesabına yetki verilir
+  durumaGec("bitiyor"); yuzdeyeGec(100);
+  const bitti = await fetch("/api/data", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ driveAction: "yuklemeBitti", ...kartHedefi, dosyaId }),
+  }).then((r) => r.json());
+  if (!bitti.ok) throw new Error(bitti.error || "Kayıt tamamlanamadı.");
+
+  /* Kayıt uygulamanın NORMAL akışından geçiyor (onYuklendi -> onUpdate), sunucu kendi
+   * başına yazmıyor. Sebebi: sunucu ikinci bir yazma yaparsa sürüm sayacı artar, tarayıcı
+   * geride kalır ve sonraki kayıt sahte çakışmayla kullanıcının düzenlemesini siler. */
+  /* İKİ AYRI ŞEY DÖNÜYOR: karta yazılacak MEDYA KAYDI ve dosyanın gittiği KART.
+   * Kart numarası kaydın içine konulmadı — o alan belgeye yazılıyor ve orada işi yok;
+   * toplu akış numarayı yalnızca önizlemeyi tazelemek için istiyor. */
+  return { isId: basla.isId !== undefined ? basla.isId : isId, kayit: {
+    slot: basla.slot || slot,
+    versiyon: basla.versiyon,
+    dosyaId: bitti.dosya.dosyaId,
+    ad: bitti.dosya.ad,
+    mimeTur: bitti.dosya.mimeTur,
+    boyut: bitti.dosya.boyut,
+    url: bitti.dosya.url,
+    tarih: new Date().toISOString(),
+  } };
+}
+
 function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
   /* Kategorinin slayt sınırı. Fotoğraf tek görsellik — çoklu gönderi Carousel'in işi. */
   const slaytSiniri = enFazlaSlayt(job && job.kategori);
@@ -775,111 +1036,10 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
 
   const meshgul = durum === "hazirlaniyor" || durum === "yukleniyor" || durum === "bitiyor" || durum === "siliniyor";
 
-  /** Tek bir dosyayı verilen slota yükler. Yeni medya kaydını döndürür. */
+  /** Kartın kendi yükleyicisi — ortak çekirdeği bu kartın kimliğiyle çağırır. */
   async function dosyayiYukle(dosya, slot) {
-    // 1) Sunucudan yükleme adresi al (hedef klasörü ve versiyon numarasını o belirliyor)
-    const istekGovdesi = {
-      driveAction: "yuklemeBasla", isId: job.id, slot,
-      dosyaAdi: dosya.name, mimeTur: dosya.type, boyut: dosya.size,
-    };
-    const yanit = await fetch("/api/data", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify(istekGovdesi),
-    });
-    /* Oturum düşmüşse sunucu "Yetkisiz. Şifre gerekli." diyor. Bu cümle geliştirici
-     * diliyle yazılmış; dosya yüklemeye çalışan personele bir şey anlatmıyor. */
-    if (yanit.status === 401 || yanit.status === 403) {
-      throw new Error("Oturumun düşmüş görünüyor. Çıkıp tekrar giriş yap, sonra dosyayı yeniden seç.");
-    }
-    const basla = await yanit.json();
-    if (!basla.ok) throw new Error(basla.error || "Yükleme başlatılamadı.");
-
-    // 2) Baytları DOĞRUDAN Google'a gönder.
-    //
-    //    İKİ YÖNTEM DENENİYOR. XMLHttpRequest tercih ediliyor çünkü ilerlemeyi bildiren tek
-    //    yol o — fetch ile 80 MB'lık bir videoda kullanıcı donmuş sanıyor. Ama XHR bazı
-    //    tarayıcı/eklenti kurulumlarında sebep söylemeden düşebiliyor; o durumda fetch ile
-    //    bir kez daha deneniyor.
-    setDurum("yukleniyor");
-
-    const xhrIleGonder = (url) => new Promise((coz, red) => {
-      const x = new XMLHttpRequest();
-      x.open("PUT", url, true);
-      x.setRequestHeader("Content-Type", dosya.type || "application/octet-stream");
-      x.upload.onprogress = (ev) => {
-        if (ev.lengthComputable) setYuzde(Math.round((ev.loaded / ev.total) * 100));
-      };
-      x.onload = () => {
-        if (x.status >= 200 && x.status < 300) {
-          try { coz(JSON.parse(x.responseText).id); }
-          catch (err) { red(new Error(`Google beklenmedik yanıt verdi: ${String(x.responseText).slice(0, 120)}`)); }
-        } else {
-          red(new Error(`Google reddetti (HTTP ${x.status}): ${String(x.responseText).slice(0, 160)}`));
-        }
-      };
-      x.onerror = () => red(new Error("XHR-AGHATASI"));
-      x.onabort = () => red(new Error("Yükleme iptal edildi."));
-      x.send(dosya);
-    });
-
-    /* Ok işlevi yerine `async function`: denetleyici `= async (` kalıbını çağrı sanıp
-     * yanlış alarm veriyor. Davranış aynı. */
-    async function fetchIleGonder(url) {
-      const y = await fetch(url, {
-        method: "PUT",
-        headers: { "Content-Type": dosya.type || "application/octet-stream" },
-        body: dosya,
-      });
-      const metin = await y.text();
-      if (!y.ok) throw new Error(`Google reddetti (HTTP ${y.status}): ${metin.slice(0, 160)}`);
-      try { return JSON.parse(metin).id; }
-      catch (err) { throw new Error(`Google beklenmedik yanıt verdi: ${metin.slice(0, 120)}`); }
-    }
-
-    let dosyaId;
-    try {
-      dosyaId = await xhrIleGonder(basla.yuklemeUrl);
-    } catch (e1) {
-      if (String(e1.message) !== "XHR-AGHATASI") throw e1;
-      /* XHR sebep söylemeden düştü. Yükleme oturumu tek kullanımlık olduğu için YENİSİNİ
-       * alıp fetch ile deniyoruz; fetch'in hata metni neyin engellediğini söyler. */
-      setYuzde(0);
-      const tekrar = await fetch("/api/data", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify(istekGovdesi),
-      }).then((r) => r.json());
-      if (!tekrar.ok) throw new Error(tekrar.error || "Yükleme başlatılamadı.");
-      try {
-        dosyaId = await fetchIleGonder(tekrar.yuklemeUrl);
-      } catch (e2) {
-        throw new Error(`Tarayıcı Google'a ulaşamadı. ${e2.message || e2}`);
-      }
-    }
-
-    // 3) Sunucuya bildir: servis hesabına yetki verilir
-    setDurum("bitiyor"); setYuzde(100);
-    const bitti = await fetch("/api/data", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ driveAction: "yuklemeBitti", isId: job.id, dosyaId }),
-    }).then((r) => r.json());
-    if (!bitti.ok) throw new Error(bitti.error || "Kayıt tamamlanamadı.");
-
-    /* Kayıt uygulamanın NORMAL akışından geçiyor (onYuklendi -> onUpdate), sunucu kendi
-     * başına yazmıyor. Sebebi: sunucu ikinci bir yazma yaparsa sürüm sayacı artar, tarayıcı
-     * geride kalır ve sonraki kayıt sahte çakışmayla kullanıcının düzenlemesini siler. */
-    return {
-      slot: basla.slot || slot,
-      versiyon: basla.versiyon,
-      dosyaId: bitti.dosya.dosyaId,
-      ad: bitti.dosya.ad,
-      mimeTur: bitti.dosya.mimeTur,
-      boyut: bitti.dosya.boyut,
-      url: bitti.dosya.url,
-      tarih: new Date().toISOString(),
-    };
+    const sonuc = await driveyeDosyaYukle({ isId: job.id, slot, dosya, durumBildir: setDurum, yuzdeBildir: setYuzde });
+    return sonuc.kayit;
   }
 
   async function dosyaSecildi(e) {
@@ -2616,7 +2776,7 @@ export function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onS
 /* ------------------------------------------------------------------ */
 /* ANA BİLEŞEN                                                           */
 /* ------------------------------------------------------------------ */
-export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clients, subeler, planlar, jobs, personelRosteri, onRefreshRoster, onAddJob, onUpdateJob, onDeleteJob, girisYapanAd, islemYetkisi = true, kartYetkileri, isUcretleri, onSaveIsUcreti, isUcretDetaylari, onSaveIsUcretDetayi, avanslar, hesaplar, onAddAvans, onDeleteAvans, markalasmaSurecleri, onToggleMarkalasmaGorev, onSetMarkalasmaYonetici, onAddMarkalasmaGorev, onCompleteMarkalasmaSureci, onDeleteMarkalasmaSureci, markaYoneticisiMi, firmaAdi }) {
+export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clients, subeler, planlar, jobs, personelRosteri, onRefreshRoster, onAddJob, onAddJobs, onTopluMedya, onUpdateJob, onDeleteJob, girisYapanAd, islemYetkisi = true, kartYetkileri, isUcretleri, onSaveIsUcreti, isUcretDetaylari, onSaveIsUcretDetayi, avanslar, hesaplar, onAddAvans, onDeleteAvans, markalasmaSurecleri, onToggleMarkalasmaGorev, onSetMarkalasmaYonetici, onAddMarkalasmaGorev, onCompleteMarkalasmaSureci, onDeleteMarkalasmaSureci, markaYoneticisiMi, firmaAdi }) {
   const [staffName, setStaffNameState] = useState(girisYapanAd || getStaffName());
   const [view, setView] = useState(role === "staff" ? "panom" : "pano");
   /* Varsayılan sekme LİSTEDEN geliyor. Bir süre "Video" yazılıydı: kategori adı
@@ -2631,6 +2791,8 @@ export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clie
   const [panoMarka, setPanoMarka] = useState("");
   const [genisletilmisSutunlar, setGenisletilmisSutunlar] = useState({});
   const [adding, setAdding] = useState(false);
+  const [topluAcik, setTopluAcik] = useState(false);
+  const [topluDurum, setTopluDurum] = useState(null);   // { mesaj } | { hata }
   const [acikIs, setAcikIs] = useState(null);
   const duzenleyenAdi = role === "owner" ? "Yönetici (CEO)" : (staffName || "Personel");
   /* YÖNETİCİ HEPSİNE SAHİP. Alt yetkiler yalnızca personeli sınırlamak için var;
@@ -2639,6 +2801,65 @@ export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clie
   const yetkiler = role === "owner"
     ? { kartAcma: true, kartOnaylama: true, kartDuzenleme: true, kartSilme: true }
     : (kartYetkileri || {});
+
+  /* TOPLU AÇILIŞTA DOSYALAR KARTLAR KAYDEDİLDİKTEN SONRA YÜKLENİR.
+   *
+   * Kart önce tarayıcıda oluşuyor, kayıt saniyeler içinde sunucuya gidiyor. Yükleme ucu
+   * kartı SUNUCUDAKİ belgede arıyor; kayıt henüz ulaşmadıysa "İş kartı bulunamadı" diyor.
+   * Bu bir hata değil, sıra meselesi — o yüzden beklenip tekrar deneniyor. Sabit bir
+   * gecikme tahmini yerine gerçek cevaba bakılıyor: yavaş bağlantıda tahmin tutmazdı.
+   *
+   * Kart NUMARAYLA değil TOPLU ETİKETİYLE bulunuyor (sunucuda da, tarayıcıda da): numara
+   * çakışırsa sunucu yenisini veriyor ve o aralıkta numaraya güvenmek dosyayı başka
+   * kartın içine koyardı. */
+  const bekle = (ms) => new Promise((coz) => setTimeout(coz, ms));
+  async function topluDosyaYukle(topluId, sira, dosya) {
+    for (let deneme = 0; deneme < 20; deneme += 1) {
+      try {
+        return await driveyeDosyaYukle({ isId: null, topluId, topluSira: sira, slot: "1", dosya });
+      } catch (err) {
+        const mesaj = String((err && err.message) || err);
+        if (!/bulunamad/i.test(mesaj)) throw err;
+        await bekle(1500);
+      }
+    }
+    throw new Error("Kartlar kaydedilirken bağlantı gecikti. Kartlar açıldı; dosyaları kartlardan tek tek yükleyebilirsin.");
+  }
+
+  async function topluOlustur({ ortak, taban, adet, dosyalar, mevcutAdlar }) {
+    if (typeof onAddJobs !== "function") return;
+    const topluId = `tk${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+    const isler = topluIsleriUret({ taban, adet, mevcutAdlar, ortak, topluId });
+    if (isler.length === 0) return;
+    onAddJobs(isler);
+    setTopluAcik(false);
+    if (!dosyalar || dosyalar.length === 0) {
+      setTopluDurum({ mesaj: `${isler.length} kart açıldı.` });
+      return;
+    }
+    /* Yükleme sürerken arka plan tazelemesi durmalı — baytlar doğrudan Google'a gidiyor,
+     * uygulama kendini boşta sanıp kartların tamamını sunucudaki hâliyle değiştirirdi. */
+    const isKimligi = `toplu-yukleme-${topluId}`;
+    isBasladi(isKimligi);
+    let yuklenen = 0;
+    try {
+      for (let i = 0; i < isler.length; i += 1) {
+        setTopluDurum({ mesaj: `${i + 1}/${isler.length} — ${isler[i].icerikTuru} yükleniyor…` });
+        const sonuc = await topluDosyaYukle(topluId, i + 1, dosyalar[i]);
+        /* Medya kartına ETİKETLE yazılıyor; numara onarılmış olabilir. */
+        if (typeof onTopluMedya === "function") onTopluMedya(topluId, i + 1, sonuc.kayit);
+        if (sonuc.isId) { onizlemeyiTazele(sonuc.isId); sunucuyuBekle(sonuc.isId); }
+        yuklenen += 1;
+      }
+      setTopluDurum({ mesaj: `${isler.length} kart açıldı, ${yuklenen} dosya yüklendi.` });
+    } catch (err) {
+      /* YARIM KALAN İŞ GİZLENMİYOR: kaç dosyanın yüklendiği ve neyin kaldığı yazılıyor.
+       * Kartlar zaten açık — kullanıcı kalanları kartlardan tek tek yükleyebilir. */
+      setTopluDurum({ hata: `${isler.length} kart açıldı, ${yuklenen} dosya yüklendi. Kalanı yüklenemedi: ${String((err && err.message) || err)}` });
+    } finally {
+      isBitti(isKimligi);
+    }
+  }
 
   /* DIŞARIDAN "BU KARTA GİT". Paylaşımlar'daki Drive raporu bir kartı adıyla söylüyor
    * ama kullanıcı onu Operasyon'da elle aramak zorundaydı: doğru sekmeyi seç, doğru
@@ -2704,6 +2925,7 @@ export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clie
           )}
         </div>
         {view !== "markalasma" && yetkiVar(yetkiler, "kartAcma") && <button style={btnPrimary} onClick={() => { setAdding((v) => !v); if (onRefreshRoster) onRefreshRoster(); }}><Plus size={14} /> Yeni İş</button>}
+        {view !== "markalasma" && yetkiVar(yetkiler, "kartAcma") && typeof onAddJobs === "function" && <button style={btnGhost} onClick={() => { setTopluAcik((x) => !x); setTopluDurum(null); if (onRefreshRoster) onRefreshRoster(); }}><Plus size={14} /> Toplu İş</button>}
       </div>
 
       {view === "pano" && (
@@ -2739,6 +2961,15 @@ export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clie
       )}
 
       {adding && <YeniIsFormu clients={clients} subeler={subeler} personelRosteri={personelRosteri} varsayilanKategori={view === "pano" ? panoKategori : "Video"} onCancel={() => setAdding(false)} onSubmit={(v) => { onAddJob(v); setAdding(false); }} />}
+      {topluAcik && <TopluIsFormu clients={clients} subeler={subeler} personelRosteri={personelRosteri} varsayilanKategori={view === "pano" ? panoKategori : KATEGORILER[0]} mevcutIsler={jobs} onCancel={() => setTopluAcik(false)} onOlustur={topluOlustur} />}
+      {topluDurum && (
+        <div style={{ marginBottom: 12, padding: "10px 12px", borderRadius: 10, fontSize: 12.5, lineHeight: 1.6,
+          border: `1px solid ${topluDurum.hata ? C.warning : C.border}`, background: C.panel,
+          color: topluDurum.hata ? C.warning : C.textDim }}>
+          {topluDurum.hata || topluDurum.mesaj}
+          <button onClick={() => setTopluDurum(null)} style={{ background: "none", border: "none", color: C.accentText, cursor: "pointer", fontSize: 11.5, marginLeft: 8, fontFamily: "inherit" }}>kapat</button>
+        </div>
+      )}
 
       {view === "panom" && role === "staff" && <PersonelPaneli jobs={isler} staffName={staffName} onOpen={setAcikIs} />}
 

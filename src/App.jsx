@@ -41,6 +41,7 @@ import { InstagramOnizleme, InstagramIzgara, aylikRaporAc } from "./instagram.js
 import { MusteriPaneli } from "./musteriPaneli.jsx";
 import { hazirIcerikleriUret, musteriKayitlariniSuz } from "../lib/musteri-gorunumu.js";
 import { markayaGoreGrupla } from "../lib/reklam-gruplari.js";
+import { topludanKartBul } from "../lib/toplu-kart.js";
 import { ekstreUret, varsayilanBaslangic } from "../lib/ekstre.js";
 import { ucretDagilimi, ayinUcreti, ACIK_BASLANGIC } from "../lib/marka-ucreti.js";
 import { markaEslestirici } from "../lib/marka-kilidi.js";
@@ -9055,6 +9056,44 @@ export default function MarcusOS() {
         .catch(() => window.alert(`${kisi.ad} için bildirim e-postası gönderilirken bağlantı hatası oluştu.`));
     });
   };
+  /* TOPLU KART AÇMA — yirmi kart tek kayıtta.
+   *
+   * Kartları tek tek eklemek yirmi ayrı `setData` demekti; her biri kaydı tetikler ve
+   * kayıtlar birbirini beklerken kullanıcı ekranda hiçbir şey olmadığını sanır. Tek
+   * seferde eklenince tek kayıt gidiyor.
+   *
+   * Numaralar burada veriliyor ama SON SÖZ SUNUCUDA: çakışma varsa sunucu yeni numara
+   * verir. Bu yüzden kartlar `topluId` etiketi taşıyor — dosya yüklemesi kartı numaraya
+   * değil o etikete bakarak buluyor. */
+  const addCekimIsleri = (isler) => {
+    const liste = Array.isArray(isler) ? isler : [];
+    if (liste.length === 0) return;
+    setData((d) => {
+      const mevcut = d.cekimIsleri || [];
+      let sonraki = mevcut.reduce((m, j) => Math.max(m, Number(j.id) || 0), 0);
+      const zaman = new Date().toLocaleString("tr-TR");
+      const yeniler = liste.map((job) => {
+        sonraki += 1;
+        return {
+          ...job, id: sonraki, asama: ILK_ASAMA(job.kategori), yorumlar: [],
+          gecmis: [{ id: 1, tarih: zaman, yazan: "Yönetici", aciklama: "İş oluşturuldu (toplu)" }],
+        };
+      });
+      return { ...d, cekimIsleri: [...mevcut, ...yeniler] };
+    });
+  };
+
+  /* Toplu açılışta yüklenen dosyayı kartına işler. Kart NUMARAYLA değil toplu etiketiyle
+   * bulunuyor: sunucu numarayı onarmış olabilir ve o an tarayıcıdaki numara eskidir.
+   * Numaraya göre yazılsaydı dosya başka kartın içine düşerdi — sessizce. */
+  const topluKartaMedyaYaz = (topluId, sira, medyaKaydi) => setData((d) => {
+    const isler = d.cekimIsleri || [];
+    const hedef = topludanKartBul(isler, topluId, sira);
+    if (!hedef) return d;
+    return { ...d, cekimIsleri: isler.map((j) => (j === hedef
+      ? { ...j, medya: [...(Array.isArray(j.medya) ? j.medya : []), medyaKaydi] } : j)) };
+  });
+
   const updateCekimIsi = (id, patch) => setData((d) => {
     const eskiIs = (d.cekimIsleri || []).find((j) => j.id === id);
     const yeniIsler = (d.cekimIsleri || []).map((j) => (j.id === id ? { ...j, ...patch } : j));
@@ -10301,7 +10340,7 @@ export default function MarcusOS() {
           {staffTab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="staff" />}
           {staffTab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} isler={data.cekimIsleri || []} plan={data.haftalikPaylasimlar || []}
             cekimSirasi={data.cekimSirasi || []} onSiraDegis={cekimSirasiKaydet} />}
-          {staffTab === "cekim-edit" && <CekimEditTakibi role="staff" acilacakIsId={gidilecekIs} onKartAcildi={() => setGidilecekIs(null)} clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} girisYapanAd={loggedStaffName} islemYetkisi={izinler.cekimEdit === true} kartYetkileri={izinler} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={izinler.markaYoneticisi} firmaAdi={data.firmaAdi} />}
+          {staffTab === "cekim-edit" && <CekimEditTakibi role="staff" acilacakIsId={gidilecekIs} onKartAcildi={() => setGidilecekIs(null)} clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onAddJobs={addCekimIsleri} onTopluMedya={topluKartaMedyaYaz} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} girisYapanAd={loggedStaffName} islemYetkisi={izinler.cekimEdit === true} kartYetkileri={izinler} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={izinler.markaYoneticisi} firmaAdi={data.firmaAdi} />}
           {staffTab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} duzenleyenAdi={loggedStaffName || "Personel"} />}
           {staffTab === "birikim" && (
             <Birikim
@@ -10753,7 +10792,7 @@ export default function MarcusOS() {
           {tab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="owner" />}
           {tab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} isler={data.cekimIsleri || []} plan={data.haftalikPaylasimlar || []}
             cekimSirasi={data.cekimSirasi || []} onSiraDegis={cekimSirasiKaydet} />}
-          {tab === "cekim-edit" && <CekimEditTakibi role="owner" acilacakIsId={gidilecekIs} onKartAcildi={() => setGidilecekIs(null)} clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} isUcretleri={data.isUcretleri || {}} onSaveIsUcreti={setIsUcreti} isUcretDetaylari={data.isUcretDetaylari || {}} onSaveIsUcretDetayi={setIsUcretDetayi} avanslar={data.avanslar || []} hesaplar={data.hesaplar || []} onAddAvans={addAvans} onDeleteAvans={deleteAvans} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={true} firmaAdi={data.firmaAdi} />}
+          {tab === "cekim-edit" && <CekimEditTakibi role="owner" acilacakIsId={gidilecekIs} onKartAcildi={() => setGidilecekIs(null)} clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onAddJobs={addCekimIsleri} onTopluMedya={topluKartaMedyaYaz} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} isUcretleri={data.isUcretleri || {}} onSaveIsUcreti={setIsUcreti} isUcretDetaylari={data.isUcretDetaylari || {}} onSaveIsUcretDetayi={setIsUcretDetayi} avanslar={data.avanslar || []} hesaplar={data.hesaplar || []} onAddAvans={addAvans} onDeleteAvans={deleteAvans} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={true} firmaAdi={data.firmaAdi} />}
           {tab === "personel" && (
             <Personel
               /* Giriş hesapları ve yetkiler artık Personel > Hesaplar & Yetkiler altında.
