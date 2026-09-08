@@ -15,6 +15,7 @@ process.env.SITE_PASSWORD = "ownerpw";
 process.env.KILIT_DENEME = "2";
 
 import { tasimaAdaylari, tasimayiUygula, tasimaOzeti, tasinabilirMi } from "../lib/toplu-tasima.js";
+import { panoOnizlemesiVarMi } from "../lib/asamalar.js";
 import { kv } from "@vercel/kv";
 import { cagir } from "./denetim.mjs";
 import crypto from "node:crypto";
@@ -185,6 +186,26 @@ await bolum("6) UÇ: TAŞIMA BAŞARISIZSA ONAY GERİ ALINIYOR VE BİLDİRİLİYO
     process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = eskiEposta || "";
     process.env.GOOGLE_PRIVATE_KEY = eskiAnahtar || "";
   }
+});
+
+/* ---------------------------------------------------------------- */
+/* PANODA ÖNİZLEME KOŞULU.
+ *
+ * Koşul JSX içinde `job.editliDosyaLink &&` diye yazılıydı: uygulamadan yüklenen dosya
+ * `medya[]` içinde durduğu için o kartlar panoda BOŞ görünüyordu. Toplu açılan yirmi
+ * kartta hepsi birden fark edildi. Kural artık saf bir fonksiyonda — JSX'teki bir koşulu
+ * hiçbir test çağıramıyordu, yalnızca kaynak metnine bakılabiliyordu. */
+await bolum("7) PANO ÖNİZLEME KOŞULU", 5, () => {
+  t("uygulamadan yüklenen dosya önizleme gösteriyor",
+    panoOnizlemesiVarMi({ kategori: "Post", medya: [{ slot: "1", dosyaId: "D1" }] }) === true,
+    "asıl hata buydu: medya[] içindeki dosya panoda hiç görünmüyordu");
+  t("elle yapıştırılmış bağlantı da gösteriyor",
+    panoOnizlemesiVarMi({ kategori: "Post", editliDosyaLink: "https://drive.google.com/file/d/X/view" }) === true);
+  t("dosyasız kart göstermiyor", panoOnizlemesiVarMi({ kategori: "Post" }) === false);
+  t("Reels'te önizleme yok",
+    panoOnizlemesiVarMi({ kategori: "Reels", medya: [{ slot: "1", dosyaId: "D1" }] }) === false,
+    "çıktı video; kartta gösterilecek durağan kare üretilmiyor");
+  t("kartsız çağrı çökmüyor", panoOnizlemesiVarMi(null) === false);
 });
 
 console.log(`\n${g} geçti, ${k} kaldı`);

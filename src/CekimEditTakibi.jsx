@@ -206,7 +206,7 @@ function DriveGorsel({ link, C, yukseklik, kapak, kucuk, isId, icerikId, boyut =
  * itibaren yüklenebiliyor, bir sütun uğruna herkesin fazladan tıklaması anlamsızdı. */
 /* AŞAMA LİSTELERİ ARTIK lib/asamalar.js'TE — sunucu da okuyabilsin diye. Buradan yeniden
  * dışa veriliyor ki mevcut çağrı yerleri değişmesin. */
-import { ASAMALAR_REELS, ASAMALAR_POST, ASAMALAR, asamaListesi, ILK_ASAMA, yapiliyorAsamasi } from "../lib/asamalar.js";
+import { ASAMALAR_REELS, ASAMALAR_POST, ASAMALAR, asamaListesi, ILK_ASAMA, yapiliyorAsamasi, panoOnizlemesiVarMi } from "../lib/asamalar.js";
 export { ASAMALAR_REELS, ASAMALAR_POST, ASAMALAR, asamaListesi, ILK_ASAMA };
 
 
@@ -344,8 +344,10 @@ function IsKarti({ job, onClick, draggable, onDragStart }) {
         <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{job.marka}</div>
         <span style={{ width: 7, height: 7, borderRadius: 999, background: ONCELIK_RENK[job.oncelik], flexShrink: 0, marginTop: 4 }} title={`Öncelik: ${job.oncelik}`} />
       </div>
-      {!ciktiVideoMu(job.kategori) && job.editliDosyaLink && (
-        <DriveGorsel link={job.editliDosyaLink} C={C} yukseklik={110} kapak kucuk isId={job.id} boyut={400} />
+      {/* Koşul `lib/asamalar.js` içinde — JSX'te yazılıydı ve Node'da çağrılamadığı için
+        * hiçbir test ona bakamıyordu. Bkz. `panoOnizlemesiVarMi`. */}
+      {panoOnizlemesiVarMi(job) && (
+        <DriveGorsel link={job.editliDosyaLink || ""} C={C} yukseklik={110} kapak kucuk isId={job.id} boyut={400} />
       )}
       <div style={{ fontSize: 11, color: C.textDim, marginBottom: 8, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
         <span>{job.icerikTuru}{job.kategori ? ` · ${job.kategori}` : ""}</span>
