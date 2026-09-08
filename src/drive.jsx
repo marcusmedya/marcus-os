@@ -146,6 +146,33 @@ export function useVideoAdresi({ isId, icerikId, alan, slot }) {
   return { durum, adres, hizliBaslangic, boyut };
 }
 
+/**
+ * ÖĞE EKRANDA GÖRÜNÜR MÜ — önizlemeyi görünmeden istememek için.
+ *
+ * Pano sütununda otuz kart varsa otuz önizleme isteği aynı anda kuyruğa giriyordu; oysa
+ * kullanıcı ilk beşini görüyor. Bu kanca, kart görünür alana girene kadar isteği hiç
+ * başlatmıyor. Görünür olduktan sonra `true` kalıyor: kullanıcı yukarı-aşağı kaydırırken
+ * aynı kartın önizlemesini defalarca istemek, çözdüğümüz sorunun aynısını üretirdi.
+ *
+ * IntersectionObserver yoksa (çok eski tarayıcı) doğrudan `true` döner — yani davranış
+ * bugünküne düşer, hiçbir şey görünmez kalmaz. Fail-open BURADA doğru: en kötü ihtimalde
+ * fazladan istek olur, eksik içerik değil.
+ */
+export function useGorunurMu(ref) {
+  const [gorunur, setGorunur] = useState(() => typeof IntersectionObserver === "undefined");
+  useEffect(() => {
+    if (gorunur) return undefined;
+    const oge = ref && ref.current;
+    if (!oge || typeof IntersectionObserver === "undefined") { setGorunur(true); return undefined; }
+    const gozlemci = new IntersectionObserver((girisler) => {
+      if (girisler.some((x) => x.isIntersecting)) { setGorunur(true); gozlemci.disconnect(); }
+    }, { rootMargin: "200px" });   // biraz erken başlasın: kullanıcı kaydırırken hazır olsun
+    gozlemci.observe(oge);
+    return () => gozlemci.disconnect();
+  }, [ref, gorunur]);
+  return gorunur;
+}
+
 export function useSunucuOnizleme({ isId, icerikId, alan, boyut = 800, slot }) {
   const anahtar = onizlemeAnahtari({ isId, icerikId, alan, slot, boyut });
   const [veri, setVeri] = useState(() => onizlemeOku(anahtar));

@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     101 test dosyası (t1…t101) + 24 statik denetim betiği
+testler/     102 test dosyası (t1…t102) + 24 statik denetim betiği
 ```
 
 ---
@@ -262,6 +262,30 @@ defterde hiç izi yoktu, yani defter tam da riskli girişleri kaçırıyordu. Ar
 `giris-basarili` kaydı `ikiAdimli: false` ile düşüyor, ikinci adım atlandığında
 `giris-ikinci-adim-atlandi` yazılıyor ve **ekranda uyarı gösteriliyor**. Giriş davranışı
 DEĞİŞMEDİ; eklenen şey kayıt ve görünürlük (t101 ölçüyor).
+
+**Silme güvenlik defterine yazılır — `lib/silme-defteri.js`.** Silme ayrı bir uçtan
+GEÇMİYOR: tarayıcı kaydı listeden çıkarıp belgeyi kaydediyor. Bu yüzden silmeyi görmenin
+tek yolu, yazmanın öncesiyle sonrasını karşılaştırmak. Defterde on üç kayıt noktası vardı
+ve hepsi giriş/hesap/yedek işlemiydi — kart, müşteri, reklam silmenin izi yoktu; oysa silme
+bu sistemde geri alması en zor işlem. **Gönderilmeyen alan silme SAYILMAZ**: personel
+yalnızca dokunduğu alanları gönderiyor, bu ayrım olmadan her personel kaydı dokunmadığı her
+listeyi silinmiş gösterirdi. **İKİ kayıt yolu da bağlı** (personel + yönetici). Ayrıntı
+20 kayıtla kırpılır ama TOPLAM tam yazılır. Ücret değişiklikleri de deftere yazılıyor
+(`api/paylasim.js` → `subeUcret`, `markaTemelUcret`), eski ve yeni değerle birlikte.
+
+**"Bugün" paneli — `lib/bugun.js`.** Dashboard'ın en üstünde, SALT OKUNUR: geciken işler,
+bugün teslim, revize bizde, müşteride bekleyen, bugün paylaşılacak, geciken paylaşım.
+Yeni veri yok, hepsi mevcut alanlardan türetiliyor. **Plan kaydı mutlak tarih TUTMUYOR** —
+`haftaKey` (haftanın pazartesisi) + `gun` (0-6 kayma). Tarihi bu ikisinden üretmek zorunlu;
+`kayit.tarih` diye bakan kod sessizce hiçbir şey bulmaz. Karşılaştırma metin (`YYYY-AA-GG`)
+üzerinden: sunucu UTC'de çalıştığı için `new Date` ile karşılaştırma "bugün"ü bir gün
+geriye kaydırıyordu.
+
+**Pano önizlemesi GÖRÜNMEDEN istenmiyor** (`src/drive.jsx` → `useGorunurMu`). Otuz kartlık
+sütunda otuz istek kuyruğa giriyordu; kart görünür alana girene kadar istek başlamıyor,
+girdikten sonra `true` kalıyor (kaydırdıkça tekrar istemek aynı sorunu üretirdi).
+IntersectionObserver yoksa doğrudan `true` — fail-open BURADA doğru: en kötü ihtimalde
+fazladan istek olur, eksik içerik değil.
 
 **Uyarılar YIĞIN hâlinde gösterilir** (`src/App.jsx` → `uyarilar`). Tek metin state'iyken
 çakışma uyarısı, kaydedilmeyen kayıt uyarısı ve onayı geri alınan kart uyarısı aynı yere
@@ -591,7 +615,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 24 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t101, ~2270 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t102, ~2297 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

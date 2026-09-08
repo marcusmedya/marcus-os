@@ -42,6 +42,7 @@ import { MusteriPaneli } from "./musteriPaneli.jsx";
 import { hazirIcerikleriUret, musteriKayitlariniSuz } from "../lib/musteri-gorunumu.js";
 import { markayaGoreGrupla } from "../lib/reklam-gruplari.js";
 import { topludanKartBul } from "../lib/toplu-kart.js";
+import { bugunOzeti, bugunBasligi } from "../lib/bugun.js";
 import { tasimayiUygula } from "../lib/toplu-tasima.js";
 import { ekstreUret, varsayilanBaslangic } from "../lib/ekstre.js";
 import { ucretDagilimi, ayinUcreti, ACIK_BASLANGIC } from "../lib/marka-ucreti.js";
@@ -65,6 +66,73 @@ import { surenIsVarMi } from "../lib/suren-isler.js";
 import { bekleyenleriTazele } from "../lib/onizleme-bellegi.js";
 import { yeniKayitlariKoru } from "../lib/kimlik.js";
 
+/**
+ * BUGÜN — güne başlarken bakılacak tek yer.
+ *
+ * Denetimde çıkan eksik: "bugün ne yapılacak, hangi iş gecikiyor, ne onay bekliyor"
+ * sorularının cevabı dört ayrı ekrana dağılmıştı. Bu panel hepsini bir araya getiriyor.
+ *
+ * SALT OKUNUR — hiçbir şey yazmıyor, hiçbir aşama değiştirmiyor. Hesap `lib/bugun.js`
+ * içinde (saf, Node'da test edilebilir); burada yalnızca çizim var. Panelde bir sayı
+ * yanlışsa en kötü sonuç "gereksiz yere bakmak", veri kaybı değil.
+ *
+ * Personel `dashboard` izniyle gelirse `cekimIsleri` yükünde olmayabilir; `bugunOzeti`
+ * eksik alanı boş sayıyor ve panel kendini gizliyor.
+ */
+function BugunPaneli({ data }) {
+  const ozet = useMemo(() => bugunOzeti({
+    isler: data.cekimIsleri, planlar: data.haftalikPaylasimlar, bugun: bugunISO(),
+  }), [data.cekimIsleri, data.haftalikPaylasimlar]);
+
+  const bolumler = [
+    { anahtar: "geciken", baslik: "Gecikti", renk: T.danger, satirlar: ozet.geciken },
+    { anahtar: "bugunTeslim", baslik: "Bugün teslim", renk: T.warning, satirlar: ozet.bugunTeslim },
+    { anahtar: "revizede", baslik: "Revize bizde", renk: T.warning, satirlar: ozet.revizede },
+    { anahtar: "musteride", baslik: "Müşteride bekliyor", renk: T.textDim, satirlar: ozet.musteride },
+  ];
+  const planBolumleri = [
+    { anahtar: "gecikenPaylasim", baslik: "Geciken paylaşım", renk: T.danger, satirlar: ozet.gecikenPaylasim },
+    { anahtar: "bugunPaylasim", baslik: "Bugün paylaşılacak", renk: T.accentText, satirlar: ozet.bugunPaylasim },
+  ];
+  const doluBolumler = [...bolumler, ...planBolumleri].filter((b) => b.satirlar.length > 0);
+
+  return (
+    <Card style={{ padding: "16px 18px", marginBottom: 14 }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: doluBolumler.length ? 12 : 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: T.text, fontFamily: "Inter" }}>Bugün</div>
+        <div style={{ fontSize: 12.5, color: ozet.bosMu ? T.success : T.textDim, fontFamily: "Inter" }}>
+          {bugunBasligi(ozet)}
+        </div>
+      </div>
+      {doluBolumler.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 12 }}>
+          {doluBolumler.map((b) => (
+            <div key={b.anahtar} style={{ background: T.surfaceRaised, borderRadius: 10, padding: "10px 12px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: b.renk, fontFamily: "Inter", marginBottom: 6 }}>
+                {b.baslik} · {b.satirlar.length}
+              </div>
+              {b.satirlar.slice(0, 6).map((x) => (
+                <div key={x.id} style={{ fontSize: 12, color: T.textDim, fontFamily: "Inter", lineHeight: 1.7, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  <span style={{ color: T.text }}>{x.marka}</span>
+                  {" — "}{x.ad || x.tur}
+                  {x.subeAdi ? ` (${x.subeAdi})` : ""}
+                  {x.tarih && x.tarih !== ozet.gun ? ` · ${x.tarih}` : ""}
+                  {x.teslimTarihi && x.teslimTarihi !== ozet.gun ? ` · ${x.teslimTarihi}` : ""}
+                </div>
+              ))}
+              {b.satirlar.length > 6 && (
+                <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 4 }}>
+                  +{b.satirlar.length - 6} tane daha
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function Dashboard({ data }) {
   const { monthly } = data;
   const live = computeLive(data);
@@ -77,6 +145,7 @@ function Dashboard({ data }) {
 
   return (
     <div>
+      <BugunPaneli data={data} />
       <KararSeridi data={data} />
 
       {/* HİYERARŞİ: altı kart aynı ağırlıktayken ciro ile bekleyen tahsilat eşit görünüyordu —
@@ -3557,9 +3626,16 @@ function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, isle
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 22 }}>
+      <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 8 }}>
         <KpiCard label="TOPLAM STOK" value={toplamStokAdedi} mono={false} accent={T.success} />
         <KpiCard label="AKTİF MARKA" value={aktifMarkalar.length} mono={false} />
+      </div>
+      {/* SAYININ KAYNAĞI YAZILI. Stok üç ekranda birden görünüyor (burası, Çekim listesi,
+        * Operasyon) ve "hangisi doğru" sorusu ekip içinde tekrar ediyordu. Sayı hep aynı
+        * yerden geliyor; eksik olan tek şey bunu söylemekti. */}
+      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter", lineHeight: 1.6, marginBottom: 18 }}>
+        Stok, ONAYLANANLAR klasöründe dosyası fiilen duran kartlardan sayılıyor — elle
+        artırılıp azaltılmıyor. Sayı beklediğinden farklıysa mutabakat bölümü farkı gösterir.
       </div>
 
       <HaftalikPaylasimPlani
@@ -3714,6 +3790,11 @@ function CekimListesi({ clients, stoklar, subeler, gecmis, isler, plan, cekimSir
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
         <SayacRozetleri ogeler={[{ etiket: "çekim gereken marka", deger: gruplar.length, renk: gruplar.length > 0 ? T.danger : T.success }]} />
+        {/* Bu listedeki sayı Paylaşımlar'daki stokla AYNI kaynaktan geliyor; farklı bir
+          * hesap değil, aynı sayının eşik altına düşenleri. */}
+        <span style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter" }}>
+          Paylaşımlar'daki stokla aynı sayı — yalnızca eşiğin altına düşenler.
+        </span>
         {/* ELLE SIRA AÇIKKEN GERİ DÖNÜŞ YOLU AÇIK KALMALI: yeni giren markalar listenin
           * sonuna geldiği için, sıra unutulursa acil bir marka aşağıda kalabilir. */}
         {siraliyabilir && elleSiraVarMi(cekimSirasi) && (

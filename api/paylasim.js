@@ -3,7 +3,7 @@ import { planSubesi, subeStokAnahtari, planlananlarTamamlandiMi, enAzBirSubedePa
          markaninSubeleri } from "../lib/sube-kullanimi.js";
 import { SUBE_PAYLASIM_ASAMASI } from "../lib/asamalar.js";
 import { ucretleriTazele, ayAnahtari, ucretDagilimi } from "../lib/marka-ucreti.js";
-import { KEY, guvenliYaz, kilitAl, kilitBirak, bugunISO, mesgulYanit } from "../lib/kv-yaz.js";
+import { KEY, guvenliYaz, kilitAl, kilitBirak, bugunISO, mesgulYanit, deftereYaz } from "../lib/kv-yaz.js";
 import { kayitliYanit, yanitiSakla, yanitiYakala } from "../lib/islem-kimligi.js";
 import { ownerYetkiliMi, baslikOku, esitMi } from "../lib/oturum.js";
 import { markaErisimiVarMi } from "../lib/marka-kilidi.js";
@@ -710,6 +710,12 @@ export default async function handler(req, res) {
       });
       ucretiTazele(data);
       const _v = await kaydetVeYedekle(data, ["clients"]);
+      /* Şube ücretiyle aynı gerekçe: markanın faturasını değiştiren her adımın izi olmalı. */
+      await deftereYaz("ucret-degisti", {
+        tur: "marka-temel", clientId: String(clientId), marka: hedef.ad || null,
+        eski: hedef.temelUcret === undefined ? null : hedef.temelUcret,
+        yeni: bosalt ? null : (Number(body.temelUcret) || 0),
+      });
       return res.status(200).json({ ok: true, _v, clients: data.clients });
     }
 
@@ -729,6 +735,14 @@ export default async function handler(req, res) {
         return { ...s, aylikUcret: Number(body.aylikUcret) || 0 };
       });
       const _v = await kaydetVeYedekle(data, ["subeler", ...ucretiTazele(data)]);
+      /* ÜCRET DEĞİŞİKLİĞİ DEFTERE. Şube ücreti markanın faturasını doğrudan değiştiriyor;
+       * "bu tutar ne zaman, kimin tarafından değişti" sorusunun cevabı bir yerde olmalı.
+       * Eski ve yeni değer birlikte yazılıyor — yalnızca yeni değer, farkı göstermez. */
+      await deftereYaz("ucret-degisti", {
+        tur: "sube", subeId: String(subeId), subeAdi: mevcut.ad || null,
+        eski: mevcut.aylikUcret === undefined ? null : mevcut.aylikUcret,
+        yeni: bosalt ? null : (Number(body.aylikUcret) || 0),
+      });
       return res.status(200).json({ ok: true, _v, subeler: yanitSuz(data.subeler), ...(yoneticiMi ? { clients: data.clients } : {}) });
     }
 
