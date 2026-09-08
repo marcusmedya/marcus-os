@@ -18,7 +18,7 @@ process.env.KILIT_DENEME = "2";
 
 import {
   topluAdlar, sonrakiNumara, topluIsleriUret, topludanKartBul, adetiCoz,
-  tabanTemizle, EN_FAZLA_TOPLU,
+  tabanTemizle, baslangiciCoz, cakisanAdlar, EN_FAZLA_TOPLU,
 } from "../lib/toplu-kart.js";
 import { kv } from "@vercel/kv";
 import { cagir, TEMIZ_VERI, KIMLIK } from "./denetim.mjs";
@@ -63,7 +63,28 @@ await bolum("1) NUMARA KALDIĞI YERDEN DEVAM EDİYOR", 9, () => {
 });
 
 /* ---------------------------------------------------------------- */
-await bolum("2) ADET SINIRI", 4, () => {
+/* Otomatik devam doğru VARSAYIM ama her zaman doğru DEĞİL: kullanıcı ayrı bir aralık
+ * açmak (101'den başlatmak) ya da silinmiş kartların yerini doldurmak isteyebilir.
+ * Değer önerilir, dayatılmaz. */
+await bolum("2) BAŞLANGIÇ ELLE SEÇİLEBİLİYOR", 7, () => {
+  t("elle verilen başlangıç geçerli",
+    topluAdlar("Post", 3, ["Post 1", "Post 2"], 101).join("|") === "Post 101|Post 102|Post 103",
+    "otomatik devam dayatılsaydı ayrı bir aralık açmak imkânsız olurdu");
+  t("boş bırakılınca otomatiğe düşüyor",
+    topluAdlar("Post", 2, ["Post 5"], "").join("|") === "Post 6|Post 7");
+  t("0 ve eksi otomatiğe düşüyor",
+    baslangiciCoz(["Post 5"], "Post", 0) === 6 && baslangiciCoz(["Post 5"], "Post", -4) === 6,
+    "yazarken silinen bir hane yüzünden 'Post 0' açılmamalı");
+  t("metin otomatiğe düşüyor", baslangiciCoz(["Post 5"], "Post", "abc") === 6);
+  t("metin sayı geçiyor", baslangiciCoz([], "Post", "12") === 12);
+  t("çakışan ad bildiriliyor",
+    cakisanAdlar(["Post 1", "Post 2"], ["POST 1"]).join() === "Post 1",
+    "aynı ad Drive'da dosya adına ve müşteri paneline gidiyor — bilinmeden açılmamalı");
+  t("çakışma yoksa liste boş", cakisanAdlar(["Post 9"], ["Post 1"]).length === 0);
+});
+
+/* ---------------------------------------------------------------- */
+await bolum("3) ADET SINIRI", 4, () => {
   t("0 ve altı reddediliyor", adetiCoz(0) === 0 && adetiCoz(-3) === 0);
   t("metin reddediliyor", adetiCoz("abc") === 0);
   t("üst sınır uygulanıyor", adetiCoz(500) === EN_FAZLA_TOPLU,
@@ -72,7 +93,7 @@ await bolum("2) ADET SINIRI", 4, () => {
 });
 
 /* ---------------------------------------------------------------- */
-await bolum("3) KARTLAR ORTAK ALANLARI ALIYOR, ETİKET TAŞIYOR", 6, () => {
+await bolum("4) KARTLAR ORTAK ALANLARI ALIYOR, ETİKET TAŞIYOR", 7, () => {
   const ortak = { marka: "Şişçi İbo", kategori: "Post", teslimTarihi: "2026-09-30", sadeceSubeler: ["s1"] };
   const isler = topluIsleriUret({ taban: "Post", adet: 3, mevcutAdlar: [], ortak, topluId: "tk1" });
   t("adet kadar kart", isler.length === 3);
@@ -82,13 +103,17 @@ await bolum("3) KARTLAR ORTAK ALANLARI ALIYOR, ETİKET TAŞIYOR", 6, () => {
   isler[0].sadeceSubeler.push("s2");
   t("şube kapsamı KOPYALANDI, paylaşılmadı", isler[1].sadeceSubeler.length === 1,
     "aynı dizi paylaşılsaydı bir kartın kapsamını düzenlemek diğerlerini de değiştirirdi");
+  t("elle başlangıç kart üretimine de geçiyor",
+    topluIsleriUret({ taban: "Post", adet: 2, mevcutAdlar: ["Post 9"], ortak, topluId: "tk1", baslangic: 50 })
+      .map((x) => x.icerikTuru).join("|") === "Post 50|Post 51",
+    "form ile üretim ayrışırsa ekranda gösterilen ad ile açılan kart farklı olur");
   t("etiket yoksa alan da yok",
     topluIsleriUret({ taban: "Post", adet: 1, mevcutAdlar: [], ortak, topluId: null })[0].topluId === undefined,
     "gereksiz alan belgeye yazılmasın");
 });
 
 /* ---------------------------------------------------------------- */
-await bolum("4) KART ETİKETLE BULUNUYOR", 4, () => {
+await bolum("5) KART ETİKETLE BULUNUYOR", 4, () => {
   const isler = [
     { id: 90, topluId: "tk1", topluSira: 1 },
     { id: 91, topluId: "tk1", topluSira: 2 },
@@ -113,7 +138,7 @@ const yuklemeIstegi = (govde, kimlik) => cagir(veriUcu, {
   body: { driveAction: "yuklemeBasla", slot: "1", dosyaAdi: "a.jpg", mimeTur: "image/jpeg", boyut: 10, ...govde },
 });
 
-await bolum("5) UÇ: NUMARA DEĞİŞSE BİLE DOSYA DOĞRU KARTA GİDİYOR", 5, async () => {
+await bolum("6) UÇ: NUMARA DEĞİŞSE BİLE DOSYA DOĞRU KARTA GİDİYOR", 5, async () => {
   const veri = TEMIZ_VERI();
   /* Tarayıcı bu kartı 50 numarayla açtı; sunucu çakışma yüzünden 77 verdi. */
   veri.cekimIsleri = [
@@ -141,7 +166,7 @@ await bolum("5) UÇ: NUMARA DEĞİŞSE BİLE DOSYA DOĞRU KARTA GİDİYOR", 5, a
     "gelen: " + numarayla.kod);
 });
 
-await bolum("6) ETİKET MARKA KİLİDİNİ ATLAMIYOR", 2, async () => {
+await bolum("7) ETİKET MARKA KİLİDİNİ ATLAMIYOR", 2, async () => {
   const veri = TEMIZ_VERI();
   veri.cekimIsleri = [{ id: 5, marka: "GİZLİ Marka", kategori: "Post", icerikTuru: "Post 1", topluId: "tk8", topluSira: 1 }];
   await kv.set(KEY, veri);

@@ -5252,3 +5252,26 @@ kaldırıldı, davranışı sabitleyen kontrol kaldı. Toplam 2214 kontrol, 24 d
 
 Ayrıca t52'deki kırılgan bir kontrol düzeltildi: yükleme yanıtının alan listesini tam
 metinle arıyordu ve yanıta yeni bir alan eklenince davranış hiç değişmediği hâlde düştü.
+
+## Güncelleme 166: Toplu İşte Başlangıç Numarası Seçilebiliyor
+
+**İstek:** "Kartın nereden başlayacağı da seçilmeli."
+
+Toplu açılış numarayı markanın mevcut serisinden devam ettiriyordu. Doğru bir varsayım ama
+her zaman doğru değil: ayrı bir aralık açmak (101'den başlatmak), eski bir seriye dönmek ya
+da silinmiş kartların yerini doldurmak isteyebilirsin.
+
+**Formda "Başlangıç no" alanı var.** Boş bırakılırsa serinin devamı kullanılıyor ve önerilen
+değer kutunun ipucunda yazıyor (`otomatik: 13`) — "kaçtan devam edecek?" sorusu tahminle
+değil ekranda cevaplanıyor. Bir sayı yazarsan o geçerli.
+
+- Geçersiz giriş (0, eksi, metin) **otomatiğe düşer** — yazarken silinen bir hane yüzünden
+  "Post 0" açılmasın.
+- Seçilen başlangıç var olan bir kartın adına denk gelirse **engellenmiyor, söyleniyor**:
+  "Bu adlar bu markada zaten var: Post 5, Post 6 — aynı adla ikinci kart açılacak." Karar
+  kullanıcının; ama aynı ad Drive'da dosya adına ve müşteri paneline gittiği için bunu
+  bilmeden yapmamalı.
+
+**Test:** t99 30 → 38 kontrol. Kırma ölçümü: elle başlangıç yok sayılınca 2, geçersiz giriş
+koruması kalkınca 1, çakışma uyarısı Türkçe küçültmeyi bırakınca 1, kart üretimi formdan
+ayrışınca 1 kontrol düşüyor. Toplam 2222 kontrol, 24 denetim.
