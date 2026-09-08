@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     98 test dosyası (t1…t98) + 23 statik denetim betiği
+testler/     98 test dosyası (t1…t98) + 24 statik denetim betiği
 ```
 
 ---
@@ -492,7 +492,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 ## Çalıştırma ve doğrulama
 
 ```bash
-bash testler/hepsinidenetle.sh     # 23 statik denetim (sözdizimi, JSX, hook, kapsam…)
+bash testler/hepsinidenetle.sh     # 24 statik denetim (sözdizimi, JSX, hook, kapsam…)
 ./testler/sunucutestleri.sh        # t1…t98, ~2184 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
@@ -507,6 +507,14 @@ değiştirir ve `trap` ile geri koyar. **Testler gerçek Redis'e asla dokunmaz.*
 edilmediği için hiç çalışmadı, test "0 kaldı" deyip BAŞARIYLA çıktı — koşucu da yakalamadı
 (çıkış kodu 0, ✗ yok). Bu yüzden t95 sonunda çalışan kontrol sayısını sabitle karşılaştıran
 bir bekçi var.
+
+**Saf bir modülün dönüş değeri atılmaz** (denetim 24). Saf fonksiyon verilen veriyi
+DEĞİŞTİRMEZ, yalnızca yenisini döndürür; `siraliGruplar(gruplar, sira);` diye çağrılan
+satır hiçbir şey yapmaz ama bir şey yapıyormuş gibi durur. Çekim listesinin elle sırası
+tam olarak böyle çalışmadı: sıra sunucuya yazılıyor, "Elle sıralama açık" yazısı çıkıyor,
+liste yerinde duruyordu. Modülün kendi testi (t93) geçiyordu — arayüzün onu nasıl
+çağırdığına bakan hiçbir katman yoktu. Saflık listesi `MARCUS-OS-SISTEM.md`'deki
+"(**saf**)" işaretinden okunur.
 
 Bir düzeltme yaptıktan sonra **korumayı geri koyup kaç kontrolün düştüğünü ölç.**
 "Test geçti" tek başına hiçbir şey söylemiyor: bu projede daha önce, iddia ettiği

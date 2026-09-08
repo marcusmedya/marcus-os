@@ -3646,7 +3646,7 @@ function CekimListesi({ clients, stoklar, subeler, gecmis, isler, plan, cekimSir
 
   // Her marka için TÜM türlerin TOPLAMI (genel stok) hesaplanır — tek tek tür değil,
   // toplam stok eşiğin altına/eşit düşünce marka listeye girer.
-  const gruplar = [];
+  let gruplar = [];
   aktifMarkalar.forEach((c) => {
     const turler = PAYLASIM_TURLERI.map((tur) => ({ tur, adet: stoklarObj[stokAnahtari(c.id, tur)] || 0, sonCekim: sonCekimTarihi(c.id, tur) }));
     const kendiSubeleri = markaninSubeleri(subeler, c.id);
@@ -3696,8 +3696,11 @@ function CekimListesi({ clients, stoklar, subeler, gecmis, isler, plan, cekimSir
     (g.subeOzetleri || []).sort((a, b) => a.toplam - b.toplam);
   });
   /* ELLE SIRA VARSA O GEÇERLİ; olmayan markalar otomatik kurala (stoğu az olan üstte)
-   * göre arkadan geliyor. Sıra hiç verilmemişse liste bugünkü davranışını sürdürüyor. */
-  siraliGruplar(gruplar, cekimSirasi);
+   * göre arkadan geliyor. Sıra hiç verilmemişse liste bugünkü davranışını sürdürüyor.
+   * DÖNÜŞ DEĞERİ ATANMAK ZORUNDA: `siraliGruplar` SAF, diziyi kopyalayıp sıralıyor ve
+   * kaynağa dokunmuyor. Çağrı bir süre değeri atmadan yazıldı; kaydedilen sıra ekrana
+   * HİÇ yansımadı — "Elle sıralama açık" yazısı çıkıyor ama oklar yer değiştirmiyordu. */
+  gruplar = siraliGruplar(gruplar, cekimSirasi);
   const gorunenIdler = gruplar.map((g) => String(g.clientId));
   const siraliyabilir = typeof onSiraDegis === "function";
   const tasi = (clientId, yon) => {
