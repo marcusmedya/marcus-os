@@ -157,7 +157,10 @@ await kv.set("marcus-os-data", {
 const drv = fs.readFileSync(path.join(kok, "api", "data.js"), "utf8");
 t("yükleme slotu doğruluyor", /slotGecerliMi\(req\.body\.slot\) \? String\(req\.body\.slot\)\.trim\(\) : "1"/.test(drv));
 t("versiyon slot içinde hesaplanıyor", /const versiyon = slotSonrakiVersiyon\(is, slot\)/.test(drv));
-t("yanıt slotu geri bildiriyor", /versiyon, slot \}\)/.test(drv));
+/* Alan listesi UCU DEĞİL, tek bir alanı sınıyor: yanıt zamanla büyüyor (toplu açılışta
+ * `isId` eklendi) ve tam eşleşme arayan desen, davranış hiç değişmediği hâlde düşüyordu.
+ * Aranan şey "slot geri bildiriliyor mu". */
+t("yanıt slotu geri bildiriyor", /versiyon, slot[,\s}]/.test(drv));
 
 /* Önizleme: slot verilince O slotun dosyası seçilmeli, dizinin sonuncusu değil.
  *

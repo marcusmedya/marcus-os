@@ -5210,3 +5210,45 @@ ediyor. Saflık listesi ayrı tutulmuyor — o belge zaten denetim 18 ile günce
 Ölçüldü: düzeltme geri alındığında denetim düşüyor (`src/App.jsx:3703`), düzeltmeyle
 temiz — 12 saf modülün 43 fonksiyonuna yapılan 161 çağrı taranıyor. Denetimin yanlış
 satır bildirmemesi için yorum ayıklaması satır sayısını koruyor.
+
+## Güncelleme 165: Toplu İş — 20 Fotoğraf, 20 Ayrı Kart
+
+**İstek:** "Toplu kart açmak istiyorum, mesela elimde 20 tane fotoğraf var ama hepsi ayrı
+kartlar olacak. Post 1 2 3 4 5 diye sıralanacak."
+
+Aynı markanın, aynı kategorinin, aynı teslim tarihinin yirmi kartını tek tek açmak yirmi
+kez aynı formu doldurmak, sonra yirmi kez dosya seçmek demekti.
+
+**Operasyon → "Toplu İş".** Ortak alanlar (marka, kategori, tarihler, sorumlular, şube
+kapsamı, brief) bir kez giriliyor; dosyalar toplu seçiliyor. Her dosya **kendi kartına**
+yükleniyor, kartlar sırayla adlandırılıyor. Dosya seçmek zorunlu değil — seçilmezse boş
+kartlar açılır (içerik sonra gelecekse).
+
+**Numara kaldığı yerden devam eder.** Markada "Post 12"ye kadar kart varsa yeni parti
+"Post 13"ten başlar. Her açılış 1'den başlasaydı aynı markada iki "Post 3" olurdu; kart adı
+Drive'da dosya adına, paylaşım planında satır etiketine ve müşteri paneline gidiyor — iki
+içerik ayırt edilemez hâle gelirdi. Numara markaya özel: başka markanın "Post 40"ı bu
+markanın serisini ileri atmaz. Form, yazmadan önce hangi adların açılacağını gösteriyor.
+
+**Dosya karta numarayla değil ETİKETLE bağlanıyor.** Kart numarasını tarayıcı öneriyor ama
+son söz sunucuda: çakışma varsa sunucu yeni numara veriyor ve tarayıcıdaki kopya bir süre
+eski numarayı taşıyor. O aralıkta numaraya göre yüklemek dosyayı **başkasının kartının
+içine** koyardı, hem de sessizce. Bu yüzden kartlar `topluId` + `topluSira` etiketi taşıyor;
+hem yükleme ucu hem de tarayıcı kartı bununla buluyor. Etiketle bulmak yetkiyi atlamıyor —
+marka kilidi kontrolü kart bulunduktan sonra aynen çalışıyor.
+
+Kartlar kaydedilmeden yükleme başlarsa uç "İş kartı bulunamadı" diyor; bu bir hata değil
+sıra meselesi, istemci bekleyip tekrar deniyor. Yarım kalırsa kaç dosyanın yüklendiği
+yazılıyor ve kartlar açık kalıyor — kalanı kartlardan tek tek yüklenebilir.
+
+**Yükleme çekirdeği tek yerde toplandı** (`driveyeDosyaYukle`): kartın kendi yükleyicisi ve
+toplu akış aynı kodu kullanıyor. İkinci bir kopya, XHR düşünce fetch'e geçme ve oturum
+düşmesi mesajı gibi sahada öğrenilmiş ayrıntıları taşımazdı.
+
+**Test:** t99 (30 kontrol). Kırma ölçümü: sunucudaki etiketle bulma kaldırılınca 3, şube
+kapsamı kopyalanmayınca 1, numara hep 1'den başlayınca 2, tam sayı kuralı gevşetilince 1
+kontrol düşüyor. `topludanKartBul` içindeki boş etiket bekçisi hiçbir şey ölçmedi —
+kaldırıldı, davranışı sabitleyen kontrol kaldı. Toplam 2214 kontrol, 24 denetim.
+
+Ayrıca t52'deki kırılgan bir kontrol düzeltildi: yükleme yanıtının alan listesini tam
+metinle arıyordu ve yanıta yeni bir alan eklenince davranış hiç değişmediği hâlde düştü.

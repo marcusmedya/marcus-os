@@ -37,7 +37,7 @@ Kod ve arayüz tamamen Türkçe — değişken ve fonksiyon adları dahil.
 | `src/` | React arayüzü (Vite ile derlenir) |
 | `api/` | Serverless fonksiyonlar — **her dosya bir fonksiyon**, Hobby sınırı 12 |
 | `lib/` | Ortak mantık — hem `api/` hem `src/` buradan import eder, **fonksiyon sayılmaz** |
-| `testler/` | 98 test dosyası (t1…t98) + 24 statik denetim betiği |
+| `testler/` | 99 test dosyası (t1…t99) + 24 statik denetim betiği |
 
 En büyük dosyalar: `src/App.jsx` (9.653), `src/CekimEditTakibi.jsx` (2.734),
 `api/data.js` (2.008), `src/musteriPaneli.jsx` (1.383), `src/tema.jsx` (1.039).
@@ -186,6 +186,7 @@ Artık **tanımsızsa kimse giremez.**
 | `kart-yetkisi.js` | **Operasyon alt yetkileri** — kart açma/onaylama/düzenleme/silme; izinsiz değişikliği geri alır, kaydı reddetmez (**saf**) |
 | `video-yon.js` | Video yönü ve oynatıcı kutusunun oranı — metadata gelene kadar kartın kayıtlı yönü (**saf**) |
 | `video-bilgi.js` | Oynatıcının altındaki ölçüm satırı: çözünürlük · boyut · bit hızı · fast start. Eksik/anlamsız değerde o parçayı hiç yazmaz (**saf**) |
+| `toplu-kart.js` | Toplu kart açma: ad numaralandırma (markanın mevcut serisinden devam eder), kart üretimi ve toplu etiketiyle kart bulma (**saf**) |
 | `kategori.js` | **Kategoriler ve stok türlerinin TEK kaynağı** — Reels/Post/Carousel + eski adların eşlemesi (**saf**) |
 | `drive-denetimi.js` | Kayıtlı stok ile Drive'ın söylediği stoğun farkı + uygulama frenleri (**saf, ağ yok**) |
 | `drive-yukleme.js` | Yükleme oturumu açma, tamamlama, dosya çöpe atma |
@@ -425,7 +426,7 @@ dosya hâlâ ekibin çalışma alanındadır.
 
 ```bash
 bash testler/hepsinidenetle.sh     # 24 statik denetim
-./testler/sunucutestleri.sh        # t1…t98, ~2184 kontrol — SAHTE veritabanı
+./testler/sunucutestleri.sh        # t1…t99, ~2214 kontrol — SAHTE veritabanı
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

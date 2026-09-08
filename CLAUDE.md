@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     98 test dosyası (t1…t98) + 24 statik denetim betiği
+testler/     99 test dosyası (t1…t99) + 24 statik denetim betiği
 ```
 
 ---
@@ -331,6 +331,29 @@ ayrımı kayboluyor ve stok yanlış türe yazılıyordu). Diğer kategorilerde 
 boyutu. Kural hem tarayıcıda hem sunucuda (`slotKategoriyeUygunMu`); sınır yalnızca YENİ
 yuva açmaya uygulanır, eski çok slaytlı Fotoğraf kartlarının dosyaları görünmeye devam eder.
 
+**Toplu kart açma — `lib/toplu-kart.js`.** "Elimde 20 fotoğraf var, hepsi ayrı kart
+olacak": ortak alanlar bir kez giriliyor, ad numaralandırılarak çoğaltılıyor ("Post 13",
+"Post 14"…). **Numara markanın MEVCUT kartlarından devam eder** — her açılış 1'den
+başlasaydı aynı markada iki "Post 3" olurdu ve kart adı Drive'da dosya adına, planda satır
+etiketine, müşteri paneline gittiği için iki içerik ayırt edilemez hâle gelirdi. Numara
+markaya özeldir (kartlar markayı ADIYLA saklıyor, liste ortak).
+
+**Dosya karta NUMARAYLA DEĞİL TOPLU ETİKETİYLE bağlanır** (`topluId` + `topluSira`;
+`api/data.js` yükleme dalı ve `src/App.jsx` → `topluKartaMedyaYaz`). Kartları tarayıcı
+açıyor ve numarayı öneriyor ama son söz sunucuda: çakışma varsa sunucu yeni numara veriyor
+ve tarayıcıdaki kopya bir süre ESKİ numarayı taşıyor. O aralıkta numaraya göre yüklemek
+dosyayı BAŞKASININ kartının içine koyardı — sessizce. Etiket kartla birlikte kaydedildiği
+için onarımdan etkilenmiyor. Etiketle bulmak **yetkiyi atlamaz**: marka kilidi kontrolü
+kart bulunduktan sonra aynen çalışıyor (t99 ölçüyor). Kayıt sunucuya ulaşmadan yükleme
+başlarsa uç `404` diyor; istemci bunu hata saymayıp bekleyip tekrar deniyor — sabit
+gecikme tahmini yavaş bağlantıda tutmazdı.
+
+**Yükleme çekirdeği tek yerde**: `driveyeDosyaYukle` (`src/CekimEditTakibi.jsx`, modül
+düzeyinde). İki çağıranı var — kartın kendi yükleyicisi ve toplu akış. İkinci bir kopya
+tutulsaydı XHR düşünce fetch'e geçme, oturum düşmesi mesajı gibi sahada öğrenilmiş
+ayrıntılar orada olmazdı. Fonksiyon medya kaydını ve kartın numarasını AYRI döndürüyor;
+numara belgeye yazılmıyor, yalnızca önizleme tazelemesi için kullanılıyor.
+
 ### 6. Şube bazlı içerik kullanımı — `lib/sube-kullanimi.js`
 
 **1 içerik = 1 kart = 1 Drive dosyası.** Aynı dosya her şube için tekrar yüklenmez.
@@ -493,7 +516,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 24 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t98, ~2184 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t99, ~2214 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

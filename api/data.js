@@ -5,6 +5,7 @@ import { KEY, guvenliGuncelle, kilitAl, kilitBirak, guvenliYaz, deftereYaz, deft
          belgeOkunabilirMi, BOZUK_KOD, BOZUK_MESAJI } from "../lib/kv-yaz.js";
 import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, tumOturumlariIptalEt, ikiAdimliAktifMi, esitMi, baslikOku } from "../lib/oturum.js";
 import { izinsizKartDegisiklikleriniGeriAl, geriAlmaMesaji } from "../lib/kart-yetkisi.js";
+import { topludanKartBul } from "../lib/toplu-kart.js";
 import { ucretleriTazele, ayAnahtari } from "../lib/marka-ucreti.js";
 import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, birlestirmedeDusenler, trKucult, markaEslestirici } from "../lib/marka-kilidi.js";
 import { belgedekiCakismalariOnar, turetilmisleriAyikla } from "../lib/kimlik.js";
@@ -1081,7 +1082,20 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, markalar: sonuclar });
     }
 
-    const is = (veri.cekimIsleri || []).find((j) => String(j.id) === String(isId));
+    /* KART NUMARAYLA BULUNUR, TOPLU AÇILIŞTA ETİKETLE.
+     *
+     * Toplu kart açmada yirmi kart bir kerede açılıp kaydediliyor ve dosyalar hemen
+     * ardından yükleniyor. Numaranın son sözü sunucuda (bkz. lib/kimlik.js): çakışma
+     * varsa sunucu yeni numara veriyor ve tarayıcıdaki kopya bir süre ESKİ numarayı
+     * taşıyor. O aralıkta numaraya göre yüklemek, dosyayı BAŞKASININ kartının içine
+     * koyardı — sessizce. Toplu etiketi (`topluId` + `topluSira`) o kartla birlikte
+     * kaydedildiği için onarımdan etkilenmiyor.
+     *
+     * Bulunan kartın numarası yanıtta geri dönüyor (`isId`), çağıran hangi karta
+     * yazdığını numaraya bakmadan öğrensin. */
+    const is = (req.body && req.body.topluId)
+      ? topludanKartBul(veri.cekimIsleri, req.body.topluId, req.body.topluSira)
+      : (veri.cekimIsleri || []).find((j) => String(j.id) === String(isId));
     if (!is) return res.status(404).json({ error: "İş kartı bulunamadı." });
     if (role === "staff" && izinli.length > 0 && !izinli.some((m) => trKucult(m) === trKucult(is.marka))) {
       return res.status(403).json({ error: "Bu markaya erişim yetkin yok." });
@@ -1160,7 +1174,9 @@ export default async function handler(req, res) {
         origin: req.headers.origin || "",
       });
       if (!sonuc.ok) return res.status(400).json({ error: sonuc.sebep });
-      return res.status(200).json({ ok: true, ...sonuc, versiyon, slot });
+      /* `isId` geri dönüyor: toplu açılışta kart etiketle bulunuyor ve çağıran hangi
+       * karta yüklediğini yalnızca bu alandan öğrenebiliyor. */
+      return res.status(200).json({ ok: true, ...sonuc, versiyon, slot, isId: is.id });
     }
 
     if (driveAction === "yuklemeBitti") {
