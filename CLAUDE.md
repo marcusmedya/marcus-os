@@ -344,6 +344,22 @@ yazarken silinen bir hane "Post 0" açmasın. Elle seçilen başlangıç var ola
 gelirse **engellenmez, SÖYLENİR** (`cakisanAdlar`) — kullanıcı bilerek ikinci bir kart
 açabilir ama bunu bilmeden yapmamalı.
 
+**Başlangıç AŞAMASI da seçilir** — iş her zaman akışın başından başlamıyor; inisiyatif
+ajansta olan markada içerik hazır geliyor ve kart doğrudan `Onaylandı` açılmalı. Liste
+kategorinin KENDİ aşama dizisinden gelir (`asamaListesi`); uydurma aşama stok motorunu
+yanlış yöne çalıştırır. **Onay aşaması seçildiyse ve dosya varsa kartlar önce akışın
+başında açılır, dosyalar yüklenir, EN SON onaya alınır** — sunucudaki onay kilidi dosyası
+olmayan kartın onayını geri alıp isteği 409 ile reddediyor ("kartta dosya bağlantısı yok"),
+yani doğrudan onaylı açmak yirmi kartın yirmisinde duvara çarpardı; üstelik stok, dosyalar
+yüklenene kadar arkasında içerik olmayan bir sayı gösterirdi. Yükleme yarıda kalırsa aşama
+UYGULANMAZ ve bu kullanıcıya yazılır.
+
+**Yeni kart onay aşamasında AÇILAMAZ — `kartOnaylama` yoksa** (`lib/kart-yetkisi.js`).
+Denetim yalnızca aşama GEÇİŞİNE bakıyordu: var olan kartı onaya almak yetki istiyordu ama
+kartı en baştan `Onaylandı` AÇMAK hiç sorulmuyordu; onay yetkisi olmayan personel tek
+adımda stok üretebiliyordu. Kart açılmaya devam ediyor, yalnızca aşaması akışın başına
+çekiliyor — kullanıcının emeği çöpe atılmıyor, sınır korunuyor (t97 ölçüyor).
+
 **Dosya karta NUMARAYLA DEĞİL TOPLU ETİKETİYLE bağlanır** (`topluId` + `topluSira`;
 `api/data.js` yükleme dalı ve `src/App.jsx` → `topluKartaMedyaYaz`). Kartları tarayıcı
 açıyor ve numarayı öneriyor ama son söz sunucuda: çakışma varsa sunucu yeni numara veriyor
@@ -522,7 +538,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 24 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t99, ~2222 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t99, ~2230 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

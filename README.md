@@ -5275,3 +5275,38 @@ değil ekranda cevaplanıyor. Bir sayı yazarsan o geçerli.
 **Test:** t99 30 → 38 kontrol. Kırma ölçümü: elle başlangıç yok sayılınca 2, geçersiz giriş
 koruması kalkınca 1, çakışma uyarısı Türkçe küçültmeyi bırakınca 1, kart üretimi formdan
 ayrışınca 1 kontrol düşüyor. Toplam 2222 kontrol, 24 denetim.
+
+## Güncelleme 167: Toplu İşte Başlangıç Aşaması + Kapatılan Bir Yetki Açığı
+
+**İstek:** "Hangi kart bölümünden başlayacağı yok şu an, ben mesela direkt onaylanandan
+başlatmak istiyorum çünkü inisiyatif bende, müşteride değil."
+
+Toplu açılış kartları her zaman akışın başında (kategorinin ilk aşaması) açıyordu. Oysa
+inisiyatifin ajansta olduğu markada içerik zaten hazır: kart doğrudan "Onaylandı" açılmalı.
+
+**Formda "Başlangıç aşaması" seçici var.** Liste kategorinin kendi aşama dizisinden geliyor
+— uydurma bir aşama stok motorunu yanlış yöne çalıştırır. Kategori değişince seçim
+sıfırlanıyor (Reels'in aşaması Post listesinde yok).
+
+**Sıra değişti: onay EN SONDA.** Onay aşaması seçildiyse ve dosya varsa kartlar önce akışın
+başında açılıyor, dosyalar yükleniyor, sonra hep birlikte tek kayıtta onaya alınıyor.
+Sebebi sunucudaki onay kilidi: dosyası olmayan bir kart onaya alınırsa sunucu onayı geri
+alıp isteği 409 ile reddediyor ("kartta dosya bağlantısı yok"). Doğrudan onaylı açsaydık
+yirmi kartın yirmisi o duvara çarpardı; üstelik stok, dosyalar yüklenene kadar arkasında
+içerik olmayan bir sayı gösterirdi. Yükleme yarıda kalırsa aşama UYGULANMIYOR ve bu
+kullanıcıya yazılıyor — eksik dosyalı kart onaylanmasın.
+
+Dosya seçilmeden onay aşaması seçilirse kartlar doğrudan o aşamada açılıyor ama formda
+uyarı çıkıyor: Drive kurulu bir markada sunucu bu onayı geri alır.
+
+**Bu iş sırasında gerçek bir yetki açığı bulundu ve kapatıldı.** `lib/kart-yetkisi.js`
+yalnızca aşama GEÇİŞİNE bakıyordu: var olan bir kartı onaya almak `kartOnaylama` istiyordu
+ama kartı en baştan "Onaylandı" olarak AÇMAK hiç sorulmuyordu. Yani onaylama yetkisi
+olmayan bir personel, tek adımda kart açıp stok üretebiliyordu — sınırın etrafından dolaşan
+bir yol. Toplu açılışta aşama seçilebildiği için bu yol tek tık uzaklığa geliyordu; artık
+kapalı. Kart açılmaya devam ediyor, yalnızca aşaması akışın başına çekiliyor ve sebep
+kullanıcıya yazılıyor.
+
+**Test:** t97 42 → 49, t99 38 → 39 kontrol. Kırma ölçümü: yeni kart aşama denetimi
+kaldırılınca 4, kart tamamen düşürülünce (aşamayı düzeltmek yerine) 5 kontrol düşüyor.
+Toplam 2230 kontrol, 24 denetim.
