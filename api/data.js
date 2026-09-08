@@ -6,6 +6,7 @@ import { KEY, guvenliGuncelle, kilitAl, kilitBirak, guvenliYaz, deftereYaz, deft
 import { girisKoduGonder, koduDogrula, oturumAc, oturumKapat, oturumGecerliMi, tumOturumlariIptalEt, ikiAdimliAktifMi, esitMi, baslikOku } from "../lib/oturum.js";
 import { izinsizKartDegisiklikleriniGeriAl, geriAlmaMesaji } from "../lib/kart-yetkisi.js";
 import { topludanKartBul } from "../lib/toplu-kart.js";
+import { silinenleriBul, silmeKaydi } from "../lib/silme-defteri.js";
 import { ucretleriTazele, ayAnahtari } from "../lib/marka-ucreti.js";
 import { markayaGoreSuz, icBilgiyiTemizle, izinleriDaralt, yazmayiBirlestir, birlestirmedeDusenler, trKucult, markaEslestirici } from "../lib/marka-kilidi.js";
 import { belgedekiCakismalariOnar, turetilmisleriAyikla } from "../lib/kimlik.js";
@@ -2091,6 +2092,14 @@ export default async function handler(req, res) {
           const staffTasima = await tasimalariIsleVeNotDus(sonuc.oncekiVeri, sonuc.veri);
           staffSonHal = staffTasima.veri || sonuc.veri;
           staffOnaylanamayanlar = staffTasima.geriAlinanlar;
+          /* SİLİNEN KAYITLAR DEFTERE. Silme ayrı bir uçtan geçmiyor — tarayıcı kaydı
+           * listeden çıkarıp belgeyi kaydediyor. Bu yüzden tek görme yolu, yazmanın
+           * öncesiyle sonrasını karşılaştırmak. YALNIZCA yazma başarılıysa çalışır. */
+          const staffSilinen = silmeKaydi(
+            silinenleriBul(sonuc.oncekiVeri, sonuc.veri),
+            role === "staff" ? (staffName || "Personel") : "Yönetici",
+          );
+          if (staffSilinen) await deftereYaz("kayit-silindi", staffSilinen);
         }
 
         if (!sonuc.ok) {
@@ -2330,6 +2339,12 @@ export default async function handler(req, res) {
       const ownerTasima = await tasimalariIsleVeNotDus(ownerOncekiVeri, ownerYazilanVeri);
       const ownerSonHal = ownerTasima.veri || ownerYazilanVeri;
       const ownerOnaylanamayanlar = ownerTasima.geriAlinanlar;
+
+      /* SİLİNEN KAYITLAR DEFTERE — personel yolundaki ile aynı kural. İKİ YOL DA
+       * bağlanmak zorunda: bu projede "yalnızca bir kayıt yoluna bağlandı" hatası
+       * daha önce yaşandı ve fark edilmesi aylar sürebilirdi. */
+      const ownerSilinen = silmeKaydi(silinenleriBul(ownerOncekiVeri, ownerYazilanVeri), "Yönetici");
+      if (ownerSilinen) await deftereYaz("kayit-silindi", ownerSilinen);
 
       return res.status(200).json({
         ok: true, _v: ownerSonHal._v,

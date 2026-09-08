@@ -5452,3 +5452,52 @@ konmuştu ve çalışma anında "before initialization" hatası verirdi; derleme
 kaldırılınca 1 kontrol düşüyor. Karşılaştırma yöntemi için dürüst not: `esitMi` yerine düz
 `===` konduğunda hiçbir kontrol düşmüyor — iki yöntem davranış olarak aynı, fark yalnızca
 geçen sürede; o bölümün ölçtüğü şey kuralın değişmediği. Toplam 2270 kontrol, 24 denetim.
+
+## Güncelleme 172: Silme Defteri, "Bugün" Paneli, Tembel Önizleme
+
+Denetimde çıkan ve **veriye dokunmayan** dört iş birlikte yapıldı.
+
+### 1. Silme artık güvenlik defterine yazılıyor
+
+Ölçüldü: defterdeki on üç kayıt noktasının hepsi giriş / hesap yönetimi / yedek geri
+yükleme işlemiydi. **Kart silme, müşteri silme, reklam silme hiç kaydedilmiyordu** — oysa
+silme bu sistemde geri alması en zor işlem ve "bu kartı kim sildi" sorusunun cevabı hiçbir
+yerde yoktu.
+
+Silme ayrı bir uçtan geçmiyor: tarayıcı kaydı listeden çıkarıp belgeyi kaydediyor. Bu
+yüzden `lib/silme-defteri.js` yazmanın öncesiyle sonrasını karşılaştırıyor. İki kayıt yolu
+da (personel + yönetici) bağlandı. **Gönderilmeyen alan silme sayılmıyor** — personel
+yalnızca dokunduğu alanları gönderdiği için bu ayrım olmadan defter yalanla dolardı.
+Ayrıntı 20 kayıtla kırpılıyor ama toplam sayı tam yazılıyor.
+
+Defter ayrı bir Redis anahtarında (son 500 kayıt) — ana belgeyi büyütmüyor, yedeğe
+girmiyor. **Ücret değişiklikleri de** deftere yazılıyor: şube ücreti ve marka temel ücreti,
+eski ve yeni değerle birlikte.
+
+### 2. "Bugün" paneli
+
+Dashboard'ın en üstünde, salt okunur: **geciken işler · bugün teslim · revize bizde ·
+müşteride bekliyor · bugün paylaşılacak · geciken paylaşım**. Denetimdeki en yüksek değerli
+eksik buydu — bu soruların cevabı dört ayrı ekrana dağılmıştı.
+
+Yeni veri yok, hesap `lib/bugun.js` içinde ve saf. Bir ayrıntı sahada öğrenildi: plan
+kayıtları mutlak tarih tutmuyor, `haftaKey` + gün kaymasıyla duruyor; tarihi bu ikisinden
+üretmek zorunlu. `kayit.tarih` diye bakan bir kod sessizce hiçbir şey bulmaz.
+
+### 3. Pano önizlemeleri görünmeden istenmiyor
+
+Otuz kartlık bir sütunda otuz önizleme isteği aynı anda kuyruğa giriyordu. Artık kart
+ekranda görünür alana girene kadar istek başlamıyor (200 px erken tetikleniyor ki
+kaydırırken hazır olsun). Görünür olduktan sonra bu durum korunuyor — aşağı yukarı
+kaydırdıkça aynı kartı tekrar tekrar istemek, çözülen sorunun aynısını üretirdi.
+
+### 4. Stok sayısının kaynağı yazılı
+
+Stok üç ekranda birden görünüyor ve "hangisi doğru" sorusu tekrar ediyordu. Paylaşımlar'da
+sayının nereden geldiği, Çekim listesinde ise aynı sayının eşik altı hâli olduğu tek
+cümleyle yazıyor. Sayılar değişmedi, yalnızca kaynakları söyleniyor.
+
+**Test:** t102 (27 kontrol). Kırma ölçümü: yönetici yolundaki defter kaydı kaldırılınca 3,
+personel yolundaki 2, "gönderilmeyen alan silme değildir" kuralı kalkınca 1, plan tarihi
+gün kaymasını uygulamayınca 1, bitmiş işler de geciken sayılınca 2 kontrol düşüyor.
+Toplam 2297 kontrol, 24 denetim.

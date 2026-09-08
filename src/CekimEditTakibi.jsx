@@ -4,7 +4,7 @@ import { medyaVarMi, asamalariDuzelt, guncelMedyalar, slotGecmisi, slotEtiketi,
 import { videoHataMesaji } from "../lib/video-yon.js";
 import { faststartUyarisi } from "../lib/mp4-faststart.js";
 import { videoBilgiSatiri } from "../lib/video-bilgi.js";
-import { useSunucuOnizleme, useVideoAdresi, videoEni, oynaticiOrani, gomuluEngelliMi, GOMULU_ACIKLAMA, onizlemeyiTazele } from "./drive.jsx";
+import { useSunucuOnizleme, useVideoAdresi, useGorunurMu, videoEni, oynaticiOrani, gomuluEngelliMi, GOMULU_ACIKLAMA, onizlemeyiTazele } from "./drive.jsx";
 import { sunucuyuBekle } from "../lib/onizleme-bellegi.js";
 import { isBasladi, isBitti } from "../lib/suren-isler.js";
 import { kartiIsleyebilirMi } from "../lib/is-yetkisi.js";
@@ -329,6 +329,11 @@ const kapaliBtn = { ...btnPrimary, background: C.border, color: C.textFaint, cur
 /* İş Kartı                                                              */
 /* ------------------------------------------------------------------ */
 function IsKarti({ job, onClick, draggable, onDragStart }) {
+  /* Önizleme, kart EKRANDA GÖRÜNENE kadar istenmiyor — otuz kartlık sütunda otuz istek
+   * yerine yalnızca bakılanlar. Kutunun kendisi her zaman çiziliyor, yani yükseklik
+   * zıplaması olmuyor. */
+  const kutuRef = React.useRef(null);
+  const gorunur = useGorunurMu(kutuRef);
   const aciliyet = aciliyetDurumu(job);
   const stil = ACILIYET_STIL[aciliyet];
   const asamalar = asamaListesi(job.kategori);
@@ -347,7 +352,9 @@ function IsKarti({ job, onClick, draggable, onDragStart }) {
       {/* Koşul `lib/asamalar.js` içinde — JSX'te yazılıydı ve Node'da çağrılamadığı için
         * hiçbir test ona bakamıyordu. Bkz. `panoOnizlemesiVarMi`. */}
       {panoOnizlemesiVarMi(job) && (
-        <DriveGorsel link={job.editliDosyaLink || ""} C={C} yukseklik={110} kapak kucuk isId={job.id} boyut={400} />
+        <div ref={kutuRef} style={{ minHeight: gorunur ? undefined : 110 }}>
+          {gorunur && <DriveGorsel link={job.editliDosyaLink || ""} C={C} yukseklik={110} kapak kucuk isId={job.id} boyut={400} />}
+        </div>
       )}
       <div style={{ fontSize: 11, color: C.textDim, marginBottom: 8, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
         <span>{job.icerikTuru}{job.kategori ? ` · ${job.kategori}` : ""}</span>
