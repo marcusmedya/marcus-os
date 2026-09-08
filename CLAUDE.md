@@ -369,11 +369,21 @@ aynen döner** — son ikisi sürüm sayacının boşuna artmasını, yani kart 
 herkesin 409 almasını engelliyor. Hedef aşama listesi seçilen kartların kategorilerinin
 KESİŞİMİ; Reels ile Post birlikte seçilirse yalnızca ikisinde de olan aşamalar sunulur.
 
-**Onayı geri alınan kart artık EKRANDA söyleniyor** (`src/App.jsx`, `res.onaylanamadi`).
-Sunucu bunu hep bildiriyordu ama istemci hiç okumuyordu: dosyası Drive'a taşınamayan kart
-sessizce eski aşamasına dönüyor, kullanıcı "onayladım" sanıyordu; sebep yalnızca kartın
-geçmişine yazılıyordu. Toplu taşımada bu çok daha görünür — çok kart onaya alınırken
-Drive'ın 20 sn'lik taşıma bütçesi dolarsa kalanların onayı geri alınıyor.
+**Onayı geri alınan kart EKRANDA söyleniyor VE EKRAN SUNUCUDAN TAZELENİYOR**
+(`src/App.jsx`, `res.onaylanamadi`). Sunucu geri almayı hep bildiriyordu ama yanıtta kart
+listesini GÖNDERMİYOR; istemci yalnızca mesajı yazsaydı kartlar ekranda onayda kalırdı —
+sahada tam olarak bu yaşandı ("10 kartın onayı geri alındı" yazdı, kartlar onayda kaldı).
+Dahası yanıt yeni sürüm sayaçlarını taşıdığı için **bir sonraki kayıt o eski hâli sunucuya
+geri yazar**, yani geri alma sessizce iptal olurdu. Bu yüzden `kimlikOnarildi` dalındaki
+gibi belge yeniden çekiliyor. t100 bu sözleşmeyi uçtan ölçüyor.
+
+**Toplu taşıma PARÇA PARÇA gönderilir** (`src/App.jsx` → `topluKartlariTasi`, dörder kart).
+Hepsi tek kayıtta gitmişti ve patladı: on kart onaya alınınca sunucunun Drive taşıma
+bütçesi (20 sn) doldu ve taşınamayanların onayı geri alındı. Ölçüm: on kart 20 sn'yi aştı,
+yani kart başına ~2 sn; dört kart ~8 sn. Her tur **öncekinin kaydı sunucuya inene kadar
+bekler** — beklemezse kayıt 500 ms gecikmeli olduğu için hepsi yine tek istekte birleşirdi.
+Bir turda onay geri alınırsa **döngü DURUR**: devam etmek yarısı taşınmış, yarısı geri
+alınmış karışık bir hâl üretirdi.
 
 **Dosya karta NUMARAYLA DEĞİL TOPLU ETİKETİYLE bağlanır** (`topluId` + `topluSira`;
 `api/data.js` yükleme dalı ve `src/App.jsx` → `topluKartaMedyaYaz`). Kartları tarayıcı
@@ -553,7 +563,7 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 24 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t100, ~2249 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t100, ~2253 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

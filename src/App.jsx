@@ -42,6 +42,7 @@ import { MusteriPaneli } from "./musteriPaneli.jsx";
 import { hazirIcerikleriUret, musteriKayitlariniSuz } from "../lib/musteri-gorunumu.js";
 import { markayaGoreGrupla } from "../lib/reklam-gruplari.js";
 import { topludanKartBul } from "../lib/toplu-kart.js";
+import { tasimayiUygula } from "../lib/toplu-tasima.js";
 import { ekstreUret, varsayilanBaslangic } from "../lib/ekstre.js";
 import { ucretDagilimi, ayinUcreti, ACIK_BASLANGIC } from "../lib/marka-ucreti.js";
 import { markaEslestirici } from "../lib/marka-kilidi.js";
@@ -8698,13 +8699,31 @@ export default function MarcusOS() {
            * yere. Toplu taşımada bu çok daha görünür: yirmi kart onaya alınırken Drive
            * süre sınırına takılanların onayı geri alınıyor. */
           if (Array.isArray(res.onaylanamadi) && res.onaylanamadi.length > 0) {
+            /* SUNUCUDAN TAZELENİYOR — mesaj tek başına YETMİYOR.
+             *
+             * Sunucu onayı geri alıyor ama yanıtta kart listesini GÖNDERMİYOR; yalnızca
+             * "geri aldım" diyor. Tarayıcıdaki kopya kartları hâlâ onayda gösteriyordu:
+             * kullanıcı "geri almadı" diye bildirdi ve haklıydı. Dahası yanıt yeni sürüm
+             * sayaçlarını da taşıdığı için BİR SONRAKİ kayıt o eski hâli sunucuya geri
+             * yazıyor, yani geri alma sessizce iptal oluyordu. `kimlikOnarildi` dalı aynı
+             * sebeple aynı şeyi yapıyor. */
+            onayGeriAlindi.current = true;
+            skipNextSave.current = true;
+            fetch("/api/data", { headers: authHeaders() })
+              .then((r4) => r4.json())
+              .then((res4) => {
+                if (!res4.data) return;
+                sonSunucuVerisi.current = res4.data;
+                setData(res4.data);
+              })
+              .catch(() => {});
             const adlar = res.onaylanamadi.map((x) => x.isAdi).filter(Boolean).slice(0, 3);
             const sebepler = [...new Set(res.onaylanamadi.map((x) => x.sebep).filter(Boolean))];
             setStaleConflictMsg(
               `${res.onaylanamadi.length} kartın ONAYI GERİ ALINDI — dosya Drive'daki onay `
               + `klasörüne taşınamadı${adlar.length ? ` (${adlar.join(", ")}${res.onaylanamadi.length > adlar.length ? "…" : ""})` : ""}. `
               + `${sebepler.length ? `Sebep: ${sebepler.join(" · ")}. ` : ""}`
-              + "Dosya yerine geçmeden onay stoğa yazılmaz — düzeltip tekrar dene.",
+              + "Kartlar eski aşamalarına döndürüldü — ekran tazelendi.",
             );
           }
         })
@@ -9136,11 +9155,56 @@ export default function MarcusOS() {
       : j)) };
   });
 
-  /* Toplu taşımada kart listesinin TAMAMI birlikte yazılıyor: kart başına ayrı kayıt
-   * yirmi tur kilit demekti. Liste zaten `lib/toplu-tasima.js` içinde üretildi; değişiklik
-   * yoksa aynı referans geldiği için sürüm sayacı boşuna artmıyor. */
-  const topluTasinanlariYaz = (yeniIsler) => setData((d) => (
-    (!Array.isArray(yeniIsler) || yeniIsler === d.cekimIsleri) ? d : { ...d, cekimIsleri: yeniIsler }));
+  /* TOPLU TAŞIMA PARÇA PARÇA GÖNDERİLİYOR.
+   *
+   * Hepsi tek kayıtta gitmişti ve sahada patladı: on kart onaya alınınca sunucunun Drive
+   * taşıma bütçesi (20 sn) doldu, taşınamayanların onayı geri alındı ve kullanıcı on kartı
+   * da kaybetti. Bütçe yeterli olsun diye her turda az sayıda kart gönderiliyor ve BİR
+   * SONRAKİ tur, öncekinin kaydı sunucuya inene kadar bekliyor — beklemezse hepsi yine
+   * tek kayıtta birleşirdi (kayıt 500 ms gecikmeli).
+   *
+   * Parça boyutu ölçüme dayanıyor: on kart 20 sn'yi aştı, yani kart başına ~2 sn. Dört
+   * kart ~8 sn — bütçenin yarısından az. */
+  const TOPLU_TASIMA_PARCASI = 4;
+
+  /* Bir parçada onay geri alındıysa DÖNGÜ DURUR. Devam etseydi kullanıcı yarısı taşınmış,
+   * yarısı geri alınmış karışık bir hâl görür ve hangisinin gerçekten taşındığını
+   * ayıramazdı. Sunucu zaten sorunu bildiriyor; ısrar etmek onu tekrarlamaktan başka
+   * bir şey yapmaz. */
+  const onayGeriAlindi = useRef(false);
+
+  /* Kaydın sunucuya inmesini bekler. Sabit bir gecikme tahmini yerine gerçek duruma
+   * bakılıyor: yavaş bağlantıda tahmin tutmazdı. */
+  const kaydinInmesiniBekle = async (enFazlaMs = 45000) => {
+    const bas = Date.now();
+    await new Promise((c) => setTimeout(c, 700));      // 500 ms'lik kayıt gecikmesini geç
+    while (Date.now() - bas < enFazlaMs) {
+      if (!saveTimer.current && saveStatusRef.current !== "saving" && !kayitUcusta.current) return true;
+      await new Promise((c) => setTimeout(c, 200));
+    }
+    return false;
+  };
+
+  const topluKartlariTasi = async ({ idler, hedefAsama, yazan, ilerleme }) => {
+    const kalan = (Array.isArray(idler) ? idler : []).slice();
+    const toplam = kalan.length;
+    let tasinan = 0;
+    onayGeriAlindi.current = false;
+    while (kalan.length > 0) {
+      const parca = kalan.splice(0, TOPLU_TASIMA_PARCASI);
+      setData((d) => {
+        const sonuc = tasimayiUygula(d.cekimIsleri || [], parca, hedefAsama, yazan);
+        return sonuc.tasinan === 0 ? d : { ...d, cekimIsleri: sonuc.isler };
+      });
+      tasinan += parca.length;
+      if (typeof ilerleme === "function") ilerleme(tasinan, toplam);
+      await kaydinInmesiniBekle();
+      if (onayGeriAlindi.current) {
+        throw new Error(`${tasinan - parca.length} kart taşındı; Drive taşıması takıldığı için kalanlar taşınmadı. Yukarıdaki uyarıya bak.`);
+      }
+    }
+    return tasinan;
+  };
 
   const updateCekimIsi = (id, patch) => setData((d) => {
     const eskiIs = (d.cekimIsleri || []).find((j) => j.id === id);
@@ -10388,7 +10452,7 @@ export default function MarcusOS() {
           {staffTab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="staff" />}
           {staffTab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} isler={data.cekimIsleri || []} plan={data.haftalikPaylasimlar || []}
             cekimSirasi={data.cekimSirasi || []} onSiraDegis={cekimSirasiKaydet} />}
-          {staffTab === "cekim-edit" && <CekimEditTakibi role="staff" acilacakIsId={gidilecekIs} onKartAcildi={() => setGidilecekIs(null)} clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onAddJobs={addCekimIsleri} onTopluMedya={topluKartaMedyaYaz} onTopluAsama={topluKartlariAsamayaAl} onTopluTasi={topluTasinanlariYaz} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} girisYapanAd={loggedStaffName} islemYetkisi={izinler.cekimEdit === true} kartYetkileri={izinler} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={izinler.markaYoneticisi} firmaAdi={data.firmaAdi} />}
+          {staffTab === "cekim-edit" && <CekimEditTakibi role="staff" acilacakIsId={gidilecekIs} onKartAcildi={() => setGidilecekIs(null)} clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onAddJobs={addCekimIsleri} onTopluMedya={topluKartaMedyaYaz} onTopluAsama={topluKartlariAsamayaAl} onTopluTasi={topluKartlariTasi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} girisYapanAd={loggedStaffName} islemYetkisi={izinler.cekimEdit === true} kartYetkileri={izinler} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={izinler.markaYoneticisi} firmaAdi={data.firmaAdi} />}
           {staffTab === "personel" && <Personel personel={data.personel || []} onAdd={addPersonel} onUpdate={updatePersonel} onDelete={deletePersonel} duzenleyenAdi={loggedStaffName || "Personel"} />}
           {staffTab === "birikim" && (
             <Birikim
@@ -10840,7 +10904,7 @@ export default function MarcusOS() {
           {tab === "gunluk-kontrol" && <GunlukKontrol clients={data.clients || []} haftalikPlan={data.haftalikPaylasimlar || []} onToggle={toggleHaftalikYapildi} onYenile={veriyiYenile} role="owner" />}
           {tab === "cekim-listesi" && <CekimListesi clients={data.clients || []} stoklar={data.stoklar || {}} subeler={data.subeler || []} gecmis={data.paylasimGecmisi || []} isler={data.cekimIsleri || []} plan={data.haftalikPaylasimlar || []}
             cekimSirasi={data.cekimSirasi || []} onSiraDegis={cekimSirasiKaydet} />}
-          {tab === "cekim-edit" && <CekimEditTakibi role="owner" acilacakIsId={gidilecekIs} onKartAcildi={() => setGidilecekIs(null)} clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onAddJobs={addCekimIsleri} onTopluMedya={topluKartaMedyaYaz} onTopluAsama={topluKartlariAsamayaAl} onTopluTasi={topluTasinanlariYaz} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} isUcretleri={data.isUcretleri || {}} onSaveIsUcreti={setIsUcreti} isUcretDetaylari={data.isUcretDetaylari || {}} onSaveIsUcretDetayi={setIsUcretDetayi} avanslar={data.avanslar || []} hesaplar={data.hesaplar || []} onAddAvans={addAvans} onDeleteAvans={deleteAvans} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={true} firmaAdi={data.firmaAdi} />}
+          {tab === "cekim-edit" && <CekimEditTakibi role="owner" acilacakIsId={gidilecekIs} onKartAcildi={() => setGidilecekIs(null)} clients={data.clients || []} subeler={data.subeler || []} planlar={data.haftalikPaylasimlar || []} jobs={data.cekimIsleri || []} personelRosteri={data.personelRosteri || []} onRefreshRoster={refreshPersonelRosteri} onAddJob={addCekimIsi} onAddJobs={addCekimIsleri} onTopluMedya={topluKartaMedyaYaz} onTopluAsama={topluKartlariAsamayaAl} onTopluTasi={topluKartlariTasi} onUpdateJob={updateCekimIsi} onDeleteJob={deleteCekimIsi} isUcretleri={data.isUcretleri || {}} onSaveIsUcreti={setIsUcreti} isUcretDetaylari={data.isUcretDetaylari || {}} onSaveIsUcretDetayi={setIsUcretDetayi} avanslar={data.avanslar || []} hesaplar={data.hesaplar || []} onAddAvans={addAvans} onDeleteAvans={deleteAvans} markalasmaSurecleri={data.markalasmaSurecleri || []} onToggleMarkalasmaGorev={toggleMarkalasmaGorev} onSetMarkalasmaYonetici={setMarkalasmaYonetici} onAddMarkalasmaGorev={addMarkalasmaGorev} onCompleteMarkalasmaSureci={tamamlaMarkalasmaSureci} onDeleteMarkalasmaSureci={deleteMarkalasmaSureci} markaYoneticisiMi={true} firmaAdi={data.firmaAdi} />}
           {tab === "personel" && (
             <Personel
               /* Giriş hesapları ve yetkiler artık Personel > Hesaplar & Yetkiler altında.

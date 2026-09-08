@@ -10,7 +10,7 @@ import { isBasladi, isBitti } from "../lib/suren-isler.js";
 import { kartiIsleyebilirMi } from "../lib/is-yetkisi.js";
 import { yetkiVar, ONAY_ASAMALARI } from "../lib/kart-yetkisi.js";
 import { topluAdlar, topluIsleriUret, adetiCoz, sonrakiNumara, cakisanAdlar, EN_FAZLA_TOPLU } from "../lib/toplu-kart.js";
-import { tasimaAdaylari, tasimayiUygula, tasimaOzeti } from "../lib/toplu-tasima.js";
+import { tasimaAdaylari, tasimaOzeti } from "../lib/toplu-tasima.js";
 import { markaninIdsi, trKucult } from "../lib/marka-kilidi.js";
 import { panoSuzgeci } from "../lib/pano-suzgeci.js";
 import { paylasimTuru, PAYLASIM_TURLERI } from "../lib/stok.js";
@@ -2889,12 +2889,21 @@ export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clie
       setTopluDurum({ hata: "Kart onaylama yetkin yok — bu aşamaya taşıyamazsın. Yöneticine sor." });
       return;
     }
-    const sonuc = tasimayiUygula(isler, idler, hedefAsama, duzenleyenAdi);
-    if (typeof onTopluTasi === "function") onTopluTasi(sonuc.isler);
-    setTopluDurum({ mesaj: `${tasimaOzeti(adaylar, hedefAsama)}.`
-      + (ONAY_ASAMALARI.includes(hedefAsama) && adaylar.tasinacak.length > 8
-        ? " Çok sayıda kart onaya alınıyor: Drive taşıması süre sınırına takılırsa taşınamayanların onayı geri alınır ve ekranda yazar." : "") });
+    /* TAŞIMA PARÇA PARÇA GİDİYOR (App tarafında). Hepsi tek kayıtta gönderilmişti ve
+     * sahada patladı: on kart onaya alınınca sunucunun Drive taşıma bütçesi (20 sn) doldu,
+     * taşınamayanların onayı geri alındı. Buradan yalnızca TAŞINABİLİR kartların
+     * kimlikleri gidiyor; ayıklamayı `tasimaAdaylari` yaptı. */
+    const idListesi = adaylar.tasinacak.map((j) => j.id);
+    setTopluDurum({ mesaj: `${tasimaOzeti(adaylar, hedefAsama)} — taşınıyor…` });
     secimiBitir();
+    Promise.resolve(onTopluTasi({
+      idler: idListesi, hedefAsama, yazan: duzenleyenAdi,
+      ilerleme: (yapilan, toplam) => setTopluDurum({ mesaj: `${yapilan}/${toplam} kart "${hedefAsama}" aşamasına taşındı…` }),
+    })).then(() => {
+      setTopluDurum({ mesaj: `${idListesi.length} kart "${hedefAsama}" aşamasına taşındı.` });
+    }).catch((err) => {
+      setTopluDurum({ hata: `Taşıma tamamlanamadı: ${String((err && err.message) || err)}` });
+    });
   }
 
   const bekle = (ms) => new Promise((coz) => setTimeout(coz, ms));
