@@ -5184,3 +5184,29 @@ oynatmak / akış servisi (Cloudflare Stream, Mux) — tahminle değil ekrandaki
 verilecek. Akış mantığına (etag, aralık, bölge) **dokunulmadı**.
 
 **Test:** t98 (25 kontrol). Toplam 2184 kontrol, 23 statik denetim.
+
+## Güncelleme 164: Çekim Listesinde Markaların Yeri Değişmiyordu
+
+**Şikâyet:** "Yerleri değişmiyor." Çekim gereken markalar listesinde ok tuşlarıyla marka
+taşınıyor, üstte "Elle sıralama açık" yazısı çıkıyor, ama liste olduğu gibi kalıyordu.
+
+**Sebep — tek satır:** `src/App.jsx` içinde sıralama şöyle çağrılıyordu:
+
+```js
+siraliGruplar(gruplar, cekimSirasi);   // dönüş değeri hiçbir yere yazılmıyor
+```
+
+`lib/cekim-sirasi.js` **saf**: diziyi kopyalar, kopyayı sıralar ve onu döndürür — kaynağa
+dokunmaz. Dönüş değeri atılınca o satır hiçbir şey yapmıyor. Yani kaydedilen sıra doğruydu,
+sunucu doğru yazıyordu, modülün kendi testi (t93) geçiyordu; ekrana yansıtan tek adım
+eksikti. Düzeltme: `gruplar = siraliGruplar(gruplar, cekimSirasi);`
+
+**Denetim 24 — `testler/safDonusDegeri.mjs`.** Bu hatayı hiçbir katman yakalamadı: sunucu
+testleri React bileşenini çalıştırmıyor, modül testi fonksiyonu doğrudan çağırıyor,
+derleme bunu hata saymıyor. Yeni denetim, `MARCUS-OS-SISTEM.md`'de **(saf)** işaretli
+modüllerin dışa verdiği fonksiyonların deyim konumunda çıplak çağrılmadığını kontrol
+ediyor. Saflık listesi ayrı tutulmuyor — o belge zaten denetim 18 ile güncel kalıyor.
+
+Ölçüldü: düzeltme geri alındığında denetim düşüyor (`src/App.jsx:3703`), düzeltmeyle
+temiz — 12 saf modülün 43 fonksiyonuna yapılan 161 çağrı taranıyor. Denetimin yanlış
+satır bildirmemesi için yorum ayıklaması satır sayısını koruyor.
