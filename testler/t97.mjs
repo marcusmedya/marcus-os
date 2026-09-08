@@ -23,6 +23,7 @@ import {
   ONAY_ASAMALARI, DUZENLEME_ALANLARI,
 } from "../lib/kart-yetkisi.js";
 import { izinleriDaralt, KILITLI_IZINLER } from "../lib/marka-kilidi.js";
+import { ILK_ASAMA } from "../lib/asamalar.js";
 import { kv } from "@vercel/kv";
 import { cagir } from "./denetim.mjs";
 import crypto from "node:crypto";
@@ -226,9 +227,43 @@ await bolum("11) UÇ: YETKİSİZ SİLME", 2, async () => {
     "sunucu denetlemiyorsa personel her kartı silebilir");
 });
 
+/* ---------------------------------------------------------------- */
+/* KARTI DOĞRUDAN ONAY AŞAMASINDA AÇMAK.
+ *
+ * Denetim yalnızca AŞAMA GEÇİŞİNE bakıyordu: var olan kartı onaya almak yetki istiyordu
+ * ama kartı en baştan "Onaylandı" AÇMAK hiç sorulmuyordu. Onaylama yetkisi olmayan
+ * personel tek adımda stok üretebiliyordu — sınırın etrafından dolaşan bir yol.
+ * Toplu açılışta aşama seçilebildiği için bu yol artık tek tık uzaklıkta. */
+await bolum("12) YENİ KART ONAY AŞAMASINDA AÇILAMIYOR", 4, () => {
+  const yeni = [{ id: 9, marka: "Smell Coffee", kategori: "Reels", asama: "Onaylandı", icerikTuru: "Post 1" }];
+  const r = izinsizKartDegisiklikleriniGeriAl([], yeni, { kartAcma: true });
+  t("aşama akışın başına çekildi", r.isler[0].asama === ILK_ASAMA("Reels"),
+    "onay yetkisi olmadan doğrudan onaylı kart açmak, stok üretmenin kestirme yolu olurdu");
+  t("kart yine de açıldı", r.isler.length === 1,
+    "kartın tamamını düşürmek kullanıcının emeğini çöpe atardı");
+  t("sebep bildirildi", r.geriAlinanlar.some((x) => x.sebep === "kartOnaylama"));
+  const y = izinsizKartDegisiklikleriniGeriAl([], yeni, { kartAcma: true, kartOnaylama: true });
+  t("yetki verilince onaylı açılabiliyor",
+    y.isler[0].asama === "Onaylandı" && y.geriAlinanlar.length === 0);
+});
+
+await bolum("13) UÇ: DOĞRUDAN ONAYLI AÇMA STOK ÜRETMİYOR", 3, async () => {
+  await sifirla({});
+  const d = await kv.get(KEY);
+  const r = await kaydet([...d.cekimIsleri,
+    { id: 7, marka: "Smell Coffee", kategori: "Reels", asama: "Onaylandı", icerikTuru: "Post 1" }]);
+  t("kayıt kabul ediliyor", r.kod === 200, "gelen: " + r.kod + " " + JSON.stringify(r.govde && r.govde.error));
+  const veri = await kv.get(KEY);
+  const kart = (veri.cekimIsleri || []).find((j) => j.id === 7);
+  t("aşama sunucuda da geri alındı", kart && kart.asama !== "Onaylandı",
+    "gelen aşama: " + (kart && kart.asama));
+  t("STOK ÜRETİLMEDİ", Object.values(veri.stoklar || {}).every((x) => !x),
+    "stok: " + JSON.stringify(veri.stoklar));
+});
+
 /* Çalışan kontrol sayısı sabitle karşılaştırılıyor: t95 bir kez bölümler `await`
  * edilmediği için hiç çalışmadı ve "0 kaldı" deyip BAŞARIYLA çıktı. */
-const BEKLENEN = 42;
+const BEKLENEN = 49;
 if (g + k !== BEKLENEN) {
   k++;
   console.log(`  ✗ yalnızca ${g + k - 1} kontrol çalıştı, ${BEKLENEN} olmalıydı — bir bölüm hiç koşmamış`);

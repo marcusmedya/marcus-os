@@ -8,7 +8,7 @@ import { useSunucuOnizleme, useVideoAdresi, videoEni, oynaticiOrani, gomuluEngel
 import { sunucuyuBekle } from "../lib/onizleme-bellegi.js";
 import { isBasladi, isBitti } from "../lib/suren-isler.js";
 import { kartiIsleyebilirMi } from "../lib/is-yetkisi.js";
-import { yetkiVar } from "../lib/kart-yetkisi.js";
+import { yetkiVar, ONAY_ASAMALARI } from "../lib/kart-yetkisi.js";
 import { topluAdlar, topluIsleriUret, adetiCoz, sonrakiNumara, cakisanAdlar, EN_FAZLA_TOPLU } from "../lib/toplu-kart.js";
 import { markaninIdsi, trKucult } from "../lib/marka-kilidi.js";
 import { panoSuzgeci } from "../lib/pano-suzgeci.js";
@@ -555,7 +555,7 @@ function YeniIsFormu({ clients, subeler, personelRosteri, varsayilanKategori, on
 function TopluIsFormu({ clients, subeler, personelRosteri, varsayilanKategori, mevcutIsler, onOlustur, onCancel }) {
   const [v, setV] = useState({
     kategori: varsayilanKategori || KATEGORILER[0],
-    marka: "", taban: "Post", adet: 5, baslangic: "",
+    marka: "", taban: "Post", adet: 5, baslangic: "", asama: "",
     cekimTarihi: bugunISO(), teslimTarihi: bugunISO(),
     kameraman: "", editor: "", oncelik: "Normal", brief: "", sadeceSubeler: [],
   });
@@ -564,6 +564,13 @@ function TopluIsFormu({ clients, subeler, personelRosteri, varsayilanKategori, m
   const video = cekimVarMi(v.kategori);
   const markaId = markaninIdsi(clients, v.marka);
   const markaSubeleri = markaninSubeleri(subeler, markaId);
+  /* BAŞLANGIÇ AŞAMASI. İş her zaman akışın başından başlamıyor: inisiyatif ajansta olan
+   * markada içerik hazır geliyor, kart doğrudan "Onaylandı" açılmalı. Liste kategorinin
+   * KENDİ aşama dizisinden geliyor — uydurma bir aşama stok motorunu yanlış yöne
+   * çalıştırır. Kategori değişince seçim sıfırlanıyor: Reels'in aşaması Post'ta yok. */
+  const asamalar = asamaListesi(v.kategori);
+  const secilenAsama = asamalar.includes(v.asama) ? v.asama : asamalar[0];
+  const onaylaAcilacak = ONAY_ASAMALARI.includes(secilenAsama);
 
   /* Numara YALNIZCA bu markanın kartlarından devam ediyor: başka markanın "Post 40"ı
    * bu markanın numarasını ileri atmasın. */
@@ -590,7 +597,7 @@ function TopluIsFormu({ clients, subeler, personelRosteri, varsayilanKategori, m
       <label style={labelStyle}>Kategori</label>
       <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
         {KATEGORILER.map((k) => (
-          <button key={k} onClick={() => set("kategori", k)}
+          <button key={k} onClick={() => setV((st) => ({ ...st, kategori: k, asama: "" }))}
             style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: `1.5px solid ${v.kategori === k ? C.accent : C.border}`, background: v.kategori === k ? C.accentSoft : "transparent", color: v.kategori === k ? C.accentText : C.textDim, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>{k}</button>
         ))}
       </div>
@@ -626,6 +633,12 @@ function TopluIsFormu({ clients, subeler, personelRosteri, varsayilanKategori, m
           <label style={labelStyle}>Öncelik</label>
           <select style={inputStyle} value={v.oncelik} onChange={(e) => set("oncelik", e.target.value)}>
             {ONCELIKLER.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={labelStyle}>Başlangıç aşaması</label>
+          <select style={inputStyle} value={secilenAsama} onChange={(e) => set("asama", e.target.value)}>
+            {asamalar.map((x) => <option key={x} value={x}>{x}</option>)}
           </select>
         </div>
       </div>
@@ -665,6 +678,16 @@ function TopluIsFormu({ clients, subeler, personelRosteri, varsayilanKategori, m
               {adlar.length <= 3 ? adlar.join(", ") : `${adlar[0]}, ${adlar[1]} … ${adlar[adlar.length - 1]}`}
               {dosyalar.length > 0 && <div style={{ marginTop: 4 }}>Her dosya kendi kartına yüklenecek — sırayla, ilk dosya ilk karta.</div>}
               {dosyalar.length === 0 && <div style={{ marginTop: 4 }}>Dosya seçilmedi — kartlar boş açılacak.</div>}
+              <div style={{ marginTop: 4 }}>
+                Aşama: <b style={{ color: C.text }}>{secilenAsama}</b>
+                {onaylaAcilacak && dosyalar.length > 0 && " — dosyalar yüklendikten SONRA bu aşamaya alınacak (onaylı kart dosyasız kalamaz)."}
+              </div>
+              {onaylaAcilacak && dosyalar.length === 0 && (
+                <div style={{ marginTop: 6, color: C.warning, fontWeight: 600 }}>
+                  Dosya seçmeden onaylı açıyorsun. Drive kurulu bir markada sunucu bu onayı
+                  geri alır (kartta dosya yok) — önce dosyaları seçmek daha sağlam.
+                </div>
+              )}
               {cakisanlar.length > 0 && (
                 <div style={{ marginTop: 6, color: C.warning, fontWeight: 600 }}>
                   Bu ad{cakisanlar.length > 1 ? "lar" : ""} bu markada zaten var: {cakisanlar.slice(0, 4).join(", ")}
@@ -684,6 +707,7 @@ function TopluIsFormu({ clients, subeler, personelRosteri, varsayilanKategori, m
               istenenAdet: "", uretilenAdet: "", sadeceSubeler: v.sadeceSubeler,
             },
             taban: v.taban, adet, dosyalar, mevcutAdlar: markaninAdlari, baslangic: v.baslangic,
+            asama: secilenAsama, ilkAsama: asamalar[0],
           })}
         >{adlar.length > 0 ? `${adlar.length} Kart Aç` : "Kart Aç"}</button>
       </div>
@@ -2795,7 +2819,7 @@ export function AylikIsRaporu({ jobs, ucretler, onSaveUcret, ucretDetaylari, onS
 /* ------------------------------------------------------------------ */
 /* ANA BİLEŞEN                                                           */
 /* ------------------------------------------------------------------ */
-export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clients, subeler, planlar, jobs, personelRosteri, onRefreshRoster, onAddJob, onAddJobs, onTopluMedya, onUpdateJob, onDeleteJob, girisYapanAd, islemYetkisi = true, kartYetkileri, isUcretleri, onSaveIsUcreti, isUcretDetaylari, onSaveIsUcretDetayi, avanslar, hesaplar, onAddAvans, onDeleteAvans, markalasmaSurecleri, onToggleMarkalasmaGorev, onSetMarkalasmaYonetici, onAddMarkalasmaGorev, onCompleteMarkalasmaSureci, onDeleteMarkalasmaSureci, markaYoneticisiMi, firmaAdi }) {
+export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clients, subeler, planlar, jobs, personelRosteri, onRefreshRoster, onAddJob, onAddJobs, onTopluMedya, onTopluAsama, onUpdateJob, onDeleteJob, girisYapanAd, islemYetkisi = true, kartYetkileri, isUcretleri, onSaveIsUcreti, isUcretDetaylari, onSaveIsUcretDetayi, avanslar, hesaplar, onAddAvans, onDeleteAvans, markalasmaSurecleri, onToggleMarkalasmaGorev, onSetMarkalasmaYonetici, onAddMarkalasmaGorev, onCompleteMarkalasmaSureci, onDeleteMarkalasmaSureci, markaYoneticisiMi, firmaAdi }) {
   const [staffName, setStaffNameState] = useState(girisYapanAd || getStaffName());
   const [view, setView] = useState(role === "staff" ? "panom" : "pano");
   /* Varsayılan sekme LİSTEDEN geliyor. Bir süre "Video" yazılıydı: kategori adı
@@ -2845,15 +2869,29 @@ export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clie
     throw new Error("Kartlar kaydedilirken bağlantı gecikti. Kartlar açıldı; dosyaları kartlardan tek tek yükleyebilirsin.");
   }
 
-  async function topluOlustur({ ortak, taban, adet, dosyalar, mevcutAdlar, baslangic }) {
+  async function topluOlustur({ ortak, taban, adet, dosyalar, mevcutAdlar, baslangic, asama, ilkAsama }) {
     if (typeof onAddJobs !== "function") return;
     const topluId = `tk${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
-    const isler = topluIsleriUret({ taban, adet, mevcutAdlar, ortak, topluId, baslangic });
+    const dosyaVar = Boolean(dosyalar && dosyalar.length > 0);
+    /* ONAY AŞAMASI SEÇİLDİYSE VE DOSYA VARSA: kartlar önce akışın başında açılır, dosyalar
+     * yüklenir, EN SON onaya alınır.
+     *
+     * Sunucudaki onay kilidi dosyası olmayan kartın onayını geri alıyor ve isteği 409 ile
+     * reddediyor ("kartta dosya bağlantısı yok"). Doğrudan onaylı açsaydık yirmi kartın
+     * yirmisi o duvara çarpardı; üstelik stok, dosyalar yüklenene kadar arkasında içerik
+     * olmayan bir sayı gösterirdi. Dosya seçilmediyse seçilen aşama doğrudan uygulanır —
+     * kullanıcı formda bunun sonucunu okuyup karar veriyor. */
+    const sonaBirakilanAsama = (dosyaVar && ONAY_ASAMALARI.includes(asama)) ? asama : null;
+    const acilisAsamasi = sonaBirakilanAsama ? (ilkAsama || undefined) : asama;
+    const isler = topluIsleriUret({
+      taban, adet, mevcutAdlar, topluId, baslangic,
+      ortak: { ...ortak, ...(acilisAsamasi ? { asama: acilisAsamasi } : {}) },
+    });
     if (isler.length === 0) return;
     onAddJobs(isler);
     setTopluAcik(false);
-    if (!dosyalar || dosyalar.length === 0) {
-      setTopluDurum({ mesaj: `${isler.length} kart açıldı.` });
+    if (!dosyaVar) {
+      setTopluDurum({ mesaj: `${isler.length} kart "${asama || "ilk aşama"}" aşamasında açıldı.` });
       return;
     }
     /* Yükleme sürerken arka plan tazelemesi durmalı — baytlar doğrudan Google'a gidiyor,
@@ -2870,11 +2908,23 @@ export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clie
         if (sonuc.isId) { onizlemeyiTazele(sonuc.isId); sunucuyuBekle(sonuc.isId); }
         yuklenen += 1;
       }
-      setTopluDurum({ mesaj: `${isler.length} kart açıldı, ${yuklenen} dosya yüklendi.` });
+      /* Aşama EN SONDA, tek kayıtta: her kart için ayrı kayıt göndermek yirmi tur kilit
+       * demekti ve araya giren her kayıt sırayı bozardı. */
+      if (sonaBirakilanAsama && typeof onTopluAsama === "function") {
+        onTopluAsama(topluId, sonaBirakilanAsama);
+        setTopluDurum({ mesaj: `${isler.length} kart açıldı, ${yuklenen} dosya yüklendi, kartlar "${sonaBirakilanAsama}" aşamasına alındı.` });
+      } else {
+        setTopluDurum({ mesaj: `${isler.length} kart açıldı, ${yuklenen} dosya yüklendi.` });
+      }
     } catch (err) {
       /* YARIM KALAN İŞ GİZLENMİYOR: kaç dosyanın yüklendiği ve neyin kaldığı yazılıyor.
-       * Kartlar zaten açık — kullanıcı kalanları kartlardan tek tek yükleyebilir. */
-      setTopluDurum({ hata: `${isler.length} kart açıldı, ${yuklenen} dosya yüklendi. Kalanı yüklenemedi: ${String((err && err.message) || err)}` });
+       * Kartlar zaten açık — kullanıcı kalanları kartlardan tek tek yükleyebilir.
+       *
+       * AŞAMA UYGULANMIYOR: dosyası eksik kartları onaya almak, arkasında içerik olmayan
+       * stok üretmek demek. Kartlar açık kaldığı için kullanıcı eksiği tamamlayıp panodan
+       * ilerletebilir. */
+      setTopluDurum({ hata: `${isler.length} kart açıldı, ${yuklenen} dosya yüklendi. Kalanı yüklenemedi: ${String((err && err.message) || err)}`
+        + (sonaBirakilanAsama ? ` Kartlar "${sonaBirakilanAsama}" aşamasına ALINMADI — eksik dosyayla onaylanmasınlar diye.` : "") });
     } finally {
       isBitti(isKimligi);
     }

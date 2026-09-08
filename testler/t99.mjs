@@ -93,7 +93,7 @@ await bolum("3) ADET SINIRI", 4, () => {
 });
 
 /* ---------------------------------------------------------------- */
-await bolum("4) KARTLAR ORTAK ALANLARI ALIYOR, ETİKET TAŞIYOR", 7, () => {
+await bolum("4) KARTLAR ORTAK ALANLARI ALIYOR, ETİKET TAŞIYOR", 8, () => {
   const ortak = { marka: "Şişçi İbo", kategori: "Post", teslimTarihi: "2026-09-30", sadeceSubeler: ["s1"] };
   const isler = topluIsleriUret({ taban: "Post", adet: 3, mevcutAdlar: [], ortak, topluId: "tk1" });
   t("adet kadar kart", isler.length === 3);
@@ -103,6 +103,10 @@ await bolum("4) KARTLAR ORTAK ALANLARI ALIYOR, ETİKET TAŞIYOR", 7, () => {
   isler[0].sadeceSubeler.push("s2");
   t("şube kapsamı KOPYALANDI, paylaşılmadı", isler[1].sadeceSubeler.length === 1,
     "aynı dizi paylaşılsaydı bir kartın kapsamını düzenlemek diğerlerini de değiştirirdi");
+  t("başlangıç aşaması kartlara geçiyor",
+    topluIsleriUret({ taban: "Post", adet: 2, mevcutAdlar: [], topluId: "tk1",
+      ortak: { ...ortak, asama: "Onaylandı" } }).every((x) => x.asama === "Onaylandı"),
+    "iş her zaman akışın başından başlamıyor — inisiyatif ajansta olan markada içerik hazır geliyor");
   t("elle başlangıç kart üretimine de geçiyor",
     topluIsleriUret({ taban: "Post", adet: 2, mevcutAdlar: ["Post 9"], ortak, topluId: "tk1", baslangic: 50 })
       .map((x) => x.icerikTuru).join("|") === "Post 50|Post 51",
