@@ -5343,3 +5343,42 @@ alınıyor; artık bunu görüyorsun.
 **Test:** t100 (19 kontrol). Kırma ölçümü: kategori kontrolü kaldırılınca 4, "zaten orada"
 elemesi kalkınca 3, geçmiş notu yazılmayınca 2, değişiklik yokken yeni dizi üretilince 1
 kontrol düşüyor. Toplam 2249 kontrol, 24 denetim.
+
+## Güncelleme 169: "10 Kartın Onayı Geri Alındı" — Ama Kartlar Geri Alınmamıştı
+
+**Bildirim:** Toplu taşımada 10 kart onaya alındı, ekranda uyarı çıktı ("süre sınırı doldu,
+bu iş taşınmadı") **ama kartlar panoda onayda kaldı**.
+
+İki ayrı hata vardı.
+
+### 1. Sunucu geri alıyordu, tarayıcı bunu görmüyordu
+
+Onay kilidi doğru çalıştı: dosyası Drive'daki onay klasörüne taşınamayan kartların onayı
+sunucuda geri alındı ve `onaylanamadi` ile bildirildi. Ama yanıt **kart listesini
+göndermiyor**, yalnızca "geri aldım" diyor. İstemci de sadece mesajı yazıyordu; ekrandaki
+kopya kartları onayda göstermeye devam etti.
+
+Daha kötüsü: yanıt yeni sürüm sayaçlarını da taşıdığı için **bir sonraki kayıt o eski hâli
+sunucuya geri yazacaktı** — yani geri alma sessizce iptal olurdu.
+
+Düzeltme: `onaylanamadi` gelince belge sunucudan yeniden çekiliyor (numara onarımı dalında
+zaten kullanılan yöntem). Ekran artık sunucuyla aynı şeyi gösteriyor.
+
+### 2. Asıl sebep: hepsi tek istekte gidiyordu
+
+Sunucu, aşama değişen kartların Drive dosyalarını taşırken **20 saniyelik bir bütçe**
+kullanıyor (yanıt gönderilmeden önce çalıştığı için). 10 kart o bütçeyi aştı, kalanlar
+"süre sınırı doldu" ile taşınamadı ve onayları geri alındı.
+
+Toplu taşıma artık **dörder kart** gönderiyor ve her tur öncekinin kaydı sunucuya inene
+kadar bekliyor (beklemezse kayıt 500 ms gecikmeli olduğu için hepsi yine tek istekte
+birleşirdi). Parça boyutu ölçüme dayanıyor: 10 kart 20 sn'yi aştı → kart başına ~2 sn →
+dört kart ~8 sn, bütçenin yarısından az. Ekranda "8/20 kart taşındı…" diye ilerliyor.
+
+Bir turda onay geri alınırsa **döngü duruyor**. Devam etmek yarısı taşınmış, yarısı geri
+alınmış karışık bir hâl üretir ve kullanıcı hangisinin gerçekten taşındığını ayıramazdı.
+
+**Test:** t100 19 → 23 kontrol. Yeni bölüm, Drive'ı taklit edip her taşımayı reddediyor ve
+şunu ölçüyor: onay belgede geri alındı mı, `onaylanamadi` bildirildi mi, stok üretilmedi mi.
+Kırma ölçümü: bildirim yanıttan çıkarılınca 1, geri alma tamamen kaldırılınca 2 kontrol
+düşüyor. Toplam 2253 kontrol, 24 denetim.

@@ -130,5 +130,62 @@ await bolum("5) UÇ: YETKİSİZ TOPLU ONAY GERİ ALINIYOR", 3, async () => {
     "stok: " + JSON.stringify(veri.stoklar));
 });
 
+/* ---------------------------------------------------------------- */
+/* ONAY KİLİDİ: DOSYA TAŞINAMAZSA AŞAMA GERİ ALINIR **VE BİLDİRİLİR**.
+ *
+ * İstemci artık bu bildirime GÜVENİYOR: `onaylanamadi` gelince ekranı sunucudan
+ * tazeliyor ve toplu taşımayı durduruyor. Bildirim sessizce kalkarsa tarayıcı kartları
+ * onayda göstermeye devam eder ve BİR SONRAKİ kayıt o eski hâli sunucuya geri yazar —
+ * yani geri alma iptal olur. Sahada tam olarak bu yaşandı: "10 kartın onayı geri alındı"
+ * yazdı ama kartlar ekranda onayda kaldı.
+ *
+ * Drive kurulu ama HER TAŞIMA BAŞARISIZ: gerçek ağ kullanılmıyor, `fetch` taklit ediliyor. */
+await bolum("6) UÇ: TAŞIMA BAŞARISIZSA ONAY GERİ ALINIYOR VE BİLDİRİLİYOR", 4, async () => {
+  const eskiKok = process.env.DRIVE_ONAY_KLASOR_ID;
+  const eskiEposta = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const eskiAnahtar = process.env.GOOGLE_PRIVATE_KEY;
+  const { privateKey } = crypto.generateKeyPairSync("rsa", {
+    modulusLength: 2048,
+    privateKeyEncoding: { type: "pkcs8", format: "pem" },
+    publicKeyEncoding: { type: "spki", format: "pem" },
+  });
+  process.env.DRIVE_ONAY_KLASOR_ID = "KOK0001";
+  process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = "servis@ornek.iam.gserviceaccount.com";
+  process.env.GOOGLE_PRIVATE_KEY = privateKey;
+
+  await sifirla({});
+  const d = await kv.get(KEY);
+  /* Kartlarda dosya var — "dosya yok" sebebiyle değil, TAŞIMA başarısız olduğu için
+   * geri alınmasını ölçüyoruz. */
+  const dosyali = (d.cekimIsleri || []).map((j) => ({ ...j, medya: [{ slot: "1", versiyon: 1, dosyaId: `DOSYA${j.id}` }] }));
+  await kv.set(KEY, { ...d, cekimIsleri: dosyali });
+
+  const gercekFetch = globalThis.fetch;
+  globalThis.fetch = async (u) => {
+    const x = String(u);
+    if (x.includes("oauth2.googleapis.com/token")) {
+      return { ok: true, status: 200, json: async () => ({ access_token: "jeton" }) };
+    }
+    /* Her Drive çağrısı reddediliyor: klasör bulunamıyor, taşıma yapılamıyor. */
+    return { ok: false, status: 500, text: async () => "taklit hata", json: async () => ({ error: { message: "taklit hata" } }) };
+  };
+  try {
+    const r = await kaydet(tasimayiUygula(dosyali, [1, 2], "Onaylandı", "Yönetici").isler);
+    t("kayıt yanıtı dönüyor", r.kod === 200, "gelen: " + r.kod);
+    t("onaylanamayanlar BİLDİRİLİYOR", Array.isArray(r.govde.onaylanamadi) && r.govde.onaylanamadi.length === 2,
+      "istemci ekranı buna bakarak tazeliyor; gelen: " + JSON.stringify(r.govde.onaylanamadi));
+    const veri = await kv.get(KEY);
+    t("aşama BELGEDE de geri alındı", (veri.cekimIsleri || []).every((j) => j.asama !== "Onaylandı"),
+      JSON.stringify((veri.cekimIsleri || []).map((j) => j.asama)));
+    t("stok üretilmedi", Object.values(veri.stoklar || {}).every((x) => !x),
+      "arkasında dosyası olmayan onay stoğa yazılmamalı: " + JSON.stringify(veri.stoklar));
+  } finally {
+    globalThis.fetch = gercekFetch;
+    process.env.DRIVE_ONAY_KLASOR_ID = eskiKok || "";
+    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL = eskiEposta || "";
+    process.env.GOOGLE_PRIVATE_KEY = eskiAnahtar || "";
+  }
+});
+
 console.log(`\n${g} geçti, ${k} kaldı`);
 process.exit(k > 0 ? 1 : 0);
