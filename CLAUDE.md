@@ -248,6 +248,12 @@ açtığı kartın numarası GÖREMEDİĞİ bir kartla çakışınca yetki denet
 **kayboluyordu**. Alt yetkiler `KILITLI_IZINLER`'de olmak zorunda — olmasalardı `izinleriDaralt`
 onları sıfırlar ve marka kilitli hesap `cekimEdit` açık olduğu hâlde kart açamazdı.
 
+**Bileşen gövdesindeki her satır İLK RENDER'DA da çalışır — `data` o an `null`.**
+`operasyonOrtakProps` nesnesi JSX'ten gövdeye taşınınca `data.clients` null üzerinden
+okundu ve uygulama SİYAH EKRANLA açılmadı; üretime böyle çıktı. Derleme ve 2297 kontrolün
+hiçbiri yakalamadı çünkü hiçbiri uygulamayı gerçekten ÇİZMİYOR. Gövdede `data`ya
+dokunuyorsan `const veriKaynagi = data || {}` gibi bir korumadan geç.
+
 **Operasyon paneli İKİ yerde çiziliyor** (personel ve yönetici) ve ortak prop'lar
 `operasyonOrtakProps` nesnesinde TEK yerde toplanıyor (`src/App.jsx`). Yirmi iki prop iki kez
 yazılıydı ve bu oturumda üç kez yalnızca birine eklendi: yeni yetenek diğer rolde hiç

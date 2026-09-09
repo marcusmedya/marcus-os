@@ -5501,3 +5501,29 @@ cümleyle yazıyor. Sayılar değişmedi, yalnızca kaynakları söyleniyor.
 personel yolundaki 2, "gönderilmeyen alan silme değildir" kuralı kalkınca 1, plan tarihi
 gün kaymasını uygulamayınca 1, bitmiş işler de geciken sayılınca 2 kontrol düşüyor.
 Toplam 2297 kontrol, 24 denetim.
+
+## Güncelleme 173: Siyah Ekran — Açılışta Çökme (ACİL DÜZELTME)
+
+**Bildirim:** "Siyah ekran geliyor, açılmıyor."
+
+172'de yapılan prop düzenlemesi uygulamayı açılışta çökertiyordu. Tarayıcıda ölçülen
+gerçek hata:
+
+```
+TypeError: Cannot read properties of null (reading 'clients')
+```
+
+`operasyonOrtakProps` nesnesi bileşenin gövdesinde **koşulsuz** kuruluyor ve
+`data.clients` okuyor. Ama `data` ilk render'da `null` — veri sunucudan gelene kadar öyle
+kalıyor. Bu satırlar eskiden JSX'in içindeydi ve yalnızca veri geldikten sonra
+çalışıyordu; gövdeye taşınınca açılışta da çalışmaya başladılar.
+
+**Düzeltme:** alanlar `const veriKaynagi = data || {}` üzerinden okunuyor.
+
+**Neden hiçbir katman yakalamadı:** `npm run build` bunu göremez (çalışma anı hatası),
+2297 sunucu kontrolü React bileşenini hiç çizmiyor, 24 statik denetim de kaynak metnine
+bakıyor. Hata ancak uygulama gerçekten açılınca ortaya çıkıyor — bu oturumda beşinci kez
+aynı sınıf: kod doğru, arayüze bağlanışı yanlış.
+
+Doğrulama bu kez tarayıcıda yapıldı: derlenen paket yerel bir sunucuda açıldı ve konsol
+hatası okundu; düzeltmeden sonra uygulama normal açılıyor.

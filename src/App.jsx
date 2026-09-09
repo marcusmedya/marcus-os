@@ -9786,12 +9786,20 @@ export default function MarcusOS() {
    * yazılıydı. Bu oturumda ÜÇ kez yalnızca birine eklendi: yeni yetenek diğer rolde
    * hiç görünmedi ve bunu ancak kullanıcı fark etti. Ortak olanlar burada; role özel
    * olanlar (yetki alanları, ücret/avans) çağrı yerinde kalıyor. */
+  /* `data` İLK RENDER'DA NULL — nesne her render'da kuruluyor.
+   *
+   * Bu satırlar eskiden JSX'in içindeydi ve yalnızca veri yüklendikten SONRA
+   * çalışıyordu. Gövdeye taşınınca AÇILIŞTA da çalışmaya başladı ve `data.clients`
+   * null üzerinden okundu: uygulama bembeyaz/siyah ekranla açılmadı. Derleme ve 2297
+   * kontrolün hiçbiri bunu yakalamadı — hiçbiri uygulamayı gerçekten ÇİZMİYOR.
+   * Bu yüzden alanlar boş bir nesne üzerinden okunuyor. */
+  const veriKaynagi = data || {};
   const operasyonOrtakProps = {
     acilacakIsId: gidilecekIs,
-    clients: data.clients || [],
-    firmaAdi: data.firmaAdi,
-    jobs: data.cekimIsleri || [],
-    markalasmaSurecleri: data.markalasmaSurecleri || [],
+    clients: veriKaynagi.clients || [],
+    firmaAdi: veriKaynagi.firmaAdi,
+    jobs: veriKaynagi.cekimIsleri || [],
+    markalasmaSurecleri: veriKaynagi.markalasmaSurecleri || [],
     onAddJob: addCekimIsi,
     onAddJobs: addCekimIsleri,
     onAddMarkalasmaGorev: addMarkalasmaGorev,
@@ -9806,9 +9814,9 @@ export default function MarcusOS() {
     onTopluMedya: topluKartaMedyaYaz,
     onTopluTasi: topluKartlariTasi,
     onUpdateJob: updateCekimIsi,
-    personelRosteri: data.personelRosteri || [],
-    planlar: data.haftalikPaylasimlar || [],
-    subeler: data.subeler || [],
+    personelRosteri: veriKaynagi.personelRosteri || [],
+    planlar: veriKaynagi.haftalikPaylasimlar || [],
+    subeler: veriKaynagi.subeler || [],
   };
 
   const addGelir = (g) => setData((d) => ({ ...d, gelirKalemleri: [...d.gelirKalemleri, { ...g, id: nextId(d.gelirKalemleri) }] }));
