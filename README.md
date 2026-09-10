@@ -5527,3 +5527,42 @@ aynı sınıf: kod doğru, arayüze bağlanışı yanlış.
 
 Doğrulama bu kez tarayıcıda yapıldı: derlenen paket yerel bir sunucuda açıldı ve konsol
 hatası okundu; düzeltmeden sonra uygulama normal açılıyor.
+
+## Güncelleme 174: Paylaşım Planı Seçicisinde Tür Ayrımı
+
+**Bildirim:** "Post görselleri paylaşım planında sadece görselde çıkmalı, reelsler reels'de,
+carouseller de kendi alanında; ama Post'a tıkladığımda orada Reels'ler de gözüküyor."
+
+Doğru. Plan hücresine tıklayınca önce tür seçiliyor (Reels · Post · Carousel), sonra o türe
+bağlanacak kart. Seçici kartların türünü **hiç okumuyordu** — marka yöneticisi listeden doğru
+içeriği gözle ayıklamak zorundaydı.
+
+**Düzeltme:** ayırma kuralı yeni bir saf modülde (`lib/kart-secici.js`) ve tür
+`lib/stok.js` → `paylasimTuru` ile çözülüyor — stoğun kullandığı kuralın aynısı.
+
+**Tür tutmayan kart gizlenmiyor, ayrılıyor.** Tür çoğu kartta ADDAN tahmin ediliyor; yanlış
+tahmin edilen bir kart tamamen gizlenseydi hiçbir plana bağlanamaz, kullanıcı da sebebini
+göremezdi. Bu yüzden "BAŞKA TÜR (n)" başlığı altında, soluk ve kesik çizgili duruyor —
+bilerek seçilebilir, yanlışlıkla seçilmesi zorlaşır. Aynı kalıp "DAHA ÖNCE PAYLAŞILMIŞ"
+bölümünde zaten kullanılıyordu.
+
+**İkinci bir tür kuralı vardı, silindi.** `src/App.jsx` içindeki `kartTuru` fonksiyonu
+"stok tarafıyla aynı kural (bkz. lib/stok.js)" diye yazıyordu ama değildi: türler üçe
+indikten sonra da `Görsel` / `Video` / `Story` döndürüyor ve kartta **açıkça seçilmiş**
+türü hiç okumuyordu. Ekrandaki sonucu, Post kartının altında "Görsel", Reels kartının
+altında "Video" yazmasıydı. Plan ızgarasının altındaki açıklama da eski türleri
+sayıyordu (`G=Görsel, V=Video, S=Story`); artık `R=Reels, P=Post, C=Carousel`.
+
+**Veri tarafına dokunulmadı.** Sunucu bu uyumsuzluğa zaten dayanıklıydı: kart bağlıysa stok
+kartın türünden düşüyor, planın türünden değil (`api/paylasim.js`). Yani bu bir arayüz
+ayrımı; yanlış türde plan yapılmış eski kayıtlar olduğu gibi çalışmaya devam ediyor.
+
+**Ölçüm** (t103, 21 kontrol):
+
+| Korumayı kaldırınca | Düşen kontrol |
+|---|---|
+| Tür süzgeci hiç yokmuş gibi (eski hâl) | 11 |
+| Tür tutmayan kart ayrılmak yerine gizlense | 1 |
+| Tür `App.jsx`'teki eski kopyayla çözülse | 9 |
+
+Ayrıca uygulama derlenip gerçek bir tarayıcıda açıldı: çökme yok.

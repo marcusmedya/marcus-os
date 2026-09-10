@@ -52,7 +52,8 @@ import StokMutabakat from "./stokMutabakat.jsx";
 /* Paylaşım türleri ve stok anahtarı TEK KAYNAKTAN. Bu iki tanım burada da ayrıca
  * yazılıydı; listeye tür eklendiğinde biri geride kalabilir, stok sayılır ama panelde
  * satırı hiç görünmezdi. */
-import { PAYLASIM_TURLERI, stokAnahtari, stokYanitiniUygula, stoklariBirlestir } from "../lib/stok.js";
+import { PAYLASIM_TURLERI, paylasimTuru, stokAnahtari, stokYanitiniUygula, stoklariBirlestir } from "../lib/stok.js";
+import { seciciKartlari } from "../lib/kart-secici.js";
 import { turunDagilimi } from "../lib/drive-eslestirme.js";
 import { etkinAltMetin, altMetinKaynagi, planaYazilacak } from "../lib/alt-yazi.js";
 import { siraliGruplar, sirayiTasi, elleSiraVarMi } from "../lib/cekim-sirasi.js";
@@ -2409,16 +2410,11 @@ function Reklamlar({ reklamlar, clients, onAdd, onUpdate, onDelete, duzenleyenAd
  *
  * Küçük resim yüklenmezse (erişim yok, dosya silinmiş, Drive yavaş) tür harfi gösteriliyor —
  * seçim yine yapılabiliyor, sadece görsel ipucu olmuyor. */
-/** Kartın paylaşım türü — stok tarafıyla aynı kural (bkz. lib/stok.js). */
-const kartTuru = (is) => {
-  const ad = String((is && is.icerikTuru) || "").toLocaleLowerCase("tr");
-  if (/\breels?\b/.test(ad)) return "Reels";
-  if (/\bstory\b|hikaye/.test(ad)) return "Story";
-  if (/carousel|karusel/.test(ad)) return "Carousel";
-  if (/\bvideo\b/.test(ad)) return "Video";
-  if (/görsel|gorsel|post|tasarım|tasarim/.test(ad)) return "Görsel";
-  return String((is && is.kategori) || "").toLocaleLowerCase("tr") === "video" ? "Video" : "Görsel";
-};
+/* TÜRÜN TEK SAHİBİ `lib/stok.js` → `paylasimTuru`. Burada bir süre ikinci bir kopya
+ * duruyordu ve "stok tarafıyla aynı kural" diye yazıyordu — değildi: türler üçe
+ * (Reels · Post · Carousel) indikten sonra da "Görsel", "Video", "Story" döndürüyordu.
+ * Sonucu, seçicide Post kartının altında "Görsel", Reels kartının altında "Video"
+ * yazması ve kartta AÇIKÇA seçilmiş türün (`paylasimTuru` alanı) hiç okunmamasıydı. */
 
 function KartOnizleme({ is, boyut = 52 }) {
   const [durum, setDurum] = useState("yukleniyor");   // yukleniyor | hazir | dosyaYok | alinamadi
@@ -2467,7 +2463,7 @@ function KartOnizleme({ is, boyut = 52 }) {
   const goster = {
     yukleniyor: { im: "…", renk: T.textFaint, kenar: T.border, baslik: "Önizleme yükleniyor" },
     dosyaYok:   { im: "—", renk: T.warning,   kenar: T.warning, baslik: "Bu kartta yüklenmiş dosya yok — önizleme gösterilemiyor" },
-    alinamadi:  { im: TUR_HARFI[kartTuru(is)] || "?", renk: T.textFaint, kenar: T.border, baslik: "Önizleme alınamadı" },
+    alinamadi:  { im: TUR_HARFI[paylasimTuru(is)] || "?", renk: T.textFaint, kenar: T.border, baslik: "Önizleme alınamadı" },
   }[durum];
 
   return (
@@ -2476,7 +2472,9 @@ function KartOnizleme({ is, boyut = 52 }) {
     </div>
   );
 }
-const TUR_HARFI = { "Görsel": "G", "Video": "V", "Reels": "R", "Story": "S", "Carousel": "C" };
+/* Eski adlar (Görsel/Video/Story) hâlâ burada: belgede o türde plan kayıtları var ve
+ * hücre harfi onlardan da okunuyor. Yeni türlerin harfi: R · P · C. */
+const TUR_HARFI = { "Post": "P", "Reels": "R", "Carousel": "C", "Görsel": "G", "Video": "V", "Story": "S" };
 
 
 /* Durum klasörlerinin ekranda okunur adları. Klasör adları ("2 ONAYLANANLAR") Drive'ın
@@ -3180,7 +3178,7 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
       )}
 
       <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 10 }}>
-        <span style={{ color: T.warning }}>■</span> planlandı (henüz paylaşılmadı) · <span style={{ color: T.success }}>■</span> paylaşıldı (G=Görsel, V=Video, R=Reels, S=Story, C=Carousel). Boş güne tıklayıp tür seçerek plan ekle. <strong>Planlı hücrenin üstüne gel</strong>: hangi kartın planlandığı, stoğu ve işlem düğmeleri çıkar — işaretleme oradan, son bir onayla yapılır.
+        <span style={{ color: T.warning }}>■</span> planlandı (henüz paylaşılmadı) · <span style={{ color: T.success }}>■</span> paylaşıldı (R=Reels, P=Post, C=Carousel). Boş güne tıklayıp tür seçerek plan ekle. <strong>Planlı hücrenin üstüne gel</strong>: hangi kartın planlandığı, stoğu ve işlem düğmeleri çıkar — işaretleme oradan, son bir onayla yapılır.
         <br />
         <span style={{ display: "inline-block", width: 9, height: 9, border: `2px solid ${T.success}`, borderRadius: 3, verticalAlign: "middle", marginRight: 4 }} />
         Kenarlıklı hücre bir <strong>Operasyon kartına bağlı</strong>: paylaşıldı dediğin an o iş
@@ -3496,45 +3494,36 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   {(() => {
-                    const markaAd = ((aktifMarkalar.find((c) => c.id === secim.clientId) || {}).ad || "").trim().toLocaleLowerCase("tr");
+                    const markaAd = (aktifMarkalar.find((c) => c.id === secim.clientId) || {}).ad;
                     /* AYNI ŞUBEDE zaten planlanmış kartlar listeden çıkar; BAŞKA şubede
                      * planlanmış olması o kartı bu şube için engellemez — çok şubeliliğin
                      * kalbi bu. Şubesiz seçimde eski davranış (kart bir kez bağlanır). */
                     const bagliIdler = new Set((plan || [])
                       .filter((x) => planSubesi(x) === (secim.subeId || null))
                       .map((x) => String(x.isId)).filter((x) => x && x !== "null"));
-                    /* "Şubelerde Paylaşılıyor" da listeye giriyor: içerik bir şubede
-                     * kullanıldı ama diğerlerinde hâlâ kullanılabilir. */
-                    const hazir = (isler || []).filter((j) =>
-                      (j.marka || "").trim().toLocaleLowerCase("tr") === markaAd
-                      && (j.asama === "Onaylandı" || j.asama === SUBE_PAYLASIM_ASAMASI)
-                      && !bagliIdler.has(String(j.id))
+                    /* AYIRMA KURALI SAF MODÜLDE (lib/kart-secici.js) — JSX'e gömülü bir
+                     * koşul Node'dan çağrılamıyor, yani ölçülemiyor. `hazir` seçilen türün
+                     * kartları, `dahaOnce` aynı türün paylaşılmışları, `baskaTur` ise
+                     * kullanılabilir ama başka türde görünenler (gizlenmiyor, ayrılıyor). */
+                    const { hazir, dahaOnce, baskaTur } = seciciKartlari({
+                      isler,
+                      markaAd,
+                      tur: secim.tur,
+                      bagliIdler,
                       /* Şubeye özel içerik başka şubede önerilmez. */
-                      && (!secim.subeId
-                          || kullanabilenSubeler(j, subeler, secim.clientId).some((sb) => String(sb.id) === String(secim.subeId))));
-                    /* DAHA ÖNCE PAYLAŞILMIŞ İÇERİKLER — ayrı başlık altında.
-                     *
-                     * Kart "Teslim Edildi"ye geçince seçicide hiç çıkmıyordu; aynı içeriği
-                     * başka bir güne ya da başka bir şubeye tekrar planlamanın yolu yoktu
-                     * (sahadan bildirildi). Artık listede, ama AYRI ve soluk: yanlışlıkla
-                     * seçilmesi zorlaşsın, bilerek seçilmesi mümkün olsun. */
-                    const dahaOnce = (isler || []).filter((j) =>
-                      (j.marka || "").trim().toLocaleLowerCase("tr") === markaAd
-                      && j.asama === "Teslim Edildi"
-                      && !bagliIdler.has(String(j.id))
-                      && (!secim.subeId
-                          || kullanabilenSubeler(j, subeler, secim.clientId).some((sb) => String(sb.id) === String(secim.subeId))));
-
-                    if (hazir.length === 0 && dahaOnce.length === 0) {
-                      return (
-                        <div style={{ fontSize: 12.5, color: T.textDim, background: T.surfaceRaised, borderRadius: 8, padding: "12px 15px", lineHeight: 1.6 }}>
-                          {secim.subeId
-                            ? "Bu şube için kullanılabilir kart yok — ya hepsi burada planlandı ya da içerikler başka şubelere özel."
-                            : "Bu markada paylaşıma hazır (müşterinin onayladığı) kart yok."} Kart bağlamadan
-                          da plan ekleyebilirsin — o zaman Drive'a bir şey taşınmaz.
-                        </div>
-                      );
-                    }
+                      subedeKullanilabilir: (j) => !secim.subeId
+                        || kullanabilenSubeler(j, subeler, secim.clientId).some((sb) => String(sb.id) === String(secim.subeId)),
+                    });
+                    /* TÜRÜ TUTAN KART YOKSA SÖYLENİR — ama `baskaTur` varsa liste yine
+                     * çizilir, yoksa kullanıcı "hiç kart yok" sanıp elle plan eklerdi. */
+                    const bosMesaj = (hazir.length === 0 && dahaOnce.length === 0) ? (
+                      <div style={{ fontSize: 12.5, color: T.textDim, background: T.surfaceRaised, borderRadius: 8, padding: "12px 15px", lineHeight: 1.6 }}>
+                        {secim.subeId
+                          ? `Bu şube için ${secim.tur} türünde kullanılabilir kart yok — ya hepsi burada planlandı ya da içerikler başka şubelere özel.`
+                          : `Bu markada ${secim.tur} türünde paylaşıma hazır (müşterinin onayladığı) kart yok.`} Kart bağlamadan
+                        da plan ekleyebilirsin — o zaman Drive'a bir şey taşınmaz.
+                      </div>
+                    ) : null;
                     const kartCiz = (j, eskimis) => {
                       const versiyon = Array.isArray(j.medya) && j.medya.length ? j.medya[j.medya.length - 1].versiyon : null;
                       const subeOzeti = icerikSubeOzeti(j, subeler, plan, secim.clientId);
@@ -3556,7 +3545,7 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
                               {eskimis && <span style={{ color: T.textFaint, fontWeight: 400 }}> · paylaşılmıştı</span>}
                             </span>
                             <span style={{ fontSize: 11.5, color: T.textFaint }}>
-                              {kartTuru(j)}{j.editor ? ` · ${j.editor}` : ""}{versiyon ? ` · V${versiyon}` : ""}
+                              {paylasimTuru(j)}{j.editor ? ` · ${j.editor}` : ""}{versiyon ? ` · V${versiyon}` : ""}
                             </span>
                             {/* ŞUBE GEÇMİŞİ — "bu içeriği bu şubede paylaşmış mıydık?"
                               * sorusunun cevabı burada; Drive'a bakmaya gerek kalmıyor. */}
@@ -3580,6 +3569,7 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
 
                     return (
                       <>
+                        {bosMesaj}
                         {hazir.map((j) => kartCiz(j, false))}
                         {dahaOnce.length > 0 && (
                           <>
@@ -3588,6 +3578,18 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
                               <span style={{ fontWeight: 400, letterSpacing: 0 }}> · tekrar kullanmak için seçebilirsin</span>
                             </div>
                             {dahaOnce.map((j) => kartCiz(j, true))}
+                          </>
+                        )}
+                        {/* BAŞKA TÜR — gizlenmiyor, ayrılıyor. Tür çoğu kartta ADDAN
+                          * tahmin ediliyor; yanlış tahmin edilen kart tamamen gizlenseydi
+                          * hiçbir plana bağlanamazdı ve sebebi de görünmezdi. */}
+                        {baskaTur.length > 0 && (
+                          <>
+                            <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, letterSpacing: 0.3, marginTop: 6 }}>
+                              BAŞKA TÜR ({baskaTur.length})
+                              <span style={{ fontWeight: 400, letterSpacing: 0 }}> · {secim.tur} değil, yine de bağlayabilirsin</span>
+                            </div>
+                            {baskaTur.map((j) => kartCiz(j, true))}
                           </>
                         )}
                       </>
