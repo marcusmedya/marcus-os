@@ -496,6 +496,17 @@ koleksiyon yok, o kayda `subeId` eklendi. **`subeId` yoksa marka geneli** sayıl
   Eskiden karta hiç dokunulmuyordu; kart "Teslim Edildi"de kaldığı için seçicide de
   çıkmıyor, aynı içerik bir daha planlanamıyordu. Kart seçicide **"Daha önce
   paylaşılmış"** ayrı bölümü var — aynı içerik başka güne/şubeye tekrar planlanabilir.
+- **Seçici TÜRE göre ayırır — `lib/kart-secici.js`.** Plan hücresinde önce tür seçiliyor
+  (Reels · Post · Carousel) ama seçici bir süre türü hiç okumuyordu: "Post" seçilince
+  Reels kartları da listeleniyordu. Tür `paylasimTuru` ile çözülür. **Tür tutmayan kart
+  GİZLENMEZ, "BAŞKA TÜR" başlığı altında ayrılır** — tür çoğu kartta ADDAN tahmin
+  ediliyor, yanlış tahmin edilen kart gizlenseydi hiçbir plana bağlanamazdı. Sunucu
+  uyumsuzluğa zaten dayanıklı (kart bağlıysa stok KARTIN türünden düşer), yani bu bir
+  arayüz ayrımı.
+- **Türün TEK sahibi `lib/stok.js` → `paylasimTuru`.** `src/App.jsx` içinde `kartTuru`
+  diye ikinci bir kopya duruyordu ve "stok tarafıyla aynı kural" diye yazıyordu; değildi:
+  türler üçe indikten sonra da "Görsel"/"Video"/"Story" döndürüyor, kartta AÇIKÇA
+  seçilmiş türü (`paylasimTuru` alanı) hiç okumuyordu. Silindi.
 - Planı ya da kilitli kartı olan şube **sessizce silinmez** (409 + `onayGerekli`); istemci
   onay alıp `onayliSil` ile tekrar gönderir. Şube adı kayıtta kopyalı olduğu için geçmiş
   okunabilir kalır.
