@@ -2902,7 +2902,13 @@ function haftaEkle(haftaKeyStr, adet) {
   return haftaBaslangici(d);
 }
 
-function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPlan, onToggleYapildi, onDeletePlan, driveSonuc, onDriveSonucKapat }) {
+/* `onAltMetin` BURADA OLMAK ZORUNDA. Bileşen onu çağırıyordu ama parametre listesinde
+ * yoktu ve `Paylasimlar` da geçirmiyordu — yani tanımsız bir isme çağrı yapılıyordu.
+ * İki ayrı belirti üretti: "Paylaşıldı olarak işaretle" yolundaki `typeof` koruması
+ * kaydetmeyi SESSİZCE atlıyor (yazılan metin kayboluyor, işaretleme yine oluyor),
+ * "Alt yazıyı kaydet" yolu ise ReferenceError fırlatıp `.finally`'ye hiç ulaşmıyor —
+ * düğme "Kaydediliyor…"de kilitleniyordu. Sahadan bildirildi. */
+function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPlan, onToggleYapildi, onDeletePlan, onAltMetin, driveSonuc, onDriveSonucKapat }) {
   const [haftaKey, setHaftaKey] = useState(haftaBaslangici());
   const [secim, setSecim] = useState(null); // { clientId, gun, tur, subeId }
   const aktifMarkalar = (clients || []).filter((c) => c.durum === "aktif" || c.durum === "yeni");
@@ -3011,7 +3017,13 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
     if (paylasimEkrani.sadeceAltYazi) {
       const kartY = (isler || []).find((j) => String(j.id) === String(p.isId));
       setGonderiliyor(true);
-      Promise.resolve(onAltMetin(p.id, planaYazilacak(altYaziTaslak, kartY) || ""))
+      /* ÇAĞRI `Promise.resolve().then()` İÇİNDE: böylece SENKRON bir hata da reddetmeye
+       * dönüşür ve `.finally` her hâlükârda çalışır. `Promise.resolve(f())` yazıldığında
+       * `f` senkron patlarsa hata dışarı sıçrıyor, `.finally` hiç çalışmıyor ve düğme
+       * "Kaydediliyor…"de KİLİTLENİYORDU — sahada tam olarak bu görüldü. */
+      Promise.resolve()
+        .then(() => onAltMetin(p.id, planaYazilacak(altYaziTaslak, kartY) || ""))
+        .catch(() => window.alert("Alt yazı kaydedilemedi. Metni kopyalayıp tekrar dene."))
         .finally(() => { setGonderiliyor(false); setPaylasimEkrani(null); });
       return;
     }
@@ -3021,11 +3033,21 @@ function HaftalikPaylasimPlani({ clients, plan, stoklar, isler, subeler, onAddPl
     const yeniMetin = planaYazilacak(altYaziTaslak, kartAlt);
     const degisti = (yeniMetin || "") !== String(p.altMetin || "").trim();
     setGonderiliyor(true);
-    const once = (degisti && typeof onAltMetin === "function")
-      ? Promise.resolve(onAltMetin(p.id, yeniMetin || ""))
+    /* `typeof onAltMetin === "function"` KORUMASI KALDIRILDI. İşlevi, eksik bir prop'u
+     * sessizce yutmaktı; sonucu, kullanıcının yazdığı metnin hiç gönderilmeden yok olması
+     * ve işaretlemenin yine de yapılmasıydı — bu hata tam da o koruma yüzünden aylarca
+     * görünmedi. Artık metin kaydedilemezse İŞARETLEME DE YAPILMIYOR ve sebebi söyleniyor:
+     * yarısı olmuş bir işlem, hiç olmamış bir işlemden kötüdür. */
+    let metinHatasi = false;
+    const once = degisti
+      ? Promise.resolve()
+        .then(() => onAltMetin(p.id, yeniMetin || ""))
+        .catch(() => { metinHatasi = true; })
       : Promise.resolve();
     once
-      .then(() => onToggleYapildi(p.id))
+      .then(() => (metinHatasi
+        ? window.alert("Alt yazı kaydedilemedi — paylaşıldı işareti de konmadı. Metni kopyalayıp tekrar dene.")
+        : onToggleYapildi(p.id)))
       .finally(() => { setGonderiliyor(false); setPaylasimEkrani(null); });
   };
 
@@ -3649,6 +3671,7 @@ function Paylasimlar({ clients, stoklar, onStokDegis, gecmis, haftalikPlan, isle
         onAddPlan={onAddHaftalikPlan}
         onToggleYapildi={onToggleHaftalikYapildi}
         onDeletePlan={onDeleteHaftalikPlan}
+        onAltMetin={onAltMetin}
         driveSonuc={driveSonuc}
         onDriveSonucKapat={onDriveSonucKapat}
       />

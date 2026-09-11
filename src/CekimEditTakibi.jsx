@@ -1939,6 +1939,35 @@ function IsDetayModal({ job, clients, subeler, planlar, role, staffName, islemYe
               </div>
             )}
 
+            {/* ALT YAZI — OKUMA EKRANINDA DA GÖRÜNÜR.
+              * Alan yalnızca "Düzenle" modunun içindeydi: kartı açan kişi metnin var olup
+              * olmadığını göremiyor, olduğunu bilmeyen de yazmıyordu. Sahadan "kartta alt
+              * yazı yazılabilsin" diye bildirildi — alan zaten vardı, GÖRÜNMÜYORDU.
+              * Metin buradan planlara kendiliğinden gidiyor (lib/alt-yazi.js). */}
+            {(job.altMetin || duzenleyebilir) && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 11, color: C.textFaint, fontWeight: 600, marginBottom: 4 }}>
+                  ALT YAZI (PAYLAŞIM METNİ)
+                </div>
+                {job.altMetin ? (
+                  <>
+                    <div style={{ fontSize: 13, color: C.textDim, background: C.panelAlt, borderRadius: 9,
+                      padding: "6px 10px", lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{job.altMetin}</div>
+                    <div style={{ fontSize: 11, color: C.textFaint, marginTop: 4, lineHeight: 1.5 }}>
+                      Planladığın her güne ve şubeye bu metin gider; o güne özel değiştirmek
+                      gerekirse Paylaşımlar ekranından düzenlenir.
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ fontSize: 12.5, color: C.textFaint, background: C.panelAlt, borderRadius: 9,
+                    padding: "6px 10px", lineHeight: 1.6, fontStyle: "italic" }}>
+                    Henüz yazılmadı — Düzenle'ye girip yazarsan planladığın her güne ve şubeye
+                    kendiliğinden gider.
+                  </div>
+                )}
+              </div>
+            )}
+
             {job.revizeAciklamasi && job.asama === "Revize İstendi" && (
               <div style={{ marginBottom: 14, background: C.dangerSoft, borderRadius: 9, padding: "6px 10px" }}>
                 <div style={{ fontSize: 11, color: C.danger, fontWeight: 700, marginBottom: 3 }}>REVİZE AÇIKLAMASI</div>
