@@ -289,9 +289,25 @@ await bolum("5) HÜCRE KUTUSU — kart görünüyor, işaretleme onay istiyor", 
   /* SIRA: kaydetme sözü ÖNCE, işaretleme onun `.then`inde. "İkisi de kodda geçiyor mu"
    * demek yetmiyor — ölçüldü: işaretlemeyi başa alıp kontrolü geçirmek mümkündü. */
   t("alt yazı işaretlemeden ÖNCE kaydediliyor",
-    /const once = \(degisti && typeof onAltMetin === "function"\)/.test(app)
-    && /once\s*\n\s*\.then\(\(\) => onToggleYapildi\(p\.id\)\)/.test(app),
+    /const once = degisti/.test(app)
+    && /once\s*\n\s*\.then\(\(\) => \(metinHatasi/.test(app),
     "sonra kaydedilseydi kart ve Drive hareket ettikten sonra metin arkada kalırdı");
+  /* `typeof onAltMetin === "function"` KORUMASI ARTIK ARANMIYOR — kaldırıldı.
+   * O koruma eksik bir prop'u sessizce yutuyordu: `onAltMetin` alt bileşene hiç
+   * geçirilmediği için kaydetme aylarca ATLANDI, işaretleme yine yapıldı ve kullanıcının
+   * yazdığı metin kayboldu. Bu kontrol o kusurlu şekli EZBERLEMİŞTİ. Aranan şey artık
+   * davranışın kendisi: metin kaydedilemezse işaretleme de yapılmaz. */
+  t("metin kaydedilemezse İŞARETLEME DE yapılmıyor",
+    /metinHatasi = true/.test(app)
+    && /metinHatasi\s*\n?\s*\?\s*window\.alert/.test(app),
+    "yarısı olmuş bir işlem hiç olmamış bir işlemden kötüdür");
+  /* SENKRON HATA DA `.finally`'ye ULAŞMALI. `Promise.resolve(f())` yazıldığında `f`
+   * senkron patlarsa hata dışarı sıçrıyor, `.finally` hiç çalışmıyor ve düğme
+   * "Kaydediliyor…"de KİLİTLENİYOR — sahada tam olarak bu görüldü. */
+  t("kaydetme çağrısı senkron hatayı da yutuyor (düğme kilitlenmiyor)",
+    !/Promise\.resolve\(onAltMetin\(/.test(app)
+    && /Promise\.resolve\(\)\s*\n?\s*\.then\(\(\) => onAltMetin\(/.test(app),
+    "aksi hâlde `.finally` çalışmaz, `gonderiliyor` true kalır ve pencere kapanmaz");
 
   /* UÇUŞTA KORUMASI: çift tık iki ayrı işlem demek, toggle olduğu için ikincisi
    * birincisini geri alır ve sonuç "hiçbir şey olmadı" olur — görünmeyen bir hata. */

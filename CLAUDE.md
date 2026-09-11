@@ -511,6 +511,23 @@ koleksiyon yok, o kayda `subeId` eklendi. **`subeId` yoksa marka geneli** sayıl
   onay alıp `onayliSil` ile tekrar gönderir. Şube adı kayıtta kopyalı olduğu için geçmiş
   okunabilir kalır.
 
+**Alt yazı ekranı `onAltMetin`'i PROP OLARAK ALMAK ZORUNDA** (`HaftalikPaylasimPlani`).
+Bileşen onu çağırıyordu ama parametre listesinde yoktu ve `Paylasimlar` da geçirmiyordu —
+tanımsız bir isme çağrı. İki belirti üretti: "Paylaşıldı olarak işaretle" yolundaki
+`typeof onAltMetin === "function"` koruması kaydetmeyi SESSİZCE atlıyor (yazılan metin
+kayboluyor, işaretleme yine oluyor), "Alt yazıyı kaydet" yolu ise ReferenceError fırlatıp
+`.finally`'ye hiç ulaşmıyor — düğme "Kaydediliyor…"de kilitleniyordu. İlk günden beri
+böyleydi. **O `typeof` koruması kaldırıldı**: işlevi eksik prop'u yutmaktı, sonucu hatayı
+aylarca gizlemekti. Artık metin kaydedilemezse İŞARETLEME DE yapılmıyor ve sebep
+söyleniyor. Kaydetme çağrısı `Promise.resolve().then(...)` içinde: senkron bir hata da
+reddetmeye dönüşsün ve `.finally` her hâlükârda çalışsın, düğme kilitlenmesin.
+**Bu hatayı hiçbir test katmanı göremiyor** — ölçüldü: prop'u tekrar kaldırınca 0 kontrol
+düştü. Prop bağlantısı Node'dan çağrılamıyor.
+
+**Alt yazı KART EKRANINDA da görünür** (`src/CekimEditTakibi.jsx`, okuma modu). Alan
+yalnızca "Düzenle" modunun içindeydi: kartı açan metnin var olup olmadığını göremiyor,
+olduğunu bilmeyen yazmıyordu. Alan vardı, GÖRÜNMÜYORDU.
+
 **Alt yazı KARTIN özelliği, plan devralır** (`lib/alt-yazi.js`). Metin Operasyon kartında
 yazılıyor (onaydan önce de); plan kendi metnini yazmamışsa kartınki geçerli. Aynı kart
 dört şubede paylaşılabildiği için plan üzerinde değiştirilebiliyor ve o değişiklik

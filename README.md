@@ -5566,3 +5566,72 @@ ayrımı; yanlış türde plan yapılmış eski kayıtlar olduğu gibi çalışm
 | Tür `App.jsx`'teki eski kopyayla çözülse | 9 |
 
 Ayrıca uygulama derlenip gerçek bir tarayıcıda açıldı: çökme yok.
+
+## Güncelleme 175: Alt Yazı Kaydedilmiyordu — "Kaydediliyor…"de Kilitlenme
+
+**Bildirim:** "Paylaşım bölümünde alt yazı yazdığımda kaydet tuşu yok ve yazdığımız yazı
+kayboluyor." Ardından ekran görüntüsü: düğme **"Kaydediliyor…"de kilitli**.
+
+### Sebep — tek satır
+
+Alt yazıyı kaydeden fonksiyon (`onAltMetin`) plan ekranına **hiç ulaşmıyordu**.
+
+Zincir: `App` → `Paylasimlar` → `HaftalikPaylasimPlani`. Fonksiyon `Paylasimlar`'a
+veriliyordu ama o ne kullanıyor ne de alt bileşene geçiriyordu; alt bileşen ise onu
+çağırıyordu, parametre listesinde olmadığı hâlde. Yani **tanımsız bir isme çağrı**.
+
+JavaScript'te bunun iki ayrı sonucu var, ikisi de sahada görüldü:
+
+| Yol | Kodda | Sonuç |
+|---|---|---|
+| "Paylaşıldı olarak işaretle" | `typeof onAltMetin === "function"` | Koruma "yok" der, **kaydetmeyi sessizce atlar**, işaretleme yine yapılır → yazılan metin kaybolur |
+| "Alt yazıyı kaydet" | doğrudan çağrı | `ReferenceError` → `.finally` hiç çalışmaz → düğme **"Kaydediliyor…"de kilitlenir** |
+
+Ne zamandan beri: #92 fonksiyonu `Paylasimlar`'a ekledi, #93 bir alt katmanda kullanmaya
+başladı; aradaki bağlantı hiç kurulmadı. Yani bu ekran **ilk günden beri** alt yazı
+kaydetmiyordu. Sunucu ucu (`haftalikAltMetin`) sağlamdı ve beş testle ölçülüydü —
+tarayıcı onu hiç aramıyordu.
+
+### Düzeltme
+
+- `onAltMetin` `HaftalikPaylasimPlani`'nın parametre listesine eklendi ve `Paylasimlar`
+  onu geçiriyor.
+- **`typeof onAltMetin === "function"` koruması KALDIRILDI.** İşlevi eksik bir prop'u
+  sessizce yutmaktı; gerçek sonucu, hatayı aylarca gizlemek oldu. Artık metin
+  kaydedilemezse **işaretleme de yapılmıyor** ve sebebi yazılıyor — yarısı olmuş bir
+  işlem, hiç olmamış bir işlemden kötüdür.
+- Kaydetme çağrısı `Promise.resolve().then(...)` içine alındı: senkron bir hata da
+  reddetmeye dönüşüyor, `.finally` her hâlükârda çalışıyor ve **düğme kilitlenmiyor**.
+
+### Alt yazı kart ekranında da görünüyor
+
+"Kartta da alt yazı yazılabilsin" isteği: alan **zaten vardı** ("Düzenle" modunda,
+`Alt Yazı (paylaşım metni)`) ama okuma ekranında hiç gösterilmiyordu — kartı açan metnin
+var olup olmadığını göremiyor, olduğunu bilmeyen de yazmıyordu. Artık kartta görünüyor;
+boşsa nereden yazılacağını söylüyor.
+
+"Karttan yazılırsa planlamada da görünsün" kısmı **zaten çalışıyordu** (`lib/alt-yazi.js`);
+uçtan uca ölçülüp doğrulandı.
+
+### Ölçüm
+
+`testler/t104.mjs` (17 kontrol) — zincir uçtan uca: kart → plan → müşteri paneli.
+
+| Korumayı kaldırınca | Düşen kontrol |
+|---|---|
+| Devralma kalksa (plan boşken kartınkine düşülmese) | 3 |
+| Kartla aynı metin plana da yazılsa | 2 |
+| Müşteri yükü devralmayı çözmese | 1 |
+| Senkron hata yutulmasa (düğme kilitlenir) | 1 (t81) |
+| Metin hatasında yine işaretlense | 1 (t81) |
+| **`onAltMetin` yine geçirilmese (asıl hata)** | **0** |
+
+Son satır dürüstçe yazılmalı: **bu hatayı hiçbir katman göremiyor.** Prop bağlantısı
+Node'dan çağrılamıyor; kaynak metnine bakan t81 de prop geçişini görmüyor. Bunu
+yakalayabilecek tek katman, kaynağı gerçek bir ayrıştırıcıyla tarayıp "tanımlanmamış isme
+çağrı" arayan statik bir denetimdir — denendi ve tam da bu hatayı buluyor, başka yanlış
+alarm vermiyor; kurulup kurulmayacağı kullanıcının kararında.
+
+**t81 düzeltildi, gizlenmedi.** O kontrol kaynak metnine bakıyor ve kaldırılan `typeof`
+korumasını ezberlemişti. Amacı gerçek (metin, işaretlemeden ÖNCE kaydedilmeli), bu yüzden
+kontrol amaca göre yeniden yazıldı ve iki yeni kontrol eklendi.
