@@ -298,6 +298,22 @@ fazladan istek olur, eksik içerik değil.
 yazıyor, sonuncusu öncekini siliyordu — iki sorun aynı anda olduğunda kullanıcı birini hiç
 görmüyordu. Aynı metin ikinci kez gelirse tekrarlanmaz.
 
+**Günlük iş takibi — `lib/is-takibi.js`** (Operasyon → İş Takibi, yalnızca yönetici).
+"Kim ne yaptı, kimin elinde kaç iş var" sorusunun cevabı ilk günden beri KAYDEDİLİYORDU
+(her kartın `gecmis` dizisi yazanıyla birlikte); eksik olan onu toplayan katmandı. Yeni veri
+üretilmiyor. Üç kural:
+- **"İş kimin elinde" = kartı EN SON İLERLETEN KİŞİ**, atama DEĞİL. Sebebi sistemin kendi
+  kuralı: yetkisi olan personel gördüğü her kartı işliyor, `kameraman`/`editor` alanları
+  zorunlu değil. Eski `YoneticiIstatistik` ekranı atamaya bakıyordu ve o alanlar boşken
+  sessizce BOŞ liste üretiyordu. **Sahipsiz kart gizlenmez** — ayrı sayılır.
+- **Zaman: eski kayıtlar bir EKRAN METNİ taşıyor** (`toLocaleString("tr-TR")` →
+  "16.09.2026 14:32:05"): sıralanamaz, saat dilimi yok. Yeni kayıtlara **`zaman` (ISO)**
+  eklendi, eskilere DOKUNULMADI (tek belgeyi baştan yazmak gerekirdi) — `kayitAni` ikisini
+  de okur. Çözülemeyen zaman UYDURULMAZ, o olay gün listelerine ve rapora hiç girmez.
+- **Dosyayı kim yükledi: `medya[].yukleyen`.** Kart geçmişine yazılmıyor, kaydın kendisinde
+  duruyor. Arayüz bu alanı ZATEN gösteriyordu (sürüm geçmişinde) ama hiç kimse yazmıyordu —
+  alan vardı, değer yoktu. Eski yüklemelerde boş kalır; geçmişe ad uydurulmaz.
+
 **Operasyon kartını kim işleyebilir: `lib/is-yetkisi.js`.** Kural yetkiye bakar,
 ATAMAYA DEĞİL — Operasyon (`cekimEdit`) izni olan personel gördüğü her kartı işler.
 Eskiden kartın "Sorumlu Kameraman/Editör" alanında adı yazması gerekiyordu; yetkisi

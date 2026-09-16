@@ -5635,3 +5635,84 @@ alarm vermiyor; kurulup kurulmayacağı kullanıcının kararında.
 **t81 düzeltildi, gizlenmedi.** O kontrol kaynak metnine bakıyor ve kaldırılan `typeof`
 korumasını ezberlemişti. Amacı gerçek (metin, işaretlemeden ÖNCE kaydedilmeli), bu yüzden
 kontrol amaca göre yeniden yazıldı ve iki yeni kontrol eklendi.
+
+## Güncelleme 176: Günlük İş Takibi — Kim Ne Yaptı, Kimin Elinde Ne Var
+
+**İstek:** "Günlük iş takibini nasıl yapabilirim, editlenen video/fotoğrafları kimin
+yaptığını, elinde kaç iş beklediğini nasıl görürüm?"
+
+### Önce ölçüm: veri zaten vardı, ekran yoktu
+
+Her kartın `gecmis` dizisi her aşama değişimini **kim yaptıysa adıyla** kaydediyor —
+personel için gerçek ad, yönetici için "Yönetici". Bu ilk günden beri böyleydi. Eksik olan
+onu toplayıp gösteren katmandı. Ama üç gerçek boşluk vardı:
+
+**1. Mevcut "Personel Bazında" listesi yanlış şeyi ölçüyordu.** Kişileri `kameraman` /
+`editor` **atamasından** çıkarıyordu. Oysa sistemin kuralı: *"Kural yetkiye bakar, ATAMAYA
+DEĞİL — Operasyon izni olan personel gördüğü her kartı işler."* Bu alanlar doldurulmuyorsa
+liste boş, dolduruluyor ama işi başkası yapıyorsa liste yanlış.
+
+**2. Zaman bir ekran metniydi, veri değil.** `gecmis.tarih` şöyle saklanıyordu:
+`"16.09.2026 14:32:05"`. Eski istatistik bunu `split(" ")[0].split(".").reverse()` ile
+parçalıyor, **saat tamamen çöpe gidiyordu** — "bugün saat kaçta ne oldu" hiç
+cevaplanamıyordu.
+
+**3. Dosyayı kimin yüklediği hiç kaydedilmiyordu.** İlginç olan şu: arayüz bu alanı
+(`eski.yukleyen`) sürüm geçmişinde **zaten gösteriyordu**. Alan tasarlanmış, gösterimi
+yazılmış, ama hiçbir yerde doldurulmamış — yani hep boş çıkıyordu. Bu oturumun yedinci
+"bir ucu bağlanmış, diğeri bağlanmamış" hatası.
+
+### Yapılanlar
+
+**Temel (geriye dönük uyumlu, göç yok):**
+- Her yeni geçmiş kaydına **ISO `zaman`** alanı (23 yazma noktası). Eski kayıtlara
+  **dokunulmadı** — tek JSON belgesini baştan yazmak gerekirdi; `kayitAni` eski tr-TR
+  metnini de ayrıştırıyor.
+- Medya kaydına **`yukleyen`**. Eski yüklemelerde boş kalır, ad uydurulmaz.
+
+**`lib/is-takibi.js` (yeni, saf)** — bütün hesap burada, JSX'te değil:
+`kayitAni` · `kayitGunu` · `kayitSaati` · `asamaGecisi` · `isinSahibi` · `tumOlaylar` ·
+`gunlukAkis` · `kisiPanosu` · `uretimRaporu`
+
+**Operasyon → İş Takibi** (yeni sekme, yalnızca yönetici — İstatistikler gibi):
+- **Kimin elinde ne var** — kişi başına: elinde kaç iş, kaç geciken, bugün kaç işlem, son
+  işlem ne zaman. Satıra tıklayınca o kişinin akışı süzülür.
+- **Günlük akış** — o gün yapılan her işlem saatiyle: aşama değişiklikleri **ve dosya
+  yüklemeleri**. Kişi/marka süzgeci, gün ileri-geri.
+- **Üretim raporu** — tarih aralığında kişi × aşama dökümü + yüklenen dosya sayısı.
+
+### Kararlar ve gerekçeleri
+
+**"İş kimin elinde" = kartı en son ilerleten kişi** (kullanıcının seçimi). Atamaya bakan
+bir sayım, atama alanları boşken "kimse çalışmıyor" der. **Sahipsiz kartlar gizlenmiyor**,
+ayrı sayılıyor — kimsenin dokunmadığı iş, en kolay gözden kaçan iştir.
+
+**Üretim raporu geçişin HEDEFİNİ sayıyor**, kartın bugünkü aşamasını değil: kart sonradan
+revizeye düşse bile o edit yapılmıştır; revize sonrası ikinci edit ayrıca sayılır.
+
+**Çözülemeyen zaman uydurulmuyor.** Bozuk kayıt gün listesine de rapora da girmez — yanlış
+güne yazmak hiç yazmamaktan kötüdür, çünkü o rakam hak edişe bakılırken okunuyor.
+
+### Ölçüm
+
+`testler/t105.mjs` — 47 kontrol. Korumaları tek tek kaldırıp düşen kontrol sayısı:
+
+| Korumayı kaldırınca | Düşen |
+|---|---|
+| Eski tr-TR zaman metni hiç ayrıştırılmasa | 7 |
+| "Sistem"/"Müşteri" kişi sayılsa | 7 |
+| Bitmiş kart da "elinde" sayılsa | 2 |
+| Toplu taşıma biçimi okunmasa | 2 |
+| Sahipsiz kart gizlense | 1 |
+| Saati bilinmeyene "00:00" yazılsa | 1 |
+| Çözülemeyen zaman rapora girse | 1 |
+
+**Testler benim bir hatamı yakaladı:** 23 yazma noktasına alanı eklerken kullandığım desen
+`zamanK` değişkenindeki `zaman`'a da uydu ve `api/paylasim.js`'te bir satırı bozdu
+(`"zaman is not defined"`). t87 bunu yakaladı; düzeltildi ve aynı kalıptan başka bozulma
+olmadığı tarandı.
+
+**Doğrulanamayan kısım, açıkça:** ekranın kendisi (JSX) Node'dan çalıştırılamıyor. Kurallar
+`lib/` altında ve 47 kontrolle ölçülü; ekranın o kuralları doğru çağırdığını gösteren bir
+katman YOK. Yeni koda ayrıca "tanımlanmamış isme çağrı" taraması yapıldı (temiz çıktı) ama
+bu tarama kalıcı bir denetim olarak kurulmadı — kullanıcının onayını bekliyor.

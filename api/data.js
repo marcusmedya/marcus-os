@@ -422,7 +422,7 @@ async function tasimalariIsleVeNotDus(oncekiVeri, sonrakiVeri) {
           if (!t) return j;
           return { ...j, gecmis: [...(j.gecmis || []), {
             id: (j.gecmis || []).length + 1,
-            tarih: new Date().toLocaleString("tr-TR"),
+            tarih: new Date().toLocaleString("tr-TR"), zaman: new Date().toISOString(),
             yazan: "Sistem",
             /* zatenOrada bir HATA DEĞİL: dosya olması gereken yerde. Bunu "yapılamadı"
              * diye yazmak kullanıcıyı olmayan bir sorunla uğraştırır. */
@@ -477,7 +477,7 @@ async function tasimalariIsleVeNotDus(oncekiVeri, sonrakiVeri) {
           if (!e || j.asama !== ONAY_ASAMASI) return j;
           return { ...j, asama: e.eskiAsama, gecmis: [...(j.gecmis || []), {
             id: (j.gecmis || []).length + 1,
-            tarih: new Date().toLocaleString("tr-TR"),
+            tarih: new Date().toLocaleString("tr-TR"), zaman: new Date().toISOString(),
             yazan: "Sistem",
             aciklama: `ONAY GERİ ALINDI — dosya Drive'da "${ASAMA_KLASORU[ONAY_ASAMASI]}" klasörüne taşınamadı: ${e.sebep}. Dosya yerine geçmeden onay stoğa yazılmaz.`,
           }] };
@@ -1064,7 +1064,7 @@ export default async function handler(req, res) {
             return {
               ...j, medya: [kayit],
               gecmis: [...(j.gecmis || []), {
-                id: (j.gecmis || []).length + 1, tarih: new Date().toLocaleString("tr-TR"), yazan: "Sistem",
+                id: (j.gecmis || []).length + 1, tarih: new Date().toLocaleString("tr-TR"), zaman: new Date().toISOString(), yazan: "Sistem",
                 aciklama: "Eski dosya yeni düzene alındı ve V1 olarak kaydedildi.",
               }],
             };
@@ -1422,7 +1422,7 @@ export default async function handler(req, res) {
                   asama: yeniAsama,
                   musteriRevizeNotu: musteriAction === "revizeIste" ? revizeNotu.trim() : null,
                   revizeSayisi: yeniSayi,
-                  gecmis: [...(j.gecmis || []), { id: (j.gecmis || []).length + 1, tarih: zaman, yazan: "Müşteri", aciklama: not }],
+                  gecmis: [...(j.gecmis || []), { id: (j.gecmis || []).length + 1, tarih: zaman, zaman: new Date().toISOString(), yazan: "Müşteri", aciklama: not }],
                 }
               : j));
 
@@ -1542,7 +1542,7 @@ export default async function handler(req, res) {
             if (icerik.tur !== "cekim" && icerik.kaynakIsId && yeni.cekimIsleri) {
               yeni.cekimIsleri = yeni.cekimIsleri.map((j) => {
                 if (j.id !== icerik.kaynakIsId) return j;
-                const not = { id: (j.gecmis || []).length + 1, tarih: new Date().toLocaleString("tr-TR"), yazan: "Müşteri", aciklama: "Müşteri içeriği onayladı." };
+                const not = { id: (j.gecmis || []).length + 1, tarih: new Date().toLocaleString("tr-TR"), zaman: new Date().toISOString(), yazan: "Müşteri", aciklama: "Müşteri içeriği onayladı." };
                 // Aylık İş Raporu bu tarihe göre sayıyor — müşteri onayıyla teslim edilen
                 // işler de sayıma girsin diye burada da kaydediliyor.
                 /* Teslim tarihi TÜRKİYE saatiyle — toISOString() UTC veriyor ve gece
@@ -1560,7 +1560,7 @@ export default async function handler(req, res) {
             if (icerik.kaynakIsId && yeni.cekimIsleri) {
               yeni.cekimIsleri = yeni.cekimIsleri.map((j) => {
                 if (j.id !== icerik.kaynakIsId) return j;
-                const not = { id: (j.gecmis || []).length + 1, tarih: new Date().toLocaleString("tr-TR"), yazan: "Müşteri", aciklama: `Müşteri revize istedi: "${revizeNotu.trim()}"` };
+                const not = { id: (j.gecmis || []).length + 1, tarih: new Date().toLocaleString("tr-TR"), zaman: new Date().toISOString(), yazan: "Müşteri", aciklama: `Müşteri revize istedi: "${revizeNotu.trim()}"` };
                 return { ...j, asama: "Revize İstendi", gecmis: [...(j.gecmis || []), not] };
               });
             }
@@ -1836,7 +1836,7 @@ export default async function handler(req, res) {
             ...guncel,
             cekimIsleri: isler.map((j) => (String(j.id) === String(req.body.isId)
               ? { ...j, asama: "Kontrol Bekliyor", musteriRevizeNotu: null,
-                  gecmis: [...(j.gecmis || []), { id: (j.gecmis || []).length + 1, tarih: zaman, yazan: staffName || "Çözüm Ortağı", aciklama: "Revize tamamlandı, kontrole gönderildi." }] }
+                  gecmis: [...(j.gecmis || []), { id: (j.gecmis || []).length + 1, tarih: zaman, zaman: new Date().toISOString(), yazan: staffName || "Çözüm Ortağı", aciklama: "Revize tamamlandı, kontrole gönderildi." }] }
               : j)),
           },
         };

@@ -9191,7 +9191,7 @@ export default function MarcusOS() {
   });
 
   const addCekimIsi = (job) => {
-    setData((d) => ({ ...d, cekimIsleri: [...(d.cekimIsleri || []), { ...job, id: nextId(d.cekimIsleri || []), asama: ILK_ASAMA(job.kategori), yorumlar: [], gecmis: [{ id: nextId([]), tarih: new Date().toLocaleString("tr-TR"), yazan: "Yönetici", aciklama: "İş oluşturuldu" }] }] }));
+    setData((d) => ({ ...d, cekimIsleri: [...(d.cekimIsleri || []), { ...job, id: nextId(d.cekimIsleri || []), asama: ILK_ASAMA(job.kategori), yorumlar: [], gecmis: [{ id: nextId([]), tarih: new Date().toLocaleString("tr-TR"), zaman: new Date().toISOString(), yazan: "Yönetici", aciklama: "İş oluşturuldu" }] }] }));
 
     // Atanan kişi kayıtlı bir personelse ve e-postası varsa, iş atandığını bildiren bir e-posta gönder.
     // Türkçe İ/I/ı/i karakterleri normal .toLowerCase() ile yanlış eşleşebildiği için "tr" yerel ayarı kullanılıyor.
@@ -9239,7 +9239,7 @@ export default function MarcusOS() {
            * inisiyatif ajansta olan markada içerik hazır geliyor. Verilmezse eski
            * davranış — kategorinin ilk aşaması. */
           ...job, id: sonraki, asama: job.asama || ILK_ASAMA(job.kategori), yorumlar: [],
-          gecmis: [{ id: 1, tarih: zaman, yazan: "Yönetici", aciklama: "İş oluşturuldu (toplu)" }],
+          gecmis: [{ id: 1, tarih: zaman, zaman: new Date().toISOString(), yazan: "Yönetici", aciklama: "İş oluşturuldu (toplu)" }],
         };
       });
       return { ...d, cekimIsleri: [...mevcut, ...yeniler] };
@@ -9274,7 +9274,7 @@ export default function MarcusOS() {
     const kume = new Set(hedefler);
     return { ...d, cekimIsleri: isler.map((j) => (kume.has(j)
       ? { ...j, asama, gecmis: [...(j.gecmis || []), { id: (j.gecmis || []).length + 1,
-          tarih: zaman, yazan: "Sistem", aciklama: `Toplu açılışta "${asama}" aşamasına alındı.` }] }
+          tarih: zaman, zaman: new Date().toISOString(), yazan: "Sistem", aciklama: `Toplu açılışta "${asama}" aşamasına alındı.` }] }
       : j)) };
   });
 
@@ -9471,7 +9471,7 @@ export default function MarcusOS() {
     if (icerik.tur !== "cekim" && icerik.kaynakIsId && d.cekimIsleri) {
       yeni.cekimIsleri = d.cekimIsleri.map((j) => {
         if (j.id !== icerik.kaynakIsId) return j;
-        const not = { id: (j.gecmis || []).length + 1, tarih: zaman, yazan: "Yönetici (CEO)", aciklama: "Müşteri adına onaylandı." };
+        const not = { id: (j.gecmis || []).length + 1, tarih: zaman, zaman: new Date().toISOString(), yazan: "Yönetici (CEO)", aciklama: "Müşteri adına onaylandı." };
         return { ...j, asama: "Teslim Edildi", teslimEdilmeTarihi: bugunISOTarih(), gecmis: [...(j.gecmis || []), not] };
       });
     }
@@ -9501,7 +9501,7 @@ export default function MarcusOS() {
         ...d,
         musteriIcerikleri: (d.musteriIcerikleri || []).map((i) => (i.id === icerikId ? { ...i, cekildi: true } : i)),
         cekimIsleri: isler.map((j) => (j.id === icerik.kaynakIsId
-          ? { ...j, asama: hedefAsama, gecmis: [...(j.gecmis || []), { id: (j.gecmis || []).length + 1, tarih: zaman, yazan: "Yönetici (CEO)", aciklama: "Çekim yapıldı olarak işaretlendi." }] }
+          ? { ...j, asama: hedefAsama, gecmis: [...(j.gecmis || []), { id: (j.gecmis || []).length + 1, tarih: zaman, zaman: new Date().toISOString(), yazan: "Yönetici (CEO)", aciklama: "Çekim yapıldı olarak işaretlendi." }] }
           : j)),
       };
     }
@@ -9527,7 +9527,7 @@ export default function MarcusOS() {
        * yok. Editör kartı açtığında neye bakarak çalışacağını görür. */
       hamDosyaLink: icerik.referansLink || icerik.driveLinki || "",
       editliDosyaLink: "",
-      gecmis: [{ id: 1, tarih: zaman, yazan: "Yönetici (CEO)", aciklama: "Çekim yapıldı — plandan otomatik oluşturuldu." }],
+      gecmis: [{ id: 1, tarih: zaman, zaman: new Date().toISOString(), yazan: "Yönetici (CEO)", aciklama: "Çekim yapıldı — plandan otomatik oluşturuldu." }],
       yorumlar: [],
     };
     return {
@@ -9576,7 +9576,7 @@ export default function MarcusOS() {
         // gösterilecek olan bu alandır.
         editliDosyaLink: dosyaLinki || "",
         hamDosyaLink: "",
-        gecmis: [{ id: 1, tarih: zaman, yazan: "Yönetici (CEO)", aciklama: `Müşteri Paneli'nden eklendi (${asama}).` }],
+        gecmis: [{ id: 1, tarih: zaman, zaman: new Date().toISOString(), yazan: "Yönetici (CEO)", aciklama: `Müşteri Paneli'nden eklendi (${asama}).` }],
         yorumlar: [],
       }],
     };
@@ -9973,7 +9973,7 @@ export default function MarcusOS() {
         hamDosyaLink: (t.dosyalar || [])[0] ? t.dosyalar[0].baglanti : "",
         teslimTarihi: (atama && atama.teslimTarihi) || t.neZaman || "",
         oncelik: t.acil ? "yuksek" : "normal",
-        gecmis: [{ id: 1, tarih: new Date().toLocaleString("tr-TR"), yazan: "Müşteri talebi",
+        gecmis: [{ id: 1, tarih: new Date().toLocaleString("tr-TR"), zaman: new Date().toISOString(), yazan: "Müşteri talebi",
           aciklama: `Müşteri panelinden gelen istek onaylandı.${(atama && (atama.kameraman || atama.editor)) ? ` Atanan: ${[atama.kameraman, atama.editor].filter(Boolean).join(", ")}` : ""}` }],
       }],
     };
@@ -10008,7 +10008,7 @@ export default function MarcusOS() {
             // ekibin yüklediği güncel dosyanın üzerine yazmak veri kaybı olurdu.
             editliDosyaLink: j.editliDosyaLink || icerikDosyasi,
             videoYonu: j.videoYonu || icerik.videoYonu || "dikey",
-            gecmis: [...(j.gecmis || []), { id: (j.gecmis || []).length + 1, tarih: zaman, yazan: "Yönetici (CEO)", aciklama: notMetni }],
+            gecmis: [...(j.gecmis || []), { id: (j.gecmis || []).length + 1, tarih: zaman, zaman: new Date().toISOString(), yazan: "Yönetici (CEO)", aciklama: notMetni }],
           };
         }),
       };
@@ -10045,7 +10045,7 @@ export default function MarcusOS() {
       editliDosyaLink: icerik.driveLinki || icerik.referansLink || "",
       // Oynatıcı çerçevesi doğru şekillensin diye video yönü de taşınır.
       videoYonu: icerik.videoYonu || "dikey",
-      gecmis: [{ id: 1, tarih: zaman, yazan: "Yönetici (CEO)", aciklama: notMetni }],
+      gecmis: [{ id: 1, tarih: zaman, zaman: new Date().toISOString(), yazan: "Yönetici (CEO)", aciklama: notMetni }],
       yorumlar: [],
     };
     return {
@@ -10064,7 +10064,7 @@ export default function MarcusOS() {
     ...d,
     cekimIsleri: (d.cekimIsleri || []).map((j) => {
       if (j.id !== isId) return j;
-      const not = { id: (j.gecmis || []).length + 1, tarih: new Date().toLocaleString("tr-TR"), yazan: "Yönetici (CEO)", aciklama: `Atama yapıldı${kameraman ? ` — kameraman: ${kameraman}` : ""}${editor ? ` — editör: ${editor}` : ""}` };
+      const not = { id: (j.gecmis || []).length + 1, tarih: new Date().toLocaleString("tr-TR"), zaman: new Date().toISOString(), yazan: "Yönetici (CEO)", aciklama: `Atama yapıldı${kameraman ? ` — kameraman: ${kameraman}` : ""}${editor ? ` — editör: ${editor}` : ""}` };
       return { ...j, kameraman: kameraman || j.kameraman, editor: editor || j.editor, gecmis: [...(j.gecmis || []), not] };
     }),
   }));
