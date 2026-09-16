@@ -13,6 +13,7 @@ import { topluAdlar, topluIsleriUret, adetiCoz, sonrakiNumara, cakisanAdlar, EN_
 import { tasimaAdaylari, tasimaOzeti } from "../lib/toplu-tasima.js";
 import { markaninIdsi, trKucult } from "../lib/marka-kilidi.js";
 import { panoSuzgeci } from "../lib/pano-suzgeci.js";
+import { gunlukAkis, kisiPanosu, uretimRaporu, kisiListesi, gunAnahtari, SAYILAN_ASAMALAR } from "../lib/is-takibi.js";
 import { paylasimTuru, PAYLASIM_TURLERI } from "../lib/stok.js";
 import { KATEGORILER, kategoriEsle } from "../lib/kategori.js";
 import { markaninSubeleri, kullanabilenSubeler, icerikSubeOzeti,
@@ -958,7 +959,7 @@ function SunucuOnizleme({ isId, slot, versiyon, video, drivedeAc, gomuluUrl, yon
  * Durum ve yüzde ÇAĞIRANA bildiriliyor: kart içindeki yükleyici ilerleme çubuğunu,
  * toplu akış "3/20" sayacını çiziyor. İkisi de aynı olaylara bakıyor.
  */
-async function driveyeDosyaYukle({ isId, topluId, topluSira, slot, dosya, durumBildir, yuzdeBildir }) {
+async function driveyeDosyaYukle({ isId, topluId, topluSira, slot, dosya, yukleyen, durumBildir, yuzdeBildir }) {
   /* Kart NUMARAYLA ya da TOPLU ETİKETİYLE bulunuyor — ikincisi toplu açılış için:
    * numara onarımı olmuşsa tarayıcıdaki numara eskidir, etiket kartla birlikte
    * kaydedildiği için onarımdan etkilenmez. Sunucu hangisi geldiyse ona bakıyor. */
@@ -1070,10 +1071,15 @@ async function driveyeDosyaYukle({ isId, topluId, topluSira, slot, dosya, durumB
     boyut: bitti.dosya.boyut,
     url: bitti.dosya.url,
     tarih: new Date().toISOString(),
+    /* KİM YÜKLEDİ. "Bu videoyu kim editledi" sorusunun en doğrudan cevabı bu satır ve
+     * bir süre hiç kaydedilmiyordu; emek yalnızca aşama geçişinden dolaylı çıkarılabiliyordu.
+     * Yükleme kartın `gecmis`ine yazılmıyor (ayrı bir olay), bu yüzden kaydın kendisinde
+     * duruyor. Eski kayıtlarda bu alan YOK ve doldurulmuyor — geçmişe ad uydurulmaz. */
+    yukleyen: yukleyen || null,
   } };
 }
 
-function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
+function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir, yukleyen }) {
   /* Kategorinin slayt sınırı. Fotoğraf tek görsellik — çoklu gönderi Carousel'in işi. */
   const slaytSiniri = enFazlaSlayt(job && job.kategori);
   const slotlar = useMemo(() => guncelMedyalar(job), [job]);
@@ -1091,7 +1097,7 @@ function MedyaYukleyici({ job, onYuklendi, onMedyaDegis, duzenlenebilir }) {
 
   /** Kartın kendi yükleyicisi — ortak çekirdeği bu kartın kimliğiyle çağırır. */
   async function dosyayiYukle(dosya, slot) {
-    const sonuc = await driveyeDosyaYukle({ isId: job.id, slot, dosya, durumBildir: setDurum, yuzdeBildir: setYuzde });
+    const sonuc = await driveyeDosyaYukle({ isId: job.id, slot, dosya, yukleyen, durumBildir: setDurum, yuzdeBildir: setYuzde });
     return sonuc.kayit;
   }
 
@@ -1581,7 +1587,7 @@ function IsDetayModal({ job, clients, subeler, planlar, role, staffName, islemYe
   const stil = ACILIYET_STIL[aciliyet];
 
   const logKaydet = (aciklama) => {
-    const kayit = { id: nid(), tarih: new Date().toLocaleString("tr-TR"), yazan: role === "owner" ? "Yönetici" : (staffName || "Personel"), aciklama };
+    const kayit = { id: nid(), tarih: new Date().toLocaleString("tr-TR"), zaman: new Date().toISOString(), yazan: role === "owner" ? "Yönetici" : (staffName || "Personel"), aciklama };
     return [...(job.gecmis || []), kayit];
   };
 
@@ -1996,6 +2002,10 @@ function IsDetayModal({ job, clients, subeler, planlar, role, staffName, islemYe
 
             <MedyaYukleyici
               job={job}
+              /* PROP GEÇİRİLMEZSE ALAN SESSİZCE BOŞ KALIR. Bu projede aynı hata
+                * `onAltMetin`de yaşandı: bileşen değeri kullanıyordu ama kimse
+                * geçirmiyordu ve kimse fark etmedi. */
+              yukleyen={role === "owner" ? "Yönetici" : (staffName || "Personel")}
               /* KİLİT BİR UYARI, DUVAR DEĞİL — ve yalnızca burada duvar gibi davranıyordu.
                *
                * Karttaki her şey (Onayla, Revize İste, Düzenle, Sil, aşama değiştir) kilit
@@ -2289,6 +2299,237 @@ function YoneticiIstatistik({ jobs }) {
               </div>
             );
           })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+/* ------------------------------------------------------------------ */
+/* İŞ TAKİBİ — kim, ne zaman, hangi işi ilerletti                       */
+/* ------------------------------------------------------------------ */
+/**
+ * ÜÇ SORU, TEK EKRAN: "şu an kimin elinde kaç iş", "bugün kim ne yaptı",
+ * "bu dönemde kim ne üretti".
+ *
+ * YENİ VERİ YOK — hepsi kartların `gecmis` ve `medya` alanlarından türetiliyor. Bu bilgi
+ * ilk günden beri kaydediliyordu; eksik olan onu toplayıp gösteren katmandı.
+ *
+ * HESAP JSX'TE DEĞİL, `lib/is-takibi.js`'te. JSX içindeki bir kural Node'dan çağrılamıyor
+ * ve bu projede aynı sınıftan altı hata çıktı; hepsi ancak sahada görüldü.
+ *
+ * SALT OKUNUR: hiçbir aşama değiştirmez, hiçbir şey yazmaz. Yanlış bir satırın en kötü
+ * sonucu "gereksiz yere bakmak"tır, veri kaybı değil.
+ */
+function IsTakibi({ jobs }) {
+  const bugun = gunAnahtari(new Date());
+  const [gun, setGun] = useState(bugun);
+  const [kisi, setKisi] = useState("");
+  const [marka, setMarka] = useState("");
+  const [donemBas, setDonemBas] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() - 29); return gunAnahtari(d);
+  });
+  const [donemBit, setDonemBit] = useState(bugun);
+
+  const isler = useMemo(() => (Array.isArray(jobs) ? jobs : []), [jobs]);
+  const pano = useMemo(() => kisiPanosu({ isler, bugun }), [isler, bugun]);
+  const akis = useMemo(() => gunlukAkis({ isler, gun, kisi, marka }), [isler, gun, kisi, marka]);
+  const kisiler = useMemo(() => kisiListesi(isler), [isler]);
+  const markalar = useMemo(
+    () => [...new Set(isler.map((j) => String((j && j.marka) || "").trim()).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, "tr")),
+    [isler]);
+  const rapor = useMemo(
+    () => uretimRaporu({ isler, baslangic: donemBas, bitis: donemBit }),
+    [isler, donemBas, donemBit]);
+
+  const gunKaydir = (adet) => {
+    const [y, a, g] = String(gun).split("-").map(Number);
+    setGun(gunAnahtari(new Date(y, a - 1, g + adet)));
+  };
+  const gunEtiketi = (() => {
+    if (gun === bugun) return "Bugün";
+    const [y, a, g] = String(gun).split("-").map(Number);
+    const d = new Date(y, a - 1, g);
+    return d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "long" });
+  })();
+
+  const kutu = { background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: "14px 16px", marginBottom: 16 };
+  const baslik = { fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 4 };
+  const altBaslik = { fontSize: 11.5, color: C.textFaint, lineHeight: 1.5, marginBottom: 12 };
+  const secim = { padding: "8px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.panelAlt, color: C.text, fontSize: 12.5, fontFamily: "Inter" };
+
+  return (
+    <div>
+      {/* ---------------- KİŞİ PANOSU ---------------- */}
+      <div style={kutu}>
+        <div style={baslik}>Kimin elinde ne var</div>
+        <div style={altBaslik}>
+          Bir iş, kartı EN SON ilerleten kişinin elinde sayılır — atamaya değil, gerçekte
+          kimin dokunduğuna bakılır. Teslim edilmiş kartlar sayılmaz.
+        </div>
+
+        {pano.satirlar.length === 0 ? (
+          <div style={{ fontSize: 12.5, color: C.textFaint, lineHeight: 1.6 }}>
+            Henüz kimsenin işlem kaydı yok. Kartlar ilerletildikçe burası dolar.
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 72px 72px 72px 96px", gap: 8,
+              fontSize: 10.5, color: C.textFaint, fontWeight: 700, letterSpacing: 0.3, padding: "0 2px 6px" }}>
+              <span>KİŞİ</span><span style={{ textAlign: "right" }}>ELİNDE</span>
+              <span style={{ textAlign: "right" }}>GECİKEN</span><span style={{ textAlign: "right" }}>BUGÜN</span>
+              <span style={{ textAlign: "right" }}>SON İŞLEM</span>
+            </div>
+            {pano.satirlar.map((r) => (
+              <button
+                key={r.kisi}
+                onClick={() => { setKisi(r.kisi === kisi ? "" : r.kisi); setGun(bugun); }}
+                style={{ display: "grid", gridTemplateColumns: "1fr 72px 72px 72px 96px", gap: 8, alignItems: "center",
+                  padding: "9px 2px", border: "none", borderBottom: `1px solid ${C.borderSoft}`,
+                  background: r.kisi === kisi ? C.accentSoft : "transparent", borderRadius: 6,
+                  fontSize: 13, fontFamily: "Inter", cursor: "pointer", textAlign: "left", width: "100%" }}
+              >
+                <span style={{ color: C.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.kisi}</span>
+                <span style={{ textAlign: "right", fontFamily: "monospace", fontWeight: 700, color: r.elinde > 0 ? C.text : C.textFaint }}>{r.elinde}</span>
+                <span style={{ textAlign: "right", fontFamily: "monospace", fontWeight: 700, color: r.geciken > 0 ? C.danger : C.textFaint }}>{r.geciken}</span>
+                <span style={{ textAlign: "right", fontFamily: "monospace", color: r.bugun > 0 ? C.success : C.textFaint }}>{r.bugun}</span>
+                <span style={{ textAlign: "right", fontSize: 11.5, color: C.textFaint }}>
+                  {r.sonIslem ? r.sonIslem.toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit" }) : "—"}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* SAHİPSİZ KART GİZLENMİYOR: kimse dokunmamış bir iş, en kolay gözden kaçan iştir. */}
+        {pano.sahipsiz > 0 && (
+          <div style={{ marginTop: 10, fontSize: 12, color: C.warning, lineHeight: 1.6 }}>
+            {pano.sahipsiz} kart <strong>sahipsiz</strong> — henüz kimse dokunmamış (yalnızca
+            sistem kaydı var). Bunlar kimsenin panosunda görünmüyor.
+          </div>
+        )}
+      </div>
+
+      {/* ---------------- GÜNLÜK AKIŞ ---------------- */}
+      <div style={kutu}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 4 }}>
+          <div style={baslik}>Günlük akış · {gunEtiketi}</div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <button onClick={() => gunKaydir(-1)} style={{ ...secim, cursor: "pointer", padding: "6px 9px" }} title="Önceki gün"><ChevronLeft size={13} /></button>
+            {gun !== bugun && <button onClick={() => setGun(bugun)} style={{ ...secim, cursor: "pointer" }}>Bugün</button>}
+            <button onClick={() => gunKaydir(1)} disabled={gun >= bugun}
+              style={{ ...secim, cursor: gun >= bugun ? "default" : "pointer", opacity: gun >= bugun ? 0.4 : 1, padding: "6px 9px" }} title="Sonraki gün"><ChevronRight size={13} /></button>
+          </div>
+        </div>
+        <div style={altBaslik}>
+          O gün yapılan her işlem: aşama değişiklikleri ve dosya yüklemeleri.
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+          <select value={kisi} onChange={(e) => setKisi(e.target.value)} style={secim}>
+            <option value="">Herkes</option>
+            {kisiler.map((x) => <option key={x} value={x}>{x}</option>)}
+          </select>
+          <select value={marka} onChange={(e) => setMarka(e.target.value)} style={secim}>
+            <option value="">Tüm markalar</option>
+            {markalar.map((x) => <option key={x} value={x}>{x}</option>)}
+          </select>
+          {(kisi || marka) && (
+            <button onClick={() => { setKisi(""); setMarka(""); }} style={{ ...secim, cursor: "pointer", color: C.accentText }}>Süzgeci kaldır</button>
+          )}
+        </div>
+
+        {akis.length === 0 ? (
+          <div style={{ fontSize: 12.5, color: C.textFaint, lineHeight: 1.6 }}>
+            Bu gün için kayıt yok{kisi || marka ? " (süzgeç açık)" : ""}.
+            {gun === bugun ? " Gün ilerledikçe burası dolar." : ""}
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+            {akis.map((o) => (
+              <div key={o.anahtar} style={{ display: "flex", gap: 10, alignItems: "baseline",
+                padding: "8px 2px", borderBottom: `1px solid ${C.borderSoft}`, fontSize: 12.5, flexWrap: "wrap" }}>
+                <span style={{ fontFamily: "monospace", color: C.textFaint, minWidth: 40, fontSize: 11.5 }}>{o.saat || "—"}</span>
+                <span style={{ color: C.text, fontWeight: 600, minWidth: 90 }}>{o.kisi || <span style={{ color: C.textFaint, fontWeight: 400 }}>{o.yazan || "bilinmiyor"}</span>}</span>
+                <span style={{ color: C.textDim, flex: "1 1 260px", lineHeight: 1.5 }}>
+                  {o.gecis
+                    ? <>{o.gecis.onceki} <span style={{ color: C.textFaint }}>→</span> <strong style={{ color: C.text }}>{o.gecis.sonraki}</strong></>
+                    : o.aciklama}
+                </span>
+                <span style={{ fontSize: 11.5, color: C.textFaint, whiteSpace: "nowrap" }}>
+                  {o.marka ? `${o.marka} · ` : ""}{o.isAdi}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ---------------- ÜRETİM RAPORU ---------------- */}
+      <div style={kutu}>
+        <div style={baslik}>Üretim raporu</div>
+        <div style={altBaslik}>
+          Sayılan şey geçişin HEDEFİ: "Kontrol Bekliyor"a çekilen kart bitmiş bir edittir.
+          Kart sonradan revizeye düşse bile o iş yapılmıştır; revize sonrası ikinci edit
+          ayrıca sayılır.
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap", alignItems: "center" }}>
+          <input type="date" value={donemBas} max={donemBit} onChange={(e) => setDonemBas(e.target.value)} style={secim} />
+          <span style={{ color: C.textFaint, fontSize: 12 }}>—</span>
+          <input type="date" value={donemBit} min={donemBas} max={bugun} onChange={(e) => setDonemBit(e.target.value)} style={secim} />
+        </div>
+
+        {rapor.satirlar.length === 0 ? (
+          <div style={{ fontSize: 12.5, color: C.textFaint, lineHeight: 1.6 }}>
+            Bu aralıkta işlem kaydı yok.
+          </div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5, minWidth: 560 }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: "left", padding: "0 8px 8px 2px", fontSize: 10.5, color: C.textFaint, fontWeight: 700, letterSpacing: 0.3 }}>KİŞİ</th>
+                  {SAYILAN_ASAMALAR.map((a) => (
+                    <th key={a} style={{ textAlign: "right", padding: "0 8px 8px", fontSize: 10.5, color: C.textFaint, fontWeight: 700, letterSpacing: 0.3, whiteSpace: "nowrap" }}>
+                      {a.toLocaleUpperCase("tr")}
+                    </th>
+                  ))}
+                  <th style={{ textAlign: "right", padding: "0 2px 8px 8px", fontSize: 10.5, color: C.textFaint, fontWeight: 700, letterSpacing: 0.3 }}>DOSYA</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rapor.satirlar.map((r) => (
+                  <tr key={r.kisi} style={{ borderTop: `1px solid ${C.borderSoft}` }}>
+                    <td style={{ padding: "9px 8px 9px 2px", color: C.text, fontWeight: 600 }}>{r.kisi}</td>
+                    {SAYILAN_ASAMALAR.map((a) => (
+                      <td key={a} style={{ padding: "9px 8px", textAlign: "right", fontFamily: "monospace",
+                        color: r.asamalar[a] > 0 ? C.text : C.textFaint }}>{r.asamalar[a]}</td>
+                    ))}
+                    <td style={{ padding: "9px 2px 9px 8px", textAlign: "right", fontFamily: "monospace",
+                      color: r.yukleme > 0 ? C.text : C.textFaint }}>{r.yukleme}</td>
+                  </tr>
+                ))}
+                <tr style={{ borderTop: `2px solid ${C.border}` }}>
+                  <td style={{ padding: "9px 8px 0 2px", color: C.textFaint, fontWeight: 700, fontSize: 11.5 }}>TOPLAM</td>
+                  {SAYILAN_ASAMALAR.map((a) => (
+                    <td key={a} style={{ padding: "9px 8px 0", textAlign: "right", fontFamily: "monospace", fontWeight: 700, color: C.text }}>{rapor.toplam[a]}</td>
+                  ))}
+                  <td style={{ padding: "9px 2px 0 8px", textAlign: "right", fontFamily: "monospace", fontWeight: 700, color: C.text }}>{rapor.yuklemeToplam}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* DÜRÜSTLÜK NOTU: eski kayıtlarda saat yok ve yükleyen bilinmiyor.
+          * Yazılmazsa rakamlar olduğundan güvenilir sanılır. */}
+        <div style={{ marginTop: 12, fontSize: 11, color: C.textFaint, lineHeight: 1.6 }}>
+          Zaman damgası ve "kim yükledi" kaydı yeni eklendi. Daha eski kayıtlarda saat
+          bilgisi olmayabilir, dosyaları kimin yüklediği ise bilinmiyor — o satırlar
+          uydurulmak yerine boş bırakılıyor.
         </div>
       </div>
     </div>
@@ -2948,7 +3189,7 @@ export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clie
   async function topluDosyaYukle(topluId, sira, dosya) {
     for (let deneme = 0; deneme < 20; deneme += 1) {
       try {
-        return await driveyeDosyaYukle({ isId: null, topluId, topluSira: sira, slot: "1", dosya });
+        return await driveyeDosyaYukle({ isId: null, topluId, topluSira: sira, slot: "1", dosya, yukleyen: duzenleyenAdi });
       } catch (err) {
         const mesaj = String((err && err.message) || err);
         if (!/bulunamad/i.test(mesaj)) throw err;
@@ -3081,6 +3322,11 @@ export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clie
           {role === "owner" && (
             <button onClick={() => setView("istatistik")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "12px 15px", borderRadius: 9, border: "none", background: view === "istatistik" ? C.accentSoft : "transparent", color: view === "istatistik" ? C.accentText : C.textDim, fontSize: 13, fontWeight: 600, cursor: "pointer" }}><BarChart3 size={14} /> İstatistikler</button>
           )}
+          {/* İŞ TAKİBİ — İstatistikler gibi yalnızca yöneticide. Herkesin iş yükünü
+            * herkese göstermek bir yönetim kararı; varsayılan olarak açılmıyor. */}
+          {role === "owner" && (
+            <button onClick={() => setView("takip")} style={{ display: "flex", alignItems: "center", gap: 6, padding: "12px 15px", borderRadius: 9, border: "none", background: view === "takip" ? C.accentSoft : "transparent", color: view === "takip" ? C.accentText : C.textDim, fontSize: 13, fontWeight: 600, cursor: "pointer" }}><History size={14} /> İş Takibi</button>
+          )}
         </div>
         {view !== "markalasma" && yetkiVar(yetkiler, "kartAcma") && <button style={btnPrimary} onClick={() => { setAdding((v) => !v); if (onRefreshRoster) onRefreshRoster(); }}><Plus size={14} /> Yeni İş</button>}
         {view !== "markalasma" && yetkiVar(yetkiler, "kartAcma") && typeof onAddJobs === "function" && <button style={btnGhost} onClick={() => { setTopluAcik((x) => !x); setTopluDurum(null); if (onRefreshRoster) onRefreshRoster(); }}><Plus size={14} /> Toplu İş</button>}
@@ -3137,6 +3383,7 @@ export default function CekimEditTakibi({ acilacakIsId, onKartAcildi, role, clie
       {view === "panom" && role === "staff" && <PersonelPaneli jobs={isler} staffName={staffName} onOpen={setAcikIs} />}
 
       {view === "istatistik" && role === "owner" && <YoneticiIstatistik jobs={isler} />}
+      {view === "takip" && role === "owner" && <IsTakibi jobs={isler} />}
       {/* Aylık İş Raporu buradan KALDIRILDI — Personel > Freelancer sekmesine taşındı.
         * Sebep: aynı bilgiyi (kimin ne kadar hak ettiği) iki ayrı yerde göstermek
         * "hangisine bakacağım?" sorusunu doğuruyordu. Ödemeyle ilgili her şey artık

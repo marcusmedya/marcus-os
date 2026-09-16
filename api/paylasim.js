@@ -118,7 +118,7 @@ function bagliKartiIsaretle(data, isId, _paylasildi, kim) {
       asama: yeniAsama,
       teslimEdilmeTarihi: yeniAsama === PAYLASILDI_ASAMASI ? bugunISO() : null,
       gecmis: [...(j.gecmis || []), {
-        id: (j.gecmis || []).length + 1, tarih: zaman, yazan: kim,
+        id: (j.gecmis || []).length + 1, tarih: zaman, zaman: new Date().toISOString(), yazan: kim,
         aciklama: yeniAsama === SUBE_PAYLASIM_ASAMASI
           ? "Bir şubede paylaşıldı; diğer planlanan şubeler bekliyor."
           : paylasildi
@@ -970,7 +970,7 @@ export default async function handler(req, res) {
           brief: "", hamDosyaLink: "", editliDosyaLink: "",
           medya: [{ slot: 1, dosyaId: dosya.id, ad: dosya.ad,
             url: `https://drive.google.com/file/d/${dosya.id}/view` }],
-          gecmis: [{ id: 1, tarih: zamanK, yazan: "Sistem",
+          gecmis: [{ id: 1, tarih: zamanK, zaman: new Date().toISOString(), yazan: "Sistem",
             aciklama: `Drive denetiminde kartsız dosya bulundu — "${dosya.klasor}" klasöründeki dosya için kart açıldı. Tür ve ayrıntıları gözden geçir.` }],
           yorumlar: [],
           driveDenetimindenAcildi: true,
