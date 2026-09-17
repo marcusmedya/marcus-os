@@ -725,10 +725,11 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 bash testler/hepsinidenetle.sh     # 25 statik denetim (sözdizimi, JSX, hook, kapsam…)
 ./testler/sunucutestleri.sh        # t1…t109, 2503 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
+npm run test:acilis                # TARAYICI açılış testi — uygulamayı gerçekten çizer
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
 
-Claude Code'da bu zincirin tamamı **`/dogrula`**, kırarak ölçme ritüeli ise **`/olc`**
+Claude Code'da bu **beş adımın tamamı `/dogrula`**, kırarak ölçme ritüeli ise **`/olc`**
 komutunda duruyor (`.claude/commands/`). İkisi de prosedür taşır, kural DEĞİL — kurallar
 burada kalır, iki yere yazılmaz.
 
@@ -743,6 +744,25 @@ bir fonksiyona alınıp `denetle`den geçiyor. **İstisna kalmadı, 26 denetimin
 `cagridenetle.py`'nin KENDİ çıkış kodu kullanılamaz — iki bilinen yanlış alarm
 ("Tamamlananlar" bir JSX başlığı, "Ciro" bir dize sabitinin içi) yüzünden zaten 1 dönüyor;
 karar süzgeçten GERİYE KALAN satırlara göre veriliyor.
+
+**Tarayıcı açılış testi — `testler/tarayiciAcilis.mjs`.** Yukarıdaki diğer üç adımın
+hiçbiri uygulamayı ÇİZMİYOR; siyah ekran hatası tam olarak bu boşluktan üretime çıktı.
+Test derlenmiş uygulamayı `127.0.0.1`'de açar, `#root` içine gerçekten içerik çizildiğini
+ve açılışta yakalanmamış JS hatası olmadığını doğrular. **Ölçüldü**: hata bileşen
+gövdesine geri konulduğunda derleme 0, denetimler 0, 2503 kontrol geçiyor — yalnızca
+bu test düşüyor (12 kontrol).
+
+Üç kural:
+- **Gerçek veri ve üretim ortamı YOK.** `/api/*` yanıtları testin içindeki uydurma
+  belgeden gelir; Redis'e, Drive'a, Vercel'e hiç dokunulmaz.
+- **Ağdan yalıtık.** `127.0.0.1` dışına giden her istek boş yanıtla karşılanır (uygulama
+  `index.html`'de Google Fonts'a başvuruyor). Test ağ olmadan da aynı sonucu verir.
+- **Uydurma belge GERÇEK belgenin bütün üst düzey alanlarını taşır.** Eksik bırakmak testi
+  değersizleştirir: fixture hiç oluşmayan bir hâli temsil eder ve test olmayan sorunları
+  kovalar. Bu yaşandı — eksik fixture önce yanlış yere baktırdı.
+
+Derleme gerekiyor: `dist/` yoksa test kendisi `npm run build` çalıştırır. Tarayıcı ortamda
+kurulu (`/opt/pw-browsers/chromium`); `playwright-core` tarayıcı İNDİRMEZ, var olanı açar.
 
 `sunucutestleri.sh`, `@vercel/kv` paketini geçici olarak `testler/taklit-kv` ile
 değiştirir ve `trap` ile geri koyar. **Testler gerçek Redis'e asla dokunmaz.**

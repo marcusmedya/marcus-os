@@ -10296,9 +10296,13 @@ export default function MarcusOS() {
       if (st && st.status === "gecikti") items.push({ text: `${c.ad}: ödeme ${st.label} — ${fmt(c.aylikUcret)}`, level: "danger" });
       else if (st && st.status === "bekliyor") items.push({ text: `${c.ad}: ${st.label} — ${fmt(c.aylikUcret)}`, level: "warning" });
     });
-    data.vergiTakvimi.filter((v) => v.durum === "yaklaşıyor").forEach((v) => items.push({ text: `${v.kalem} — ${tarihGoster(v.tarih)}`, level: "warning" }));
-    data.bekleyenTahsilatlar.filter((b) => b.vade.includes("gecikti")).forEach((b) => items.push({ text: `${b.musteri}: bekleyen tahsilat ${b.vade} — ${fmt(b.tutar)}`, level: "danger" }));
-    data.bekleyenTahsilatlar.filter((b) => !b.vade.includes("gecikti")).forEach((b) => items.push({ text: `${b.musteri}: bekleyen tahsilat — ${fmt(b.tutar)} (${b.vade})`, level: "warning" }));
+    // KORUMA ŞART: bu üç satır `(data.x || [])` yazmayan tek satırlardı ve belgede alan
+    // yoksa render SIRASINDA patlıyordu — React ağacı düşüyor, #root boş kalıyor ve
+    // <body> zaten koyu olduğu için ekran SİMSİYAH açılıyordu. Tarayıcı açılış testi
+    // (testler/tarayiciAcilis.mjs) bunu yakaladı; komşu satırların hepsi zaten korumalı.
+    (data.vergiTakvimi || []).filter((v) => v.durum === "yaklaşıyor").forEach((v) => items.push({ text: `${v.kalem} — ${tarihGoster(v.tarih)}`, level: "warning" }));
+    (data.bekleyenTahsilatlar || []).filter((b) => b.vade.includes("gecikti")).forEach((b) => items.push({ text: `${b.musteri}: bekleyen tahsilat ${b.vade} — ${fmt(b.tutar)}`, level: "danger" }));
+    (data.bekleyenTahsilatlar || []).filter((b) => !b.vade.includes("gecikti")).forEach((b) => items.push({ text: `${b.musteri}: bekleyen tahsilat — ${fmt(b.tutar)} (${b.vade})`, level: "warning" }));
     (data.reklamlar || []).forEach((r) => {
       const d = reklamDurumu(r);
       if (d === "bitti") items.push({ text: `${r.marka} — "${r.reklamAdi}" reklamı sona erdi (${r.bitisTarihi})`, level: "danger" });
