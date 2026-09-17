@@ -509,6 +509,9 @@ export function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, o
                 ] },
                 { key: "ofis", ad: "Ofis gideri", tutar: live.ofisGiderToplam },
                 { key: "musteri", ad: "Müşteri maliyetleri", tutar: live.clientCosts },
+                /* FREELANCER — Operasyon'da o ay TESLİM EDİLEN işlerin iş başı ücretleri.
+                 * Bu kalem bir süre hiç yoktu: para kasadan çıkıyor ama gidere yazılmıyordu. */
+                { key: "freelancer", ad: "Freelancer iş ücretleri", tutar: live.freelancerGideri },
                 { key: "uyelik", ad: "Üyelikler", tutar: live.uyelikGideri },
                 { key: "diger", ad: "Diğer gider kalemleri", tutar: live.giderKalemToplam },
               ].filter((x) => x.tutar > 0).map((x) => {
@@ -543,6 +546,15 @@ export function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, o
               <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter, sans-serif", fontWeight: 700 }}>Toplam gider</span>
               <span style={{ fontSize: 20, color: T.danger, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700 }}>{fmt(live.gider)}</span>
             </div>
+            {/* RAKAM EKSİKSE SÖYLENİR. Ücreti tanımlanmamış kişi-iş, maliyete SIFIR yazıyor —
+              * sessiz kalmak gideri olduğundan düşük, kârı olduğundan yüksek gösterir. */}
+            {live.isUcretiEksik > 0 && (
+              <div style={{ marginTop: 10, fontSize: 12, color: T.warning, fontFamily: "Inter, sans-serif", lineHeight: 1.6 }}>
+                Bu toplam <strong>eksik</strong>: {live.isUcretiEksik} iş–kişi eşleşmesinde iş başı
+                ücret tanımlı değil ve sıfır sayıldı. Gerçek gider daha yüksek, kâr daha düşük.
+                Ücretleri Personel → Freelancer'dan girebilir ya da işe özel ücret seçebilirsin.
+              </div>
+            )}
           </Card>
           {/* İkincil rakamlar — küçük rozet yerine üsttekiyle aynı kart biçiminde.
             * Rozet hâlinde "kalem gibi" duruyor ve okunmuyordu. */}

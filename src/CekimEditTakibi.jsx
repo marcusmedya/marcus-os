@@ -14,6 +14,16 @@ import { tasimaAdaylari, tasimaOzeti } from "../lib/toplu-tasima.js";
 import { markaninIdsi, trKucult } from "../lib/marka-kilidi.js";
 import { panoSuzgeci } from "../lib/pano-suzgeci.js";
 import { gunlukAkis, kisiPanosu, uretimRaporu, kisiListesi, gunAnahtari, SAYILAN_ASAMALAR } from "../lib/is-takibi.js";
+/* PARA HESABI `lib/is-ucreti.js`'te — `.jsx` Node'da çalışmadığı için burada dururken
+ * hiçbir testten çağrılamıyordu. Ayrıca şirket gideri (`src/tema.jsx`) de aynı rakama
+ * ihtiyaç duyuyor ve .jsx→.jsx import dairesel bağımlılık üretirdi.
+ * KÖPRÜ (`export … from`) DEĞİL, içe aktarıp yeniden dışa veriyoruz: köprü bu dosyada
+ * yerel bir bağ oluşturmaz ve aşağıdaki kullanımlar çalışma anında patlardı (denetim 22). */
+import { UCRET_MODLARI, isTeslimTarihi, varsayilanKime, isUcretiHesapla,
+         operasyonAylikHakEdis, markaAylikIsMaliyeti, sirketAylikIsMaliyeti,
+         operasyonKisiIsimleri } from "../lib/is-ucreti.js";
+export { UCRET_MODLARI, isTeslimTarihi, operasyonAylikHakEdis, markaAylikIsMaliyeti,
+         sirketAylikIsMaliyeti, operasyonKisiIsimleri };
 import { paylasimTuru, PAYLASIM_TURLERI } from "../lib/stok.js";
 import { KATEGORILER, kategoriEsle } from "../lib/kategori.js";
 import { markaninSubeleri, kullanabilenSubeler, icerikSubeOzeti,
@@ -2551,32 +2561,6 @@ function IsTakibi({ jobs }) {
  * çünkü iş kayıtları personelin tarayıcısına olduğu gibi gönderiliyor ve ücretlerin oraya
  * sızmaması gerekiyor.
  */
-export const UCRET_MODLARI = [
-  { key: "varsayilan", label: "Varsayılan (kişinin iş başı ücreti)" },
-  { key: "sabit", label: "Bu işe tek sabit ücret" },
-  { key: "ucretsiz", label: "Ücretsiz (pakete dahil)" },
-];
-
-function varsayilanKime(job) {
-  if (job && job.editor) return "editor";
-  if (job && job.kameraman) return "kameraman";
-  return "editor";
-}
-
-/** Bir işin, belirli bir kişiye yazılacak ücretini hesaplar. */
-function isUcretiHesapla(job, kisiAdi, detay, kisiVarsayilanUcret) {
-  const mod = (detay && detay.mod) || "varsayilan";
-  if (mod === "ucretsiz") return 0;
-  if (mod === "sabit") {
-    const tutar = Number(detay && detay.tutar) || 0;
-    const kime = (detay && detay.kime) || varsayilanKime(job);
-    if (kime === "ikisi") return tutar;
-    if (kime === "kameraman") return job.kameraman === kisiAdi ? tutar : 0;
-    return job.editor === kisiAdi ? tutar : 0;
-  }
-  return Number(kisiVarsayilanUcret) || 0;
-}
-
 /** Ücret modunu kısa, okunur bir etikete çevirir. */
 function ucretEtiketi(job, detay, kisiVarsayilanUcret) {
   const mod = (detay && detay.mod) || "varsayilan";
@@ -2589,74 +2573,6 @@ function ucretEtiketi(job, detay, kisiVarsayilanUcret) {
   }
   if (!kisiVarsayilanUcret) return "ücret girilmemiş";
   return para(kisiVarsayilanUcret);
-}
-
-/**
- * Bir kişinin belirli bir aydaki OPERASYON hak edişi (teslim edilen işlerden).
- * Personel > Freelancer sekmesi bu fonksiyonu kullanır — böylece hak ediş matematiği
- * tek bir yerde tanımlı kalır ve iki ekran farklı rakam göstermez.
- */
-export function operasyonAylikHakEdis(jobs, kisiAd, ay, ucretler, ucretDetaylari) {
-  if (!kisiAd) return { isSayisi: 0, tutar: 0, parca: 0 };
-  const varsayilan = Number((ucretler || {})[kisiAd]) || 0;
-  const oAyinIsleri = (jobs || []).filter((j) => {
-    const t = isTeslimTarihi(j);
-    if (!t || t.slice(0, 7) !== ay) return false;
-    return j.kameraman === kisiAd || j.editor === kisiAd;
-  });
-  const tutar = oAyinIsleri.reduce(
-    (s, j) => s + isUcretiHesapla(j, kisiAd, (ucretDetaylari || {})[j.id] || null, varsayilan),
-    0
-  );
-  const parca = oAyinIsleri.reduce((s, j) => s + (Number(j.uretilenAdet) || 0), 0);
-  return { isSayisi: oAyinIsleri.length, tutar, parca };
-}
-
-/**
- * MARKA BAZLI FREELANCER MALİYETİ — bir markaya o ay harcanan iş başı ücretlerin toplamı.
- *
- * Kâr hesabı eskiden yalnızca elle girilen maliyetlere bakıyordu; Operasyon'da o marka için
- * ödenen freelancer ücretleri hiç girmiyordu. Bu yüzden çok iş üretilen bir marka olduğundan
- * kârlı görünüyordu.
- *
- * operasyonAylikHakEdis ile AYNI ücret fonksiyonunu (isUcretiHesapla) kullanır — iki hesap
- * ayrı yazılsaydı personel raporundaki tutarla müşteri kârındaki tutar birbirini tutmazdı.
- *
- * eksikUcret: ücreti tanımlanmamış kişi sayısı. Sıfırdan büyükse maliyet OLDUĞUNDAN DÜŞÜK
- * demektir; çağıran taraf bunu "veri eksik" olarak işaretlemeli.
- */
-export function markaAylikIsMaliyeti(jobs, marka, ay, ucretler, ucretDetaylari) {
-  const anahtar = String(marka || "").trim().toLocaleLowerCase("tr");
-  if (!anahtar) return { tutar: 0, isSayisi: 0, eksikUcret: 0 };
-  const oAyinIsleri = (jobs || []).filter((j) => {
-    const t = isTeslimTarihi(j);
-    if (!t || t.slice(0, 7) !== ay) return false;
-    return String(j.marka || "").trim().toLocaleLowerCase("tr") === anahtar;
-  });
-  let tutar = 0;
-  let eksikUcret = 0;
-  oAyinIsleri.forEach((j) => {
-    // Bir işte hem kameraman hem editör olabilir; ikisi de ayrı ücret alır.
-    [j.kameraman, j.editor].filter(Boolean).forEach((kisi) => {
-      const varsayilan = Number((ucretler || {})[kisi]) || 0;
-      const detay = (ucretDetaylari || {})[j.id] || null;
-      const k = isUcretiHesapla(j, kisi, detay, varsayilan);
-      if (!varsayilan && !detay) eksikUcret += 1;
-      tutar += k;
-    });
-  });
-  return { tutar, isSayisi: oAyinIsleri.length, eksikUcret };
-}
-
-/** Operasyon'da atanmış ama kayıtlı olmayan kişileri bulur — Freelancer sekmesi bunları
- * "eklemek ister misin?" diye önerir, böylece isimler elle kopyalanmaz. */
-export function operasyonKisiIsimleri(jobs) {
-  const set = new Set();
-  (jobs || []).forEach((j) => {
-    if (j.kameraman && String(j.kameraman).trim()) set.add(String(j.kameraman).trim());
-    if (j.editor && String(j.editor).trim()) set.add(String(j.editor).trim());
-  });
-  return Array.from(set);
 }
 
 /** İş detayında yöneticinin ücret modunu ayarladığı küçük panel. */
@@ -2737,23 +2653,6 @@ function IsUcretPaneli({ job, detay, onKaydet }) {
 /* AYLIK İŞ RAPORU (SADECE YÖNETİCİ)                                     */
 /* ------------------------------------------------------------------ */
 
-/** Bir işin GERÇEKTEN teslim edildiği tarihi (YYYY-AA-GG) döndürür.
- *
- * Yeni işlerde bu bilgi doğrudan `teslimEdilmeTarihi` alanında duruyor. Bu alan eklenmeden
- * ÖNCE teslim edilmiş işler için, bilgi işlem geçmişindeki "→ Teslim Edildi" satırının
- * tarihinden geri kazanılır — böylece rapor eski işleri de sayabiliyor. */
-export function isTeslimTarihi(job) {
-  if (!job) return null;
-  if (job.teslimEdilmeTarihi) return job.teslimEdilmeTarihi;
-  const kayit = [...(job.gecmis || [])].reverse().find((g) => (g.aciklama || "").includes("→ Teslim Edildi"));
-  if (!kayit || !kayit.tarih) return null;
-  const gun = String(kayit.tarih).split(" ")[0]; // "11.08.2026" ya da "2.08.2026"
-  const p = gun.split(".");
-  if (p.length !== 3) return null;
-  const [g, a, y] = p;
-  if (!y || y.length !== 4) return null;
-  return `${y}-${String(a).padStart(2, "0")}-${String(g).padStart(2, "0")}`;
-}
 
 function ayKeyi(d = new Date()) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;

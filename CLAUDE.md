@@ -589,6 +589,23 @@ Gecikmiş borç toplamı **`clientOverdueBalance`** ile hesaplanır, `aylikUcret
 ile DEĞİL: çarpım bütün geçmişi bugünkü ücretle sayar ve ücret değişmiş markada tebligata
 yanlış tutar yazar.
 
+**Şirket kârı freelancer ücretlerini DE düşer — `lib/is-ucreti.js` → `sirketAylikIsMaliyeti`,
+`computeLive` (`src/tema.jsx`).** Bu satır bir süre yoktu: hesap yalnızca MARKA bazında
+kullanılıyor, şirket toplamına hiç bağlanmıyordu. Sonucu, freelancer'a yapılan her ödemenin
+kasadan düşüp (`hesapBakiyesi` → `odemeler`) kârdan düşmemesiydi — iki rakam arasındaki
+uçurum her ay büyüyordu. **Marka marka toplamak YETMEZ**: markası girilmemiş iş hiçbir
+markanın altına düşmez ve sessizce kaybolur; `sirketAylikIsMaliyeti` o ay teslim edilen HER
+işi sayar. **Ücreti tanımsız kişi-iş SAYILIR ve ekranda söylenir** (`isUcretiEksik`) —
+sessizce sıfır yazmak gideri düşük, kârı yüksek gösterir. Dönem = işin TESLİM EDİLDİĞİ ay.
+
+**`src/tema.jsx` artık TESTTEN ÇAĞRILABİLİYOR** (t107). `.jsx` Node'dan import edilemediği
+için şirket kâr hesabı bu projede hiç ölçülememişti. Test dosyayı **esbuild ile** (projede
+zaten var, denetim 1b onu kullanıyor) çevirip geçici bir `.mjs` olarak `testler/` altına
+yazıyor ve çağırıyor — yeni bağımlılık YOK. Geçici dosya `process.on("exit")` ile her
+hâlükârda siliniyor. **Ölçüldü: freelancer gideri toplamdan çıkarılınca 3 kontrol düşüyor**,
+yani bu sefer ARAYÜZ BAĞLANTISI da ölçülü. Aynı yöntem diğer `.jsx` hesapları için de
+kullanılabilir.
+
 **Müşteri hesap özeti (ekstre) — `lib/ekstre.js`.** Müşteriye verilen dökümde üç kavram
 karışmamalı: **tahakkuk** o ayın hizmet bedeli (`ayinUcreti`, bugünkü ücret DEĞİL),
 **fatura** o bedelin BELGELENEN kısmı, **tahsilat** ödemeler. `bakiye = tahakkuk −

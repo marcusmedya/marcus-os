@@ -5716,3 +5716,77 @@ olmadığı tarandı.
 `lib/` altında ve 47 kontrolle ölçülü; ekranın o kuralları doğru çağırdığını gösteren bir
 katman YOK. Yeni koda ayrıca "tanımlanmamış isme çağrı" taraması yapıldı (temiz çıktı) ama
 bu tarama kalıcı bir denetim olarak kurulmadı — kullanıcının onayını bekliyor.
+
+## Güncelleme 177: Şirket Kârı Freelancer Ücretlerini Görmüyordu
+
+**Soru:** "Gelir gider dengesi konusunda kafam çok karışıyor, bir fikrin var mı?"
+
+Karışıklık haklıydı. Finans ekranını ölçtüm; üç ayrı tutarsızlık çıktı. Bu güncelleme
+bunlardan **kârı doğrudan bozanı** düzeltiyor.
+
+### Bulgu 1 (düzeltildi): freelancer ücretleri şirket giderinde yoktu
+
+Şirket gideri şöyle hesaplanıyordu: gider kalemleri + ofis + elle girilen müşteri
+maliyetleri + maaşlı personel + üyelikler. **Freelancer iş başı ücretleri listede yoktu.**
+
+Hesap zaten vardı — ama yalnızca MARKA bazında (`musteriKarlilik`). Şirket toplamına hiç
+bağlanmamıştı. Sonucu şuydu: freelancer'a yapılan her ödeme **kasadan düşüyor**
+(`hesapBakiyesi` → `odemeler`) ama **kârdan düşmüyordu**. "Kasada" ile "Bu ay kazanç"
+arasındaki uçurum her ay biraz daha büyüyordu ve sebebi hiçbir yerde yazmıyordu.
+
+**Marka marka toplamak yetmezdi:** markası girilmemiş bir iş hiçbir markanın altına
+düşmez ve sessizce kaybolurdu. Yeni `sirketAylikIsMaliyeti` o ay **teslim edilen her işi**
+sayıyor.
+
+**Eksik veri artık söyleniyor:** ücreti tanımlanmamış kişi-iş eşleşmesi maliyete 0 yazıyor
+ama sayılıyor ve gider tablosunun altında "bu toplam eksik, gerçek gider daha yüksek"
+uyarısı çıkıyor. Sessiz kalmak gideri düşük, kârı yüksek gösterirdi.
+
+### Bulgu 2 ve 3 (henüz düzeltilmedi, kullanıcının kararında)
+
+- **Kasa eksik hesaplıyor:** ofis giderleri, üyelikler, müşteri maliyetleri ve gider
+  kalemleri hesap bakiyesinden hiç düşmüyor. Kasa olduğundan yüksek görünüyor.
+- **Ay kapatma anlık fotoğraf:** `closeMonth` bastığın andaki rakamı yazıyor, tahsilat
+  bilgisi saklanmıyor.
+
+### Ücret matematiği `lib/`e taşındı
+
+`isUcretiHesapla`, `operasyonAylikHakEdis`, `markaAylikIsMaliyeti`, `isTeslimTarihi` ve
+arkadaşları `src/CekimEditTakibi.jsx`'ten **`lib/is-ucreti.js`'e** taşındı. İki sebep:
+`.jsx` Node'da çalışmadığı için para hesabı hiçbir testten çağrılamıyordu, ve şirket gideri
+(`src/tema.jsx`) aynı rakama ihtiyaç duyuyordu — `.jsx`'ten `.jsx`'e import **dairesel
+bağımlılık** üretirdi. Eski adlar aynı yerden dışa veriliyor (köprü değil, içe aktarıp
+yeniden dışa vererek — denetim 22'nin zorladığı biçim), çağıran dosyalar değişmedi.
+
+Taşıma sırasında `isTeslimTarihi`'nin **ikinci bir kopyası** olduğu ortaya çıktı; ikisi de
+silindi, tek kaynak kaldı.
+
+### Bu sürümün asıl kazancı: `.jsx` içindeki para hesabı ilk kez ÖLÇÜLDÜ
+
+`computeLive` (şirketin gelir/gider/kâr hesabı) `src/tema.jsx` içinde ve `.jsx` Node'dan
+import edilemiyor. Bu yüzden para hesabının en üst satırı bu projede hiçbir zaman
+**çağrılarak** sınanmamıştı.
+
+`testler/t107.mjs` başka bir yol kullanıyor: dosyayı **projenin zaten kullandığı esbuild**
+ile (denetim 1b de onu kullanıyor) çevirip geçici bir `.mjs` olarak yazıyor ve çağırıyor.
+**Yeni bağımlılık yok.** Geçici dosya `process.on("exit")` ile her hâlükârda siliniyor.
+
+Bu önemli çünkü bu oturumda çıkan yedi hatanın hepsi "kural doğru, arayüze bağlanışı
+yanlış" sınıfındaydı ve hiçbiri ölçülemiyordu. Ölçüm: **freelancer gideri toplamdan
+çıkarılınca 3 kontrol düşüyor** — yani bu sefer bağlantının kendisi de ölçülü.
+
+### Ölçüm
+
+`testler/t106.mjs` (26 kontrol, ücret matematiği) + `testler/t107.mjs` (18 kontrol,
+şirket kâr hesabı):
+
+| Korumayı kaldırınca | Düşen |
+|---|---|
+| **Freelancer gideri toplama eklenmese (asıl hata)** | **3 (t107)** |
+| Ayrılmış müşteri de ciroya girse | 3 (t107) |
+| Eksik ücret bayrağı taşınmasa | 1 (t107) |
+| Şirket toplamı marka marka toplansa | 3 (t106) |
+| Eski kayıttan teslim tarihi geri kazanılmasa | 3 (t106) |
+| Teslim edilmemiş iş de sayılsa | 4 (t106) |
+| Sabit ücret ikisine birden yazılsa | 2 (t106) |
+| Ücreti tanımsız iş sessizce geçilse | 2 (t106) |

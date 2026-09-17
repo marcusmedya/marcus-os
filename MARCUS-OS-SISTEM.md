@@ -189,6 +189,7 @@ Artık **tanımsızsa kimse giremez.**
 | `toplu-kart.js` | Toplu kart açma: ad numaralandırma (seri devam eder, başlangıç elle de seçilebilir), çakışan ad uyarısı, kart üretimi ve toplu etiketiyle kart bulma (**saf**) |
 | `toplu-tasima.js` | Panoda seçilen kartları toplu aşama değiştirme: kategori uyumu, zaten-orada elemesi, geçmiş notu (**saf**) |
 | `silme-defteri.js` | Yazmanın öncesi/sonrası karşılaştırılıp silinen kayıtları bulur — güvenlik defteri için (**saf**) |
+| `is-ucreti.js` | **İş başı ücret matematiği** — freelancer hak edişi, marka maliyeti ve ŞİRKET toplamı (`sirketAylikIsMaliyeti`); dönem = işin teslim edildiği ay (**saf**) |
 | `is-takibi.js` | **Günlük iş takibi** — kim ne zaman hangi işi ilerletti; günlük akış, kişi panosu ("iş kimin elinde" = son dokunan), üretim raporu. Eski tr-TR zaman metnini de ayrıştırır (**saf**) |
 | `kart-secici.js` | Plan hücresine kart seçerken TÜRE göre ayırma: seçilen türün kartları / aynı türün paylaşılmışları / başka tür (gizlenmez, ayrılır) (**saf**) |
 | `bugun.js` | "Bugün" panelinin çekirdeği: geciken/bugün teslim/müşteride/paylaşım özeti, plan tarihini haftaKey+gün kaymasından üretir (**saf**) |
