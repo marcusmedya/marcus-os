@@ -24,6 +24,26 @@ denetle() {
   fi
 }
 
+# 7 numaralı denetim bir BORU HATTI olduğu için `denetle`ye doğrudan verilemezdi ve
+# uzun süre sarmalayıcının DIŞINDA kaldı: bulgularını ekrana basıyor ama DUSEN sayacını
+# artırmıyordu, yani düşse bile betik 0 ile çıkıyordu. Boru hattı bir fonksiyona alındı;
+# `denetle` fonksiyonları da çalıştırabildiği için artık diğerleriyle aynı yoldan geçiyor.
+#
+# Betiğin KENDİ çıkış kodu kullanılamaz: `cagridenetle.py` iki bilinen YANLIŞ ALARM
+# yüzünden zaten 1 ile çıkıyor — "Tamamlananlar" bir JSX başlığı (`} Tamamlananlar (`),
+# "Ciro" ise bir dize sabitinin içi (`"Ciro (KDV Dahil Toplam)"`). İkisi de çağrı değil.
+# Bu yüzden süzgeç korunuyor ve karar GERİYE KALAN satırlara göre veriliyor.
+cagriDenetimi() {
+  local kalan
+  kalan=$(python3 testler/cagridenetle.py src/*.jsx src/*.js api/*.js lib/*.js \
+    | grep "^✗" | grep -v "Ciro\|Tamamlananlar")
+  if [ -n "$kalan" ]; then
+    printf '%s\n' "$kalan"
+    return 1
+  fi
+  return 0
+}
+
 echo "── KOD DENETİMLERİ ──"
 denetle "1 sözdizimi" python3 testler/jsxdenetle.py  src/*.jsx src/*.js api/*.js lib/*.js
 # 1b: GERÇEK ayrıştırma. Yukarıdaki sezgisel denetim bir import satırındaki çift virgülü
@@ -34,7 +54,7 @@ denetle "3 çift tanım" python3 testler/ciftdenetle.py src/*.jsx api/*.js lib/*
 denetle "4 JSX yapısı" python3 testler/jsxyapi.py     src/*.jsx
 denetle "5 eksik bileşen/ikon" python3 testler/ikondenetle.py src/*.jsx
 denetle "6 React hook'ları" python3 testler/hookdenetle.py src/*.jsx src/*.js
-python3 testler/cagridenetle.py src/*.jsx src/*.js api/*.js lib/*.js | grep "^✗" | grep -v "Ciro\|Tamamlananlar" || echo "✓ 7 tanımsız çağrı yok"
+denetle "7 tanımsız çağrı yok" cagriDenetimi
 denetle "8 buton bağlantıları" python3 testler/butondenetle.py src/*.jsx
 denetle "9 eksik export yok" python3 testler/exportdenetle.py src/*.jsx src/*.js api/*.js lib/*.js
 denetle "10 JSX'te tanımsız değişken yok" python3 testler/degiskendenetle.py src/*.jsx

@@ -737,8 +737,12 @@ burada kalır, iki yere yazılmaz.
 devam ediyordu — çıkış kodu da son satırınki oluyordu. Denetim 24 bu yüzden DÖRT sürüm
 boyunca düşük kaldı ve "hepsi temiz" diye raporlandı; `… | grep ✗` ile doğrulamak hiçbir
 zaman bir şey bulamazdı. Artık düşen denetimin çıktısı basılıyor ve betik **1 ile çıkıyor**.
-Doğrularken `✓` saymayı bırak, **çıkış koduna bak.** (Tek istisna: 7. satır `denetle`
-sarmalayıcısını kullanmıyor, bulgularını basar ama çıkış kodunu etkilemez.)
+Doğrularken `✓` saymayı bırak, **çıkış koduna bak.** 7. denetim bir boru hattı olduğu için
+bir süre sarmalayıcının dışında kaldı ve tek başına çıkış kodunu etkilemiyordu; artık o da
+bir fonksiyona alınıp `denetle`den geçiyor. **İstisna kalmadı, 26 denetimin hepsi sayaçta.**
+`cagridenetle.py`'nin KENDİ çıkış kodu kullanılamaz — iki bilinen yanlış alarm
+("Tamamlananlar" bir JSX başlığı, "Ciro" bir dize sabitinin içi) yüzünden zaten 1 dönüyor;
+karar süzgeçten GERİYE KALAN satırlara göre veriliyor.
 
 `sunucutestleri.sh`, `@vercel/kv` paketini geçici olarak `testler/taklit-kv` ile
 değiştirir ve `trap` ile geri koyar. **Testler gerçek Redis'e asla dokunmaz.**

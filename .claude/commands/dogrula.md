@@ -25,13 +25,14 @@ Her adımı ayrı bir Bash çağrısında çalıştır ve çıkış kodunu kayde
 bash testler/hepsinidenetle.sh; echo "ÇIKIŞ: $?"
 ```
 Beklenen: `✓` ile başlayan **26** satır ve `ÇIKIŞ: 0`.
-(25 numaralı denetim + aşağıda anlatılan, numaralandırmanın dışında kalan 7. satır.)
-Düşen denetim artık çıktısını basar ve betik 1 ile çıkar.
+(1 ve 1b ayrı sayılır, sonra 2…25 → toplam 26.)
+Düşen denetim çıktısını basar ve betik 1 ile çıkar.
 
-> **Bilinen boşluk — denetim 7.** `cagridenetle.py` satırı `denetle` sarmalayıcısını
-> KULLANMIYOR; kendi `grep`'inden geçiyor. Düşen bulgularını EKRANA BASAR ama `DUSEN`
-> sayacını artırmaz, yani çıkış kodunu etkilemez. Çıktıda 7 numaralı satırın
-> `✓ 7 tanımsız çağrı yok` dediğini GÖZLE doğrula; başka bir şey yazıyorsa düşmüştür.
+> **26'sının hepsi sayaçta.** Denetim 7 bir boru hattı olduğu için bir süre `denetle`
+> sarmalayıcısının dışında kaldı: bulgularını basıyor ama `DUSEN`'i artırmıyordu, yani
+> tek başına düştüğünde betik yine 0 ile çıkıyordu. Boru hattı `cagriDenetimi`
+> fonksiyonuna alındı ve bağlandı — ölçüldü: aynı hatada eski betik çıkış 0, yeni betik
+> çıkış 1 veriyor. Artık gözle doğrulanması gereken bir istisna YOK.
 
 **2 · Sunucu testleri**
 ```
