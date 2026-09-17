@@ -723,10 +723,22 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 
 ```bash
 bash testler/hepsinidenetle.sh     # 25 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t102, ~2297 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t109, 2503 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
+
+Claude Code'da bu zincirin tamamı **`/dogrula`**, kırarak ölçme ritüeli ise **`/olc`**
+komutunda duruyor (`.claude/commands/`). İkisi de prosedür taşır, kural DEĞİL — kurallar
+burada kalır, iki yere yazılmaz.
+
+**Düşen denetim artık görünür.** `hepsinidenetle.sh` bir süre `komut > /dev/null && echo
+"✓ …"` biçimindeydi: denetim düşünce çıktı çöpe gidiyor, `✓` basılmıyor ve betik sessizce
+devam ediyordu — çıkış kodu da son satırınki oluyordu. Denetim 24 bu yüzden DÖRT sürüm
+boyunca düşük kaldı ve "hepsi temiz" diye raporlandı; `… | grep ✗` ile doğrulamak hiçbir
+zaman bir şey bulamazdı. Artık düşen denetimin çıktısı basılıyor ve betik **1 ile çıkıyor**.
+Doğrularken `✓` saymayı bırak, **çıkış koduna bak.** (Tek istisna: 7. satır `denetle`
+sarmalayıcısını kullanmıyor, bulgularını basar ama çıkış kodunu etkilemez.)
 
 `sunucutestleri.sh`, `@vercel/kv` paketini geçici olarak `testler/taklit-kv` ile
 değiştirir ve `trap` ile geri koyar. **Testler gerçek Redis'e asla dokunmaz.**
