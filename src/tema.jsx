@@ -11,6 +11,7 @@
  */
 import React, { useState, useEffect, useRef } from "react";
 import { ekstreHtml } from "../lib/ekstre-belgesi.js";
+import { sirketAylikIsMaliyeti } from "../lib/is-ucreti.js";
 // Marka adı eşleştirme anahtarı sunucuyla ORTAK olmalı — iki taraf farklı kural kullanırsa
 // arayüzde "bağlandı" görünen bir kart sunucuda bağlanmamış olabilir.
 export { markaAnahtari } from "../lib/marka-kilidi.js";
@@ -194,7 +195,32 @@ export function computeLive(data) {
   // Üyelikler (Canva, Adobe, ChatGPT vb.) de aylık gidere dahil edilir — yıllık ödenenler
   // 12'ye bölünerek aylık karşılığı hesaplanır, böylece "Toplam Gider" gerçek aylık maliyeti yansıtır.
   const uyelikGideri = (data.uyelikler || []).filter(uyelikEfektifAktifMi).reduce((s, u) => s + (u.periyot === "yillik" ? (Number(u.tutar) || 0) / 12 : (Number(u.tutar) || 0)), 0);
-  const gider = giderKalemToplam + ofisGiderToplam + clientCosts + personelGideri + uyelikGideri;
+  /* FREELANCER HAK EDİŞİ DE GİDERDİR — bu satır yoktu ve şirket kârı olduğundan
+   * YÜKSEK görünüyordu.
+   *
+   * Hesap zaten vardı ama yalnızca MARKA bazında kullanılıyordu (`musteriKarlilik`);
+   * şirket toplamına hiç bağlanmamıştı. Sonucu şuydu: freelancer'a yapılan her ödeme
+   * kasadan düşüyor (`hesapBakiyesi` → `odemeler`) ama kârdan düşmüyordu. İki rakam
+   * arasındaki uçurum her ay biraz daha büyüyor ve "neden tutmuyor" sorusunun cevabı
+   * hiçbir yerde yazmıyordu.
+   *
+   * MARKA MARKA TOPLAMAK YETMEZ: markası girilmemiş bir iş hiçbir markanın altına
+   * düşmez ve sessizce kaybolurdu. `sirketAylikIsMaliyeti` o ay teslim edilen HER işi
+   * sayar.
+   *
+   * ELLE GİRİLEN MALİYETLE ÇAKIŞMAZ: `clientCosts` müşteri kartındaki `maliyetler`
+   * kalemleri, bu ise Operasyon'daki iş başı ücretler. Aynı gideri iki yere yazmamak
+   * kullanıcının sorumluluğunda — `musteriKarlilik` de yıllardır bu kabulle çalışıyor. */
+  const buAy = monthKey();
+  const isMaliyetiOzeti = sirketAylikIsMaliyeti(
+    data.cekimIsleri, buAy, data.isUcretleri, data.isUcretDetaylari);
+  const freelancerGideri = isMaliyetiOzeti.tutar;
+  /* Ücreti hiç tanımlanmamış kişi-iş sayısı. Sıfırdan büyükse gider OLDUĞUNDAN DÜŞÜK
+   * demektir; ekran bunu "veri eksik" olarak söylemeli, sessizce sıfır yazmamalı. */
+  const isUcretiEksik = isMaliyetiOzeti.eksikUcret;
+
+  const gider = giderKalemToplam + ofisGiderToplam + clientCosts + personelGideri
+    + uyelikGideri + freelancerGideri;
   const net = ciro - gider;
   const manuelBekleyen = (data.bekleyenTahsilatlar || []).reduce((s, b) => s + (Number(b.tutar) || 0), 0);
   const otomatikBekleyen = activeClients.reduce((s, c) => {
@@ -208,7 +234,7 @@ export function computeLive(data) {
   // hiç ödeme alınmamışken bile öyle görünüyordu). Bunun yerine gerçek ödeme kayıtlarından toplanıyor.
   const tahsilEdilen = extra + activeClients.reduce((s, c) => s + monthPaidAmount(c, monthKey()), 0);
   const karMarji = ciro ? Math.round((net / ciro) * 100) : 0;
-  return { recurring, extra, ciro, faturaliCiro, faturasizCiro, kdvTutari, kdvDahilToplamCiro, faturaliKdvDahil, giderKalemToplam, ofisGiderToplam, clientCosts, personelGideri, personelMaas, personelSigorta, personelYemek, personelTazminat, uyelikGideri, gider, net, manuelBekleyen, otomatikBekleyen, bekleyenToplam, tahsilEdilen, karMarji };
+  return { recurring, extra, ciro, faturaliCiro, faturasizCiro, kdvTutari, kdvDahilToplamCiro, faturaliKdvDahil, giderKalemToplam, ofisGiderToplam, clientCosts, personelGideri, personelMaas, personelSigorta, personelYemek, personelTazminat, uyelikGideri, freelancerGideri, isUcretiEksik, gider, net, manuelBekleyen, otomatikBekleyen, bekleyenToplam, tahsilEdilen, karMarji };
 }
 
 /** Bir müşterinin bu ayki ödeme durumunu, kayıtlı "ödeme günü"ne göre otomatik hesaplar. */
