@@ -619,6 +619,26 @@ türetiliyor; o düğmeye hiç basılmamış aylar da görünüyor. Üç kural:
 Ay döngüsünde **sonsuz döngü üst sınırı** var (`lib/ekstre.js` gibi): ölçüldü, koruma
 yokken bozuk bir ay aritmetiği testi sonsuza soktu — tarayıcıda bu kilitlenme demek.
 
+**Para TEK EKRANDA: Finans.** "Ödeme Takvimi" ayrı bir menüydü ve `HesapBakiyeleri` İKİ
+ekranda birden çiziliyordu. Ekran artık Finans'ın içinde bir sekme (`odemeTakvimiIcerigi`
+prop'u); gömülü hâlde `hesaplariGizle` ile hesap tablosu TEKRARLANMIYOR.
+**YETKİ KORUNDU — dikkat:** `odemeTakvimi` AYRI bir izin. Finans'ı görebilen herkes ödeme
+kayıtlarını görmemeli, bu yüzden sekmenin içeriğini ÇAĞIRAN taraf veriyor: personel
+görünümünde `izinler.odemeTakvimi` kapısından geçiyor. Ayrı menü maddesi yalnızca
+"Ödeme Takvimi izni VAR, Finans izni YOK" personeli için duruyor — kaldırılsaydı o kişi
+ekrana hiç ulaşamazdı.
+
+**Ön muhasebe üç saf modülde**: `lib/para-hareketleri.js` (dönem dökümü),
+`lib/sade-ozet.js` (düz Türkçe anlatım), `lib/muhasebe-belgesi.js` (yazdırılabilir rapor).
+- **Kayıtların tarihi İKİ ALANDA**: eski kayıtlarda yalnızca `ay`, yenilerde `tarih`.
+  İkisi de okunmalı; biri atlanırsa rapor sessizce eksik çıkar.
+- **Tarihsiz kayıt GİZLENMEZ, SAYILIR** ve belgede "bu dökümde yok" diye yazılır. Eksik
+  bir dökümü tam gibi göstermek, hiç göstermemekten kötüdür.
+- **PDF için paket YOK**: belge yeni pencerede açılıp `print()` çağrılıyor — müşteri
+  ekstresiyle aynı yol. Kullanıcı yazdırma kutusundan "PDF olarak kaydet" seçiyor.
+- **Sade anlatımda muhasebe terimi KULLANILMAZ** ("tahakkuk" yok; *hak edilen*,
+  *tahsil edilen*, *bekleyen*). Eksik veri varsa cümle bunu açıkça söyler.
+
 **`src/tema.jsx` artık TESTTEN ÇAĞRILABİLİYOR** (t107). `.jsx` Node'dan import edilemediği
 için şirket kâr hesabı bu projede hiç ölçülememişti. Test dosyayı **esbuild ile** (projede
 zaten var, denetim 1b onu kullanıyor) çevirip geçici bir `.mjs` olarak `testler/` altına

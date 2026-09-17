@@ -1945,7 +1945,10 @@ function AyOdemeModal({ client, ayObj, hesaplar, onAddKaydi, onDeleteKaydi, onAd
   );
 }
 
-function OdemeTakvimi({ bekleyenTahsilatlar, onAddBekleyen, onDeleteBekleyen, clients, hesaplar, transferler, avanslar, odemeler, duzeltmeler, onUpdateClient, onAddOdemeKaydi, onDeleteOdemeKaydi, onAddFatura, onDeleteFatura, onTransfer, onDeleteTransfer, onAddHesap, onDeleteHesap, onUpdateHesap, onAddDuzeltme, onDeleteDuzeltme, firmaAdi }) {
+/* `hesaplariGizle`: bu ekran Finans'ın içine sekme olarak gömüldüğünde Hesap Bakiyeleri
+ * ORADA ZATEN VAR (Finans → Hesaplar). İki kez çizmek aynı tabloyu iki yerde gösterip
+ * "hangisi güncel" sorusu doğuruyordu — bileşen zaten tek, ama görünümü tekrarlıyordu. */
+function OdemeTakvimi({ hesaplariGizle, bekleyenTahsilatlar, onAddBekleyen, onDeleteBekleyen, clients, hesaplar, transferler, avanslar, odemeler, duzeltmeler, onUpdateClient, onAddOdemeKaydi, onDeleteOdemeKaydi, onAddFatura, onDeleteFatura, onTransfer, onDeleteTransfer, onAddHesap, onDeleteHesap, onUpdateHesap, onAddDuzeltme, onDeleteDuzeltme, firmaAdi }) {
   const [ayCount, setAyCount] = useState(6);
   const [activeCell, setActiveCell] = useState(null); // { client, ayObj }
   const [hatirlatmaClient, setHatirlatmaClient] = useState(null);
@@ -2040,7 +2043,7 @@ function OdemeTakvimi({ bekleyenTahsilatlar, onAddBekleyen, onDeleteBekleyen, cl
         <KpiCard label="BİRİKMİŞ TOPLAM BORÇ" value={fmt(toplamBirikmisBorc)} accent={T.danger} />
       </div>
 
-      <HesapBakiyeleri hesaplar={hesaplar} clients={clients} transferler={transferler} avanslar={avanslar} odemeler={odemeler} duzeltmeler={duzeltmeler} onTransfer={onTransfer} onDeleteTransfer={onDeleteTransfer} onAddHesap={onAddHesap} onDeleteHesap={onDeleteHesap} onUpdateHesap={onUpdateHesap} onAddDuzeltme={onAddDuzeltme} onDeleteDuzeltme={onDeleteDuzeltme} />
+      {!hesaplariGizle && <HesapBakiyeleri hesaplar={hesaplar} clients={clients} transferler={transferler} avanslar={avanslar} odemeler={odemeler} duzeltmeler={duzeltmeler} onTransfer={onTransfer} onDeleteTransfer={onDeleteTransfer} onAddHesap={onAddHesap} onDeleteHesap={onDeleteHesap} onUpdateHesap={onUpdateHesap} onAddDuzeltme={onAddDuzeltme} onDeleteDuzeltme={onDeleteDuzeltme} />}
 
       <Card style={{ padding: "12px 15px", marginBottom: 16, display: "flex", justifyContent: "flex-end", gap: 8 }}>
         {[6, 12].map((n) => (
@@ -8169,7 +8172,7 @@ const NAV_UST = ["dashboard", "planim"];
 const NAV_ALT = ["musteri-girisleri", "ayarlar"];
 const NAV_GRUPLARI = [
   { key: "musteri", label: "Müşteri",        icon: Users,      maddeler: ["musteriler", "musteri-hesaplari", "teklif", "reklamlar"] },
-  { key: "para",    label: "Para",           icon: Wallet,     maddeler: ["finans", "odeme-takvimi", "personel", "birikim", "uyelikler"] },
+  { key: "para",    label: "Para",           icon: Wallet,     maddeler: ["finans", "personel", "birikim", "uyelikler"] },
   { key: "uretim",  label: "Üretim",         icon: Camera,     maddeler: ["cekim-edit", "cekim-listesi", "gunluk-kontrol", "paylasimlar", "musteri-paneli"] },
 ];
 
@@ -8179,7 +8182,6 @@ const NAV = [
   { key: "musteriler", label: "Müşteriler", icon: Users },
   { key: "musteri-hesaplari", label: "Müşteri Hesapları", icon: KeyRound },
   { key: "finans", label: "Finans", icon: Wallet },
-  { key: "odeme-takvimi", label: "Ödeme Takvimi", icon: ListChecks },
   { key: "teklif", label: "Teklif & Sözleşme", icon: FileText },
   { key: "reklamlar", label: "Reklamlar", icon: Megaphone },
   { key: "paylasimlar", label: "Paylaşımlar", icon: Share2 },
@@ -9819,6 +9821,7 @@ export default function MarcusOS() {
    * kontrolün hiçbiri bunu yakalamadı — hiçbiri uygulamayı gerçekten ÇİZMİYOR.
    * Bu yüzden alanlar boş bir nesne üzerinden okunuyor. */
   const veriKaynagi = data || {};
+
   const operasyonOrtakProps = {
     acilacakIsId: gidilecekIs,
     clients: veriKaynagi.clients || [],
@@ -9870,6 +9873,39 @@ export default function MarcusOS() {
     // Kalıcı silme yerine Silinenler Kutusu'na taşınır (30 gün geri alınabilir).
     const kayit = (data && (data.bekleyenTahsilatlar || []).find((x) => String(x.id) === String(id))) || {};
     yumusakSil("bekleyenTahsilatlar", "Bekleyen tahsilat", id, String(kayit.musteri || ""));
+  };
+
+  /* ÖDEME TAKVİMİ ARTIK FİNANS'IN İÇİNDE — prop'lar TEK yerde toplanıyor.
+   *
+   * Ekran iki yerde çiziliyordu (personel ve yönetici görünümü) ve yirmi prop iki kez
+   * yazılıydı; Finans'a da gömülünce dört kopya olurdu. Bu projede tam bu sebeple bir
+   * yetenek yalnızca bir role eklenip diğerinde hiç görünmedi.
+   *
+   * `veriKaynagi` üzerinden okunuyor: `data` İLK RENDER'DA null ve doğrudan okumak
+   * uygulamayı siyah ekranla açtırmıştı. */
+  const odemeTakvimiProps = {
+    bekleyenTahsilatlar: veriKaynagi.bekleyenTahsilatlar || [],
+    onAddBekleyen: addBekleyen,
+    onDeleteBekleyen: deleteBekleyen,
+    clients: veriKaynagi.clients || [],
+    hesaplar: veriKaynagi.hesaplar,
+    transferler: veriKaynagi.hesapTransferleri,
+    avanslar: veriKaynagi.avanslar || [],
+    odemeler: veriKaynagi.personelOdemeleri || [],
+    duzeltmeler: veriKaynagi.hesapDuzeltmeleri || [],
+    onUpdateClient: (id, patch) => setOdemeGunuSafe(id, patch.odemeGunu),
+    onAddOdemeKaydi: addOdemeKaydi,
+    onDeleteOdemeKaydi: deleteOdemeKaydi,
+    onAddFatura: addFatura,
+    onDeleteFatura: deleteFatura,
+    onTransfer: transferEt,
+    onDeleteTransfer: deleteTransfer,
+    onUpdateHesap: updateHesap,
+    onAddDuzeltme: addHesapDuzeltme,
+    onDeleteDuzeltme: deleteHesapDuzeltme,
+    onAddHesap: addHesap,
+    onDeleteHesap: deleteHesap,
+    firmaAdi: veriKaynagi.firmaAdi,
   };
 
   const addVergi = (v) => setData((d) => ({ ...d, vergiTakvimi: [...d.vergiTakvimi, { ...v, id: nextId(d.vergiTakvimi) }] }));
@@ -10338,7 +10374,7 @@ export default function MarcusOS() {
     else if (r.type === "personel") setTab("personel");
     else if (r.type === "operasyon") setTab("cekim-edit");
     else if (r.type === "markalasma") setTab("cekim-edit");
-    else if (r.type === "hesap") setTab("odeme-takvimi");
+    else if (r.type === "hesap") setTab("finans");
     else setTab("finans");
   };
 
@@ -10443,7 +10479,10 @@ export default function MarcusOS() {
       { key: "dashboard", label: "Dashboard", izin: izinler.dashboard },
       { key: "musteriler", label: "Müşteriler", izin: izinler.musteriler },
       { key: "finans", label: "Finans", izin: izinler.finans },
-      { key: "odeme-takvimi", label: "Ödeme Takvimi", izin: izinler.odemeTakvimi },
+      /* FİNANS'I DA GÖREBİLİYORSA AYRI MADDE GEREKMİYOR — ekran artık Finans'ın içinde
+       * bir sekme. Yalnızca "Ödeme Takvimi" izni olup Finans izni OLMAYAN personel için
+       * duruyor; kaldırılsaydı o kişi ekrana hiç ulaşamazdı. */
+      { key: "odeme-takvimi", label: "Ödeme Takvimi", izin: izinler.odemeTakvimi && !izinler.finans },
       { key: "teklif", label: "Teklif & Sözleşme", izin: izinler.teklif },
       { key: "reklamlar", label: "Reklamlar", izin: izinler.reklamlar },
       { key: "paylasimlar", label: "Paylaşımlar", izin: izinler.paylasimlar },
@@ -10543,6 +10582,11 @@ export default function MarcusOS() {
             <Finans
               data={data}
               clients={data.clients || []}
+              /* YETKİ KAPISI: "Ödeme Takvimi" AYRI bir izin. Finans'ı görebilen
+                * herkes ödeme kayıtlarını görmemeli — sekme yalnızca izni olana çizilir. */
+              odemeTakvimiIcerigi={izinler.odemeTakvimi
+                ? <OdemeTakvimi hesaplariGizle {...odemeTakvimiProps} />
+                : null}
               onAddGelir={addGelir} onDeleteGelir={deleteGelir}
               onAddGider={addGider} onDeleteGider={deleteGider}
               onAddOfisGider={addOfisGider} onDeleteOfisGider={deleteOfisGider}
@@ -10999,6 +11043,7 @@ export default function MarcusOS() {
             <Finans
               data={data}
               clients={data.clients}
+              odemeTakvimiIcerigi={<OdemeTakvimi hesaplariGizle {...odemeTakvimiProps} />}
               onAddGelir={addGelir} onDeleteGelir={deleteGelir}
               onAddGider={addGider} onDeleteGider={deleteGider}
               onAddOfisGider={addOfisGider} onDeleteOfisGider={deleteOfisGider}
