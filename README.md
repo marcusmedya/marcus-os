@@ -5859,3 +5859,79 @@ koruması buraya da eklendi.
 | Başlangıç ayı öncesi de sayılsa | 1 |
 | Tahsilat da durum süzgecinden geçse | 1 |
 | **Gelir–gider asimetrisi geri konsa** | **3 (t107)** |
+
+## Güncelleme 179: Ön Muhasebe — Para Tek Ekranda, Raporlar PDF, Sade Anlatım
+
+**İstek:** "Tüm gider gelir ve karşılaştırmaları aynı yerde görmek daha mantıklı değil mi?
+Bu ödeme kayıtlarını PDF olarak da çıkarabilmek istiyorum. Muhasebeden hiç anlamayan bir
+insanın bile anlayacağı bir sistem oluştursak?"
+
+### Para dört ekrana dağılmıştı
+
+Ölçüm: Finans · Ödeme Takvimi · Personel→Freelancer · Müşteri kartı. Üstelik
+`HesapBakiyeleri` **aynı bileşen iki ekranda birden** çiziliyordu.
+
+Ödeme Takvimi artık **Finans'ın içinde bir sekme**. Gömülü hâlde hesap tablosu
+tekrarlanmıyor (`hesaplariGizle`).
+
+**Yetki korundu — bu önemliydi.** `odemeTakvimi` ayrı bir izin; körü körüne birleştirmek,
+Finans'ı görebilen her personele ödeme kayıtlarını açardı. Sekmenin içeriğini çağıran
+taraf veriyor ve personel görünümünde `izinler.odemeTakvimi` kapısından geçiyor. Ayrı menü
+maddesi "Ödeme Takvimi izni var, Finans izni yok" personeli için duruyor — kaldırılsaydı o
+kişi ekrana hiç ulaşamazdı.
+
+### Üç yazdırılabilir rapor (PDF)
+
+**Finans → Raporlar (PDF)** sekmesi. Dönem seç (ya da "tüm kayıtlar"), yazdır:
+
+- **Tahsilat Dökümü** — kimden ne kadar aldın: tarih, marka, hesap, tutar, toplam
+- **Ödeme Dökümü** — kime ne kadar verdin: freelancer ödemeleri, avanslar, personel
+  ödemeleri. Avans ile ödeme **ayrı tür** olarak yazılıyor; ayrım kaybolsa hak ediş iki kez
+  ödenmiş sanılırdı.
+- **Aylık Gelir–Gider Özeti** — tek sayfa, muhasebeciye ya da ortağa verilebilecek belge
+
+**Yeni paket gerekmedi:** belge yeni pencerede açılıp yazdırma kutusu geliyor, oradan "PDF
+olarak kaydet" — müşteri ekstresiyle aynı yol.
+
+İki şey belgelerde açıkça yazıyor: **ofis gideri/üyelikler ödeme dökümünde YOK** (tarihli
+kaydı tutulmuyor) ve **tarihsiz kayıtlar rapora girmedi** (kaç tane olduğu söyleniyor).
+Eksik bir dökümü tam gibi göstermek, hiç göstermemekten kötüdür.
+
+### Sade anlatım katmanı
+
+Finans → Özet'in en üstünde, rakamlardan önce cümleler:
+
+> *"Bu ay 5 markadan 155.000 ₺ hak ettin. 120.000 ₺'sini tahsil ettin. 35.000 ₺ hâlâ
+> bekliyor. Bu ay 48.000 ₺ gider yazdın. Geriye 107.000 ₺ kaldı."*
+
+Altında, sürekli karşılaştırılan iki rakamın neden tutmadığı: *kasa geçmişten bugüne
+biriken nakit, kâr yalnızca bu ayın hesabı.*
+
+"Tahakkuk" gibi kelimeler hiç geçmiyor. Eksik veri varsa (ücreti girilmemiş freelancer işi)
+cümle bunu söylüyor — sessiz kalmak gideri düşük, kârı yüksek gösterirdi.
+
+### Tarama yine gerçek bir hatayı yakaladı — bu sefer benimkini
+
+`odemeTakvimiProps` nesnesini yazarken kullandığım desen `deleteBekleyen`'in ilk satırına
+uydu ve bloğu **o fonksiyonun gövdesinin içine** koydu. Sonuç: nesne dışarıdan görünmez,
+`deleteBekleyen` bozuk. **`npm run build` geçti, 2503 kontrol geçti, 24 denetim geçti.**
+Hatayı yalnızca "tanımlanmamış isme çağrı" taraması gördü.
+
+Ayrıca aynı nesneyi ilk koyduğum yerde `addBekleyen` ondan **sonra** tanımlıydı (TDZ) —
+onu da bağımlılık sırası kontrolüyle yakaladım. İki hata da üretime çıkmadan kapandı.
+
+Bu tarama hâlâ kalıcı bir denetim olarak kurulu **değil**; bu oturumda iki gerçek hata
+yakaladı.
+
+### Ölçüm
+
+`testler/t109.mjs` — 40 kontrol:
+
+| Korumayı kaldırınca | Düşen |
+|---|---|
+| Eski `ay` alanı okunmasa (yalnızca gün) | 14 |
+| Tarihsiz kayıt sessizce atlansa | 3 |
+| Avans ile ödeme aynı tür yazılsa | 1 |
+| Belgede metin kaçırılmasa (HTML enjeksiyonu) | 1 |
+| Sade anlatımda eksik veri söylenmese | 1 |
+| Hak edilen/tahsil edilen tek cümlede birleşse | 1 |

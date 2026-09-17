@@ -7,6 +7,9 @@ import {
   inputStyle, saveBtnStyle, cancelBtnStyle, iconBtnStyle, fmtShort,
 } from "./tema.jsx";
 import { aylikOzet } from "../lib/aylik-ozet.js";
+import { tahsilatDokumu, odemeDokumu } from "../lib/para-hareketleri.js";
+import { buAyinCumleleri, kasaKarFarki } from "../lib/sade-ozet.js";
+import { tahsilatRaporuHtml, odemeRaporuHtml, aylikOzetRaporuHtml } from "../lib/muhasebe-belgesi.js";
 
 /**
  * FİNANS — beş sekme.
@@ -46,6 +49,8 @@ const FINANS_SEKMELERI = [
   { key: "ozet", label: "Özet" },
   { key: "gelir-gider", label: "Gelir-Gider" },
   { key: "karsilastirma", label: "Ay Ay Karşılaştırma" },
+  { key: "tahsilat", label: "Tahsilatlar" },
+  { key: "raporlar", label: "Raporlar (PDF)" },
   { key: "hesaplar", label: "Hesaplar" },
   { key: "vergi", label: "Vergi & Arşiv" },
 ];
@@ -295,6 +300,124 @@ function AyAyKarsilastirma({ data, chartData }) {
   );
 }
 
+
+/* ------------------------------------------------------------------ */
+/* RAPORLAR — yazdırılabilir (PDF) dökümler                             */
+/* ------------------------------------------------------------------ */
+/**
+ * Belgelerin HTML'i `lib/muhasebe-belgesi.js`'te (saf, testten çağrılabiliyor); burada
+ * yalnızca dönem seçimi ve pencere açma var — pencere açmak zaten sınanamaz.
+ *
+ * PDF için yeni paket YOK: müşteri ekstresiyle aynı yol — yeni pencere, sonra tarayıcının
+ * yazdırma kutusu ("PDF olarak kaydet").
+ */
+function Raporlar({ data }) {
+  const buAy = monthKey();
+  const [bas, setBas] = useState(buAy);
+  const [bit, setBit] = useState(buAy);
+  const [tumZamanlar, setTumZamanlar] = useState(false);
+
+  const sinir = tumZamanlar ? {} : { bas, bit };
+  const firmaAdi = data.firmaAdi || "";
+  const bugun = bugunISOTarih();
+
+  const yazdir = (html) => {
+    const win = window.open("", "_blank");
+    if (!win) { window.alert("Yeni pencere açılamadı — tarayıcının pop-up engelleyicisini kontrol et."); return; }
+    win.document.write(html);
+    win.document.close();
+    win.focus();
+    /* Küçük gecikme: içerik yerleşmeden yazdırma kutusu açılırsa belge boş basılıyor.
+     * Ekstre yazdırma da aynı gecikmeyi kullanıyor. */
+    setTimeout(() => win.print(), 300);
+  };
+
+  const tahsilat = () => yazdir(tahsilatRaporuHtml({
+    dokum: tahsilatDokumu({ clients: data.clients, hesaplar: data.hesaplar, ...sinir }),
+    firmaAdi, bugun, ...sinir,
+  }));
+
+  const odeme = () => yazdir(odemeRaporuHtml({
+    dokum: odemeDokumu({
+      odemeler: data.personelOdemeleri, avanslar: data.avanslar,
+      hesaplar: data.hesaplar, ...sinir,
+    }),
+    firmaAdi, bugun, ...sinir,
+  }));
+
+  const aylik = () => {
+    const live = computeLive(data);
+    const aktifSayi = (data.clients || []).filter((c) => c.durum !== "ayrildi" && c.durum !== "donduruldu").length;
+    yazdir(aylikOzetRaporuHtml({
+      ozet: aylikOzet({
+        clients: data.clients, cekimIsleri: data.cekimIsleri,
+        isUcretleri: data.isUcretleri, isUcretDetaylari: data.isUcretDetaylari, enFazlaAy: 12,
+      }),
+      cumleler: buAyinCumleleri({ live, markaSayisi: aktifSayi }),
+      firmaAdi, bugun,
+    }));
+  };
+
+  const dugme = { ...addBtnStyle, padding: "12px 16px", fontSize: 13 };
+  const kutu = { padding: "8px 10px", borderRadius: 8, border: `1px solid ${T.border}`,
+    background: T.surfaceRaised, color: T.text, fontSize: 12.5, fontFamily: "Inter, sans-serif" };
+
+  const RaporSatiri = ({ ad, aciklama, onTikla }) => (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14,
+      padding: "14px 0", borderTop: `1px solid ${T.border}`, flexWrap: "wrap" }}>
+      <div style={{ flex: "1 1 260px" }}>
+        <div style={{ fontSize: 13.5, fontWeight: 700, color: T.text, fontFamily: "Inter, sans-serif" }}>{ad}</div>
+        <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter, sans-serif", lineHeight: 1.6, marginTop: 3 }}>
+          {aciklama}
+        </div>
+      </div>
+      <button style={dugme} onClick={onTikla}>Yazdır / PDF</button>
+    </div>
+  );
+
+  return (
+    <Card style={{ padding: "18px 22px", marginBottom: 14 }}>
+      <SectionTitle>Raporlar</SectionTitle>
+      <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter, sans-serif",
+        lineHeight: 1.6, marginBottom: 14 }}>
+        Rapor yeni bir pencerede açılır ve yazdırma kutusu gelir. Oradan
+        <strong> "Hedef: PDF olarak kaydet"</strong> seçersen dosya olarak indirirsin.
+      </div>
+
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12.5,
+          color: T.textDim, fontFamily: "Inter, sans-serif", cursor: "pointer" }}>
+          <input type="checkbox" checked={tumZamanlar} onChange={(e) => setTumZamanlar(e.target.checked)} />
+          Tüm kayıtlar
+        </label>
+        {!tumZamanlar && (
+          <>
+            <input type="month" value={bas} max={bit} onChange={(e) => setBas(e.target.value)} style={kutu} />
+            <span style={{ color: T.textFaint, fontSize: 12 }}>—</span>
+            <input type="month" value={bit} min={bas} onChange={(e) => setBit(e.target.value)} style={kutu} />
+          </>
+        )}
+      </div>
+
+      <RaporSatiri
+        ad="Tahsilat Dökümü"
+        aciklama="Kimden ne kadar aldın: tarih, marka, hesap, tutar ve toplam."
+        onTikla={tahsilat}
+      />
+      <RaporSatiri
+        ad="Ödeme Dökümü"
+        aciklama="Kime ne kadar verdin: freelancer ödemeleri, avanslar, personel ödemeleri. Ofis gideri ve üyelikler bu dökümde YOK — onların tarihli kaydı tutulmuyor."
+        onTikla={odeme}
+      />
+      <RaporSatiri
+        ad="Aylık Gelir–Gider Özeti"
+        aciklama="Tek sayfa: ay ay hak edilen, tahsil edilen, bekleyen ve freelancer gideri. Muhasebeciye ya da ortağına verilebilecek belge."
+        onTikla={aylik}
+      />
+    </Card>
+  );
+}
+
 export function hesapBakiyesi(hesapId, veri = {}) {
   const { clients, transferler, avanslar, odemeler, hesaplar, duzeltmeler } = veri;
   const hesap = (hesaplar || []).find((h) => h.id === hesapId);
@@ -537,7 +660,7 @@ export function HesapBakiyeleri({ hesaplar, clients, transferler, avanslar, odem
   );
 }
 
-export function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, onDeleteGider, onAddOfisGider, onDeleteOfisGider, onAddBekleyen, onDeleteBekleyen, onAddVergi, onDeleteVergi, onAddMonth, onDeleteMonth, onCloseMonth, onExport, onTransfer, onDeleteTransfer, onAddHesap, onDeleteHesap, onUpdateHesap, onAddDuzeltme, onDeleteDuzeltme }) {
+export function Finans({ data, clients, odemeTakvimiIcerigi, onAddGelir, onDeleteGelir, onAddGider, onDeleteGider, onAddOfisGider, onDeleteOfisGider, onAddBekleyen, onDeleteBekleyen, onAddVergi, onDeleteVergi, onAddMonth, onDeleteMonth, onCloseMonth, onExport, onTransfer, onDeleteTransfer, onAddHesap, onDeleteHesap, onUpdateHesap, onAddDuzeltme, onDeleteDuzeltme }) {
   const [sekme, setSekme] = useState("ozet");
   const [acikGider, setAcikGider] = useState(null); // Para Nereye Gidiyor: açık kalem
   const { monthly, gelirKalemleri, giderKalemleri, ofisGiderleri, bekleyenTahsilatlar, vergiTakvimi } = data;
@@ -574,6 +697,31 @@ export function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, o
 
       {sekme === "ozet" && (
         <>
+          {/* SADE ANLATIM — rakamlardan ÖNCE, cümlelerle.
+            *
+            * Ekran doğru rakamları gösteriyordu ama hangisinin ne demek olduğunu hiçbir
+            * yerde yazmıyordu; "Kasada" ile "Bu ay kazanç" yan yana duruyor, tutmuyorlar
+            * ve sebebi yazmıyordu. Cümleler `lib/sade-ozet.js`'te — muhasebe terimi
+            * kullanmıyor ve eksik veri varsa bunu açıkça söylüyor. */}
+          <Card style={{ padding: "18px 22px", marginBottom: 14 }}>
+            <div style={{ fontSize: 15, lineHeight: 1.85, color: T.text, fontFamily: "Inter, sans-serif" }}>
+              {buAyinCumleleri({
+                live,
+                markaSayisi: (clients || []).filter((c) => c.durum !== "ayrildi" && c.durum !== "donduruldu").length,
+                bicim: fmt,
+              }).map((c) => (
+                <span key={c.metin} style={{
+                  color: c.tur === "uyari" ? T.warning : c.tur === "sonuc" ? T.text : T.textDim,
+                  fontWeight: c.tur === "sonuc" ? 700 : 400,
+                }}>{c.metin}{" "}</span>
+              ))}
+            </div>
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}`,
+              fontSize: 11.5, color: T.textFaint, fontFamily: "Inter, sans-serif", lineHeight: 1.7 }}>
+              {kasaKarFarki({ kasa: kasaToplami, net: live.net, bicim: fmt }).metin}
+            </div>
+          </Card>
+
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 14 }}>
             <KpiCard label="KASADA" value={fmt(kasaToplami)} accent={T.accentText} buyuk />
             <KpiCard label="BU AY KAZANÇ" value={fmt(live.net)} accent={live.net >= 0 ? T.success : T.danger} buyuk />
@@ -717,6 +865,19 @@ export function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, o
       )}
 
       {sekme === "karsilastirma" && <AyAyKarsilastirma data={data} chartData={chartData} />}
+
+      {sekme === "raporlar" && <Raporlar data={data} />}
+
+      {/* TAHSİLATLAR — içerik ÇAĞIRANDAN geliyor (`odemeTakvimiIcerigi`). Sebebi YETKİ:
+        * "Ödeme Takvimi" ayrı bir izin; Finans'ı görebilen herkes ödeme kayıtlarını
+        * görmemeli. İzni çağıran taraf biliyor, o yüzden kararı da orada. */}
+      {sekme === "tahsilat" && (odemeTakvimiIcerigi || (
+        <Card style={{ padding: "18px 22px" }}>
+          <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter, sans-serif", lineHeight: 1.6 }}>
+            Bu bölümü görmek için "Ödeme Takvimi" yetkisi gerekiyor.
+          </div>
+        </Card>
+      ))}
 
       {sekme === "gelir-gider" && (
         <>
