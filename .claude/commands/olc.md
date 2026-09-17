@@ -44,9 +44,17 @@ korumanın kapsadığı gerçek hata değil.
 **4 · Yeniden ölç**
 ```
 ./testler/sunucutestleri.sh 2>&1 | tail -3
-bash testler/hepsinidenetle.sh 2>&1 | grep '^✗'; echo "denetim çıkışı: $?"
+bash testler/hepsinidenetle.sh 2>&1 | grep '^✗'; echo "denetim çıkışı: ${PIPESTATUS[0]}"
 ```
 Düşen kontrol sayısı = taban − yeni. Düşen denetimlerin numaralarını yaz.
+
+> **`$?` DEĞİL, `${PIPESTATUS[0]}`.** Bir boru hattından sonra `$?` SON komutun —
+> burada `grep`'in — çıkış kodunu verir, denetim betiğininkini değil. Üstelik `grep`
+> hiçbir şey bulamayınca **1** döner: bu satır bir süre `$?` kullanıyordu ve raporu
+> TERS yazıyordu — temiz çalıştırmada "çıkış 1", denetim düştüğünde "çıkış 0".
+> `${PIPESTATUS[0]}` boru hattının BİRİNCİ komutunun kodunu verir.
+> Boruya hiç girmeyecekse `bash testler/hepsinidenetle.sh > /dev/null 2>&1; echo $?`
+> da doğrudur — `>` bir yönlendirmedir, boru değil.
 
 **5 · GERİ AL ve geri aldığını DOĞRULA**
 ```
@@ -67,8 +75,8 @@ Sayı 1. adımdakiyle birebir aynı olmalı.
 ```
 Koruma      : <bir cümleyle ne>
 Kırılan yer : <dosya:satır> — <gerçek hata şekli>
-Taban       : 2503 kontrol · 25 denetim
-Kırıkken    : 2497 kontrol · 24 denetim (denetim 25 düştü)
+Taban       : 2503 kontrol · 26 denetim
+Kırıkken    : 2497 kontrol · 25 denetim (denetim 25 düştü)
 DÜŞEN       : 6 kontrol + 1 denetim
 Geri alındı : md5 aynı, git status temiz
 ```

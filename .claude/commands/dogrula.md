@@ -1,5 +1,5 @@
 ---
-description: Marcus OS doğrulama zinciri — 25 denetim + sunucu testleri + derleme, her adım ayrı raporlanır
+description: Marcus OS doğrulama zinciri — 26 denetim + sunucu testleri + derleme, her adım ayrı raporlanır
 allowed-tools: Bash(bash testler/hepsinidenetle.sh), Bash(./testler/sunucutestleri.sh), Bash(npm run build), Bash(ls api/*.js | wc -l), Bash(git status --porcelain), Read, Grep
 ---
 
@@ -68,7 +68,7 @@ ayrıca belirt: `data` ilk render'da `null`'dur.
 Şu biçimde yaz, uydurma:
 
 ```
-1 statik denetim    → çıkış 0 · 25/25
+1 statik denetim    → çıkış 0 · 26/26
 2 sunucu testleri   → çıkış 0 · 2503 kontrol
 3 derleme           → çıkış 0
 4 api fonksiyonu    → 11/12
