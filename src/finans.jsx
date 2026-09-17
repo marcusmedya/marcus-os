@@ -6,6 +6,7 @@ import {
   TR_AYLAR_KISA, TR_AYLAR, clientFaturaliTutar, clientPaymentStatus, monthKey, bugunISOTarih, addBtnStyle,
   inputStyle, saveBtnStyle, cancelBtnStyle, iconBtnStyle, fmtShort,
 } from "./tema.jsx";
+import { aylikOzet } from "../lib/aylik-ozet.js";
 
 /**
  * FİNANS — beş sekme.
@@ -44,6 +45,7 @@ const MONTH_FIELDS = [
 const FINANS_SEKMELERI = [
   { key: "ozet", label: "Özet" },
   { key: "gelir-gider", label: "Gelir-Gider" },
+  { key: "karsilastirma", label: "Ay Ay Karşılaştırma" },
   { key: "hesaplar", label: "Hesaplar" },
   { key: "vergi", label: "Vergi & Arşiv" },
 ];
@@ -175,6 +177,124 @@ const TR_GUNLER = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
  * Bakiye hâlâ hiçbir yerde saklanmıyor — elle girdiğin rakam bile bir "düzeltme kaydı"
  * olarak tutuluyor. Bu sayede her işlem geri alınabilir ve neyin nereden geldiği izlenebilir.
  */
+
+/* ------------------------------------------------------------------ */
+/* AY AY GELİR–GİDER                                                    */
+/* ------------------------------------------------------------------ */
+/**
+ * Geçmiş, "Ayı kapat" fotoğraflarından DEĞİL kayıtların kendisinden türetiliyor
+ * (`lib/aylik-ozet.js`). Düğmeye hiç basılmamış aylar da görünüyor.
+ *
+ * NE GÖSTERİLMİYOR, BİLEREK: sabit giderlerin (ofis, maaş, üyelik, gider kalemleri)
+ * ay ay geçmişi belgede TUTULMUYOR — yalnızca bugünkü değerleri var. Geçmiş bir aya
+ * bugünkü kirayı yazmak, o ay farklıysa yalan üretir. Bu yüzden hiç yazılmıyor ve
+ * tablonun altında sebebi söyleniyor.
+ */
+function AyAyKarsilastirma({ data, chartData }) {
+  const ozet = useMemo(() => aylikOzet({
+    clients: data.clients,
+    cekimIsleri: data.cekimIsleri,
+    isUcretleri: data.isUcretleri,
+    isUcretDetaylari: data.isUcretDetaylari,
+    enFazlaAy: 12,
+  }), [data.clients, data.cekimIsleri, data.isUcretleri, data.isUcretDetaylari]);
+
+  const AY_ADI = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
+  const ayEtiketi = (ay) => {
+    const [y, a] = String(ay).split("-").map(Number);
+    return `${AY_ADI[a - 1] || ay} ${y}`;
+  };
+
+  const bs = { padding: "0 10px 8px", fontSize: 10.5, color: T.textFaint, fontWeight: 700,
+    letterSpacing: 0.3, fontFamily: "Inter, sans-serif", whiteSpace: "nowrap" };
+  const hc = { padding: "10px", textAlign: "right", fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: 13, whiteSpace: "nowrap" };
+
+  return (
+    <>
+      <Card style={{ padding: "18px 22px", marginBottom: 14 }}>
+        <SectionTitle>Ay Ay Gelir–Gider</SectionTitle>
+        <div style={{ fontSize: 11.5, color: T.textFaint, fontFamily: "Inter, sans-serif",
+          lineHeight: 1.6, marginBottom: 14 }}>
+          <strong>Hak edilen</strong> o ayın hizmet bedeli — o ayki ücretle hesaplanır, bugünküyle
+          değil. <strong>Tahsil edilen</strong> gerçekten alınan para. <strong>Fark</strong> o aydan
+          hâlâ tahsil edilmemiş olan.
+        </div>
+
+        {ozet.satirlar.length === 0 ? (
+          <div style={{ fontSize: 12.5, color: T.textFaint }}>Henüz kayıt yok.</div>
+        ) : (
+          <div className="marcus-table-wrap" style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 540 }}>
+              <thead>
+                <tr>
+                  <th style={{ ...bs, textAlign: "left" }}>AY</th>
+                  <th style={{ ...bs, textAlign: "right" }}>HAK EDİLEN</th>
+                  <th style={{ ...bs, textAlign: "right" }}>TAHSİL EDİLEN</th>
+                  <th style={{ ...bs, textAlign: "right" }}>FARK</th>
+                  <th style={{ ...bs, textAlign: "right" }}>FREELANCER GİDERİ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ozet.satirlar.map((r) => (
+                  <tr key={r.ay} style={{ borderTop: `1px solid ${T.border}` }}>
+                    <td style={{ padding: "10px", fontSize: 13, color: T.text,
+                      fontFamily: "Inter, sans-serif", fontWeight: 600, whiteSpace: "nowrap" }}>
+                      {ayEtiketi(r.ay)}
+                    </td>
+                    <td style={{ ...hc, color: T.text }}>{fmt(r.tahakkuk)}</td>
+                    <td style={{ ...hc, color: r.tahsilat > 0 ? T.success : T.textFaint }}>{fmt(r.tahsilat)}</td>
+                    <td style={{ ...hc, color: r.fark > 0 ? T.warning : T.textFaint }}>{fmt(r.fark)}</td>
+                    <td style={{ ...hc, color: r.freelancerGideri > 0 ? T.danger : T.textFaint }}>
+                      {fmt(r.freelancerGideri)}
+                    </td>
+                  </tr>
+                ))}
+                <tr style={{ borderTop: `2px solid ${T.border}` }}>
+                  <td style={{ padding: "10px", fontSize: 12, color: T.textFaint,
+                    fontFamily: "Inter, sans-serif", fontWeight: 700 }}>TOPLAM</td>
+                  <td style={{ ...hc, color: T.text, fontWeight: 700 }}>{fmt(ozet.toplam.tahakkuk)}</td>
+                  <td style={{ ...hc, color: T.success, fontWeight: 700 }}>{fmt(ozet.toplam.tahsilat)}</td>
+                  <td style={{ ...hc, color: T.warning, fontWeight: 700 }}>{fmt(ozet.toplam.fark)}</td>
+                  <td style={{ ...hc, color: T.danger, fontWeight: 700 }}>{fmt(ozet.toplam.freelancerGideri)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* NE GÖSTERİLMEDİĞİ AÇIKÇA YAZILIYOR — eksik bir tabloyu tam sanmak,
+          * hiç tablo olmamasından kötüdür. */}
+        <div style={{ marginTop: 14, fontSize: 11.5, color: T.textFaint,
+          fontFamily: "Inter, sans-serif", lineHeight: 1.7, borderTop: `1px solid ${T.border}`,
+          paddingTop: 12 }}>
+          <strong>Bu tabloda sabit giderler yok.</strong> Ofis gideri, maaşlar, üyelikler ve
+          gider kalemlerinin ay ay geçmişi sistemde tutulmuyor — yalnızca bugünkü tutarları
+          var. Geçmiş bir aya bugünkü kirayı yazmak o ay farklıysa yanlış olurdu. Aşağıdaki
+          "Ay kapanışları" tablosu, "Ayı kapat" dediğin aylarda o günkü toplam gideri saklıyor.
+          <br />
+          <strong>Ayrılan ya da dondurulan markalar:</strong> hangi ay ayrıldıkları kayıtlı
+          olmadığı için geçmiş aylarda yalnızca <em>ödeme kaydı bulunan</em> aylarda sayılıyorlar.
+          {ozet.toplam.isUcretiEksik > 0 && (
+            <>
+              <br />
+              <span style={{ color: T.warning }}>
+                Freelancer gideri <strong>eksik</strong>: {ozet.toplam.isUcretiEksik} iş–kişi
+                eşleşmesinde iş başı ücret tanımlı değil ve sıfır sayıldı.
+              </span>
+            </>
+          )}
+        </div>
+      </Card>
+
+      {/* AY KAPANIŞLARI — bu tablo YAZILMIŞ ama hiçbir yere bağlanmamıştı, yani
+        * hiç görünmüyordu. Türetilen tablonun tamamlayıcısı: sabit giderler yalnızca
+        * burada, o gün kaydedilmiş hâliyle duruyor. */}
+      <Karsilastirma chartData={chartData} />
+    </>
+  );
+}
+
 export function hesapBakiyesi(hesapId, veri = {}) {
   const { clients, transferler, avanslar, odemeler, hesaplar, duzeltmeler } = veri;
   const hesap = (hesaplar || []).find((h) => h.id === hesapId);
@@ -595,6 +715,8 @@ export function Finans({ data, clients, onAddGelir, onDeleteGelir, onAddGider, o
           </Card>
         </>
       )}
+
+      {sekme === "karsilastirma" && <AyAyKarsilastirma data={data} chartData={chartData} />}
 
       {sekme === "gelir-gider" && (
         <>

@@ -183,7 +183,11 @@ export function computeLive(data) {
   const faturaliKdvDahil = faturaliCiro + kdvTutari;
   const giderKalemToplam = (data.giderKalemleri || []).reduce((s, g) => s + (Number(g.tutar) || 0), 0);
   const ofisGiderToplam = (data.ofisGiderleri || []).reduce((s, g) => s + (Number(g.tutar) || 0), 0);
-  const clientCosts = clients.reduce((s, c) => s + (c.maliyetler || []).reduce((s2, m) => s2 + (Number(m.tutar) || 0), 0), 0);
+  /* MALİYET DE AKTİF MÜŞTERİYLE SINIRLI — bu satır `clients` (HEPSİ) diyordu ve gelirle
+   * ASİMETRİKTİ: bir markayı dondurduğunda geliri ciro'dan düşüyor ama AYLIK MALİYETİ
+   * kârdan düşmeye devam ediyordu. Yani bıraktığın müşteri her ay zarar yazmayı
+   * sürdürüyordu. Sahadan bildirildi ("dondurduğum firmalarda düşsün"). */
+  const clientCosts = activeClients.reduce((s, c) => s + (c.maliyetler || []).reduce((s2, m) => s2 + (Number(m.tutar) || 0), 0), 0);
   /* PERSONEL GİDERİ KALEM KALEM — toplam zaten hesaplanıyordu ama ekranda tek rakam olarak
    * görünüyordu, "bu ₺X neyin toplamı?" sorusu cevapsız kalıyordu. Parçalar ayrı ayrı
    * döndürülüyor; toplam aynı kalıyor, muhasebe değişmiyor. */
