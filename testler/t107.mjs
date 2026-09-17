@@ -116,7 +116,7 @@ await bolum("4) EKSİK ÜCRET BİLDİRİLİYOR", 3, () => {
 });
 
 /* ---------------------------------------------------------------- */
-await bolum("5) AYRILMIŞ MÜŞTERİ CİROYA GİRMEZ", 3, () => {
+await bolum("5) AYRILMIŞ MÜŞTERİ CİROYA GİRMEZ", 6, () => {
   const v = computeLive(dunya({
     clients: [
       { id: 1, ad: "Animed", durum: "aktif", aylikUcret: 30000 },
@@ -127,6 +127,25 @@ await bolum("5) AYRILMIŞ MÜŞTERİ CİROYA GİRMEZ", 3, () => {
   t("yalnızca aktif marka sayılıyor", v.ciro === 30000, `gelen: ${v.ciro}`);
   t("ayrılan markanın ücreti ciroyu şişirmiyor", v.recurring === 30000);
   t("kâr da doğru", v.net === 30000);
+
+  /* GELİR–GİDER SİMETRİSİ: bir markayı dondurduğunda geliri düşüyordu ama AYLIK
+   * MALİYETİ kârdan düşmeye devam ediyordu. Yani bıraktığın müşteri her ay zarar
+   * yazmayı sürdürüyordu. Sahadan bildirildi. */
+  const maliyetli = computeLive(dunya({
+    clients: [
+      { id: 1, ad: "Animed", durum: "aktif", aylikUcret: 30000,
+        maliyetler: [{ id: 1, kalem: "Prodüksiyon", tutar: 4000 }] },
+      { id: 2, ad: "Donan", durum: "donduruldu", aylikUcret: 50000,
+        maliyetler: [{ id: 1, kalem: "Prodüksiyon", tutar: 9000 }] },
+    ],
+  }));
+  t("aktif markanın maliyeti sayılıyor", maliyetli.clientCosts === 4000,
+    `gelen: ${maliyetli.clientCosts}`);
+  t("DONDURULAN markanın maliyeti ARTIK sayılmıyor",
+    maliyetli.clientCosts === 4000 && maliyetli.gider === 4000,
+    `gider: ${maliyetli.gider} — 13000 çıkıyorsa donmuş müşteri hâlâ zarar yazıyor`);
+  t("kâr simetrik", maliyetli.net === 26000,
+    `gelen: ${maliyetli.net} — geliri düşen markanın gideri de düşmeli`);
 });
 
 /* ---------------------------------------------------------------- */

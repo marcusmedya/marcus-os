@@ -5790,3 +5790,72 @@ yanlış" sınıfındaydı ve hiçbiri ölçülemiyordu. Ölçüm: **freelancer 
 | Teslim edilmemiş iş de sayılsa | 4 (t106) |
 | Sabit ücret ikisine birden yazılsa | 2 (t106) |
 | Ücreti tanımsız iş sessizce geçilse | 2 (t106) |
+
+## Güncelleme 178: Dondurulan Markanın Gideri de Düşüyor + Ay Ay Karşılaştırma
+
+**İstek:** "Dondurduğum aktif olmayan firmalarda düşsün. Ve her ay gelir ve gider
+kayıtları karşılaştırmaları olsun istiyorum."
+
+### 1. Gelir–gider asimetrisi (düzeltildi)
+
+`computeLive` içinde gelir `activeClients` ile, **maliyet ise `clients` (HEPSİ)** ile
+hesaplanıyordu. Sonucu: bir markayı dondurduğunda geliri ciro'dan düşüyor ama **aylık
+maliyeti kârdan düşmeye devam ediyordu**. Yani bıraktığın müşteri her ay zarar yazmayı
+sürdürüyordu.
+
+Tek kelimelik düzeltme (`clients` → `activeClients`), ama t107 ile ölçüldü: asimetri geri
+konunca **3 kontrol düşüyor**.
+
+### 2. Ay ay gelir–gider karşılaştırması (yeni)
+
+**Finans → Ay Ay Karşılaştırma** sekmesi. Her ay için: *hak edilen* (tahakkuk),
+*tahsil edilen*, *fark* ve *freelancer gideri*.
+
+Geçmiş, **"Ayı kapat" fotoğrafından değil kayıtların kendisinden** türetiliyor
+(`lib/aylik-ozet.js`). Eski yol düğmeye basıldığı andaki anlık görüntüydü: ayın 10'unda
+basılırsa o ay eksik, hiç basılmazsa o ay geçmişte hiç yoktu ve tahsilat zaten
+saklanmıyordu. Artık düğmeye hiç basılmamış aylar da görünüyor.
+
+Üç kural, üçü de "uydurma rakam üretme" ilkesinden:
+
+- **Tahakkuk o ayın ücretiyle hesaplanıyor**, bugünküyle değil. Ücret 60.000'den
+  45.000'e düşmüşse Haziran hâlâ 60.000 görünür — yoksa tahsil edilmiş para "fazla ödeme"
+  sanılırdı.
+- **Ayrılan/dondurulan markanın bitiş ayı kayıtlı değil.** Geçmiş aylarda ancak kanıt
+  varsa sayılıyor: o ay ödeme kaydı varsa evet, yoksa hayır. Ne zaman ayrıldığını bilmeden
+  tahakkuk yazmak, fatura uydurmak olurdu. **Tahsilat bu süzgeçten geçmiyor** — alınan
+  para alınmıştır, markanın bugünkü durumu ne olursa olsun.
+- **Sabit giderlerin ay ay geçmişi YOK** ve bu gizlenmiyor. Ofis, maaş, üyelik ve gider
+  kalemlerinin belgede yalnızca bugünkü tutarları var; geçmiş bir aya bugünkü kirayı
+  yazmak o ay farklıysa yalan üretir. Tablo bu kalemleri hiç göstermiyor ve altında
+  sebebini yazıyor. Tam aylık gider isteniyorsa yol, sabit giderleri **tarihli** kaydetmek
+  — ayrı ve daha büyük bir iş.
+
+### Yazılmış ama hiç bağlanmamış bir tablo daha bulundu
+
+`Karsilastirma` bileşeni ("Aylık & Yıllık Karşılaştırma") `src/finans.jsx` içinde
+**yazılıydı ama hiçbir yerde çizilmiyordu** — yani hiç görünmemişti. Bu oturumun
+**sekizinci** "bir ucu bağlanmış, diğeri bağlanmamış" bulgusu. Yeni sekmenin altına
+bağlandı: türetilen tablonun tamamlayıcısı, çünkü sabit giderler yalnızca orada, "Ayı
+kapat" denen aylarda kaydedilmiş hâliyle duruyor.
+
+### Kendi kodumda bulduğum açık
+
+Ölçüm sırasında ay aritmetiğini kasten bozduğumda test **sonsuz döngüye girdi** —
+tarayıcıda bu sekmenin kilitlenmesi demekti. `lib/ekstre.js`'te zaten olan üst sınır
+koruması buraya da eklendi.
+
+### Ölçüm
+
+`testler/t108.mjs` — 32 kontrol. Korumaları kaldırınca düşen:
+
+| Korumayı kaldırınca | Düşen |
+|---|---|
+| Dondurulmuş markaya geçmiş ay tahakkuku yazılsa | 4 |
+| Boş aylar da listelense | 2 |
+| Ay kaydırma yıl sınırını geçmese | 2 |
+| Tahakkuk bugünkü ücretle hesaplansa | 1 |
+| Ödeme kaydı "kesin kanıt" sayılmasa | 1 |
+| Başlangıç ayı öncesi de sayılsa | 1 |
+| Tahsilat da durum süzgecinden geçse | 1 |
+| **Gelir–gider asimetrisi geri konsa** | **3 (t107)** |

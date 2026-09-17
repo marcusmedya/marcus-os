@@ -598,6 +598,27 @@ markanın altına düşmez ve sessizce kaybolur; `sirketAylikIsMaliyeti` o ay te
 işi sayar. **Ücreti tanımsız kişi-iş SAYILIR ve ekranda söylenir** (`isUcretiEksik`) —
 sessizce sıfır yazmak gideri düşük, kârı yüksek gösterir. Dönem = işin TESLİM EDİLDİĞİ ay.
 
+**Gelir ve gider AYNI müşteri kümesinden hesaplanır** (`computeLive`). `clientCosts` bir
+süre `clients` (HEPSİ) diyordu, gelir ise `activeClients`: markayı dondurunca geliri
+düşüyor ama AYLIK MALİYETİ kârdan düşmeye devam ediyordu — bıraktığın müşteri her ay zarar
+yazıyordu. Yeni bir toplam eklerken hangi kümeyi kullandığına bak (t107 ölçüyor).
+
+**Ay ay gelir–gider — `lib/aylik-ozet.js`** (Finans → Ay Ay Karşılaştırma). Geçmiş,
+"Ayı kapat" düğmesiyle yazılan `monthly` FOTOĞRAFINDAN değil KAYITLARIN kendisinden
+türetiliyor; o düğmeye hiç basılmamış aylar da görünüyor. Üç kural:
+- **Tahakkuk O AYIN ücretiyle** (`ayinUcreti`), bugünküyle değil — yoksa ücret düşünce
+  geçmiş aylar da düşer ve tahsil edilmiş para "fazla ödeme" görünür.
+- **Ayrılan/dondurulan markanın BİTİŞ AYI KAYITLI DEĞİL.** Geçmiş aylarda ancak KANIT
+  varsa sayılır: o ay ödeme kaydı varsa evet, yoksa hayır. Ne zaman ayrıldığını bilmeden
+  tahakkuk yazmak fatura uydurmaktır. **Tahsilat bu süzgeçten geçmez** — alınan para
+  alınmıştır.
+- **SABİT GİDERLERİN AY AY GEÇMİŞİ YOK** (ofis, maaş, üyelik, gider kalemleri): belgede
+  yalnızca bugünkü değerleri var. Geçmiş aya bugünkü kirayı yazmak yalan üretir, bu yüzden
+  hiç yazılmıyor ve ekran sebebini söylüyor. İstenirse yol, sabit giderleri TARİHLİ
+  kaydetmektir — ayrı ve daha büyük bir iş.
+Ay döngüsünde **sonsuz döngü üst sınırı** var (`lib/ekstre.js` gibi): ölçüldü, koruma
+yokken bozuk bir ay aritmetiği testi sonsuza soktu — tarayıcıda bu kilitlenme demek.
+
 **`src/tema.jsx` artık TESTTEN ÇAĞRILABİLİYOR** (t107). `.jsx` Node'dan import edilemediği
 için şirket kâr hesabı bu projede hiç ölçülememişti. Test dosyayı **esbuild ile** (projede
 zaten var, denetim 1b onu kullanıyor) çevirip geçici bir `.mjs` olarak `testler/` altına
