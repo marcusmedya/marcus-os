@@ -5935,3 +5935,67 @@ yakaladı.
 | Belgede metin kaçırılmasa (HTML enjeksiyonu) | 1 |
 | Sade anlatımda eksik veri söylenmese | 1 |
 | Hak edilen/tahsil edilen tek cümlede birleşse | 1 |
+
+## Güncelleme 180: Denetim 25 + Koşucu Düşen Denetimi Gizlemiyor
+
+**İstek:** "@babel/parser'ın doğrudan kullanımını ve package.json'ı kontrol et, gerçekten
+gerekiyorsa devDependency olarak ekle, kilit dosyasını güncelle, denetimi çalıştır,
+uygulamanın işlevsel koduna dokunma."
+
+### Paket gerçekten gerekli miydi — evet
+
+`@babel/parser` ve `@babel/traverse` 7.29.8 sürümüyle **zaten kuruluydu ama yalnızca
+dolaylı** (`@vitejs/plugin-react` → `@babel/core`). Alternatif arandı: **esbuild AST
+vermiyor** (`parse` benzeri bir API'si yok), yani kapsam analizi yapamıyor. Denetim için
+ayrıştırıcı zorunlu.
+
+İkisi de `^7.29.8` ile devDependency olarak eklendi — **kurulu sürümle birebir aynı**.
+Kilit dosyası **yalnızca 2 satır** değişti; hiçbir mevcut paketin sürümü oynamadı.
+`src/`, `api/`, `lib/` altında tek satır değişiklik yok.
+
+### Denetim 25 — tanımlanmamış isme çağrı
+
+`testler/tanimsizIsim.mjs`. 74 dosya, 31.473 isim tarandı, **yanlış alarm yok**.
+
+Ölçüm — bu oturumda gerçekten yaşanmış iki hatayı geri koyunca:
+
+| Geri konan hata | Sonuç |
+|---|---|
+| `odemeTakvimiProps` yanlış fonksiyonun gövdesine düşsün | ✗ yakaladı |
+| `odemeTakvimiIcerigi` prop'u alınmasın (alt yazı hatasının sınıfı) | ✗ yakaladı |
+| Denetim hiçbir şey taramasın | ✗ kendini ele verdi |
+
+**Ne yakalamaz, açıkça:** ismin tanımlı olup DEĞERİNİN yanlış olduğu hataları. Siyah
+ekrana yol açan `data.clients` okuması böyleydi — `data` tanımlıydı, değeri `null`'dı.
+
+### Asıl bulgu: koşucu düşen denetimi GİZLİYORDU
+
+Her satır `komut > /dev/null && echo "✓ …"` biçimindeydi. Denetim düşünce çıktısı
+`/dev/null`'a gidiyor, `&& echo` çalışmıyor ve betik **hiçbir şey yazmadan** devam
+ediyordu. Yani bir denetimin düşmesi ile hiç çalışmaması ekranda AYNI görünüyordu.
+
+Sonucu: **denetim 24 dört sürüm boyunca düşüktü** (#118, #119, #120, #121) ve her birinde
+"24 denetim temiz" diye rapor edildi. Ben de öyle raporladım — kontrol yöntemim
+(`hepsinidenetle.sh | grep ✗`) hiçbir zaman bir şey bulamazdı, çünkü düşen denetim zaten
+hiçbir şey basmıyordu.
+
+Artık `denetle()` sarmalayıcısı düşen komutun **çıktısını basıyor**, sayaç tutuyor ve betik
+**1 ile çıkıyor**.
+
+### Görünürlük açılınca üç düşük denetim ortaya çıktı
+
+| # | Durum | Sebep |
+|---|---|---|
+| 18 sistem belgesi | **benim** | Test dosyası sayısı belgede bayattı (102 → 109) |
+| 17 erişilemeyen ad | **yanlış alarm** | Yıkımlı ok fonksiyonu prop'ları (`({ ad, onTikla }) =>`) tanım sayılmıyordu |
+| 16 tanımsız sabit | **yanlış alarm, devralınan** | Türkçe JSX başlığı ("ALT YAZI (…)") ve `export { X } from` köprüsü |
+
+Üçü de düzeltildi. 16 ve 17'nin düzeltmeleri **ölçüldü**: gerçek hata şekilleri geri
+konunca hâlâ yakalıyorlar, yani köreltilmediler.
+
+Denetim 24'ün yanlış alarmı da düzeltildi: `tumOlaylar(x).forEach(…)` gibi **zincirli**
+bir çağrıda dönüş değeri kullanılıyor, atılmıyor. Kural artık satır sonuna değil, çağrının
+kendi kapanış parantezinden sonrasına bakıyor. Ölçüldü: sahadaki asıl hatayı
+(`siraliGruplar(gruplar, cekimSirasi);`) hâlâ yakalıyor.
+
+**Sonuç: 25 denetimin 25'i geçiyor, çıkış kodu 0.** 2503 kontrol, derleme temiz.

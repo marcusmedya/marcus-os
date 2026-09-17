@@ -41,6 +41,12 @@ for yol in sys.argv[1:]:
     # tanımlı kabul ediyordu; bekleyenFields hatası tam bu yüzden kaçmıştı. 
     for m in re.finditer(r"\(([^()\n<>{}]*)\)\s*=>", kod):
         tanimli |= set(re.findall(r"[A-Za-z_]\w*", m.group(1)))
+    # YIKIMLI OK FONKSİYONU: `({ ad, aciklama, onTikla }) => (…)`. Yukarıdaki kalıp
+    # parantez içinde "{}" olmasını yasaklıyor (JSX gövdesini parametre sanmasın diye),
+    # bu yüzden iç bileşenlerin prop'ları TANIMSIZ görünüyordu — yanlış alarm ölçüldü.
+    # Burada YALNIZCA "=>" hemen öncesindeki yıkım kalıbı okunuyor, gövde değil.
+    for m in re.finditer(r"\(\s*\{([^{}]*)\}\s*\)\s*=>", kod):
+        tanimli |= set(re.findall(r"[A-Za-z_]\w*", m.group(1)))
     tanimli |= set(re.findall(r"([A-Za-z_]\w*)\s*=>", kod))
     # nesne anahtarları (ad: değer) kullanım sayılmaz
     anahtarlar = set(re.findall(r"([A-Za-z_]\w*)\s*:", kod))

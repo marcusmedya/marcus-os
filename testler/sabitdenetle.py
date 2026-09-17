@@ -42,12 +42,22 @@ for yol in sys.argv[1:]:
     # yıkımla gelenler
     for m in re.finditer(r"(?:const|let|var)\s*\{([^}]*)\}", kod):
         tanimli |= set(re.findall(r"[A-Z_][A-Z0-9_]*", m.group(1)))
-    disaridan = importlar(ham) | GLOBALLER | HAZIR | METIN
+    # YENİDEN DIŞA VERME KULLANIM DEĞİLDİR: `export { VIDEO_YONLERI } from "..."` adı
+    # dışarı taşır, bu dosyada bir kullanım yaratmaz ve yerel tanım da BEKLENMEZ
+    # (tersini denetim 22 zaten zorluyor). Bu ayrım olmadan her köprü yanlış alarm veriyordu.
+    kopruler = set()
+    for m in re.finditer(r"export\s*\{([^}]*)\}\s*from", ham):
+        kopruler |= set(re.findall(r"[A-Z_][A-Z0-9_]*", m.group(1)))
+    disaridan = importlar(ham) | GLOBALLER | HAZIR | METIN | kopruler
 
     # Yalnızca KOD KONUMUNDA geçenler: ardından [ . ( ) , ; } ya da karşılaştırma gelir.
     # JSX içindeki düz metin ("BRIEF / NOTLAR" gibi başlıklar) böyle bir bağlam taşımaz;
     # ilk sürüm onları da sabit sanıp yanlış alarm yağdırmıştı.
-    kullanim = set(re.findall(r"(?<![\w.])([A-Z][A-Z0-9_]{2,})\s*(?=[\[.(),;}]|===|!==)", kod))
+    # JSX DÜZ METNİ KULLANIM DEĞİLDİR. Arayüz tamamen Türkçe ve başlıklar büyük harfli:
+    # "ALT YAZI (PAYLAŞIM METNİ)" satırındaki YAZI, ardından "(" geldiği için sabit
+    # sanılıyordu. Etiketler ">" ile "<" arasında durur; o aralıklar boşaltılıyor.
+    kod_jsxsiz = re.sub(r">([^<>{}]*)<", lambda m: ">" + re.sub(r"[^\n]", " ", m.group(1)) + "<", kod)
+    kullanim = set(re.findall(r"(?<![\w.])([A-Z][A-Z0-9_]{2,})\s*(?=[\[.(),;}]|===|!==)", kod_jsxsiz))
     eksik = sorted(a for a in kullanim if a not in tanimli and a not in disaridan)
     if eksik:
         hata += 1

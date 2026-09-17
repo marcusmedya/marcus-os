@@ -57,7 +57,23 @@ for (const klasor of ["src", "lib", "api"]) {
       }
       const m = satir.match(/^\s*(\w+)\s*\(/);
       if (!m || !safAdlar.has(m[1])) return;
-      if (!/\)\s*;\s*$/.test(satir)) return;   // zincir ya da devam eden ifade
+      /* ÇAĞRININ KENDİ KAPANIŞ PARANTEZİ BULUNUYOR, satırın SONUNA bakılmıyor.
+       *
+       * Eskiden kural "satır `);` ile bitiyor mu" idi ve `tumOlaylar(x).forEach(…);`
+       * gibi ZİNCİRLİ bir çağrıyı da yakalıyordu — oysa orada dönüş değeri KULLANILIYOR
+       * (`.forEach` ona uygulanıyor). Yanlış alarm ölçüldü: denetim dört sürüm boyunca
+       * düştü ve gerçek bir kusur yokken "bozuk" dedi.
+       *
+       * Doğru soru şu: çağrının kapanış parantezinden SONRA yalnızca `;` mi var? Varsa
+       * sonuç gerçekten atılıyor; `.bir_sey(...)`, `|| x`, `,` varsa kullanılıyor. */
+      const acilis = satir.indexOf("(", satir.indexOf(m[1]));
+      let derinlik = 0, kapanis = -1;
+      for (let k = acilis; k < satir.length; k++) {
+        if (satir[k] === "(") derinlik++;
+        else if (satir[k] === ")") { derinlik--; if (derinlik === 0) { kapanis = k; break; } }
+      }
+      if (kapanis === -1) return;                       // çağrı satıra sığmıyor, karar verilemez
+      if (satir.slice(kapanis + 1).trim() !== ";") return;   // sonuç kullanılıyor
       hata++;
       console.log(`  ✗ ${klasor}/${ad}:${i + 1} — \`${m[1]}\` saf (lib/${safAdlar.get(m[1])}), dönüş değeri atılıyor`);
       console.log(`      ${satir.trim().slice(0, 100)}`);
