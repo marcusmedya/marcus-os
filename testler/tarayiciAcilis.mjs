@@ -337,8 +337,14 @@ async function senaryo(tarayici, ad, apiYaniti, enAzMetin, beklenenMetin, secene
  * sekme ve SEKME GEÇİŞİNİN gerçekten içeriği değiştirmesi.
  *
  * Bütün metin, panelin kendi DOM alt ağacından alınıyor — sayfanın tamamından DEĞİL.
- * Müşteriler ekranı "N aydır ödenmedi" cümlesini kendi "Ödenmeyen Ödemeler" kartında da
- * yazabiliyor; sayfa geneline bakan bir kontrol panel hiç çizilmese bile geçerdi. */
+ * ÖLÇÜLDÜ: çıpa `document.body`'ye gevşetilip panel bozulduğunda düşen kontrol sayısı
+ * 14'ten 12'ye iniyor — "durum rozeti" ve "Para içeriği gitti" kontrolleri arkadaki
+ * Müşteriler ekranından boş yere geçiyor. Yani çıpa iki kontrolü taşıyor.
+ *
+ * (Bir süre burada "Ödenmeyen Ödemeler kartı da aynı cümleyi yazıyor" gerekçesi yazılıydı;
+ *  YANLIŞTI — o kart `odemeAcik` ile koşullu ve varsayılan KAPALI, metni DOM'a hiç girmiyor.
+ *  Karar doğruydu, sebebi değil. Yanlış gerekçe çıpayı ileride "gereksiz" diye
+ *  sadeleştirmeye davet eder.) */
 async function musteriDetayiEtkilesimi({ sayfa, ad }) {
   /* Paneli DOM'da bulmanın çıpası: marka adını TAM olarak taşıyan <h2>. Oradan yukarı
    * çıkıp `position: fixed` olan örtüye varılıyor (panelin dış kabı). Satır içi stil

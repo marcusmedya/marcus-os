@@ -52,7 +52,7 @@ hatası ölçüldü — prop tekrar kaldırıldığında **0 kontrol düştü.**
 
 ## 3 · Tarayıcı testi (`testler/tarayiciAcilis.mjs`)
 
-Dört kuralı `CLAUDE.md`'de. Yazarken önemli olan: **testin kendisi sessizce
+Beş kuralı `CLAUDE.md`'de (beşincisi: hazır olma BEKLENİR, iddia edilmez). Yazarken önemli olan: **testin kendisi sessizce
 anlamsızlaşamaz.** `enAzMetin` pozitif olmak zorunda, `beklenenMetin` boş olamaz, sonda
 `BEKLENEN` sayacı var — üçü de ölçülerek konuldu, çünkü üçünde de test `0` ile çıkıyor ve
 zincirin beş adımı yeşil kalıyordu.

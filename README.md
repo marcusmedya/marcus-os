@@ -6214,8 +6214,13 @@ girip bir markaya tıklamıyordu, **`ClientDetail` hiç mount edilmiyordu.** Gü
 Uygulama doğrudan Müşteriler ekranında açılıyor, tablodaki marka adına tıklanıyor
 (bilerek: ad bir `<button>` değil, `onClick` taşıyan bir `<div>` — test uygulamaya uyar,
 uygulama teste değil) ve panelin **kendi DOM alt ağacından** okunuyor. Sayfanın tamamına
-bakan bir kontrol işe yaramazdı: Müşteriler ekranı "N aydır ödenmedi" cümlesini kendi
-"Ödenmeyen Ödemeler" kartında da yazıyor, yani panel hiç çizilmese bile geçerdi.
+bakan bir kontrol işe yaramazdı. **Ölçüldü:** çıpa `document.body`'ye gevşetilip panel
+bozulduğunda düşen kontrol sayısı 14'ten 12'ye iniyor — "durum rozeti" ve "Para içeriği
+gitti" kontrolleri arkadaki Müşteriler ekranından boş yere geçiyor. Çıpa iki kontrol taşıyor.
+
+> İlk yazımda gerekçe **yanlıştı** ("Ödenmeyen Ödemeler kartı da aynı cümleyi yazıyor").
+> O kart `odemeAcik` ile koşullu ve varsayılan KAPALI — metni DOM'a hiç girmiyor. Karar
+> doğruydu, sebebi değil; `denetci` yakaladı ve ölçülmüş sebeple değiştirildi.
 
 Ölçülenler: marka kimliği (`kategori · başlangıç · N. ay`) · durum rozeti · karar şeridinin
 **gecikme dalı** · kalan bakiye ve yeni ay ücreti (tutarların kendisi) · birincil düğme
