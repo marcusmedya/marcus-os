@@ -825,6 +825,40 @@ Hangi ortamda hangi değişkenin eksik olduğu **Ayarlar → Güvenlik** ekranı
 yazıyor (Canlı / Önizleme / Geliştirme ayrı ayrı). Değerler tarayıcıya gitmez,
 yalnızca var/yok bilgisi.
 
+### Alan adı ve barındırma — kim nerede
+
+Bu üçü ayrı şirketlerde ve **hangisinin neyi yönettiği karıştırılırsa siteyi ya da
+e-postayı düşürürsün.** Eylül 2026'da panellerden tek tek doğrulandı:
+
+| Ne | Nerede |
+|---|---|
+| **Alan adı kaydı** (`marcusmedya.com`) | **isimtescil.com** |
+| **DNS** | **Natro** — nameserver'lar `NS1.NATROHOST.COM`, `NS2.NATROHOST.COM` |
+| **Web sitesi + e-posta kutusu** | **Natro** — "WP Max Profesyonel" paketi, WordPress |
+| **Uygulama (Marcus OS)** | **Vercel** — bu depo |
+| **İşlemsel e-posta** | **Resend** |
+
+- **DNS kaydı Natro'ya girilir, isimtescil'e DEĞİL.** Kayıt isimtescil'de ama nameserver'lar
+  Natro'yu gösteriyor; kayıtlar her zaman nameserver'ın gösterdiği yere yazılır.
+- **isimtescil'deki "Domainler için kullanılacak DNS'i Seçiniz" ekranına DOKUNMA.**
+  "İsimtescil Default DNS'ler"i işaretleyip Güncelle'ye basmak nameserver'ları Natro'dan
+  alır — web sitesi VE `info@marcusmedya.com` aynı anda düşer.
+- **Natro'nun WP Max panelinde DNS düzenleyici YOK.** Dört yere bakıldı (Alan Adı Yönetimi,
+  Hosting Yönetimi, Web Sitesi menüsü, kontrol panelindeki Gelişmiş Ayarlar) — hiçbirinde
+  yok. Kayıt eklemek için **Destek İşlemleri'nden talep açmak gerekiyor.**
+- **`info@marcusmedya.com` Natro'da barınıyor.** Bu yüzden ana alan adının **MX ve SPF
+  kayıtlarına dokunulmaz**; bir alan adında tek SPF olabilir, ikincisini eklemek ikisini
+  birden bozar ve normal yazışma da durur.
+- **Resend ANA alan adına değil, `send.marcusmedya.com` ALT alan adına doğrulanır.**
+  Sebebi yukarıdaki madde: alt alan adının kendi kayıtları ana alan adınınkilere hiç
+  dokunmuyor. Resend'deki eski `marcusmedya.com` kaydı `Failed` durumda — alan adı Natro'ya
+  taşınınca eski DNS'teki doğrulama kayıtları geride kaldı ve **bütün e-postalar kesildi**
+  (giriş kodu, gece yedeği, iş bildirimleri). Sorunun teşhisi günler aldı.
+- **`onboarding@resend.dev` yalnızca Resend hesabının SAHİBİNE gönderir.** Alan adı
+  doğrulanana kadar `RESEND_FROM` bu adresteyse, `BACKUP_EMAIL` de hesabın adresiyle
+  (`marcusmedya@gmail.com`) **aynı olmak zorunda** — başka adres Resend tarafından
+  reddedilir. Doğrulama bitince bu kısıt kalkar.
+
 ---
 
 ## Derine inmek gerekirse
