@@ -6042,3 +6042,83 @@ Bozuk uygulamada (belgelenmiş `veriKaynagi` gerilemesi geri konulduğunda) eşi
 değil, siyah ekranda `#root` zaten bomboş.
 
 **Sonuç: 26 denetim, 2522 kontrol, derleme temiz, tarayıcı testi 14/14, 11/12 fonksiyon.**
+
+---
+
+## Güncelleme 182: Skills & Agents Mimarisi + Marcus Design System
+
+Claude Code katmanı dört dosyadan **on sekiz belgeye** çıktı ve `CLAUDE.md` **888 satırdan
+322 satıra** (63 KB → 20 KB) indi. Eklenen metin değil — **taşınan** metin.
+
+### Sorun
+
+`CLAUDE.md` her oturum başında **tamamen** okunuyordu: 888 satır / 63 KB. Bunun yarısı
+(§3 Drive · §5 Aşamalar · §6 Şube · §7 Ücret = 426 satır) yalnızca o alana dokunan
+oturumu ilgilendiriyor. Drive'a hiç dokunmayan bir oturum 90 satır Drive kuralı okuyordu.
+
+İkinci sorun: mevcut dört yapı (`/dogrula`, `/olc`, `/yayinla`, `denetci`) **işin sonunda**
+duruyordu. Bu projenin en pahalı hataları tasarım anında doğuyor — iki panelden birine
+eklemek, kuralı JSX'e gömmek, kategorinin dört yerinden birini unutmak.
+
+### Altı skill — hepsi taşıma
+
+| Skill | Ne zaman | Kaynak |
+|---|---|---|
+| `marcus-mimari` | Yeni uç, action, modül, mimari karar | Yeni yazım + §1 |
+| `marcus-veri` | Drive, video, dosya, önizleme | §3 (90 satır) |
+| `marcus-yetki` | Rol, izin, marka kilidi, panel | §4 (kırmızı çizgiler hariç) |
+| `marcus-operasyon` | Kategori, aşama, stok, şube | §5+§6+§8 (293 satır) |
+| ⤷ `references/para.md` | Ücret, ödeme, tahakkuk, kâr | §7 (105 satır) |
+| `marcus-dogrulama` | Test/denetim **yazma** | Yeni yazım |
+| `marcus-design` | Arayüz, ekran, bileşen, stil | **Yeni — Marcus Design System** |
+
+`CLAUDE.md`'de kalanlar: 12 fonksiyon sınırı · tek belge ve kilit disiplini · ilk render
+`data === null` · `operasyonOrtakProps` iki çağrı yeri · Asla yapılmayacaklar · test
+disiplini · ortam değişkenleri · alan adı topolojisi. Yani **her işi ilgilendiren kırmızı
+çizgiler.** Taşınan her bölümün yerine bir **tel satırı** kaldı ("Drive'a dokunuyorsan
+`marcus-veri` yükle").
+
+**Bilgi kaybı makineyle ölçüldü:** eski dosyanın 733 anlamlı satırından **732'si** yeni
+yapıda birebir bulundu. Bulunamayan tek satır, bilerek yeniden adlandırılan §4 başlığı.
+
+### Dört ajan
+
+`denetci` (vardı — yayın öncesi inceler) · `gelistirici` (kapsamı uygular, birleştirmez) ·
+`tasarimci` (ekran kararı verir, **kod yazmaz**) · `dogrulayici` (zinciri kendi bağlamında
+koşturup sıkıştırılmış sonuç döndürür).
+
+### Marcus Design System
+
+Marcus'un jenerik bir admin panelinden ayrılmasının üç dayanağı:
+
+- **"Sessiz yüzey, konuşan sayı"** — gölge/gradient/glow yok, derinlik yalnızca üç yüzey
+  tonuyla. Metin 15'i geçmez, **20/28/40 yalnızca rakama ayrılmış**; göz kaçınılmaz olarak
+  veriye düşer.
+- **"Önce karar"** — her ekran bugün ne yapılacağıyla açılır, toplamla değil. Uydurma
+  değil, ürünün kendi davranışı: `lib/bugun.js` zaten Dashboard'ın en üstünde.
+- **"Hassas veri varsayılan olarak kapalı"** — ₺ tutarları `***` gelir. Bir ayar değil,
+  tasarım duruşu: panel kafede, çekimde, birinin yanında açılıyor.
+
+Sistem **mevcut koddan çıkarıldı, uydurulmadı.** Ölçülen sapma da yazılı: radius 10 (115
+kez) baskın ama 7/8/9/12/14 dolaşıyor; fontSize 13 (531) ve 11 (362) baskın. Yani örtük
+sistem zaten vardı — yapılan iş onu **adlandırmak ve sapmayı kapatmak**. Geçiş kademeli:
+*dokunduğun ekranı sisteme getir, dokunmadığını bırak.*
+
+### Denetim 26 — `.claude/` artık denetleniyor
+
+`.claude/` bugüne kadar **hiçbir denetimin kapsamında değildi**; oysa kod hakkında iddia
+taşıyor ("kural `lib/stok.js`'te"). Yeni denetim üç şey sınar: önbilgi geçerli mi ve `name`
+klasörle tutuyor mu · ters tırnaklı her dosya yolu gerçek mi · işaret edilen her skill var mı.
+
+**Kırarak ölçüldü** — üç bozmanın üçü de çıkış 1 veriyor:
+
+| Bozma | Sonuç |
+|---|---|
+| `name: marcus-yetki` → `marcus-yetkiler` | ✗ ad klasörle tutmuyor + skill bulunamıyor |
+| `lib/kart-yetkisi.js` → `kart-yetkileri.js` | ✗ diye bir dosya YOK |
+| `marcus-design` → `marcus-tasarim` | ✗ işaret edilen skill yok |
+
+İlk koşusunda **kendi yazdığım 8 gerçek hatayı** buldu (belirsiz `references/` yolları).
+
+**Uygulama kodunda tek satır değişmedi** — `src/`, `lib/`, `api/` altında sıfır değişiklik.
+27 denetim · 2522 kontrol · derleme 0 · tarayıcı 14/14 · 11/12 fonksiyon.

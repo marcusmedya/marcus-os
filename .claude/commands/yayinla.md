@@ -15,6 +15,8 @@ Değişiklik şunlardan birine dokunduysa **aynı commit içinde** belge de gün
 | Yeni `api/` ucu · `lib/` modülü · ortam değişkeni · zamanlanmış iş | `MARCUS-OS-SISTEM.md` |
 | Yetki/rol · aşama · stok kuralı · kilit davranışı · test komutu | `CLAUDE.md` |
 | Hata düzeltmesi · yeni test · arayüz · metin | `README.md` |
+| Dosya/modül adı değişti · skill ya da ajan eklendi/silindi | `.claude/` — **denetim 26 zorluyor** |
+| Tasarım kararı, jeton, bileşen standardı | `marcus-design` skill'i (kural oraya yazılır, koda değil) |
 
 **Ayrıca: düzeltmenin YANLIŞ HÂLE GETİRDİĞİ cümleleri ara.** Bu somut olarak yaşandı —
 denetim 7 sayaca bağlandıktan sonra `CLAUDE.md` ve `/dogrula` hâlâ "çıkış kodunu

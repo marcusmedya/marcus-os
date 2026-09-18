@@ -1,5 +1,5 @@
 ---
-description: Marcus OS doğrulama zinciri — 26 denetim + testler + derleme + tarayıcı açılışı, her adım ayrı raporlanır
+description: Marcus OS doğrulama zinciri — 27 denetim + testler + derleme + tarayıcı açılışı, her adım ayrı raporlanır
 allowed-tools: Bash(bash testler/hepsinidenetle.sh), Bash(./testler/sunucutestleri.sh), Bash(npm run build), Bash(ls api/*.js | wc -l), Bash(git status --porcelain), Read, Grep
 ---
 
@@ -24,11 +24,11 @@ Her adımı ayrı bir Bash çağrısında çalıştır ve çıkış kodunu kayde
 ```
 bash testler/hepsinidenetle.sh; echo "ÇIKIŞ: $?"
 ```
-Beklenen: `✓` ile başlayan **26** satır ve `ÇIKIŞ: 0`.
-(1 ve 1b ayrı sayılır, sonra 2…25 → toplam 26.)
+Beklenen: `✓` ile başlayan **27** satır ve `ÇIKIŞ: 0`.
+(1 ve 1b ayrı sayılır, sonra 2…26 → toplam 27.)
 Düşen denetim çıktısını basar ve betik 1 ile çıkar.
 
-> **26'sının hepsi sayaçta.** Denetim 7 bir boru hattı olduğu için bir süre `denetle`
+> **27'sinin hepsi sayaçta.** Denetim 7 bir boru hattı olduğu için bir süre `denetle`
 > sarmalayıcısının dışında kaldı: bulgularını basıyor ama `DUSEN`'i artırmıyordu, yani
 > tek başına düştüğünde betik yine 0 ile çıkıyordu. Boru hattı `cagriDenetimi`
 > fonksiyonuna alındı ve bağlandı — ölçüldü: aynı hatada eski betik çıkış 0, yeni betik
