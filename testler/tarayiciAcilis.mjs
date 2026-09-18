@@ -104,6 +104,23 @@ function sunucuKur(apiYaniti) {
 /* ── TEK SENARYO ─────────────────────────────────────────────────────────────── */
 async function senaryo(tarayici, ad, apiYaniti, enAzMetin, beklenenMetin) {
   console.log(`\n── ${ad} ──`);
+
+  /* EŞİK POZİTİF OLMAK ZORUNDA — sessizce anlamsızlaşmasın.
+   *
+   * Aşağıdaki kontrol `(metinUzunlugu || 0) >= enAzMetin` diye ölçüyor. Eşik 0 (ya da eksi)
+   * olursa bu ifade HER GİRDİDE doğru olur: ekran bomboşken bile ✓ basar. Yani tek karakterlik
+   * bir düzenleme, siyah ekran korumasını kaldırır ve doğrulama zincirinin BEŞ adımı da yeşil
+   * kalır — ölçüldü: eşik 50 iken bozuk uygulamada 10 kontrol düşüyor, eşik 0 iken 8.
+   * İki kontrol sessizce kayboluyor ve üstelik "okunur içerik var" diye YANLIŞ ✓ yazıyorlar.
+   *
+   * Bu yüzden eşik burada doğrulanıyor: geçersizse test GÜRÜLTÜLÜ düşer. Korumayı kaldırmak
+   * serbest olabilir ama SESSİZCE olmamalı. */
+  if (!Number.isFinite(enAzMetin) || enAzMetin < 1) {
+    kontrol(`${ad}: metin eşiği geçerli (≥1)`, false,
+      `eşik "${enAzMetin}" — 0 ya da eksi eşikte "okunur içerik var" kontrolü ` +
+      "her zaman geçer, yani koruma yoktur");
+    return;
+  }
   const sunucu = sunucuKur(apiYaniti);
   await new Promise((r) => sunucu.listen(0, "127.0.0.1", r));
   const port = sunucu.address().port;
