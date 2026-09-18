@@ -104,6 +104,37 @@ function sunucuKur(apiYaniti) {
 /* ── TEK SENARYO ─────────────────────────────────────────────────────────────── */
 async function senaryo(tarayici, ad, apiYaniti, enAzMetin, beklenenMetin) {
   console.log(`\n── ${ad} ──`);
+
+  /* EŞİK POZİTİF OLMAK ZORUNDA — sessizce anlamsızlaşmasın.
+   *
+   * Aşağıdaki kontrol `(metinUzunlugu || 0) >= enAzMetin` diye ölçüyor. Eşik 0 (ya da eksi)
+   * olursa bu ifade HER GİRDİDE doğru olur: ekran bomboşken bile ✓ basar. Yani tek karakterlik
+   * bir düzenleme, siyah ekran korumasını kaldırır ve doğrulama zincirinin BEŞ adımı da yeşil
+   * kalır — ölçüldü: eşik 50 iken bozuk uygulamada 12 kontrol düşüyor, eşik 0 iken 10.
+   * İki kontrol sessizce kayboluyor ve üstelik "okunur içerik var" diye YANLIŞ ✓ yazıyorlar.
+   *
+   * Bu yüzden eşik burada doğrulanıyor: geçersizse test GÜRÜLTÜLÜ düşer. Korumayı kaldırmak
+   * serbest olabilir ama SESSİZCE olmamalı. */
+  if (!Number.isFinite(enAzMetin) || enAzMetin < 1) {
+    kontrol(`${ad}: metin eşiği geçerli (≥1)`, false,
+      `eşik "${enAzMetin}" — 0 ya da eksi eşikte "okunur içerik var" kontrolü ` +
+      "her zaman geçer, yani koruma yoktur");
+    return;
+  }
+  /* BEKLENEN METİN LİSTESİ DE BOŞ OLAMAZ — aynı boşluk, daha sinsi hâli.
+   *
+   * Aşağıdaki kontrol `beklenenMetin.every(...)` diye ölçüyor ve `[].every(...)` HER ZAMAN
+   * doğrudur. Liste boşaltılırsa test 14/14 geçer, çıkış 0 verir ve ekrana
+   * `✓ beklenen ekran çizildi ()` diye YANLIŞ bir onay basar — ölçüldü. Üstelik kaybedilen,
+   * ikisinden GÜÇLÜ olan kontroldür: eşik "bir şey çizildi" der, bu liste "DOĞRU dal
+   * çizildi" der; hata ekranı da metin üretir. Boş dize de sayılmaz, `"".includes` hep doğru. */
+  if (!Array.isArray(beklenenMetin) || beklenenMetin.length === 0
+      || beklenenMetin.some((m) => typeof m !== "string" || m.length === 0)) {
+    kontrol(`${ad}: beklenen metin listesi geçerli (boş değil)`, false,
+      `liste ${JSON.stringify(beklenenMetin)} — boş liste ya da boş dize ile ` +
+      '"beklenen ekran çizildi" kontrolü her zaman geçer, yani koruma yoktur');
+    return;
+  }
   const sunucu = sunucuKur(apiYaniti);
   await new Promise((r) => sunucu.listen(0, "127.0.0.1", r));
   const port = sunucu.address().port;
@@ -276,6 +307,23 @@ async function calistir() {
   console.log("");
   if (kalan > 0) {
     console.log(`SONUÇ: ✓${gecen}  ✗${kalan} — AÇILIŞ BOZUK`);
+    process.exit(1);
+  }
+  /* KAÇ KONTROL ÇALIŞTI — t95'teki bekçinin aynısı, aynı sebeple.
+   *
+   * Yukarıdaki iki koruma tek tek kaçakları kapatıyor; bu satır SINIFIN TAMAMINI kapatıyor.
+   * Ölçüldü: bir `senaryo()` çağrısının tamamı silinince test "SONUÇ: 7 kontrol geçti,
+   * uygulama açılıyor." deyip ÇIKIŞ 0 veriyordu — kapsamın yarısı sessizce gitmişti ve
+   * doğrulama zincirinin beş adımı da yeşil kalıyordu. Bir kontrol silmek, bir senaryo
+   * silmek, bir `await` unutmak: hepsi buraya düşer.
+   *
+   * Sayıyı BİLEREK değiştirmek serbest — yeni kontrol eklerken bu sabit de artar. Yasak
+   * olan, sayının KENDİLİĞİNDEN düşmesi ve kimsenin görmemesi. */
+  const BEKLENEN = 14;
+  if (gecen !== BEKLENEN) {
+    console.log(`SONUÇ: ✗ ${gecen} kontrol çalıştı, ${BEKLENEN} bekleniyordu — kapsam DEĞİŞMİŞ.`);
+    console.log("       Kontrol eklediysen bu sabiti de artır; artırmadıysan bir kontrol");
+    console.log("       ya da senaryo sessizce düşmüş demektir.");
     process.exit(1);
   }
   console.log(`SONUÇ: ${gecen} kontrol geçti, uygulama açılıyor.`);

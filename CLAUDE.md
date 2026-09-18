@@ -754,7 +754,16 @@ ve açılışta yakalanmamış JS hatası olmadığını doğrular. **Ölçüld�
 gövdesine geri konulduğunda derleme 0, denetimler 0, 2522 kontrol geçiyor — yalnızca
 bu test düşüyor (12 kontrol).
 
-Üç kural:
+Dört kural:
+- **Testin KENDİSİ sessizce anlamsızlaşamaz.** Bu testin bütün gücü iki parametrede duruyor
+  ve ikisi de tek karakterle etkisiz hâle getirilebiliyordu: `enAzMetin` 0 olursa
+  `(metin || 0) >= 0` her girdide doğrudur, `beklenenMetin` boşalırsa `[].every(...)` her
+  girdide doğrudur. İkisi de ekrana YANLIŞ bir `✓` basıyor ve doğrulama zincirinin BEŞ adımı
+  da yeşil kalıyordu — ölçüldü. Üçüncüsü daha beteri: bir `senaryo()` çağrısı silinince test
+  "7 kontrol geçti, uygulama açılıyor" deyip 0 ile çıkıyordu. Artık eşik pozitif, liste dolu
+  olmak zorunda ve sonda t95'teki gibi bir **`BEKLENEN` sayacı** var. **Kontrol eklerken o
+  sabiti de artır** — artırmazsan test düşer; asıl engellenmek istenen, sayının kendiliğinden
+  DÜŞMESİ ve kimsenin görmemesi.
 - **Gerçek veri ve üretim ortamı YOK.** `/api/*` yanıtları testin içindeki uydurma
   belgeden gelir; Redis'e, Drive'a, Vercel'e hiç dokunulmaz.
 - **Ağdan yalıtık.** `127.0.0.1` dışına giden her istek boş yanıtla karşılanır (uygulama
