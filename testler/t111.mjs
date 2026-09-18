@@ -41,7 +41,7 @@ await bolum("1) TEK ŞERİT — en ağır olan kazanır", 9, () => {
   /* GİRDİ BİLEREK ÇAKIŞIK: hem gecikme var, hem ödeme durumu "gecikti", hem de
    * ödeme günü tanımlı. Üç dal da doğruysa üçü birden çizilirdi — eski hata buydu. */
   const cakisik = {
-    gecikenAy: 3, gecikenBakiye: 135000, aylikUcret: 45000,
+    gecikenAy: 3, gecikenBakiye: 120000, aylikUcret: 45000,
     odemeDurumu: { status: "gecikti", label: "12 gün gecikti" }, odemeGunu: 5,
   };
   const s = musteriKararSeridi(cakisik);
@@ -49,7 +49,7 @@ await bolum("1) TEK ŞERİT — en ağır olan kazanır", 9, () => {
   t("gecikmede ton tehlike", s.ton === TON.TEHLIKE, s.ton);
   t("başlık ay sayısını söylüyor", s.baslik === "3 aydır ödenmedi", s.baslik);
   t("28px'e basılacak tutar clientOverdueBalance'tan geliyor",
-    s.vurguTutar === 135000, `gelen ${s.vurguTutar} — 45000×3 çarpımı DEĞİL, kısmi ödemeler düşülmüş bakiye olmalı`);
+    s.vurguTutar === 120000, `gelen ${s.vurguTutar} — 45000×3=135000 çarpımı DEĞİL, kısmi ödemeler düşülmüş bakiye olmalı`);
   t("yeni ay ücreti ayrı bir değer olarak taşınıyor", s.yanTutar === 45000, String(s.yanTutar));
   t("gecikmede birincil eylem tebliğ", s.eylem && s.eylem.anahtar === EYLEM.TEBLIG, JSON.stringify(s.eylem));
 

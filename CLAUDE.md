@@ -325,6 +325,6 @@ e-postayı düşürürsün.** Eylül 2026'da panellerden tek tek doğrulandı:
 | `MARCUS-OS-DEVIR-2.md` | İkinci devir notları |
 | `MARCUS-OS-TANITIM.md` | Uygulamanın iş tarafından anlatımı |
 
-En büyük dosyalar: `src/App.jsx` (11.280), `src/CekimEditTakibi.jsx` (3.558),
+En büyük dosyalar: `src/App.jsx` (11.622), `src/CekimEditTakibi.jsx` (3.558),
 `api/data.js` (2.370), `src/musteriPaneli.jsx` (1.384). Bu sayılar Eylül 2026'da ölçüldü;
 kaynak büyüdükçe bayatlar, güncellerken `wc -l` ile doğrula.

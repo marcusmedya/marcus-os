@@ -32,7 +32,7 @@ import {
   AY_ADLARI, AySeciciAlan, gizlilikModuOku, gizlilikModuYaz,
   reklamDurumu, reklamMetrikleri, istatistikVarMi, OLCUM_ALANLARI, olcumKarsilastir,
   basligiTemizle, haftaBaslangici, tarihGoster, bugunISOTarih, parseTrTarih, tarihIso,
-  TR_AYLAR_KISA, MUSTERI_DURUM_ETIKET, markaAnahtari, DURUM_GRUBU, GRUP_BASLIK, musteriKarlilik,
+  TR_AYLAR_KISA, TR_AYLAR, MUSTERI_DURUM_ETIKET, markaAnahtari, DURUM_GRUBU, GRUP_BASLIK, musteriKarlilik,
   useDuzenlemeKilidi, KilitUyarisi, MarkaSecici, FieldForm, temaOku, temaUygula, TurRozet, turEtiketi,
 } from "./tema.jsx";
 import { DriveGorsel, DriveVideo, driveEmbedUrl, VIDEO_YONLERI, DriveKucukGorsel } from "./drive.jsx";
@@ -1580,7 +1580,11 @@ function MusteriDegerBlogu({ etiket, deger, aciklama, renk }) {
     <div style={{ minWidth: 0 }}>
       <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.4, color: T.textDim, fontFamily: "Inter, sans-serif" }}>{etiket}</div>
       <div style={{ fontSize: 20, fontFamily: "'IBM Plex Mono', monospace", fontVariantNumeric: "tabular-nums", color: renk || T.text, marginTop: 4 }}>{deger}</div>
-      {aciklama ? <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter, sans-serif", marginTop: 4, lineHeight: 1.5 }}>{aciklama}</div> : null}
+      {/* Açıklama satırı rakam TAŞIYOR ("Temel ₺15.000 + 3 şube", "Kalan ₺30.000"),
+        * bu yüzden mono + tabular. Design System: "IBM Plex Mono — HER rakam". Bir süre
+        * Inter'di ve tam da lib/musteri-karar.js'in uyardığı şey oldu: kural çizim
+        * tarafında tek tek hatırlanmak zorunda kalınca unutuldu. */}
+      {aciklama ? <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "'IBM Plex Mono', monospace", fontVariantNumeric: "tabular-nums", marginTop: 4, lineHeight: 1.5 }}>{aciklama}</div> : null}
     </div>
   );
 }
@@ -1818,8 +1822,16 @@ function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, freelancerlar, on
                 </div>
               )}
             </div>
+            {/* BİRİNCİL düğme, o eylemi GERÇEKTEN yapan düğmedir. "Ödeme günü ekle"
+              * bu panelde alanı açamıyor (form müşteri satırında, prop eklemek yetki
+              * kapsamını genişletirdi) — yalnızca paneli kapatıp kullanıcıyı oraya
+              * bırakıyor. Eylemi taklit eden bir düğmeyi birincil çizmek kullanıcıya
+              * yalan söyler; bu yüzden o dal SESSİZ düğmeye iniyor. */}
             {karar.eylem && (
-              <button style={saveBtnStyle} onClick={kararEylemi}>{karar.eylem.ad}</button>
+              <button
+                style={karar.eylem.anahtar === EYLEM.ODEME_GUNU_EKLE ? cancelBtnStyle : saveBtnStyle}
+                onClick={kararEylemi}
+              >{karar.eylem.ad}</button>
             )}
           </div>
 
@@ -1832,10 +1844,19 @@ function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, freelancerlar, on
                 ? `Temel ${fmt(ucretDokumu.temel)} + ${(ucretDokumu.subeler || []).length} şube`
                 : null}
             />
+            {/* AY ADIYLA YAZILIYOR — "BU AY" demek yanıltıcıydı. Bu blok monthKey() ile
+              * içinde bulunulan TAKVİM ayına bakıyor; oysa hemen üstteki karar şeridi
+              * `clientPaymentStatus` üzerinden geliyor ve o, `odemeSekli === "sonra"`
+              * markalarda BİR ÖNCEKİ ayı değerlendiriyor (src/tema.jsx). İkisi yan yana
+              * durunca okuyucu aynı dönemi sanıyor ve vadesi HENÜZ GELMEMİŞ bir tutar
+              * borç gibi okunuyordu: şerit "Geçen ay ödendi / düğme yok" derken bu blok
+              * "Kalan ₺45.000" yazıyordu. Ayı adıyla söylemek belirsizliği kaldırıyor;
+              * değerlendirme mantığını buraya KOPYALAMAK çözüm değil — o kural
+              * clientPaymentStatus'ün, ikinci bir kopya sessizce ayrışır. */}
             <MusteriDegerBlogu
-              etiket="BU AY TAHSİL EDİLEN"
+              etiket={`${TR_AYLAR[new Date().getMonth()].toLocaleUpperCase("tr-TR")} AYINDA TAHSİL EDİLEN`}
               deger={fmt(tahsilEdilen)}
-              aciklama={kalanTutar > 0 ? `Kalan ${fmt(kalanTutar)}` : "Bu ay kapandı"}
+              aciklama={kalanTutar > 0 ? `Bu aydan kalan ${fmt(kalanTutar)}` : "Bu ay kapandı"}
             />
             <MusteriDegerBlogu
               etiket="KÂR MARJI"
