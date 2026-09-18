@@ -6122,3 +6122,77 @@ klasörle tutuyor mu · ters tırnaklı her dosya yolu gerçek mi · işaret edi
 
 **Uygulama kodunda tek satır değişmedi** — `src/`, `lib/`, `api/` altında sıfır değişiklik.
 27 denetim · 2522 kontrol · derleme 0 · tarayıcı 14/14 · 11/12 fonksiyon.
+
+## Güncelleme 183: Müşteri Detayı Marcus Design System'e Göre Kompoze Edildi (pilot)
+
+Marcus Design System'in ilk **uygulamalı** işi. Tek ekran, lokal ve geri alınabilir bir
+değişiklik: `src/App.jsx` → `ClientDetail`.
+
+### Neyi çözdü
+
+Panel bir yığındı. İçerik motoru en üstte, **beş rozet** (ikisi rakam taşıyordu:
+"Aylık ₺45.000", "Kâr Marjı %62"), not, ödeme kutusu, hesap özeti kutusu, gecikme kutusu,
+maliyetler, tahsilatlar — hepsi alt alta, hepsi aynı ağırlıkta. Gecikmiş bir markada
+**ödeme kutusu ile gecikme kutusu AYNI ANDA** çiziliyor, iki birincil düğme yan yana
+duruyordu; hangisinin asıl karar olduğu okunmuyordu.
+
+Yeni sıra: **marka kimliği → koşullu TEK karar şeridi → para → sekmeler → detay.**
+
+- **Sabit kimlik şeridi** (kaydırılmaz): marka adı 20px Space Grotesk, altında
+  `kategori · başlangıç · N. ay`, en fazla **üç rozet** (durum · ödeme · faturalama
+  yalnızca SAPMA varsa). Rozet içinde rakam yok. `KilitUyarisi` de sabit — geç gelen kilit
+  yanıtı eskiden düzeni okurken aşağı itiyordu.
+- **Tek karar şeridi.** Gecikme → 28px bakiye + "Tebliğ oluştur" · ödeme uyarısı →
+  `clientPaymentStatus.label` AYNEN + "Ödemeyi kaydet" · ödeme günü yok → sebep + "Ödeme
+  günü ekle" · sağlıklı → tek satır, **düğme yok**. 28px panelde **tek bir yerde**.
+- **Para satırı** kart değil: `AYLIK ÜCRET` · `BU AY TAHSİL EDİLEN` · `KÂR MARJI`,
+  etiket 11 üstte, değer 20px mono + tabular-nums, açıklama 11 altta.
+- **Üç sekme** (varsayılan Para): Para (hesap özeti · faturalama · maliyetler · bekleyen
+  tahsilatlar) · İlişki (not, iletişim, çalışma koşulları) · İçerik. Listeler kutu değil
+  **satır**: ≥40 yükseklik, 1px `borderSoft` ayrım, zebra yok, tutar sağda mono.
+  Sekme sayaç rozeti **bilerek yok** — rozet yalnızca eylem gerektiren sayı için.
+
+### Kural JSX'ten çıkarıldı — `lib/musteri-karar.js`
+
+Hangi şeridin çizileceği ve hangi birincil eylemin bağlanacağı üç ayrı `&&` dalı hâlinde
+JSX'in içindeydi, yani **Node'dan çağrılamıyordu ve hiçbir test sınayamıyordu**
+(`marcus-mimari` §4 — bu sınıftan daha önce dört hata çıktı). Kural artık saf bir modülde;
+JSX yalnızca çağırıyor ve çiziyor. Hesaplara **dokunulmadı**: `clientPaymentStatus`,
+`clientOverdueMonths`, `clientOverdueBalance`, `clientKarMarji`, `clientFaturaliTutar`,
+`monthPaidAmount`, `monthRemaining` aynen çağrılıyor; modül yalnızca sonuçlarını
+yerleştiriyor.
+
+**`testler/t111.mjs` (48 kontrol) davranışı sınıyor, kaynak metnini değil. Kırarak ölçüldü:**
+
+| Kaldırılan koruma | Düşen kontrol |
+|---|---|
+| Gecikme dalının önceliği (`if (ay > 0)`) | **6** — çakışık girdide gecikme yerine ödeme uyarısı kazanıyor, 28px bakiye `null` oluyor, birincil eylem tebliğ yerine ödeme kaydı |
+| "Sağlıklı markada düğme çizilmez" | **2** — `odendi` ve `yaklasiyor`da birincil düğme geri geliyor |
+| "Tamamen faturalı sapma değil" | **3** — kimlik şeridinde dördüncü rozet beliriyor |
+
+### Panel genişliği 560 → 712, ÖLÇÜLEREK
+
+Gerçek Chromium'da, uygulamanın kendi yazı tipleriyle her blok tek tek ölçüldü: üç değer
+bloğu 409 · üç sekme başlığı 176 · en uzun maliyet satırı 365 · karar şeridi (gecikme) 359 ·
+karar şeridi (ödeme uyarısı, kısmi ödeme notlu) 478 · kimlik şeridi 396.
+
+Belirleyici olan **İçerik sekmesi**: `IcerikYonetimMotoru`'nun kendi sekme çubuğu, dört
+sekmenin dördü de iki haneli sayaç taşırken **622 px** (panel gerçekten çizilip ölçüldü,
+kestirim değil). 622 + 2×24 boşluk + 2×1 çerçeve = **672 px alt sınır**; 712 seçildi çünkü
+672 sıfır paylı bir tam oturmadır — sayaç üç haneye çıkınca çubuk sarardı.
+
+**Dar ekran davranışı korundu:** `maxWidth: 100%` ve örtünün 20 px boşluğu duruyor, 640
+altında yatay boşluk 24 → 16'ya iniyor (eskiden `.marcus-card` CSS kuralı yapıyordu; panel
+artık kendi kaydırma bölgesini taşıdığı için aynı kırılma noktası `useIsMobile(640)` ile
+yeniden kuruldu). 390 px viewport'ta yatay kayma yok — ölçüldü.
+
+### Bu PR'a girmeyen, bilinen borçlar
+
+Üçü de **bilerek dokunulmadı**, ayrı iş olarak kayıtlı: yönetici çağrısının `freelancerlar`
+prop'unu geçmemesi (panelde "silinmiş freelancer" yazıyor) · `subeler` gelmeyen role "tek
+şubeli" denmesi · `src/App.jsx`'teki müşteri adı `<div onClick>`'inin klavyeyle
+erişilemezliği. Ayrıca `src/tema.jsx`'te ortak bir `Sekmeler`/`DegerBlogu` bileşeni yok;
+ikisi de bu panelde yerel çizildi — ortak bileşene çıkarmak `marcus-design`'ın kendi
+ifadesiyle ayrı bir iş.
+
+27 denetim · 2570 kontrol · derleme 0 · tarayıcı 14/14 · 11/12 fonksiyon.

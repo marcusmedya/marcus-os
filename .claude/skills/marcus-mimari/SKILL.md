@@ -19,7 +19,7 @@ lib/     Saf ortak mantık — hem api/ hem src/ buradan import eder, FONKSİYON
 testler/ Testler ve statik denetimler
 ```
 
-Şu an **11 uç / 47 lib modülü** var. Oran tesadüf değil: yeni yetenek `lib/`'e yazılır,
+Şu an **11 uç / 48 lib modülü** var. Oran tesadüf değil: yeni yetenek `lib/`'e yazılır,
 uç yalnızca onu çağırır.
 
 ## 2 · Yeni dosya AÇMADAN önce — 12 sınırı

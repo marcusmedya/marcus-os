@@ -52,7 +52,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     110 test dosyası (t1…t110) + 27 statik denetim betiği
+testler/     111 test dosyası (t1…t111) + 27 statik denetim betiği
 .claude/     Komutlar, ajanlar ve UZMANLIK SKILL'LERİ — aşağıdaki tablo
 ```
 
@@ -165,7 +165,7 @@ Komutlar: **`/dogrula`** · **`/olc`** · **`/yayinla`**.
 
 ```bash
 bash testler/hepsinidenetle.sh     # 27 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t110, 2522 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t111, 2570 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 npm run test:acilis                # TARAYICI açılış testi — uygulamayı gerçekten çizer
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
@@ -193,7 +193,7 @@ karar süzgeçten GERİYE KALAN satırlara göre veriliyor.
 hiçbiri uygulamayı ÇİZMİYOR; siyah ekran hatası tam olarak bu boşluktan üretime çıktı.
 Test derlenmiş uygulamayı `127.0.0.1`'de açar, `#root` içine gerçekten içerik çizildiğini
 ve açılışta yakalanmamış JS hatası olmadığını doğrular. **Ölçüldü**: hata bileşen
-gövdesine geri konulduğunda derleme 0, denetimler 0, 2522 kontrol geçiyor — yalnızca
+gövdesine geri konulduğunda derleme 0, denetimler 0, 2570 kontrol geçiyor — yalnızca
 bu test düşüyor (12 kontrol).
 
 Dört kural:
