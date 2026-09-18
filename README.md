@@ -6279,6 +6279,19 @@ erişilemezliği) bilerek olduğu gibi bırakıldı; sonuncusuna test **düzeltm
 
 ## Güncelleme 185: Tarayıcı Testi Üç Kör Noktayı Daha Çiziyor (37 → 66 kontrol)
 
+> **Dürüst aritmetik — `denetci`'nin bulgusu.** 29 yeni kontrolün **6'sı senaryo 3'ün
+> birebir kopyası** (aynı fixture, aynı 1280×900 pencere: sayfa açıldı · `#root` var ·
+> React çizildi · okunur içerik · JS hatası yok · konsol hatası yok). Boş yere geçmiyorlar
+> — uygulama çökse düşerler — ama **kapsam EKLEMİYORLAR**. Gerçek kazanç:
+> **23 yeni kapsam + 6 çift sayım**. (Senaryo 5'in aynı altısı çift DEĞİL: 390 px'te ilk
+> kez çiziliyor, o gerçek yeni kapsam.)
+
+> **Bilinen kör nokta.** "Panelde birincil düğme YOK" kontrolü yalnızca `saveBtnStyle`
+> imzasını görür. `karar.eylem`in `ODEME_GUNU_EKLE` dalı SESSİZ düğmeye (`cancelBtnStyle`)
+> iniyor ve bu imzayı taşımıyor — ölçüldü: sakin markaya o düğme sızarsa kontrol **0
+> düşürür**. Kontrolün adı bu yüzden dar tutuldu. O dalı tutan tek şey, aynı senaryodaki
+> "SAKİN dalını çizdi" başlık kontrolü. Genişletmek ayrı bir karar.
+
 ### Kapatılan üç boşluk
 
 Güncelleme 184 paneli çizmeye başlamıştı ama üç dal hâlâ hiçbir katman tarafından

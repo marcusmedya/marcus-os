@@ -202,26 +202,20 @@ derleme 0, denetimler 0, 2570 kontrol geçiyor — yalnızca bu test düşüyor.
 tarafından ölçülmüyordu. Ölçüldü: panele garanti çöken bir satır konulduğunda doğrulama
 zincirinin BEŞ adımı da yeşil kalıyordu. Üçüncü senaryo markaya tıklayıp paneli açıyor,
 kimlik satırını, karar şeridinin hangi dalı çizdiğini, bakiyeyi, birincil düğmeyi ve
-**üç sekmenin geçişini** ölçüyor. Kırarak ölçüldü: kimlik şeridine çöken erişim → 15
-kontrol, karar şeridine yanlış girdi → 5 kontrol, ölü sekme geçişi → 3 kontrol, ölü
-**İçerik** sekmesi → 3 kontrol, İçerik gövdesinin hiç çizilmemesi → 2 kontrol düşer.
+**üç sekmenin geçişini** ölçüyor. Her kontrol kırarak ölçüldü — hangi bozmanın kaç
+kontrol düşürdüğü `README.md` Güncelleme 183-185'te.
 
-**Bir dalın ÇİZİLMESİ kadar ÇİZİLMEMESİ de ölçülür.** `lib/musteri-karar.js`'in en
-ayırt edici kuralı "sağlıklı markada birincil düğme YOK" (`eylem: null`) ve bu dal
-tarayıcıda hiç çizilmiyordu. Dördüncü senaryo ödemesi tam bir markanın panelini açıyor;
-düğme sayımı panelin KENDİ DOM alt ağacında, düğmenin görsel imzasıyla (opak zemin +
-beyaz yazı = `saveBtnStyle`) yapılıyor — vurgu rengi sabit yazılmaz. "Yok" kontrolü boş
-yere geçemez: `panel !== null` şartı içinde ve aynı senaryoda kimlik + para satırı da
-aranıyor. Ölçüldü: sakin dala düğme geri konulduğunda 1 kontrol, panel hiç açılmadığında
-25 kontrol düşer (beşi bu senaryonun).
+**Bir dalın ÇİZİLMESİ kadar ÇİZİLMEMESİ de ölçülür.** "Sağlıklı markada birincil düğme
+YOK" bu tasarımın en ayırt edici kuralı; NEGATİF bir iddia olduğu için boş yere geçmeye
+açık — panel hiç açılmazsa da düğme yoktur. Bu yüzden kontrol `panel !== null` şartını
+taşır ve aynı senaryoda kimlik + para satırı da aranır. Düğme, panelin KENDİ DOM alt
+ağacında görsel imzayla bulunur; **vurgu rengi sabit yazılmaz**, tema değişince kopmasın.
 
-**Dar ekran dalı da çiziliyor.** Beşinci senaryo aynı paneli 390×800'de açıyor:
-`useIsMobile(640)` dalı gerçekten seçilmiş mi (para satırı tek sütun) ve yatay kayma var
-mı. **Yatay kayma İKİ yerde ölçülür**: fixed bir örtünün içinden taşan içerik belgenin
-kaydırma alanına EKLENMİYOR — ölçüldü, panele 900px'lik bir blok konulduğunda yalnızca
-belgeye bakan kontrol 0 kontrol düşürüyordu. Panelin kendi kaydırma bölgesi de ölçülünce
-aynı bozulma 1 kontrol düşürüyor. Ölçüldü: dar ekran dalı kapatıldığında 1 kontrol
-(sütun sayısı 3), panelin kaydırma bölgesi kaybolduğunda 1 kontrol düşer.
+**Yatay kayma İKİ yerde ölçülür.** Tarayıcı, `position: fixed` bir kutudan taşan içeriği
+belgenin kaydırma alanına EKLEMİYOR — panel de fixed bir örtünün içinde. Yalnızca
+belgeye bakan bir kontrol, panele 900px'lik bir blok konulduğunda **hiçbir şey
+sınamıyordu**; panelin kendi kaydırma bölgesi de ölçülünce aynı bozulma yakalanıyor.
+Yeni bir taşma kontrolü yazarken bu tuzağı hatırla.
 
 **Tarih bağımlı ekran, fixture'da BUGÜNE GÖRELİ kurulur.** Karar şeridi
 `clientOverdueMonths` / `clientPaymentStatus` üzerinden geliyor ve ikisi de `new Date()`e

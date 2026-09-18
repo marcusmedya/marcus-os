@@ -419,10 +419,24 @@ const panelOkuyucu = (sayfa, marka) => () => sayfa.evaluate((m) => {
   while (el && getComputedStyle(el).position !== "fixed") el = el.parentElement;
   if (!el) return null;
   /* BİRİNCİL DÜĞMENİN İMZASI: opak zemin + beyaz yazı (`saveBtnStyle`). Vurgu rengi
-   * SABİT YAZILMIYOR — tema değişince sessizce kopmasın. Paneldeki diğer düğmeler bu
-   * imzayı taşımıyor: `addBtnStyle` yarı saydam zemin + `accentText`, `cancelBtnStyle`
-   * ve `iconBtnStyle` saydam zemin, sekmeler saydam zemin. Ölçüldü (Eylül 2026):
-   * gecikme panelinde imzayı TEK düğme taşıyor ("Tebliğ oluştur"). */
+   * SABİT YAZILMIYOR — tema değişince sessizce kopmasın.
+   *
+   * İMZAYI ASIL TUTAN ŞART YAZI RENGİ, zemin değil. `addBtnStyle` koyu temada yarı
+   * saydam (`rgba(91,110,245,0.14)`) ama AÇIK temada opak (`#EAECFD`, src/tema.jsx) —
+   * yani zemin şartını GEÇER ve onu eleyen tek şey `accentText` yazı rengi. Zemin şartı
+   * yine de duruyor çünkü saydam zeminli düğmeleri (cancel/ikon/sekme) ucuza eliyor;
+   * ama taşıyıcı olan o değil. (Bir süre burada "addBtnStyle yarı saydam" yazıyordu —
+   * yalnızca koyu temada doğru; yanlış gerekçe, şartı ileride gereksiz sanıp silmeye
+   * davet ederdi.)
+   *
+   * KÖR NOKTA — bilinerek bırakıldı: imza yalnızca `saveBtnStyle`i görür. `karar.eylem`in
+   * `ODEME_GUNU_EKLE` dalı SESSİZ düğmeye (`cancelBtnStyle`) iniyor ve bu imzayı
+   * taşımıyor; ölçüldü — sakin markaya o düğme sızarsa bu kontrol 0 düşürür. Kontrolün
+   * ADI bu yüzden dar: "birincil (saveBtnStyle) düğme YOK". O dalı tutan şey, aynı
+   * senaryodaki "SAKİN dalını çizdi" başlık kontrolü.
+   *
+   * Ölçüldü (Eylül 2026): gecikme panelinde imzayı TEK düğme taşıyor ("Tebliğ oluştur");
+   * sakin panelde 7 düğmenin hiçbiri taşımıyor. */
   const birincilDugmeler = [...el.querySelectorAll("button")].filter((b) => {
     const s = getComputedStyle(b);
     return /^rgb\(/.test(s.backgroundColor) && s.color === "rgb(255, 255, 255)";
