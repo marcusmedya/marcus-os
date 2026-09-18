@@ -84,7 +84,7 @@ ama sinyal daha zayıf — çıktıdaki konsol hatası satırlarını okumadan g
 
 ```
 1 statik denetim    → çıkış 0 · 26/26
-2 sunucu testleri   → çıkış 0 · 2503 kontrol
+2 sunucu testleri   → çıkış 0 · <koşunun yazdığı sayı>
 3 derleme           → çıkış 0
 4 tarayıcı açılışı  → çıkış 0 · 14/14
 5 api fonksiyonu    → 11/12
