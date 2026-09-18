@@ -6276,3 +6276,92 @@ gelmeyen role "tek şubeli" denmesi · müşteri adı `<div onClick>`'inin klavy
 erişilemezliği) bilerek olduğu gibi bırakıldı; sonuncusuna test **düzeltmeden** tıklıyor.
 
 27 denetim · 2570 kontrol · derleme 0 · tarayıcı **37/37** · 11/12 fonksiyon.
+
+## Güncelleme 185: Tarayıcı Testi Üç Kör Noktayı Daha Çiziyor (37 → 66 kontrol)
+
+### Kapatılan üç boşluk
+
+Güncelleme 184 paneli çizmeye başlamıştı ama üç dal hâlâ hiçbir katman tarafından
+ölçülmüyordu:
+
+1. **İçerik sekmesi hiç açılmıyordu.** Sekme geçişi yalnızca Para → İlişki yönünde
+   sınanıyordu; `IcerikYonetimMotoru`'nun bu panel içinden çizilip çizilmediğine bakan
+   bir şey yoktu.
+2. **Karar şeridinin "sağlıklı marka" dalı hiç çizilmiyordu.** `lib/musteri-karar.js`'in
+   en ayırt edici iddiası — "yapılacak bir şey yoksa birincil düğme de yok" (`eylem:
+   null`) — yalnızca saf modül testinde (t111) vardı; tarayıcıda gecikme dalı çiziliyor,
+   sakin dal hiç çizilmiyordu. Yani "düğme gerektiğinde VAR" ölçülüyor, "gerekmediğinde
+   YOK" ölçülmüyordu.
+3. **Dar ekran dalı hiç çizilmiyordu.** Test tek pencere ölçüsünde (1280×900) koşuyordu;
+   `useIsMobile(640)` altındaki dal (para satırı tek sütun, yatay boşluk 24 → 16)
+   telefonda açılan panelin tamamı gibi ölçüsüzdü.
+
+### Ne eklendi
+
+- **İçerik sekmesi** (3 kontrol): seçili sekme değişti · motorun kendi alt sekmeleri ve
+  markanın **içerik kaydı** listede çizildi · İlişki içeriği gitti. Fixture'a bir
+  `musteriIcerikleri` kaydı eklendi: boş listede dört alt sekme başlığı zaten sabit
+  metindir, kaydın çizilmesi motorun `clientId` süzgecinden geçtiğinin kanıtı.
+- **"Sağlıklı marka paneli" senaryosu** (14 kontrol): fixture'a ödemesi tam ikinci bir
+  marka eklendi. Ölçülenler: panel açıldı · kimlik satırı · karar şeridinin **sakin
+  dalı** ("Bu ay ödendi", gecikme cümlesi yok) · **panelde birincil düğme YOK** · para
+  satırı yine çizili. Düğme sayımı panelin **kendi DOM alt ağacında**, düğmenin görsel
+  imzasıyla yapılıyor: opak zemin + beyaz yazı (`saveBtnStyle`). Vurgu rengi sabit
+  yazılmadı — tema değişince sessizce kopmasın.
+- **"Dar ekranda müşteri paneli" senaryosu** (12 kontrol, 390×800): panel açıldı ·
+  yatay kayma yok · para satırı tek sütuna düştü. `senaryo()` artık `pencere` seçeneği
+  alıyor; varsayılan yine sabit 1280×900.
+
+**37 → 66 kontrol**, `BEKLENEN` sabiti de artırıldı.
+
+### "Düğme YOK" kontrolü boş yere geçemez
+
+Panel hiç açılmazsa da düğme yoktur — yani bu kontrol kolayca anlamsızlaşabilirdi. İki
+şeyle bağlandı: kontrolün kendisi `panel !== null` şartını taşıyor ve aynı senaryoda
+kimlik satırı + para satırı da aranıyor. **Ölçüldü:** `ClientDetail` hiç çizmeyecek hâle
+getirildiğinde 25 kontrol düşüyor ve bunların beşi bu senaryonun — "düğme yok" da
+"panel açılmadı" diyerek düşüyor, sessizce geçmiyor.
+
+### Yatay kayma: belgeye bakmak YETMİYOR — ölçüldü
+
+İlk yazımda kontrol yalnızca `document`/`body` taşmasına bakıyordu. Para satırına
+`minWidth: 900` konulup 390 px pencerede koşuldu: **0 kontrol düştü.** Sebebi,
+tarayıcının `position: fixed` bir kutudan taşan içeriği belgenin kaydırma alanına
+eklememesi — panel bir fixed örtünün içinde. Kontrol panelin **kendi kaydırma bölgesini**
+(`overflowY: auto`) de ölçecek biçimde düzeltildi; aynı bozulma artık 1 kontrol düşürüyor
+("panel: 584px"). Bölge bulunamazsa kontrol geçmiyor, **düşüyor**: panelin yapısı
+değiştiyse çıpa gürültülü kırılsın.
+
+### Kırarak ölçüldü (her biri: yedekle → boz → derle → koştur → geri al → md5)
+
+| Bozma | Düşen | Hangileri |
+|---|---|---|
+| İçerik sekmesi tıklaması ölü (`onSec` yutuyor) | **3** | İçerik sekmesinin üç kontrolü |
+| İçerik gövdesi hiç çizilmiyor (`false && sekme==="icerik"`) | **2** | seçili sekme değişti · içerik geldi |
+| Sakin dala birincil düğme geri konuldu (`eylem: null` → eylem) | **1** | "birincil düğme YOK" (`bulunan: ["Ödemeyi kaydet"]`) |
+| `ClientDetail` hiç çizmiyor | **25** | üç panel senaryosunun tamamı |
+| Dar ekran dalı seçilmiyor (`darEkran = false`) | **1** | "tek sütuna düştü" (`sütun sayısı: 3`) |
+| Para satırı 900 px taşıyor | **1** | "yatay KAYMA yok" (`panel: 584px`) |
+| Panelin kaydırma bölgesi yok (`overflowY: visible`) | **1** | "yatay KAYMA yok" (`kaydırma bölgesi bulunamadı`) |
+
+Her ölçümde derleme 0 döndü; bozulmayı yalnızca bu test gördü. Dosyalar `mktemp -d`
+yedeğinden geri alındı ve `md5sum` ile doğrulandı.
+
+### İkinci marka da tarihten BAĞIMSIZ
+
+`odemeGunu: 1` + `odemeSekli: "pesin"` → değerlendirilen ay her zaman bu ay; bu ay tam
+ödenmiş olduğu için `clientPaymentStatus` "odendi", `clientOverdueMonths` daha ilk turda
+durup 0 veriyor. Başlangıç 2 ay önce → kimlik satırı her koşuda "3. ay". Kural
+kopyalanmadan, **gerçek modüllerle** (`lib/odeme-hesabi.js` → `isMonthPaid`,
+`monthRemaining`; `lib/musteri-karar.js` → `calismaAyi`, `musteriKararSeridi`) altı sahte
+tarihte koşturuldu (1 Ocak, 31 Ocak, 28 Şubat, **29 Şubat**, 31 Aralık, 15 Mart):
+altısında da aynı şerit, aynı "3. ay", gecikmelide aynı 6 ay / 72.000 ₺.
+
+### Dokunulmayanlar
+
+`src/`, `lib/` ve `api/` altında **sıfır satır** değişti — bu iş yalnızca test. Güncelleme
+183'ün bilinen üç borcu (yönetici çağrısının `freelancerlar` prop'unu geçmemesi ·
+`subeler` gelmeyen role "tek şubeli" denmesi · müşteri adı `<div onClick>`'inin klavyeyle
+erişilemezliği) bilerek olduğu gibi bırakıldı.
+
+27 denetim · 2570 kontrol · derleme 0 · tarayıcı **66/66** · 11/12 fonksiyon.

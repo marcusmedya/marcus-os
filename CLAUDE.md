@@ -192,25 +192,46 @@ karar süzgeçten GERİYE KALAN satırlara göre veriliyor.
 **Tarayıcı açılış testi — `testler/tarayiciAcilis.mjs`.** Yukarıdaki diğer üç adımın
 hiçbiri uygulamayı ÇİZMİYOR; siyah ekran hatası tam olarak bu boşluktan üretime çıktı.
 Test derlenmiş uygulamayı `127.0.0.1`'de açar, `#root` içine gerçekten içerik çizildiğini
-ve açılışta yakalanmamış JS hatası olmadığını doğrular. **Üç senaryo, 37 kontrol**:
-boş veritabanı · dolu veritabanı · **müşteri detay paneli**. **Ölçüldü**: hata bileşen
-gövdesine geri konulduğunda derleme 0, denetimler 0, 2570 kontrol geçiyor — yalnızca
-bu test düşüyor (34 kontrol).
+ve açılışta yakalanmamış JS hatası olmadığını doğrular. **Beş senaryo, 66 kontrol**:
+boş veritabanı · dolu veritabanı · **müşteri detay paneli** · **sağlıklı marka paneli** ·
+**dar ekranda müşteri paneli**. **Ölçüldü**: hata bileşen gövdesine geri konulduğunda
+derleme 0, denetimler 0, 2570 kontrol geçiyor — yalnızca bu test düşüyor.
 
 **Açılış yetmiyor, DERİN EKRAN da çiziliyor.** İlk iki senaryo Dashboard'da duruyordu:
 `ClientDetail` hiç mount edilmiyordu ve panelin 441 satırlık çizimi hiçbir katman
 tarafından ölçülmüyordu. Ölçüldü: panele garanti çöken bir satır konulduğunda doğrulama
 zincirinin BEŞ adımı da yeşil kalıyordu. Üçüncü senaryo markaya tıklayıp paneli açıyor,
 kimlik satırını, karar şeridinin hangi dalı çizdiğini, bakiyeyi, birincil düğmeyi ve
-**sekme geçişini** ölçüyor. Kırarak ölçüldü: kimlik şeridine çöken erişim → 15 kontrol,
-karar şeridine yanlış girdi → 5 kontrol, ölü sekme geçişi → 3 kontrol düşer.
+**üç sekmenin geçişini** ölçüyor. Kırarak ölçüldü: kimlik şeridine çöken erişim → 15
+kontrol, karar şeridine yanlış girdi → 5 kontrol, ölü sekme geçişi → 3 kontrol, ölü
+**İçerik** sekmesi → 3 kontrol, İçerik gövdesinin hiç çizilmemesi → 2 kontrol düşer.
+
+**Bir dalın ÇİZİLMESİ kadar ÇİZİLMEMESİ de ölçülür.** `lib/musteri-karar.js`'in en
+ayırt edici kuralı "sağlıklı markada birincil düğme YOK" (`eylem: null`) ve bu dal
+tarayıcıda hiç çizilmiyordu. Dördüncü senaryo ödemesi tam bir markanın panelini açıyor;
+düğme sayımı panelin KENDİ DOM alt ağacında, düğmenin görsel imzasıyla (opak zemin +
+beyaz yazı = `saveBtnStyle`) yapılıyor — vurgu rengi sabit yazılmaz. "Yok" kontrolü boş
+yere geçemez: `panel !== null` şartı içinde ve aynı senaryoda kimlik + para satırı da
+aranıyor. Ölçüldü: sakin dala düğme geri konulduğunda 1 kontrol, panel hiç açılmadığında
+25 kontrol düşer (beşi bu senaryonun).
+
+**Dar ekran dalı da çiziliyor.** Beşinci senaryo aynı paneli 390×800'de açıyor:
+`useIsMobile(640)` dalı gerçekten seçilmiş mi (para satırı tek sütun) ve yatay kayma var
+mı. **Yatay kayma İKİ yerde ölçülür**: fixed bir örtünün içinden taşan içerik belgenin
+kaydırma alanına EKLENMİYOR — ölçüldü, panele 900px'lik bir blok konulduğunda yalnızca
+belgeye bakan kontrol 0 kontrol düşürüyordu. Panelin kendi kaydırma bölgesi de ölçülünce
+aynı bozulma 1 kontrol düşürüyor. Ölçüldü: dar ekran dalı kapatıldığında 1 kontrol
+(sütun sayısı 3), panelin kaydırma bölgesi kaybolduğunda 1 kontrol düşer.
 
 **Tarih bağımlı ekran, fixture'da BUGÜNE GÖRELİ kurulur.** Karar şeridi
 `clientOverdueMonths` / `clientPaymentStatus` üzerinden geliyor ve ikisi de `new Date()`e
 bakıyor; sabit tarih yazmak, testin aylar sonra kimse dokunmadan kırmızıya dönmesi
-demektir. Fixture'daki marka `odemeGunu: 1` (ayın kaçı olduğu sonucu değiştiremez),
-başlangıç 8 ay önce, 6 ay önceki ay tam ödenmiş — dal her koşuda aynı. Altı farklı sahte
-tarihle (ay sonu, yıl sonu, 29 Şubat dahil) koşturularak doğrulandı.
+demektir. Fixture'ın iki markası da `odemeGunu: 1` (ayın kaçı olduğu sonucu değiştiremez):
+gecikmelinin başlangıcı 8 ay önce ve 6 ay önceki ay tam ödenmiş; sağlıklının başlangıcı
+2 ay önce ve BU AY dahil her ay tam ödenmiş — iki dal da her koşuda aynı. Altı farklı
+sahte tarihte (ay sonu, yıl sonu, 29 Şubat dahil), kural kopyalanmadan **gerçek
+modüllerle** (`lib/odeme-hesabi.js`, `lib/musteri-karar.js`) koşturularak doğrulandı:
+altısında da aynı şerit, aynı "3. ay", aynı 6 ay / 72.000 ₺.
 
 Beş kural:
 - **Testin KENDİSİ sessizce anlamsızlaşamaz.** Bu testin bütün gücü iki parametrede duruyor

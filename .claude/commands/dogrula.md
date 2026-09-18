@@ -52,7 +52,7 @@ npm run build; echo "ÇIKIŞ: $?"
 ```
 npm run test:acilis; echo "ÇIKIŞ: $?"
 ```
-Beklenen: `SONUÇ: 37 kontrol geçti, uygulama açılıyor.` ve `ÇIKIŞ: 0`.
+Beklenen: `SONUÇ: 66 kontrol geçti, uygulama açılıyor.` ve `ÇIKIŞ: 0`.
 **Bu adım tek başına siyah ekranı yakalar** — diğerlerinin hiçbiri uygulamayı çizmiyor.
 `dist/` yoksa test kendisi derler. Çıktıda `TARAYICI BULUNAMADI` yazıyorsa bu bir
 UYGULAMA hatası değil, ortamda Chromium yok demektir; `MARCUS_CHROMIUM=<yol>` ver.
