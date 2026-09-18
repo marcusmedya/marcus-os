@@ -1,6 +1,7 @@
 import { kv } from "@vercel/kv";
 import { ownerYetkiliMi } from "../lib/oturum.js";
 import { gonderenAdres } from "../lib/eposta.js";
+import { yanittanSebep } from "../lib/eposta-hata.js";
 const bugunISO = () => {
   const parcalar = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
   const y = parcalar.find((p) => p.type === "year").value;
@@ -58,6 +59,7 @@ export default async function handler(req, res) {
       return res.status(200).json({
         skipped: true,
         reason: "RESEND_API_KEY veya BACKUP_EMAIL ortam değişkeni tanımlı değil.",
+        kod: !resendKey ? "anahtar-yok" : "adres-yok",
       });
     }
 
@@ -102,7 +104,12 @@ export default async function handler(req, res) {
 
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
-      return res.status(500).json({ error: "E-posta gönderilemedi.", detail: err });
+      /* SEBEP EKRANA ÇIKMALI. Eskiden yalnızca `detail` içinde geliyordu ve arayüz onu hiç
+       * okumuyordu — kullanıcı "E-posta gönderilemedi." dışında hiçbir şey göremiyordu.
+       * Sahada tam olarak bu yaşandı: alan adı doğrulaması düşmüştü, sebep hiçbir yerde
+       * yazmıyordu ve sorun günlerce teşhis edilemedi. */
+      const { sebep, kod } = yanittanSebep(err, r.status);
+      return res.status(500).json({ error: "E-posta gönderilemedi.", sebep, kod, detail: err });
     }
 
     return res.status(200).json({ ok: true, to: toEmail });

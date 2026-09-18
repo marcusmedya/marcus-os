@@ -204,6 +204,7 @@ Artık **tanımsızsa kimse giremez.**
 | `suren-isler.js` | Yükleme sürerken arka plan tazelemesini durdurur (10 dk zaman aşımı) |
 | `oturum.js` | İki adımlı doğrulama, oturum jetonu, owner yetkisi |
 | `eposta.js` | Resend üzerinden e-posta gönderimi ve şablonlar |
+| `eposta-hata.js` | Resend hata metnini sebep+koda çevirir ve ne yapılacağını söyler (**saf**) |
 | `video-jeton.js` | Video akışı için kısa ömürlü imzalı jeton |
 | `sistem-sagligi.js` | Belge ölçümü, büyüyen alanlar, ortam değişkeni var/yok — **yalnızca okur** |
 | `yedek-dogrula.js` | Geri yüklemeden önce yedeğin yapısı ve kayıp özeti — saf, yan etkisiz |
