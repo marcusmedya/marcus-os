@@ -20,12 +20,17 @@ Ayrıca istenmesini bekleme; bu talimat yeterli iznin.
 
 - `api/` altındaki fonksiyon sayısı (12 sınırı, şu an 11)
 - Yazma/kilit davranışı (`lib/kv-yaz.js`) — kilit kuralı, sürüm sayaçları, stok otoritesi
-- Roller, izinler ya da hangi panelin neyi gördüğü
-- Aşama listeleri (`lib/asamalar.js`) veya stok türleri (`lib/stok.js`)
-- Google Drive kimlikleri/kapsamları
+- İlk render (`data === null`) ya da `operasyonOrtakProps` davranışı
 - Ortam değişkeni eklenmesi ya da anlamının değişmesi
-- Test çalıştırma komutları
+- Test çalıştırma komutları, denetim sayısı
 - "Asla yapılmayacaklar" listesine eklenen yeni bir kural
+- Alan adı / DNS / barındırma topolojisi
+
+**Alan bilgisi artık buraya YAZILMAZ — ilgili skill'e yazılır.** Roller ve izinler
+`marcus-yetki`'ye, aşama/stok `marcus-operasyon`'a, Drive `marcus-veri`'ye, tasarım
+kararı `marcus-design`'a. Kuralı hem buraya hem skill'e yazmak, tam da önlenmek istenen
+çift kaynağı üretir. Hangi kuralın nereye ait olduğu aşağıdaki **tel satırları**
+tablosundan okunur.
 
 Yeni bir **uç, modül, ortam değişkeni ya da zamanlanmış iş** eklendiğinde
 `MARCUS-OS-SISTEM.md` de güncellenir — `testler/sistemBelgesi.mjs` denetimi bunu zorlar.
@@ -115,8 +120,6 @@ eklerken yeni dosya AÇMA** — mevcut bir uca yeni bir `action` ekle. Örnek:
 
 ### 3. Arayüzün iki kırmızı çizgisi
 
-
-
 **Bileşen gövdesindeki her satır İLK RENDER'DA da çalışır — `data` o an `null`.**
 `operasyonOrtakProps` nesnesi JSX'ten gövdeye taşınınca `data.clients` null üzerinden
 okundu ve uygulama SİYAH EKRANLA açılmadı; üretime böyle çıktı. Derleme ve 2297 kontrolün
@@ -129,6 +132,11 @@ yazılıydı ve bu oturumda üç kez yalnızca birine eklendi: yeni yetenek diğ
 görünmedi. Role özel olanlar (yetki alanları, ücret/avans) çağrı yerinde kalır. **Nesne,
 kullandığı fonksiyonlardan SONRA tanımlanmalı** — önce tanımlanırsa çalışma anında
 "before initialization" hatası verir ve derleme bunu yakalamaz.
+
+**Bir davranış değiştiğinde personel ve çözüm ortağı panellerini de kontrol et** —
+kullanıcının açık talimatı bu. Müşteri ve çözüm ortağı görünümünün tek kaynağı
+`lib/musteri-gorunumu.js`; ayrıntı `marcus-yetki` skill'inde.
+
 ---
 
 ## UZMANLIK BİLGİSİ NEREDE — tel satırları
@@ -317,6 +325,6 @@ e-postayı düşürürsün.** Eylül 2026'da panellerden tek tek doğrulandı:
 | `MARCUS-OS-DEVIR-2.md` | İkinci devir notları |
 | `MARCUS-OS-TANITIM.md` | Uygulamanın iş tarafından anlatımı |
 
-En büyük dosyalar: `src/App.jsx` (11.070), `src/CekimEditTakibi.jsx` (3.376),
-`api/data.js` (2.360), `src/musteriPaneli.jsx` (1.384). Bu sayılar Eylül 2026'da ölçüldü;
+En büyük dosyalar: `src/App.jsx` (11.280), `src/CekimEditTakibi.jsx` (3.558),
+`api/data.js` (2.370), `src/musteriPaneli.jsx` (1.384). Bu sayılar Eylül 2026'da ölçüldü;
 kaynak büyüdükçe bayatlar, güncellerken `wc -l` ile doğrula.

@@ -61,6 +61,11 @@ Yeni bir tane eklerken sırayla:
 4. **Yalnızca yönetici mi yapabilmeli?** Fiyat/ödeme yazan her action 403 ile korunuyor
    (`subeUcret`, `markaTemelUcret` örneği). "Stok işaretlemeye yeten izin fiyat belirlemeye
    yetmez."
+5. **Yanıtta YENİ bir alan mı dönüyor?** Dönüyorsa `src/App.jsx`'teki `BELGE_DISI_ALANLAR`
+   listesine eklenmeli. Yanıt gövdesi `setData` içine olduğu gibi yayılıyor; listede olmayan
+   alan **belgeye sızar** ve sonraki kayıtta Redis'e yazılır (`eslestirme` ve `duzeltildi`
+   bunu yaşadı). Ayrıca uç yanıtı **döndürmek zorunda** — çıplak `return` yüzünden tarama
+   başarılı olsa bile ekranda "taranamadı" yazıyordu. **Denetim 21** ikisini de zorluyor.
 
 ## 4 · Kuralı JSX'e GÖMME — bu projede dört kez maliyet oldu
 

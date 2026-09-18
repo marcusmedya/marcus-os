@@ -31,9 +31,12 @@ kilitli hesap o işlemi kendi markasında bile yapamaz.
 markanın şubesini gönderip çöp stok anahtarı üretebiliyor ve şube adını öğrenebiliyordu.
 
 Müşteri ve çözüm ortağı görünümünün **tek kaynağı `lib/musteri-gorunumu.js`**.
-Aynı kuralı iki yere yazmak bu projede zaten bir kez panel senkron hatasına yol
-açtı. Bir davranış değiştiğinde personel ve çözüm ortağı panellerini de kontrol et
-— kullanıcının açık talimatı bu.
+Aynı kuralı iki yere yazmak bu projede zaten bir kez panel senkron hatasına yol açtı.
+
+> "Bir davranış değiştiğinde personel ve çözüm ortağı panellerini de kontrol et"
+> talimatı HER davranış değişikliğini ilgilendirdiği için `CLAUDE.md` §3'te duruyor —
+> burada tekrarlanmıyor. Bu skill yalnızca yetki işinde yükleniyor; stok ya da aşama
+> işi yapan bir oturum onu burada görmezdi.
 
 Çözüm ortağı paneli = müşteri paneli eksi "İçerik İste" sekmesi
 (`ORTAGA_KAPALI_SEKMELER`), artı kendisine atanan markaların paylaşım/stok panelleri.

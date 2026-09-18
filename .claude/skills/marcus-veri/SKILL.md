@@ -100,9 +100,8 @@ tanımsızsa **aranır, AÇILMAZ** — bir süre `klasorBulVeyaOlustur` çağrı
 ortak klasörün altında marka adıyla yeni klasör açıp sonra "her dosyanın kartı var" diye
 sahte temiz rapor veriyordu.
 
-**Uçtan dönen yanıt alanları `BELGE_DISI_ALANLAR`'a yazılır** (`src/App.jsx`). Yanıt gövdesi
-`setData` içine olduğu gibi yayılıyor; listeye girmeyen alan BELGEYE SIZAR ve sonraki kayıtta
-Redis'e yazılır — `eslestirme` ve `duzeltildi` bunu yaşadı. Ayrıca `paylasimIstek` yanıtı
-**döndürmek zorunda**: çıplak `return` yüzünden Drive eşleştirmesi hep `undefined` alıyor,
-tarama başarılı olsa bile ekranda "Drive taranamadı." yazıyordu. İkisini de denetim 21 zorluyor.
+**Drive eşleştirmesi yanıtta alan döndürüyor** (`eslestirme`, `duzeltildi`) ve bu alanların
+`BELGE_DISI_ALANLAR`'a yazılması gerekiyor — yoksa belgeye sızıp Redis'e yazılıyorlar; ayrıca
+`paylasimIstek` yanıtı döndürmek zorunda. Kuralın tamamı **`marcus-mimari` §3, 5. soruda**;
+burada tekrarlanmıyor çünkü yalnızca Drive'a değil, yanıt alanı ekleyen HER uca ait.
 

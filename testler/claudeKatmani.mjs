@@ -1,4 +1,4 @@
-/* .CLAUDE/ KATMANI BAYAT MI — denetim 27
+/* .CLAUDE/ KATMANI BAYAT MI — denetim 26
  *
  * `.claude/` altında komutlar, ajanlar ve uzmanlık skill'leri duruyor ve bunlar kod
  * hakkında İDDİA taşıyor: "kural `lib/stok.js`'te", "emsal `testler/t95.mjs`",
@@ -74,13 +74,24 @@ for (const yol of dosyalar) {
 }
 
 /* ── 2 · ters tırnaklı dosya yolları gerçek mi ───────────────────────────────── */
+let denetlenenYol = 0;
+const dosyaninYolu = new Map();   // dosya → o dosyada denetlenen yol sayısı
 const UZANTILAR = /\.(js|jsx|mjs|py|sh|md|json|html|css)$/;
 
 for (const yol of dosyalar) {
   const goreli = yol.slice(KOK.length);
   const metin = readFileSync(yol, "utf8");
-  for (const eslesme of metin.matchAll(/`([^`\n]+)`/g)) {
-    const aday = eslesme[1].trim();
+  /* Adaylar İKİ yerden gelir:
+   *   · satır içi ters tırnak — `lib/stok.js`
+   *   · ÇİTLİ KOD BLOĞU — komut örnekleri yollarını orada taşıyor
+   *     (`bash testler/hepsinidenetle.sh`). Bloklar taranmadığı sürece /dogrula ve
+   *     dogrulayici gibi dosyaların bütün iddiaları denetim dışı kalıyordu; ölçüldü. */
+  const adaylar = [...metin.matchAll(/`([^`\n]+)`/g)].map((m) => m[1]);
+  for (const blok of metin.matchAll(/```[a-z]*\n([\s\S]*?)```/g)) {
+    for (const parca of blok[1].split(/\s+/)) adaylar.push(parca);
+  }
+  for (const ham of adaylar) {
+    const aday = ham.trim();
     if (!aday.includes("/") || !UZANTILAR.test(aday)) continue;
     if (aday.includes("*") || aday.includes(" ") || aday.includes("://")) continue;
     if (aday.startsWith("@")) continue;                       // paket adı (@vercel/kv)
@@ -91,10 +102,12 @@ for (const yol of dosyalar) {
      *     dosyanın bulunduğu klasörü değil (references/ içinden yazılan bir satır da
      *     aynı anlama gelir, yoksa references/references/ aranırdı)
      *   · .claude/ — bu klasörün içindeki belgeler zaman zaman ona göre yol yazıyor */
+    denetlenenYol++;
+    dosyaninYolu.set(goreli, (dosyaninYolu.get(goreli) || 0) + 1);
     const skillKoku = (yol.match(/^(.*\/\.claude\/skills\/[^/]+)\//) || [])[1];
-    const adaylar = [join(KOK, aday), join(claudeDizini, aday)];
-    if (skillKoku) adaylar.push(join(skillKoku, aday));
-    if (!adaylar.some((p) => existsSync(p))) {
+    const yollar = [join(KOK, aday), join(claudeDizini, aday)];
+    if (skillKoku) yollar.push(join(skillKoku, aday));
+    if (!yollar.some((p) => existsSync(p))) {
       hatalar.push(`${goreli}: \`${aday}\` diye bir dosya YOK (yeniden adlandırılmış ya da silinmiş olabilir)`);
     }
   }
@@ -114,10 +127,52 @@ for (const ad of isaretEdilen) {
   }
 }
 
+/* ── BU DENETİM SESSİZCE ANLAMSIZLAŞAMAZ ─────────────────────────────────────────
+ *
+ * Kontrol 2 ve 3 ters tırnaklı örüntülere bakıyor. Belgelerdeki yollar bir kod bloğuna
+ * ya da düz metne çevrilirse örüntü HİÇBİR ŞEYE eşleşmez: denetlenen yol sayısı sıfıra
+ * düşer, tek bir hata bulunmaz ve denetim "✓ güncel" deyip 0 ile çıkar. ÖLÇÜLDÜ —
+ * ters tırnaklar söküldüğünde 108 yol 0'a indi ve çıktı DEĞİŞMEDİ.
+ *
+ * Yani denetim, kaldırıldığını kendisi söylemeden kaldırılabiliyordu. Bu tam olarak
+ * CLAUDE.md'nin "testin KENDİSİ sessizce anlamsızlaşamaz" kuralının yasakladığı hâl;
+ * tarayıcı testine BEKLENEN sayacı aynı sebeple konuldu.
+ *
+ * Taban SABİT değil, ALT SINIR: belgeler büyüdükçe sayı artar, sorun olan düşmesi.
+ * Sayılar çıktıya da yazılıyor ki 108 ile 0 gözle ayırt edilebilsin. */
+const EN_AZ_YOL = 40;
+const EN_AZ_ISARET = 5;
+if (denetlenenYol < EN_AZ_YOL) {
+  hatalar.push(`yalnızca ${denetlenenYol} dosya yolu denetlendi (en az ${EN_AZ_YOL} bekleniyor) — `
+    + "örüntü artık eşleşmiyor olabilir, yani bu denetim hiçbir şey sınamıyor");
+}
+if (isaretEdilen.size < EN_AZ_ISARET) {
+  hatalar.push(`yalnızca ${isaretEdilen.size} skill işareti bulundu (en az ${EN_AZ_ISARET} bekleniyor) — `
+    + "tel satırları kaybolmuş ya da örüntü eşleşmiyor olabilir");
+}
+
+/* Toplam taban yalnızca TOPLU vakumu yakalıyor: ölçüldü, tek bir dosyanın ters tırnakları
+ * sökülünce sayı 108'den 75'e indi ve taban bunu geçtiği için denetim ✓ verdi. Yani bir
+ * belge sessizce denetim dışı kalabiliyordu — asıl gerçekçi senaryo bu.
+ *
+ * Bu yüzden projenin KENDİ yazdığı her skill ve ajan dosyası en az bir yol denetletmek
+ * zorunda. Hepsi koda dair iddia taşıyor; hiç yol içermeyen bir marcus-* dosyası ya
+ * boşaltılmıştır ya biçimi bozulmuştur. Dışarıdan gelen skill'ler (find-skills) bu
+ * kuralın dışında — onların içeriği bizim sorumluluğumuzda değil. */
+for (const yol of dosyalar) {
+  const goreli = yol.slice(KOK.length);
+  const bizim = goreli.includes("/agents/") || goreli.includes("/skills/marcus-");
+  if (!bizim || !goreli.endsWith(".md")) continue;
+  if (!dosyaninYolu.get(goreli)) {
+    hatalar.push(`${goreli}: hiç dosya yolu denetlenmedi — ters tırnaklı yol örüntüsü `
+      + "artık eşleşmiyor (bu belge sessizce denetim dışı kalmış olabilir)");
+  }
+}
+
 /* ── sonuç ───────────────────────────────────────────────────────────────────── */
 if (hatalar.length) {
   hatalar.forEach((h) => console.log(`✗ ${h}`));
   console.log(`\n${hatalar.length} sorun — .claude/ katmanı koda göre bayatlamış.`);
   process.exit(1);
 }
-console.log(`✓ .claude/ katmanı güncel — ${dosyalar.length} belge, ${skillAdlari.size} skill, yol ve işaretler doğrulandı`);
+console.log(`✓ .claude/ katmanı güncel — ${dosyalar.length} belge, ${skillAdlari.size} skill, ${denetlenenYol} dosya yolu, ${isaretEdilen.size} skill işareti doğrulandı`);
