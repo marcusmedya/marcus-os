@@ -127,16 +127,23 @@ async function senaryo(tarayici, ad, apiYaniti, enAzMetin, beklenenMetin) {
     return yol.fulfill({ status: 200, contentType: "text/plain", body: "" });
   });
 
+  // ZAMAN AŞIMLARI BİLEREK CÖMERT. Bu test doğrulama zincirinin sonunda, 2503 kontrolün
+  // ve bir derlemenin hemen ardından çalışıyor; makine yüklüyken dar bir sınır sonucu
+  // ÇEVİREBİLİR. Bir kez gözlendi: aynı kod tek başına geçti, zincirin içinde düştü.
+  // Sınırlar yalnızca gerçekten bir şey bozulduğunda devreye girer, o yüzden geniş
+  // tutmanın maliyeti yok — kararsız bir test ise olmayan testten kötüdür.
   let acilisHatasi = null;
+  let zamanAsimi = false;
   try {
-    await sayfa.goto(`http://127.0.0.1:${port}/`, { waitUntil: "load", timeout: 30000 });
+    await sayfa.goto(`http://127.0.0.1:${port}/`, { waitUntil: "load", timeout: 60000 });
     // React'in çizmesi ve ilk veri turunun bitmesi için bekle.
     await sayfa.waitForFunction(
       () => { const r = document.getElementById("root"); return r && r.children.length > 0; },
-      { timeout: 15000 },
+      { timeout: 30000 },
     );
   } catch (e) {
     acilisHatasi = e.message.split("\n")[0];
+    zamanAsimi = /Timeout|timeout/.test(acilisHatasi);
   }
 
   const durum = await sayfa.evaluate(() => {
@@ -178,9 +185,69 @@ async function senaryo(tarayici, ad, apiYaniti, enAzMetin, beklenenMetin) {
   if (durum.metinUzunlugu > 0) {
     console.log(`     ekrandan: "${durum.ornek}…"`);
   }
+  // Zaman aşımı ile GERÇEK çizim hatası aynı ✗ satırlarını üretir. JS hatası hiç
+  // yakalanmadıysa ayrım yapılamaz; bunu söylemek, sessizce "uygulama bozuk" demekten
+  // dürüsttür — okuyan kişi yanlış yeri kazmasın.
+  if (zamanAsimi && jsHatalari.length === 0) {
+    console.log("     ! zaman aşımı, JS hatası YAKALANMADI — bu bir çizim hatası olabilir");
+    console.log("       ama yüklü makinede yavaşlık da olabilir. Testi tek başına tekrar çalıştır.");
+  }
 
   await baglam.close();
   await new Promise((r) => sunucu.close(r));
+}
+
+/* ── TARAYICIYI BUL ──────────────────────────────────────────────────────────── */
+/**
+ * Chromium'un yeri MAKİNEDEN MAKİNEYE DEĞİŞİR. Yol sabit yazılıydı
+ * ("/opt/pw-browsers/chromium") ve o yol yoksa test çöküyordu — yani başka bir
+ * geliştirme ortamında ya da CI'da "uygulama bozuk" gibi görünüyordu, oysa yalnızca
+ * tarayıcı başka yerdeydi. Sırayla denenir, ilk açılan kullanılır:
+ *
+ *   1. MARCUS_CHROMIUM       — elle verilen yol (her şeyi ezer)
+ *   2. PLAYWRIGHT_BROWSERS_PATH altındaki chromium
+ *   3. playwright-core'un KENDİ indirdiği tarayıcı (executablePath verilmez)
+ *   4. Sistemde kurulu Chrome/Chromium kanalları
+ *
+ * Hiçbiri açılmazsa test SESSİZCE GEÇMEZ — ne denendiğini ve ne yapılması gerektiğini
+ * yazıp 1 ile çıkar. "Tarayıcı bulunamadı" ile "uygulama açılmıyor" karışmamalı.
+ */
+async function tarayiciAc() {
+  const ARGS = ["--no-sandbox", "--disable-dev-shm-usage"];
+  const adaylar = [];
+
+  if (process.env.MARCUS_CHROMIUM) {
+    adaylar.push({ ad: `MARCUS_CHROMIUM=${process.env.MARCUS_CHROMIUM}`,
+                   ayar: { executablePath: process.env.MARCUS_CHROMIUM, args: ARGS } });
+  }
+  if (process.env.PLAYWRIGHT_BROWSERS_PATH) {
+    const yol = path.join(process.env.PLAYWRIGHT_BROWSERS_PATH, "chromium");
+    if (fs.existsSync(yol)) {
+      adaylar.push({ ad: `PLAYWRIGHT_BROWSERS_PATH → ${yol}`,
+                     ayar: { executablePath: yol, args: ARGS } });
+    }
+  }
+  adaylar.push({ ad: "playwright-core'un kendi tarayıcısı", ayar: { args: ARGS } });
+  for (const kanal of ["chromium", "chrome"]) {
+    adaylar.push({ ad: `sistem kanalı: ${kanal}`, ayar: { channel: kanal, args: ARGS } });
+  }
+
+  const denenenler = [];
+  for (const aday of adaylar) {
+    try {
+      const t = await chromium.launch(aday.ayar);
+      if (denenenler.length) console.log(`  · tarayıcı: ${aday.ad}`);
+      return t;
+    } catch (e) {
+      denenenler.push(`${aday.ad} → ${e.message.split("\n")[0]}`);
+    }
+  }
+
+  console.log("  ✗ TARAYICI BULUNAMADI — bu bir uygulama hatası DEĞİL, ortam eksikliği.");
+  denenenler.forEach((d) => console.log(`      denendi: ${d}`));
+  console.log("    Çözüm: MARCUS_CHROMIUM=<chrome yolu> ile çalıştır,");
+  console.log("    ya da `npx playwright install chromium` ile tarayıcıyı kur.");
+  process.exit(1);
 }
 
 /* ── ÇALIŞTIR ────────────────────────────────────────────────────────────────── */
@@ -190,10 +257,7 @@ async function calistir() {
     execSync("npm run build", { cwd: KOK, stdio: "ignore" });
   }
 
-  const tarayici = await chromium.launch({
-    executablePath: "/opt/pw-browsers/chromium",
-    args: ["--no-sandbox", "--disable-dev-shm-usage"],
-  });
+  const tarayici = await tarayiciAc();
   try {
     // 1) Belge BOŞ: uygulamanın ilk kurulum ekranı. `data` bir süre null kalır —
     //    siyah ekran hatası tam olarak bu anda ortaya çıkmıştı.

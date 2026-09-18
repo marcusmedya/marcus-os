@@ -761,8 +761,12 @@ bu test düşüyor (12 kontrol).
   değersizleştirir: fixture hiç oluşmayan bir hâli temsil eder ve test olmayan sorunları
   kovalar. Bu yaşandı — eksik fixture önce yanlış yere baktırdı.
 
-Derleme gerekiyor: `dist/` yoksa test kendisi `npm run build` çalıştırır. Tarayıcı ortamda
-kurulu (`/opt/pw-browsers/chromium`); `playwright-core` tarayıcı İNDİRMEZ, var olanı açar.
+Derleme gerekiyor: `dist/` yoksa test kendisi `npm run build` çalıştırır.
+**Tarayıcının yeri makineden makineye değişir**, bu yüzden sabit yol YAZILMAZ — sırayla
+`MARCUS_CHROMIUM` → `PLAYWRIGHT_BROWSERS_PATH` → `playwright-core`'un kendi indirdiği
+tarayıcı → sistem kanalları denenir, ilk açılan kullanılır. Hiçbiri açılmazsa test
+**sessizce geçmez**: ne denendiğini yazıp 1 ile çıkar. "Tarayıcı bulunamadı" ile
+"uygulama açılmıyor" ayrı şeylerdir ve ekranda ayrı yazarlar.
 
 `sunucutestleri.sh`, `@vercel/kv` paketini geçici olarak `testler/taklit-kv` ile
 değiştirir ve `trap` ile geri koyar. **Testler gerçek Redis'e asla dokunmaz.**
