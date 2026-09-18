@@ -73,6 +73,7 @@ denetle "22 yeniden dışa verilen ad yerel kullanılmıyor" node testler/yenide
 denetle "23 izin listeleri ve sunucu varsayılanları aynı" node testler/izinListeleri.mjs
 denetle "24 saf fonksiyonun dönüş değeri atılmıyor" node testler/safDonusDegeri.mjs
 denetle "25 tanımlanmamış isme çağrı yok" node testler/tanimsizIsim.mjs
+denetle "26 .claude katmanı güncel" node testler/claudeKatmani.mjs
 echo ""
 if [ "$DUSEN" -gt 0 ]; then
   echo "── $DUSEN DENETİM DÜŞTÜ ──"
