@@ -7,7 +7,7 @@
  *
  * BU HATALAR HİÇBİR KATMANDAN GEÇMİYORDU:
  *   · `npm run build` geçiyor — paketleyici tanımsız ismi hata saymıyor, global sanıyor.
- *   · 2503 sunucu kontrolü geçiyor — hiçbiri React bileşenini ÇİZMİYOR.
+ *   · Bütün sunucu kontrolleri geçiyor — hiçbiri React bileşenini ÇİZMİYOR.
  *   · 24 statik denetim geçiyor — hepsi kaynak METNİNE bakıyor, kapsama değil.
  *
  * SAHADA İKİ KEZ YAKALADI:
@@ -15,7 +15,7 @@
  *      geçirmiyordu. Ekran "Kaydediliyor…"de kilitleniyor, yazılan metin kayboluyordu.
  *      İLK GÜNDEN BERİ böyleydi ve hiçbir test görmedi.
  *   2. `odemeTakvimiProps` — prop nesnesi yanlışlıkla `deleteBekleyen`'in GÖVDESİNE
- *      düştü. Nesne dışarıdan görünmez, fonksiyon bozuk. Derleme, 2503 kontrol ve 24
+ *      düştü. Nesne dışarıdan görünmez, fonksiyon bozuk. Derleme, sunucu kontrolleri ve
  *      denetim geçti; yalnızca bu tarama gördü.
  *
  * NE YAKALAMAZ, AÇIKÇA: ismin TANIMLI olup DEĞERİNİN yanlış olduğu hataları. Siyah ekrana

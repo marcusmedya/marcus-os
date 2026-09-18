@@ -1,7 +1,7 @@
 /**
  * TARAYICI AÇILIŞ TESTİ — uygulamayı GERÇEKTEN çizer.
  *
- * Neden var: bu projedeki denetimlerin ve 2503 kontrolün hiçbiri uygulamayı çizmiyordu.
+ * Neden var: bu projedeki denetimlerin ve sunucu kontrollerinin hiçbiri uygulamayı çizmiyordu.
  * `operasyonOrtakProps` nesnesi JSX'ten bileşen gövdesine taşınınca `data.clients` null
  * üzerinden okundu, React ilk render'da patladı ve uygulama SİYAH EKRANLA açıldı —
  * üretime böyle çıktı. Derleme temizdi, bütün denetimler yeşildi, hiçbiri görmedi:
@@ -127,7 +127,7 @@ async function senaryo(tarayici, ad, apiYaniti, enAzMetin, beklenenMetin) {
     return yol.fulfill({ status: 200, contentType: "text/plain", body: "" });
   });
 
-  // ZAMAN AŞIMLARI BİLEREK CÖMERT. Bu test doğrulama zincirinin sonunda, 2503 kontrolün
+  // ZAMAN AŞIMLARI BİLEREK CÖMERT. Bu test doğrulama zincirinin sonunda, bütün kontrollerin
   // ve bir derlemenin hemen ardından çalışıyor; makine yüklüyken dar bir sınır sonucu
   // ÇEVİREBİLİR. Bir kez gözlendi: aynı kod tek başına geçti, zincirin içinde düştü.
   // Sınırlar yalnızca gerçekten bir şey bozulduğunda devreye girer, o yüzden geniş

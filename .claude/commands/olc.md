@@ -75,8 +75,8 @@ Sayı 1. adımdakiyle birebir aynı olmalı.
 ```
 Koruma      : <bir cümleyle ne>
 Kırılan yer : <dosya:satır> — <gerçek hata şekli>
-Taban       : 2503 kontrol · 26 denetim
-Kırıkken    : 2497 kontrol · 25 denetim (denetim 25 düştü)
+Taban       : <koşudan> kontrol · <koşudan> denetim
+Kırıkken    : <koşudan> kontrol · <koşudan> denetim (denetim 25 düştü)
 DÜŞEN       : 6 kontrol + 1 denetim
 Geri alındı : md5 aynı, git status temiz
 ```

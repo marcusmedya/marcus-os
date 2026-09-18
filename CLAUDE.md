@@ -729,9 +729,11 @@ npm run test:acilis                # TARAYICI açılış testi — uygulamayı g
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
 
-Claude Code'da bu **beş adımın tamamı `/dogrula`**, kırarak ölçme ritüeli ise **`/olc`**
-komutunda duruyor (`.claude/commands/`). İkisi de prosedür taşır, kural DEĞİL — kurallar
-burada kalır, iki yere yazılmaz.
+Claude Code'da bu **beş adımın tamamı `/dogrula`**, kırarak ölçme ritüeli ise **`/olc`**,
+yayın sırası (belge → doğrula → ölç → commit → PR → birleştirme sırası) **`/yayinla`**
+komutunda duruyor. Yayın öncesi gözden geçirme için **`denetci`** ajanı var — salt okunur,
+farkı bu projenin gerçekten yaşadığı hata sınıflarına karşı denetler (`.claude/agents/`).
+Hepsi prosedür taşır, kural DEĞİL — kurallar burada kalır, iki yere yazılmaz.
 
 **Düşen denetim artık görünür.** `hepsinidenetle.sh` bir süre `komut > /dev/null && echo
 "✓ …"` biçimindeydi: denetim düşünce çıktı çöpe gidiyor, `✓` basılmıyor ve betik sessizce
