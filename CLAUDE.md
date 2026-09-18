@@ -192,11 +192,27 @@ karar süzgeçten GERİYE KALAN satırlara göre veriliyor.
 **Tarayıcı açılış testi — `testler/tarayiciAcilis.mjs`.** Yukarıdaki diğer üç adımın
 hiçbiri uygulamayı ÇİZMİYOR; siyah ekran hatası tam olarak bu boşluktan üretime çıktı.
 Test derlenmiş uygulamayı `127.0.0.1`'de açar, `#root` içine gerçekten içerik çizildiğini
-ve açılışta yakalanmamış JS hatası olmadığını doğrular. **Ölçüldü**: hata bileşen
+ve açılışta yakalanmamış JS hatası olmadığını doğrular. **Üç senaryo, 37 kontrol**:
+boş veritabanı · dolu veritabanı · **müşteri detay paneli**. **Ölçüldü**: hata bileşen
 gövdesine geri konulduğunda derleme 0, denetimler 0, 2570 kontrol geçiyor — yalnızca
-bu test düşüyor (12 kontrol).
+bu test düşüyor (34 kontrol).
 
-Dört kural:
+**Açılış yetmiyor, DERİN EKRAN da çiziliyor.** İlk iki senaryo Dashboard'da duruyordu:
+`ClientDetail` hiç mount edilmiyordu ve panelin 441 satırlık çizimi hiçbir katman
+tarafından ölçülmüyordu. Ölçüldü: panele garanti çöken bir satır konulduğunda doğrulama
+zincirinin BEŞ adımı da yeşil kalıyordu. Üçüncü senaryo markaya tıklayıp paneli açıyor,
+kimlik satırını, karar şeridinin hangi dalı çizdiğini, bakiyeyi, birincil düğmeyi ve
+**sekme geçişini** ölçüyor. Kırarak ölçüldü: kimlik şeridine çöken erişim → 15 kontrol,
+karar şeridine yanlış girdi → 5 kontrol, ölü sekme geçişi → 3 kontrol düşer.
+
+**Tarih bağımlı ekran, fixture'da BUGÜNE GÖRELİ kurulur.** Karar şeridi
+`clientOverdueMonths` / `clientPaymentStatus` üzerinden geliyor ve ikisi de `new Date()`e
+bakıyor; sabit tarih yazmak, testin aylar sonra kimse dokunmadan kırmızıya dönmesi
+demektir. Fixture'daki marka `odemeGunu: 1` (ayın kaçı olduğu sonucu değiştiremez),
+başlangıç 8 ay önce, 6 ay önceki ay tam ödenmiş — dal her koşuda aynı. Altı farklı sahte
+tarihle (ay sonu, yıl sonu, 29 Şubat dahil) koşturularak doğrulandı.
+
+Beş kural:
 - **Testin KENDİSİ sessizce anlamsızlaşamaz.** Bu testin bütün gücü iki parametrede duruyor
   ve ikisi de tek karakterle etkisiz hâle getirilebiliyordu: `enAzMetin` 0 olursa
   `(metin || 0) >= 0` her girdide doğrudur, `beklenenMetin` boşalırsa `[].every(...)` her
@@ -213,6 +229,12 @@ Dört kural:
 - **Uydurma belge GERÇEK belgenin bütün üst düzey alanlarını taşır.** Eksik bırakmak testi
   değersizleştirir: fixture hiç oluşmayan bir hâli temsil eder ve test olmayan sorunları
   kovalar. Bu yaşandı — eksik fixture önce yanlış yere baktırdı.
+- **Hazır olma beklenir, iddia edilmez.** Bekleme koşulu bir süre yalnızca "`#root`un
+  çocuğu var mı" diye bakıyordu; oysa `data` gelene kadar çizilen "… yükleniyor…" ara
+  ekranı DA bir çocuk düğüm. Yüklü makinede ölçüldü: senaryo 2'de iki kontrol ara ekranı
+  görüp düştü, uygulamada hiçbir sorun yokken. Artık ara ekran gidene kadar bekleniyor —
+  bu bir bekleme, bir iddia değil: ara ekran hiç gitmezse zaman aşımı olur ve test
+  gürültülü kırılır. Kararsız bir test, olmayan testten kötüdür.
 
 Derleme gerekiyor: `dist/` yoksa test kendisi `npm run build` çalıştırır.
 **Tarayıcının yeri makineden makineye değişir**, bu yüzden sabit yol YAZILMAZ — sırayla

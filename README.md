@@ -6196,3 +6196,78 @@ ikisi de bu panelde yerel çizildi — ortak bileşene çıkarmak `marcus-design
 ifadesiyle ayrı bir iş.
 
 27 denetim · 2570 kontrol · derleme 0 · tarayıcı 14/14 · 11/12 fonksiyon.
+
+## Güncelleme 184: Tarayıcı Testi Müşteri Detay Panelini de Çiziyor
+
+### Neyi çözdü — ölçülen boşluk
+
+`denetci` ölçtü: `src/App.jsx`'in müşteri detay paneline **garanti çöken** bir satır
+enjekte edildiğinde doğrulama zincirinin **beş adımı da yeşil kaldı** — 27 denetim ✓,
+derleme 0, 2570 kontrol ✓, tarayıcı 14/14 "uygulama açılıyor". Sebebi basit:
+`testler/tarayiciAcilis.mjs`'in iki senaryosu da Dashboard'da duruyordu, Müşteriler'e
+girip bir markaya tıklamıyordu, **`ClientDetail` hiç mount edilmiyordu.** Güncelleme
+183'te yeniden kompoze edilen 441 satırlık panelin çizimini ölçen hiçbir katman yoktu:
+`t111` saf karar modülünü sınıyor, JSX'in onu nasıl çizdiğine bakan bir şey yoktu.
+
+### Üçüncü senaryo: "müşteri detay paneli"
+
+Uygulama doğrudan Müşteriler ekranında açılıyor, tablodaki marka adına tıklanıyor
+(bilerek: ad bir `<button>` değil, `onClick` taşıyan bir `<div>` — test uygulamaya uyar,
+uygulama teste değil) ve panelin **kendi DOM alt ağacından** okunuyor. Sayfanın tamamına
+bakan bir kontrol işe yaramazdı: Müşteriler ekranı "N aydır ödenmedi" cümlesini kendi
+"Ödenmeyen Ödemeler" kartında da yazıyor, yani panel hiç çizilmese bile geçerdi.
+
+Ölçülenler: marka kimliği (`kategori · başlangıç · N. ay`) · durum rozeti · karar şeridinin
+**gecikme dalı** · kalan bakiye ve yeni ay ücreti (tutarların kendisi) · birincil düğme
+"Tebliğ oluştur" · üç sekme ve varsayılanın Para olması · **sekme geçişinin gerçekten
+içeriği değiştirmesi** (İlişki geldi *ve* Para gitti) · etkileşim sonrası yakalanmamış JS
+ve konsol hatası olmaması. **14 → 37 kontrol**, `BEKLENEN` sabiti de artırıldı.
+
+### Fixture tarihten BAĞIMSIZ kuruldu
+
+Karar şeridi `clientOverdueMonths` / `clientOverdueBalance` / `clientPaymentStatus`
+üzerinden geliyor ve üçü de `new Date()`e bakıyor. Sabit tarih yazmak, testin aylar sonra
+kimse dokunmadan kırmızıya dönmesi demekti; kırılgan bir test, olmayan testten kötüdür.
+Her şey bugüne göreli:
+
+- `odemeGunu: 1` → sayımın "bu ayın vadesi henüz gelmedi" atlaması (`now.getDate() < 1`)
+  **hiçbir gün** doğru olamaz, yani ayın kaçı olduğu sonucu değiştirmez.
+- `baslangic` = 8 ay önce → kimlik satırında her zaman "9. ay".
+- 6 ay önceki ay tam ödenmiş → geriye sayım orada durur: her zaman "6 aydır ödenmedi",
+  bakiye her zaman 6 × 12.000 = **72.000 ₺**.
+- Tutarlar tarayıcının kendi `toLocaleString("tr-TR")` sonucuyla karşılaştırılıyor —
+  sınanan şey ayıraç biçimi değil, tutarın kendisi.
+
+Altı sahte tarihle koşturularak doğrulandı (ayın 1'i, 28 Şubat, 31 Mart, 31 Aralık,
+29 Şubat 2028, ay ortası): **hepsinde 37/37, çıkış 0.**
+
+### Kırarak ölçüldü
+
+| Kasıtlı bozukluk | Düşen kontrol |
+|---|---|
+| Kimlik şeridine çöken erişim (`client.iletisimBilgisi.ad`) | **15** — panel hiç açılmıyor, konsol hatası yakalanıyor |
+| Karar şeridine yanlış girdi (`gecikenAy: 0`) | **5** — gecikme dalı yerine ödeme uyarısı çiziliyor, 28px bakiye ve "Tebliğ oluştur" kayboluyor |
+| Ölü sekme geçişi (`onSec={() => {}}`) | **3** — İlişki içeriği hiç gelmiyor, Para içeriği gitmiyor |
+| Siyah ekran hatası (`data.clients` gövdede, koruma kaldırılmış) | **34** (eskiden 12) |
+
+Üç bozuklukta da 27 denetim, 2570 kontrol ve derleme **yeşil kaldı** — düşen tek adım
+tarayıcı testi. `src/App.jsx` her ölçümden sonra yedekten geri alındı, `md5sum` ile
+doğrulandı.
+
+### Yan bulgu: pre-existing bir kararsızlık kapatıldı
+
+Zincirin tamamı koşturulunca senaryo 2 bir kez yanlış yere düştü: bekleme koşulu yalnızca
+"`#root`un çocuğu var mı" diye bakıyordu, oysa `data` gelene kadar çizilen
+"Marcus Medya App yükleniyor…" ara ekranı DA bir çocuk düğüm. Test uygulamada hiçbir sorun
+yokken ara ekranı ölçüyordu. Artık ara ekran gidene kadar bekleniyor — bu bir **bekleme**,
+bir iddia değil: ara ekran hiç gitmezse zaman aşımına düşer ve test gürültülü kırılır.
+Yapay CPU yükü altında ve arka arkaya üç koşuda doğrulandı.
+
+### Dokunulmayanlar
+
+`src/App.jsx`, `lib/`, `api/` ve hesaplar **değişmedi** — bu iş yalnızca test. Güncelleme
+183'ün bilinen üç borcu (yönetici çağrısının `freelancerlar` prop'unu geçmemesi · `subeler`
+gelmeyen role "tek şubeli" denmesi · müşteri adı `<div onClick>`'inin klavyeyle
+erişilemezliği) bilerek olduğu gibi bırakıldı; sonuncusuna test **düzeltmeden** tıklıyor.
+
+27 denetim · 2570 kontrol · derleme 0 · tarayıcı **37/37** · 11/12 fonksiyon.
