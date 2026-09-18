@@ -1,5 +1,5 @@
 ---
-description: Marcus OS doğrulama zinciri — 26 denetim + sunucu testleri + derleme, her adım ayrı raporlanır
+description: Marcus OS doğrulama zinciri — 26 denetim + testler + derleme + tarayıcı açılışı, her adım ayrı raporlanır
 allowed-tools: Bash(bash testler/hepsinidenetle.sh), Bash(./testler/sunucutestleri.sh), Bash(npm run build), Bash(ls api/*.js | wc -l), Bash(git status --porcelain), Read, Grep
 ---
 
@@ -48,7 +48,16 @@ gerçek Redis'e dokunmaz.
 npm run build; echo "ÇIKIŞ: $?"
 ```
 
-**4 · Fonksiyon sınırı**
+**4 · Tarayıcı açılış testi**
+```
+npm run test:acilis; echo "ÇIKIŞ: $?"
+```
+Beklenen: `SONUÇ: 14 kontrol geçti, uygulama açılıyor.` ve `ÇIKIŞ: 0`.
+**Bu adım tek başına siyah ekranı yakalar** — diğerlerinin hiçbiri uygulamayı çizmiyor.
+`dist/` yoksa test kendisi derler. Çıktıda `TARAYICI BULUNAMADI` yazıyorsa bu bir
+UYGULAMA hatası değil, ortamda Chromium yok demektir; `MARCUS_CHROMIUM=<yol>` ver.
+
+**5 · Fonksiyon sınırı**
 ```
 ls api/*.js | wc -l
 ```
@@ -56,12 +65,18 @@ ls api/*.js | wc -l
 
 ## Kapsamadığı şey — bunu raporda SÖYLE
 
-Bu zincirin hiçbir adımı **uygulamayı gerçekten ÇİZMİYOR**. Üretime çıkan siyah ekran
-hatası tam olarak buradan geçti: derleme temizdi, 2503 kontrol geçiyordu, o günkü
-denetimlerin hepsi yeşildi ve uygulama açılmıyordu. Şu an en yakın vekil **denetim 25**
-(`tanimsizIsim.mjs`) — aynı sınıftan iki hatayı yakaladı — ama gerçek bir çizim kontrolü
-DEĞİL. Bileşen gövdesinde `data`ya dokunan bir değişiklik yaptıysan bunu raporda
-ayrıca belirt: `data` ilk render'da `null`'dur.
+**Açılış artık ölçülüyor (4. adım), ama yalnızca açılış.** Test iki ekran çiziyor:
+ilk kurulum ve dashboard. Hiçbir sekmeye tıklanmıyor, form doldurulmuyor, kart açılmıyor,
+dosya yüklenmiyor. "Uygulama açılıyor" ile "uygulama çalışıyor" arasındaki fark duruyor —
+bir düğmeyi ya da akışı değiştirdiysen bu zincir onu GÖRMEZ, raporda söyle.
+
+**Fixture elle bakımlı.** Uydurma belge gerçek belgenin bütün üst düzey alanlarını
+taşıyor. Uygulamaya yeni bir zorunlu alan eklersen fixture'ı da güncelle; yoksa test
+gerçekte olmayan bir hatayı gösterir ve seni yanlış yere baktırır. Bu yaşandı.
+
+**Hata sınırı bazı çöküşleri yutuyor.** Bir bölüm düşerse uygulama "Bölüm çizilemedi"
+yazıp ayakta kalır; test bunu `pageerror` değil KONSOL HATASI olarak görür. Kontrol var
+ama sinyal daha zayıf — çıktıdaki konsol hatası satırlarını okumadan geçme.
 
 ## Raporlama
 
@@ -71,9 +86,10 @@ ayrıca belirt: `data` ilk render'da `null`'dur.
 1 statik denetim    → çıkış 0 · 26/26
 2 sunucu testleri   → çıkış 0 · 2503 kontrol
 3 derleme           → çıkış 0
-4 api fonksiyonu    → 11/12
+4 tarayıcı açılışı  → çıkış 0 · 14/14
+5 api fonksiyonu    → 11/12
 ```
 
 Bir adım düştüyse **hangi denetim/test** olduğunu ve çıktısını yaz. "Temiz" kelimesini
-yalnızca dört adımın da çıkış kodu 0 ise kullan. Çalışmayan bir adımı çalışmış gibi
+yalnızca BEŞ adımın da çıkış kodu 0 ise kullan. Çalışmayan bir adımı çalışmış gibi
 yazmak, bu projede zaten dört sürüm boyunca yaşandı.
