@@ -32,7 +32,7 @@ import {
   AY_ADLARI, AySeciciAlan, gizlilikModuOku, gizlilikModuYaz,
   reklamDurumu, reklamMetrikleri, istatistikVarMi, OLCUM_ALANLARI, olcumKarsilastir,
   basligiTemizle, haftaBaslangici, tarihGoster, bugunISOTarih, parseTrTarih, tarihIso,
-  TR_AYLAR_KISA, MUSTERI_DURUM_ETIKET, markaAnahtari, DURUM_GRUBU, GRUP_BASLIK, musteriKarlilik,
+  TR_AYLAR_KISA, TR_AYLAR, MUSTERI_DURUM_ETIKET, markaAnahtari, DURUM_GRUBU, GRUP_BASLIK, musteriKarlilik,
   useDuzenlemeKilidi, KilitUyarisi, MarkaSecici, FieldForm, temaOku, temaUygula, TurRozet, turEtiketi,
 } from "./tema.jsx";
 import { DriveGorsel, DriveVideo, driveEmbedUrl, VIDEO_YONLERI, DriveKucukGorsel } from "./drive.jsx";
@@ -45,7 +45,10 @@ import { topludanKartBul } from "../lib/toplu-kart.js";
 import { bugunOzeti, bugunBasligi } from "../lib/bugun.js";
 import { tasimayiUygula } from "../lib/toplu-tasima.js";
 import { ekstreUret, varsayilanBaslangic } from "../lib/ekstre.js";
-import { ucretDagilimi, ayinUcreti, ACIK_BASLANGIC } from "../lib/marka-ucreti.js";
+import { ucretDagilimi, ayinUcreti, ayinDagilimi, ACIK_BASLANGIC } from "../lib/marka-ucreti.js";
+/* Müşteri detayının üst bloğu: hangi karar şeridi, hangi birincil eylem, hangi rozetler.
+ * Kural JSX'te DEĞİL — JSX'e gömülü bir kuralı hiçbir test çağıramıyor (marcus-mimari §4). */
+import { musteriKararSeridi, musteriRozetleri, kimlikParcalari, SERIT, EYLEM, TON } from "../lib/musteri-karar.js";
 import { markaEslestirici } from "../lib/marka-kilidi.js";
 import SistemSagligi from "./sistemSagligi.jsx";
 import StokMutabakat from "./stokMutabakat.jsx";
@@ -1522,79 +1525,489 @@ function IcerikYonetimMotoru({ clientId, icerikler, onAdd, onUpdate, onDelete, o
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* MÜŞTERİ DETAY PANELİ                                                 */
+/* ------------------------------------------------------------------ */
+/**
+ * PANEL GENİŞLİĞİ — ÖLÇÜLEREK SEÇİLDİ, 720 körü körüne alınmadı.
+ *
+ * Gerçek Chromium'da, uygulamanın kendi yazı tipleriyle (Inter / IBM Plex Mono /
+ * Space Grotesk) panelin blokları tek tek ölçüldü:
+ *
+ *   üç değer bloğu (etiket/değer/açıklama, 24 boşlukla)        409 px
+ *   üç sekme başlığı (Para · İlişki · İçerik)                  176 px
+ *   en uzun maliyet satırı (kalem + freelancer + tutar + sil)  365 px
+ *   karar şeridi — gecikme dalı (28px bakiye + düğme)          359 px
+ *   karar şeridi — ödeme uyarısı dalı (kısmi ödeme notlu)      478 px
+ *   kimlik şeridi (uzun marka adı + kapat düğmesi)             396 px
+ *   İÇERİK sekmesi: IcerikYonetimMotoru'nun kendi sekme çubuğu 622 px  ← belirleyici
+ *
+ * Yani Para ve İlişki sekmeleri 478 px içerikle yetiniyor (panel 528 ederdi); genişliği
+ * belirleyen İÇERİK sekmesi: "Onay Bekleyenler · Revize İstedikleri · Onayladıkları ·
+ * İçerik Fikirleri" çubuğu. Son rakam kestirim değil: panel gerçekten çizilip çubuk
+ * ölçüldü, DÖRT sekmenin dördü de İKİ HANELİ sayaç rozeti taşırken 622 px. Altına
+ * düşünce çubuk ikinci satıra sarıyor ve liste aşağı kaçıyor.
+ *
+ *   622 + 2×24 yatay boşluk + 2×1 çerçeve = 672 px ALT SINIR
+ *
+ * 712 seçildi: 672 sıfır paylı bir tam oturma olurdu — sayaç üç haneye çıktığında ya da
+ * marka adı uzadığında çubuk sararadı. 712, 8'e bölünüyor, 640–720 aralığının içinde
+ * kalıyor ve 40 px pay bırakıyor. 720 seçilseydi o payın 8 px'i fazladan boşluk olurdu.
+ *
+ * DAR EKRAN DAVRANIŞI DEĞİŞMEDİ: `maxWidth: "100%"` duruyor, örtünün 20 px iç boşluğu
+ * duruyor ve 640 altında yatay boşluk 24 → 16'ya iniyor (eskiden aynı işi
+ * `.marcus-card` CSS kuralı yapıyordu; panel artık kendi kaydırma bölgesini taşıdığı
+ * için aynı kırılma noktası `useIsMobile(640)` ile yeniden kuruldu).
+ */
+const MUSTERI_PANEL_GENISLIGI = 712;
+
+/** Karar şeridi ve rozet tonlarının renk jetonu karşılığı.
+ * FONKSİYON olmak zorunda: `T` bir sabit değil, tema değişince içi güncelleniyor —
+ * modül düzeyinde bir nesneye dondurulsaydı açık temada koyu renkler kalırdı. */
+function musteriTonRenkleri(ton) {
+  if (ton === TON.TEHLIKE) return { renk: T.danger, zemin: T.dangerSoft };
+  if (ton === TON.UYARI) return { renk: T.warning, zemin: T.warningSoft };
+  if (ton === TON.BASARI) return { renk: T.success, zemin: T.successSoft };
+  if (ton === TON.VURGU) return { renk: T.accentText, zemin: T.accentSoft };
+  return { renk: T.textDim, zemin: T.borderSoft };
+}
+
+/** Etiket üstte (11/600), rakam altta (20 mono + tabular-nums), açıklama en altta (11).
+ * Kart DEĞİL: bir varlığın özelliklerini göstermek `KpiCard` işi değil
+ * (`marcus-design` → references/bilesenler.md). */
+function MusteriDegerBlogu({ etiket, deger, aciklama, renk }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.4, color: T.textDim, fontFamily: "Inter, sans-serif" }}>{etiket}</div>
+      <div style={{ fontSize: 20, fontFamily: "'IBM Plex Mono', monospace", fontVariantNumeric: "tabular-nums", color: renk || T.text, marginTop: 4 }}>{deger}</div>
+      {/* Açıklama satırı rakam TAŞIYOR ("Temel ₺15.000 + 3 şube", "Kalan ₺30.000"),
+        * bu yüzden mono + tabular. Design System: "IBM Plex Mono — HER rakam". Bir süre
+        * Inter'di ve tam da lib/musteri-karar.js'in uyardığı şey oldu: kural çizim
+        * tarafında tek tek hatırlanmak zorunda kalınca unutuldu. */}
+      {aciklama ? <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "'IBM Plex Mono', monospace", fontVariantNumeric: "tabular-nums", marginTop: 4, lineHeight: 1.5 }}>{aciklama}</div> : null}
+    </div>
+  );
+}
+
+/** Liste satırı — kutu değil satır: en az 40 yüksek, ayrım 1px borderSoft, zebra yok,
+ * hover'da bir ton yukarı. Tutar sağda, mono ve tabular. */
+function MusteriDetaySatiri({ children, sonMu }) {
+  const [uzerinde, setUzerinde] = useState(false);
+  return (
+    <div
+      onMouseEnter={() => setUzerinde(true)}
+      onMouseLeave={() => setUzerinde(false)}
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+        minHeight: 40, padding: "8px 12px",
+        borderBottom: sonMu ? "none" : `1px solid ${T.borderSoft}`,
+        background: uzerinde ? T.surfaceRaised : "transparent",
+        transition: "background 120ms ease-out",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** Bölüm başlığı — 11/600/ls0.4/textDim. */
+function MusteriBolumBasligi({ children, ust }) {
+  return (
+    <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.4, color: T.textDim, fontFamily: "Inter, sans-serif", marginTop: ust ? 24 : 0, marginBottom: 8 }}>
+      {children}
+    </div>
+  );
+}
+
+/** Detay sekmeleri.
+ * `src/tema.jsx`'te ortak bir `Sekmeler` bileşeni YOK ve onu eklemek `marcus-design`'ın
+ * kendi ifadesiyle ayrı bir iş ("taşıyıcısı olmayan kurallar" tablosu); bu pilotun
+ * değişikliği lokal ve geri alınabilir kalsın diye burada çiziliyor.
+ *
+ * SAYAÇ ROZETİ BİLEREK YOK: rozet yalnızca EYLEM GEREKTİREN sayı için konur ve bu üç
+ * sekmenin hiçbirinde öyle bir sayı yok (bekleyen tahsilat bir vade, müşteri içeriği
+ * müşterinin onayını bekliyor). "Emin değilsen rozet koyma" kuralı uygulandı. */
+function MusteriDetaySekmeleri({ sekmeler, aktif, onSec }) {
+  return (
+    <div role="tablist" style={{ display: "flex", gap: 4, borderBottom: `1px solid ${T.borderSoft}`, marginBottom: 16, flexWrap: "wrap" }}>
+      {sekmeler.map((s) => {
+        const secili = aktif === s.anahtar;
+        return (
+          <button
+            key={s.anahtar}
+            role="tab"
+            aria-selected={secili}
+            onClick={() => onSec(s.anahtar)}
+            style={{
+              background: "transparent", border: "none", cursor: "pointer",
+              padding: "12px", minHeight: 40,
+              fontFamily: "Inter, sans-serif", fontSize: 13, fontWeight: secili ? 600 : 400,
+              color: secili ? T.text : T.textDim,
+              borderBottom: `2px solid ${secili ? T.accent : "transparent"}`, marginBottom: -1,
+            }}
+          >
+            {s.ad}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * MÜŞTERİ DETAYI — marka kimliği → koşullu TEK karar şeridi → para → sekmeler.
+ *
+ * Eskiden panel bir yığındı: içerik motoru en üstte, beş rozet (ikisi rakam taşıyordu),
+ * not, ödeme kutusu, hesap özeti kutusu, gecikme kutusu, maliyetler, tahsilatlar — hepsi
+ * alt alta ve hepsi aynı ağırlıkta. Gecikmiş bir markada ödeme kutusu ile gecikme kutusu
+ * AYNI ANDA çiziliyor, iki birincil düğme yan yana duruyordu.
+ *
+ * Hangi şeridin çizileceği ve hangi birincil eylemin bağlanacağı artık JSX'te DEĞİL,
+ * `lib/musteri-karar.js`'te — JSX'e gömülü bir kuralı hiçbir test çağıramıyor
+ * (`marcus-mimari` §4). Davranışı `testler/t111.mjs` ölçüyor.
+ *
+ * HESAPLARA DOKUNULMADI: `clientPaymentStatus`, `clientOverdueMonths`,
+ * `clientOverdueBalance`, `clientKarMarji`, `clientFaturaliTutar`, `monthPaidAmount`,
+ * `monthRemaining` aynen çağrılıyor; bu bileşen yalnızca sonuçlarını yerleştiriyor.
+ */
 function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, freelancerlar, onAddCost, onDeleteCost, onMarkPaid, onMarkUnpaid, onOpenTeblig, onAddOdemeKaydi, onDeleteOdemeKaydi, onAddFatura, onDeleteFatura, onClose, kilitleyen, musteriIcerikleri, onAddIcerik, onUpdateIcerik, onDeleteIcerik, onOnaylaIcerik, firmaAdi }) {
   const [addingCost, setAddingCost] = useState(false);
   const [odemeModalOpen, setOdemeModalOpen] = useState(false);
   const [ekstreAcik, setEkstreAcik] = useState(false);
+  const [sekme, setSekme] = useState("para");
+  /* 640 — `.marcus-card` CSS kuralının kırılma noktasının aynısı. Panel artık kendi
+   * kaydırma bölgesini taşıdığı için o kuralın altına giremiyordu; dar ekranda yatay
+   * boşluğun daralması davranışı bu satırla korunuyor. */
+  const darEkran = useIsMobile(640);
   if (!client) return null;
+
+  const yatay = darEkran ? 16 : 24;
+  const tahsilatlar = bekleyenTahsilatlar || [];
   const cd = CLIENT_DURUM[client.durum] || CLIENT_DURUM.aktif;
-  const bekleyenToplam = bekleyenTahsilatlar.reduce((s, b) => s + (Number(b.tutar) || 0), 0);
   const maliyetler = client.maliyetler || [];
   const maliyetToplam = maliyetler.reduce((s, m) => s + (Number(m.tutar) || 0), 0);
+  const bekleyenToplam = tahsilatlar.reduce((s, b) => s + (Number(b.tutar) || 0), 0);
+
+  /* Hesaplar — hiçbiri değişmedi, yalnızca bir kez çağrılıp aşağıda yerleştiriliyor. */
   const km = clientKarMarji(client);
   const paymentStatus = clientPaymentStatus(client);
   const overdueMonths = clientOverdueMonths(client);
+  const overdueBakiye = clientOverdueBalance(client);
+  const faturaliTutar = clientFaturaliTutar(client);
+  const buAy = monthKey();
+  const tahsilEdilen = monthPaidAmount(client, buAy);
+  const kalanTutar = monthRemaining(client, buAy);
+  const ucretDokumu = ayinDagilimi(client, buAy);
+
+  /* Karar ve rozetler saf modülden — kural burada YAZILMIYOR, yalnızca çiziliyor. */
+  const karar = musteriKararSeridi({
+    gecikenAy: overdueMonths,
+    gecikenBakiye: overdueBakiye,
+    aylikUcret: client.aylikUcret,
+    odemeDurumu: paymentStatus,
+    odemeGunu: client.odemeGunu,
+  });
+  const rozetler = musteriRozetleri({
+    durum: client.durum,
+    durumEtiketi: cd.label,
+    odemeDurumu: paymentStatus,
+    aylikUcret: client.aylikUcret,
+    faturaliTutar,
+  });
+  const kimlikSatiri = kimlikParcalari(client);
+  const kararTonu = musteriTonRenkleri(karar.ton);
+
+  const kararEylemi = () => {
+    if (!karar.eylem) return;
+    if (karar.eylem.anahtar === EYLEM.TEBLIG) onOpenTeblig(client, overdueMonths, overdueBakiye);
+    else if (karar.eylem.anahtar === EYLEM.ODEME_KAYDET) setOdemeModalOpen(true);
+    /* ÖDEME GÜNÜ ALANI BU PANELDE DÜZENLENMİYOR — düzenleme formu müşteri satırında.
+     * Panele yeni bir prop (onUpdate) eklemek yetki/veri kapsamını genişletirdi, bu
+     * yüzden düğme kullanıcıyı formun olduğu yere bırakıyor ve şerit bunu YAZIYOR. */
+    else if (karar.eylem.anahtar === EYLEM.ODEME_GUNU_EKLE) onClose();
+  };
+
+  /* Ödeme kayıtlarına erişim KAYBOLMAMALI: karar şeridi "Ödemeyi kaydet" sunmadığı
+   * hâllerde (ödendi / yaklaşıyor) aynı kutuya Para sekmesinden İKİNCİL bir düğmeyle
+   * girilir. Şerit zaten sunuyorsa tekrarlanmaz — ekranda tek birincil eylem. */
+  const odemeYonetimiGerekli = !!paymentStatus && !(karar.eylem && karar.eylem.anahtar === EYLEM.ODEME_KAYDET);
+
+  const iliskiAlanlari = [
+    ["E-posta", client.email],
+    ["Telefon", client.telefon],
+    ["Ödeme şekli", client.odemeSekli === "sonra" ? "Sonra (ay sonunda / hizmet sonrası)" : client.odemeSekli === "pesin" ? "Peşin (ay başında / önceden)" : ""],
+    ["Ödeme günü", client.odemeGunu ? `Ayın ${client.odemeGunu}'i` : "", true],
+    ["Başlangıç", client.baslangic, true],
+  ];
+
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-      <div onClick={(e) => e.stopPropagation()} className="marcus-card" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 18, width: 560, maxWidth: "100%", maxHeight: "85vh", overflowY: "auto", padding: "18px 22px" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 18 }}>
-          <div>
-            <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 600, color: T.text, margin: 0 }}>{client.ad}</h2>
-            <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginTop: 4 }}>{client.kategori} · {client.baslangic}</div>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10,
+          width: MUSTERI_PANEL_GENISLIGI, maxWidth: "100%", maxHeight: "85vh",
+          display: "flex", flexDirection: "column", overflow: "hidden",
+        }}
+      >
+        {/* ── KİMLİK ŞERİDİ — KAYDIRILMAZ ────────────────────────────────────────
+          * Panel uzun; hangi markaya baktığın listenin ortasında kaybolmamalı. */}
+        <div style={{ flexShrink: 0, padding: `16px ${yatay}px`, borderBottom: `1px solid ${T.borderSoft}` }}>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+            <div style={{ minWidth: 0 }}>
+              <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 600, color: T.text, margin: 0 }}>{client.ad}</h2>
+              {kimlikSatiri.length > 0 && (
+                <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter, sans-serif", marginTop: 4 }}>
+                  {kimlikSatiri.map((p, i) => (
+                    <span key={p.metin + i}>
+                      {i > 0 && " · "}
+                      <span style={p.tur === "sayi" ? { fontFamily: "'IBM Plex Mono', monospace", fontVariantNumeric: "tabular-nums" } : undefined}>{p.metin}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button onClick={onClose} title="Kapat" style={{ ...iconBtnStyle, flexShrink: 0 }}><X size={18} color={T.textFaint} /></button>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><X size={18} color={T.textFaint} /></button>
+          {rozetler.length > 0 && (
+            <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+              {rozetler.map((r) => {
+                const ton = musteriTonRenkleri(r.ton);
+                return <Pill key={r.anahtar} color={ton.renk} soft={ton.zemin}>{r.metin}</Pill>;
+              })}
+            </div>
+          )}
         </div>
 
-        <KilitUyarisi kisi={kilitleyen} />
-
-        <IcerikYonetimMotoru clientId={client.id} icerikler={musteriIcerikleri} onAdd={onAddIcerik} onUpdate={onUpdateIcerik} onDelete={onDeleteIcerik} onOnayla={onOnaylaIcerik} />
-
-        <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
-          <Pill color={cd.color} soft={cd.soft}>{cd.label}</Pill>
-          <Pill color={T.text} soft={T.borderSoft}>Aylık {fmt(client.aylikUcret)}</Pill>
-          <Pill color={km >= 55 ? T.success : km >= 35 ? T.warning : T.danger} soft={T.borderSoft}>Kâr Marjı %{km}{maliyetler.length > 0 && " (otomatik)"}</Pill>
-          {(() => {
-            const ft = clientFaturaliTutar(client);
-            const full = client.aylikUcret > 0 && ft >= client.aylikUcret;
-            const none = ft <= 0;
-            if (full) return <Pill color={T.success} soft={T.successSoft}>Tamamen Faturalı · KDV %20</Pill>;
-            if (none) return <Pill color={T.textFaint} soft={T.borderSoft}>Faturasız</Pill>;
-            return <Pill color={T.warning} soft={T.warningSoft}>Kısmi: {fmt(ft)} faturalı / {fmt(client.aylikUcret - ft)} faturasız</Pill>;
-          })()}
-          {bekleyenToplam > 0 && <Pill color={T.warning} soft={T.warningSoft}>Bekleyen {fmt(bekleyenToplam)}</Pill>}
-        </div>
-
-        {client.not && (
-          <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter", marginBottom: 20, padding: "12px 15px", background: T.surfaceRaised, borderRadius: 10 }}>{client.not}</div>
+        {/* Kilit uyarısı da SABİT: geç gelen kilit yanıtı eskiden akışın içine giriyor ve
+          * kullanıcı okurken bütün düzeni aşağı itiyordu. */}
+        {kilitleyen && (
+          <div style={{ flexShrink: 0, padding: `12px ${yatay}px 0` }}>
+            <KilitUyarisi kisi={kilitleyen} />
+          </div>
         )}
 
-        {paymentStatus && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 20, padding: "12px 15px", background: T.surfaceRaised, borderRadius: 12, border: `1px solid ${T.border}` }}>
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: `16px ${yatay}px` }}>
+          {/* ── KOŞULLU TEK KARAR ŞERİDİ ─────────────────────────────────────────
+            * Hangi dalın çizileceğine `lib/musteri-karar.js` karar verdi. */}
+          <div
+            style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap",
+              padding: "12px 16px", borderRadius: 10, marginBottom: 24,
+              background: karar.serit === SERIT.GECIKME ? T.dangerSoft : karar.serit === SERIT.ODEME_UYARISI ? T.warningSoft : T.surfaceRaised,
+              border: karar.serit === SERIT.GECIKME ? `1px solid ${T.danger}` : "none",
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", color: karar.serit === SERIT.SAKIN || karar.serit === SERIT.ODEME_GUNU_YOK ? T.textDim : kararTonu.renk }}>
+                {karar.baslik}
+              </div>
+              {/* 28px SADECE gecikme bakiyesinde — panelde başka hiçbir rakam bu boyda değil. */}
+              {karar.vurguTutar !== null && (
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ fontSize: 28, fontFamily: "'IBM Plex Mono', monospace", fontVariantNumeric: "tabular-nums", fontWeight: 600, color: T.danger, lineHeight: 1.1 }}>
+                    {fmt(karar.vurguTutar)}
+                  </div>
+                  <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter, sans-serif", marginTop: 4 }}>
+                    {karar.vurguEtiketi} — kısmi ödemeler düşülmüş
+                  </div>
+                  <div style={{ fontSize: 13, fontFamily: "'IBM Plex Mono', monospace", fontVariantNumeric: "tabular-nums", color: T.textDim, marginTop: 8 }}>
+                    {karar.yanEtiketi} {fmt(karar.yanTutar)}
+                  </div>
+                </div>
+              )}
+              {karar.serit === SERIT.ODEME_GUNU_YOK && (
+                <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter, sans-serif", marginTop: 4 }}>
+                  Alan müşteri satırındaki düzenleme formunda — düğme seni oraya bırakır.
+                </div>
+              )}
+            </div>
+            {/* BİRİNCİL düğme, o eylemi GERÇEKTEN yapan düğmedir. "Ödeme günü ekle"
+              * bu panelde alanı açamıyor (form müşteri satırında, prop eklemek yetki
+              * kapsamını genişletirdi) — yalnızca paneli kapatıp kullanıcıyı oraya
+              * bırakıyor. Eylemi taklit eden bir düğmeyi birincil çizmek kullanıcıya
+              * yalan söyler; bu yüzden o dal SESSİZ düğmeye iniyor. */}
+            {karar.eylem && (
+              <button
+                style={karar.eylem.anahtar === EYLEM.ODEME_GUNU_EKLE ? cancelBtnStyle : saveBtnStyle}
+                onClick={kararEylemi}
+              >{karar.eylem.ad}</button>
+            )}
+          </div>
+
+          {/* ── PARA SATIRI — kart değil, üç değer bloğu ─────────────────────── */}
+          <div style={{ display: "grid", gridTemplateColumns: darEkran ? "1fr" : "1fr 1fr 1fr", gap: 24, marginBottom: 24 }}>
+            <MusteriDegerBlogu
+              etiket="AYLIK ÜCRET"
+              deger={fmt(client.aylikUcret)}
+              aciklama={ucretDokumu
+                ? `Temel ${fmt(ucretDokumu.temel)} + ${(ucretDokumu.subeler || []).length} şube`
+                : null}
+            />
+            {/* AY ADIYLA YAZILIYOR — "BU AY" demek yanıltıcıydı. Bu blok monthKey() ile
+              * içinde bulunulan TAKVİM ayına bakıyor; oysa hemen üstteki karar şeridi
+              * `clientPaymentStatus` üzerinden geliyor ve o, `odemeSekli === "sonra"`
+              * markalarda BİR ÖNCEKİ ayı değerlendiriyor (src/tema.jsx). İkisi yan yana
+              * durunca okuyucu aynı dönemi sanıyor ve vadesi HENÜZ GELMEMİŞ bir tutar
+              * borç gibi okunuyordu: şerit "Geçen ay ödendi / düğme yok" derken bu blok
+              * "Kalan ₺45.000" yazıyordu. Ayı adıyla söylemek belirsizliği kaldırıyor;
+              * değerlendirme mantığını buraya KOPYALAMAK çözüm değil — o kural
+              * clientPaymentStatus'ün, ikinci bir kopya sessizce ayrışır. */}
+            <MusteriDegerBlogu
+              etiket={`${TR_AYLAR[new Date().getMonth()].toLocaleUpperCase("tr-TR")} AYINDA TAHSİL EDİLEN`}
+              deger={fmt(tahsilEdilen)}
+              aciklama={kalanTutar > 0 ? `Bu aydan kalan ${fmt(kalanTutar)}` : "Bu ay kapandı"}
+            />
+            <MusteriDegerBlogu
+              etiket="KÂR MARJI"
+              deger={client.aylikUcret ? `%${km}` : "—"}
+              renk={client.aylikUcret ? (km >= 55 ? T.success : km >= 35 ? T.warning : T.danger) : T.textFaint}
+              aciklama={!client.aylikUcret
+                ? "Aylık ücret girilmemiş"
+                : maliyetler.length > 0
+                  ? `${maliyetler.length} maliyet kaleminden`
+                  : "Elle girilen değer — maliyet eklenince otomatik hesaplanır"}
+            />
+          </div>
+
+          <MusteriDetaySekmeleri
+            aktif={sekme}
+            onSec={setSekme}
+            sekmeler={[{ anahtar: "para", ad: "Para" }, { anahtar: "iliski", ad: "İlişki" }, { anahtar: "icerik", ad: "İçerik" }]}
+          />
+
+          {sekme === "para" && (
             <div>
-              <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 3 }}>BU AYIN ÖDEMESİ</div>
-              <div style={{ fontSize: 13, fontFamily: "Inter", fontWeight: 600, color: paymentStatus.status === "odendi" ? T.success : paymentStatus.status === "gecikti" ? T.danger : paymentStatus.status === "bekliyor" ? T.warning : T.textDim }}>
-                {paymentStatus.label}
+              {/* HESAP ÖZETİ ödeme gününden BAĞIMSIZ — takibi kapalı markaya da
+                * verilebilmeli, geçmişi olan her müşteriye çıkarılıyor. */}
+              <MusteriDetaySatiri sonMu={!odemeYonetimiGerekli}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, color: T.text, fontFamily: "Inter, sans-serif", fontWeight: 600 }}>Hesap özeti</div>
+                  <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter, sans-serif", marginTop: 2 }}>Ay ay hizmet bedeli, faturalar, tahsilatlar, bakiye — müşteriye verilir</div>
+                </div>
+                <button style={addBtnStyle} onClick={() => setEkstreAcik(true)}>Hesap özeti</button>
+              </MusteriDetaySatiri>
+
+              {odemeYonetimiGerekli && (
+                <MusteriDetaySatiri sonMu>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 13, color: T.text, fontFamily: "Inter, sans-serif", fontWeight: 600 }}>Bu ayın ödemeleri</div>
+                    <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter, sans-serif", marginTop: 2 }}>Tahsilat ve fatura kaydı ekle, yanlış kaydı sil</div>
+                  </div>
+                  <button style={addBtnStyle} onClick={() => setOdemeModalOpen(true)}>Ödemeleri yönet</button>
+                </MusteriDetaySatiri>
+              )}
+
+              <MusteriBolumBasligi ust>FATURALAMA</MusteriBolumBasligi>
+              {client.aylikUcret > 0 ? (
+                <div>
+                  <MusteriDetaySatiri>
+                    <span style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif" }}>Faturalı (KDV %20)</span>
+                    <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontVariantNumeric: "tabular-nums", fontSize: 13, color: faturaliTutar > 0 ? T.text : T.textFaint }}>{fmt(faturaliTutar)}</span>
+                  </MusteriDetaySatiri>
+                  <MusteriDetaySatiri sonMu>
+                    <span style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif" }}>Faturasız</span>
+                    <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontVariantNumeric: "tabular-nums", fontSize: 13, color: T.text }}>{fmt(Math.max(0, (Number(client.aylikUcret) || 0) - faturaliTutar))}</span>
+                  </MusteriDetaySatiri>
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter, sans-serif" }}>Aylık ücret girilmediği için faturalama dökümü çıkarılamıyor.</div>
+              )}
+
+              <MusteriBolumBasligi ust>MALİYETLER</MusteriBolumBasligi>
+              {maliyetler.length === 0 ? (
+                <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter, sans-serif", lineHeight: 1.6 }}>
+                  Bu markaya bağlı maliyet yok. Freelance ödemeleri ve dış hizmetler buraya girilir; girilen her kalem Toplam Gider'e ve kâr marjına otomatik yansır.
+                </div>
+              ) : (
+                <div>
+                  {maliyetler.map((m, i) => (
+                    <MusteriDetaySatiri key={m.id} sonMu={i === maliyetler.length - 1}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13, color: T.text, fontFamily: "Inter, sans-serif", fontWeight: 600 }}>{m.kalem}</div>
+                        {m.freelancerId && (
+                          <div style={{ fontSize: 11, color: T.accentText, fontFamily: "Inter, sans-serif", marginTop: 2 }}>
+                            → {((freelancerlar || []).find((f) => String(f.id) === String(m.freelancerId)) || {}).ad || "silinmiş freelancer"}
+                          </div>
+                        )}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+                        <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontVariantNumeric: "tabular-nums", fontSize: 13, color: T.text }}>{fmt(m.tutar)}</span>
+                        <button style={iconBtnStyle} title="Maliyeti sil" onClick={() => { if (window.confirm("Bu maliyet silinsin mi?")) onDeleteCost(m.id); }}><Trash2 size={13} color={T.danger} /></button>
+                      </div>
+                    </MusteriDetaySatiri>
+                  ))}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "8px 12px", minHeight: 40, borderTop: `1px solid ${T.border}` }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.4, color: T.textDim, fontFamily: "Inter, sans-serif" }}>TOPLAM</span>
+                    <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontVariantNumeric: "tabular-nums", fontSize: 13, color: T.text, marginRight: 48 }}>{fmt(maliyetToplam)}</span>
+                  </div>
+                </div>
+              )}
+              <div style={{ marginTop: 12 }}>
+                {addingCost ? (
+                  <FieldForm fields={costFieldsWithFreelancers(freelancerlar)} onSubmit={(v) => { onAddCost(v); setAddingCost(false); }} onCancel={() => setAddingCost(false)} submitLabel="Maliyeti Ekle" />
+                ) : (
+                  <button style={addBtnStyle} onClick={() => setAddingCost(true)}><Plus size={13} /> Maliyet ekle</button>
+                )}
+              </div>
+
+              <MusteriBolumBasligi ust>BEKLEYEN TAHSİLATLAR</MusteriBolumBasligi>
+              {tahsilatlar.length === 0 ? (
+                <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter, sans-serif", lineHeight: 1.6 }}>
+                  Bekleyen tahsilat yok. Finans'ta bu markaya vadeli bir tahsilat girildiğinde burada görünür.
+                </div>
+              ) : (
+                <div>
+                  {tahsilatlar.map((b, i) => (
+                    <MusteriDetaySatiri key={b.id} sonMu={i === tahsilatlar.length - 1}>
+                      <span style={{ fontSize: 13, color: String(b.vade || "").includes("gecikti") ? T.danger : T.textDim, fontFamily: "Inter, sans-serif" }}>{b.vade}</span>
+                      <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontVariantNumeric: "tabular-nums", fontSize: 13, color: T.text }}>{fmt(b.tutar)}</span>
+                    </MusteriDetaySatiri>
+                  ))}
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "8px 12px", minHeight: 40, borderTop: `1px solid ${T.border}` }}>
+                    <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.4, color: T.textDim, fontFamily: "Inter, sans-serif" }}>TOPLAM</span>
+                    <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontVariantNumeric: "tabular-nums", fontSize: 13, color: T.text }}>{fmt(bekleyenToplam)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {sekme === "iliski" && (
+            <div>
+              {/* Okuma ölçüsü: panel İÇERİK sekmesine göre genişledi, ama serbest metnin
+                * satırı 65 karakteri geçmemeli — bu yüzden not ayrıca sınırlanıyor. */}
+              <MusteriBolumBasligi>NOT</MusteriBolumBasligi>
+              {client.not ? (
+                <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif", lineHeight: 1.6, maxWidth: 560 }}>{client.not}</div>
+              ) : (
+                <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter, sans-serif" }}>Not girilmemiş.</div>
+              )}
+
+              <MusteriBolumBasligi ust>İLETİŞİM VE ÇALIŞMA KOŞULLARI</MusteriBolumBasligi>
+              <div>
+                {iliskiAlanlari.map(([etiket, deger, mono], i) => (
+                  <MusteriDetaySatiri key={etiket} sonMu={i === iliskiAlanlari.length - 1}>
+                    <span style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif" }}>{etiket}</span>
+                    {deger
+                      ? <span style={{ fontSize: 13, color: T.text, fontFamily: mono ? "'IBM Plex Mono', monospace" : "Inter, sans-serif", fontVariantNumeric: mono ? "tabular-nums" : undefined, textAlign: "right", wordBreak: "break-word" }}>{deger}</span>
+                      : <span style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter, sans-serif" }}>girilmemiş</span>}
+                  </MusteriDetaySatiri>
+                ))}
+              </div>
+              <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter, sans-serif", marginTop: 12, lineHeight: 1.6 }}>
+                Bu alanlar müşteri satırındaki düzenleme formundan değiştirilir.
               </div>
             </div>
-            <button style={saveBtnStyle} onClick={() => setOdemeModalOpen(true)}>Ödemeleri Yönet</button>
-          </div>
-        )}
-        {!paymentStatus && (
-          <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginBottom: 20 }}>
-            Bu müşteri için ödeme günü tanımlı değil — düzenle butonundan "Ödeme Günü" alanını doldurursan otomatik takip başlar.
-          </div>
-        )}
+          )}
 
-        {/* HESAP ÖZETİ ödeme gününden BAĞIMSIZ. Yukarıdaki blok yalnızca ödeme günü
-          * tanımlıyken görünüyor; ekstre oraya konsaydı takibi kapalı markanın dökümü
-          * hiç alınamazdı — oysa geçmişi olan her müşteriye verilebilmeli. */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 20, padding: "12px 15px", background: T.surfaceRaised, borderRadius: 12, border: `1px solid ${T.border}` }}>
-          <div>
-            <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 3 }}>HESAP ÖZETİ</div>
-            <div style={{ fontSize: 12, color: T.textDim, fontFamily: "Inter" }}>Müşteriye verilecek döküm — ay ay hizmet bedeli, faturalar, tahsilatlar, bakiye</div>
-          </div>
-          <button style={saveBtnStyle} onClick={() => setEkstreAcik(true)}>Hesap Özeti</button>
+          {sekme === "icerik" && (
+            /* Sekmenin kendisi zaten bir kap — motorun dış akordeon başlığı kapalı
+              * (`kompakt={false}`), içerik doğrudan görünüyor. */
+            <IcerikYonetimMotoru clientId={client.id} icerikler={musteriIcerikleri} onAdd={onAddIcerik} onUpdate={onUpdateIcerik} onDelete={onDeleteIcerik} onOnayla={onOnaylaIcerik} kompakt={false} />
+          )}
         </div>
+
         {ekstreAcik && <EkstreModal client={client} firmaAdi={firmaAdi} onClose={() => setEkstreAcik(false)} />}
         {odemeModalOpen && (
           <AyOdemeModal
@@ -1608,77 +2021,6 @@ function ClientDetail({ client, bekleyenTahsilatlar, hesaplar, freelancerlar, on
             onClose={() => setOdemeModalOpen(false)}
           />
         )}
-        {overdueMonths > 0 && (
-          <div style={{ marginBottom: 20, padding: "12px 15px", background: T.dangerSoft, borderRadius: 12, border: `1px solid ${T.danger}` }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-              <div>
-                <div style={{ fontSize: 13, color: T.danger, fontFamily: "Inter", fontWeight: 600 }}>{overdueMonths} aydır ödenmedi</div>
-                <div style={{ display: "flex", gap: 16, marginTop: 4 }}>
-                  <div>
-                    <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>YENİ AY ÖDEMESİ</div>
-                    <div style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{fmt(client.aylikUcret)}</div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter" }}>KALAN BAKİYE (kısmi ödemeler düşülmüş)</div>
-                    <div style={{ fontSize: 13, color: T.danger, fontFamily: "Inter", fontWeight: 700 }}>{fmt(clientOverdueBalance(client))}</div>
-                  </div>
-                </div>
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button style={saveBtnStyle} onClick={() => onOpenTeblig(client, overdueMonths, clientOverdueBalance(client))}>Tebliğ Oluştur / Düzenle</button>
-              </div>
-            </div>
-            <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 8 }}>Ödeme hatırlatması göndermek için <strong>Ödeme Takvimi</strong> sekmesini kullan.</div>
-          </div>
-        )}
-
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 8 }}>
-            MALİYETLER ({maliyetler.length}) <span style={{ opacity: 0.7, fontWeight: 400 }}>— freelance ödemeleri, dış hizmetler vb. Toplam Gider'e otomatik yansır</span>
-          </div>
-          {maliyetler.length === 0 && <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", marginBottom: 10 }}>Bu müşteriye bağlı maliyet yok.</div>}
-          <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 10 }}>
-            {maliyetler.map((m) => (
-              <div key={m.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", background: T.surfaceRaised, borderRadius: 10 }}>
-                <div>
-                  <div style={{ fontSize: 13, color: T.text, fontFamily: "Inter", fontWeight: 600 }}>{m.kalem}</div>
-                  {m.freelancerId && (
-                    <div style={{ fontSize: 11, color: T.accentText, fontFamily: "Inter", marginTop: 2 }}>
-                      → {((freelancerlar || []).find((f) => String(f.id) === String(m.freelancerId)) || {}).ad || "silinmiş freelancer"}
-                    </div>
-                  )}
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: T.text }}>{fmt(m.tutar)}</span>
-                  <button style={iconBtnStyle} onClick={() => { if (window.confirm("Bu maliyet silinsin mi?")) onDeleteCost(m.id); }}><Trash2 size={13} color={T.danger} /></button>
-                </div>
-              </div>
-            ))}
-            {maliyetler.length > 0 && (
-              <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 10px", fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>
-                <span>Toplam</span><span style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(maliyetToplam)}</span>
-              </div>
-            )}
-          </div>
-          {addingCost ? (
-            <FieldForm fields={costFieldsWithFreelancers(freelancerlar)} onSubmit={(v) => { onAddCost(v); setAddingCost(false); }} onCancel={() => setAddingCost(false)} submitLabel="Maliyeti Ekle" />
-          ) : (
-            <button style={addBtnStyle} onClick={() => setAddingCost(true)}><Plus size={13} /> Maliyet ekle</button>
-          )}
-        </div>
-
-        <div>
-          <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter", fontWeight: 600, marginBottom: 8 }}>BEKLEYEN TAHSİLATLAR ({bekleyenTahsilatlar.length})</div>
-          {bekleyenTahsilatlar.length === 0 && <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter" }}>Bekleyen ödeme yok.</div>}
-          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-            {bekleyenTahsilatlar.map((b) => (
-              <div key={b.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", background: T.surfaceRaised, borderRadius: 10 }}>
-                <div style={{ fontSize: 13, color: b.vade.includes("gecikti") ? T.danger : T.textDim, fontFamily: "Inter" }}>{b.vade}</div>
-                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, color: T.text }}>{fmt(b.tutar)}</div>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );

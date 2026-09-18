@@ -76,6 +76,120 @@ const SAHTE_BELGE = {
   cekimSirasi: {}, _alanSurumleri: {},
 };
 
+/* ── MÜŞTERİ DETAY PANELİ İÇİN FİXTURE — TARİHTEN BAĞIMSIZ ───────────────────────
+ *
+ * Panelin karar şeridi `clientOverdueMonths` / `clientOverdueBalance` /
+ * `clientPaymentStatus` üzerinden geliyor ve ÜÇÜ DE `new Date()`e bakıyor. Sabit tarih
+ * yazılsaydı test bir süre sonra başka bir dala düşer ve kimse dokunmadan kırmızıya
+ * dönerdi — kırılgan bir test, olmayan testten kötüdür. Bu yüzden her şey bugüne GÖRELİ:
+ *
+ *   · `odemeGunu: 1` → `clientOverdueMonths` içindeki "bu ayın vadesi henüz gelmedi"
+ *     atlaması (`now.getDate() < odemeGunu`) HİÇBİR GÜN doğru olamaz. Ayın kaçı olduğu
+ *     sonucu değiştirmez.
+ *   · `baslangic` = 8 ay önce → kimlik satırında her zaman "9. ay".
+ *   · 6 ay önceki ay TAM ödenmiş → geriye sayım orada durur: her zaman "6 aydır ödenmedi".
+ *     (Başlangıç sınırına hiç ulaşılmaz, yani sayıyı belirleyen tek şey bu ödeme kaydı.)
+ *   · Bakiye = 6 × 12.000 = 72.000 ₺, her koşuda aynı.
+ *
+ * Adlar bilerek gerçek dışı; buraya asla üretim verisi kopyalanmaz. */
+const ayGeriye = (k) => {
+  const d = new Date();
+  const g = new Date(d.getFullYear(), d.getMonth() - k, 1);
+  return `${g.getFullYear()}-${String(g.getMonth() + 1).padStart(2, "0")}`;
+};
+
+const GECIKMELI_MARKA = "Gecikmis Marka (TEST)";
+const GECIKMELI_KATEGORI = "Kafe";
+const GECIKMELI_UCRET = 12000;
+const GECIKMELI_AY = 6;           // kaç aydır ödenmemiş görünecek
+const GECIKMELI_CALISMA_AYI = 9;  // kimlik satırındaki "N. ay"
+const GECIKMELI_BASLANGIC = ayGeriye(GECIKMELI_CALISMA_AYI - 1);
+const GECIKMELI_NOT = "Sozlesme yenileme gorusmesi bekliyor (TEST)";
+const GECIKMELI_BAKIYE = GECIKMELI_UCRET * GECIKMELI_AY;
+
+/* İçerik sekmesi BOŞ LİSTEYLE de çizilir, ama boş bir liste "motor çalıştı mı" sorusuna
+ * zayıf cevap verir: dört alt sekme başlığı zaten sabit metin. Bu yüzden markanın BİR
+ * içerik kaydı var — sekme açıldığında listede bu açıklamanın görünmesi, motorun kendi
+ * `clientId` süzgecinden geçip kaydı gerçekten ÇİZDİĞİNİN kanıtı. */
+const GECIKMELI_ICERIK = "Deneme icerik kaydi (TEST)";
+
+/* ── İKİNCİ MARKA: ÖDEMESİ TAM — "SAKİN" DALI, TARİHTEN BAĞIMSIZ ─────────────────
+ *
+ * Tasarımın en ayırt edici iddiası burada sınanıyor: `lib/musteri-karar.js` sağlıklı
+ * markada `eylem: null` döndürür, yani panelde BİRİNCİL DÜĞME ÇİZİLMEZ ("yapılacak bir
+ * şey yoksa düğme de yok"). Gecikme dalı tarayıcıda çiziliyordu, sakin dal hiç.
+ *
+ * Yine her şey bugüne GÖRELİ — sabit tarih, testin aylar sonra kimse dokunmadan başka
+ * bir dala düşmesi demek olurdu:
+ *   · `odemeGunu: 1` + `odemeSekli: "pesin"` → değerlendirilen ay HER ZAMAN bu ay.
+ *   · Bu ay TAM ödenmiş → `clientPaymentStatus` "odendi" ("Bu ay ödendi"),
+ *     `clientOverdueMonths` daha ilk turda (i=0) ödenmiş ayı bulup durur → 0.
+ *     İkisi birlikte `musteriKararSeridi`'ni SAKIN dalına, `eylem`i null'a götürür.
+ *   · Başlangıç 2 ay önce ve aradaki her ay ödenmiş → kimlik satırı her koşuda "3. ay".
+ *   · Ayın kaçı olduğu hiçbir dalı değiştiremez: `now.getDate() < 1` hiçbir gün doğru
+ *     olamaz, zaten ödenmiş ay her koşulda sayımı durduruyor. */
+const SAGLIKLI_MARKA = "Odemesi Tam Marka (TEST)";
+const SAGLIKLI_KATEGORI = "Kuafor";
+const SAGLIKLI_UCRET = 8000;
+const SAGLIKLI_CALISMA_AYI = 3;   // kimlik satırındaki "N. ay"
+const SAGLIKLI_BASLANGIC = ayGeriye(SAGLIKLI_CALISMA_AYI - 1);
+const SAGLIKLI_BASLIK = "Bu ay ödendi";   // SAKIN dalının başlığı (clientPaymentStatus)
+
+/* Üç senaryo da (gecikmeli panel · sağlıklı panel · dar ekran) AYNI belgeden besleniyor:
+ * iki marka yan yana durunca "hangi dalın çizildiği" markanın kendi verisinden geliyor,
+ * fixture'dan değil. */
+const SAHTE_YANIT_PANEL = () => ({
+  role: "owner",
+  data: {
+    ...SAHTE_BELGE,
+    clients: [{
+      id: "sahte-marka-gecikmeli",
+      ad: GECIKMELI_MARKA, name: GECIKMELI_MARKA,
+      kategori: GECIKMELI_KATEGORI,
+      durum: "aktif",
+      aylikUcret: GECIKMELI_UCRET,
+      odemeGunu: 1,
+      odemeSekli: "pesin",
+      baslangic: GECIKMELI_BASLANGIC,
+      email: "deneme@ornek-test.local",
+      telefon: "900000000000",
+      not: GECIKMELI_NOT,
+      maliyetler: [], faturalar: [], ucretGecmisi: [],
+      // Sayımı durduran TEK kayıt: 6 ay önceki ay tam ödenmiş.
+      odemeKayitlari: [{
+        id: 1, ay: ayGeriye(GECIKMELI_AY), tutar: GECIKMELI_UCRET,
+        tarih: `${ayGeriye(GECIKMELI_AY)}-05`,
+      }],
+    }, {
+      id: "sahte-marka-saglikli",
+      ad: SAGLIKLI_MARKA, name: SAGLIKLI_MARKA,
+      kategori: SAGLIKLI_KATEGORI,
+      durum: "aktif",
+      aylikUcret: SAGLIKLI_UCRET,
+      odemeGunu: 1,
+      odemeSekli: "pesin",
+      baslangic: SAGLIKLI_BASLANGIC,
+      email: "saglikli@ornek-test.local",
+      telefon: "900000000001",
+      not: "Odemeler duzenli (TEST)",
+      maliyetler: [], faturalar: [], ucretGecmisi: [],
+      // Başlangıçtan bugüne HER ay tam ödenmiş — sayım ilk turda durur.
+      odemeKayitlari: [0, 1, 2].map((k) => ({
+        id: k + 1, ay: ayGeriye(k), tutar: SAGLIKLI_UCRET, tarih: `${ayGeriye(k)}-02`,
+      })),
+    }],
+    musteriIcerikleri: [{
+      id: "sahte-icerik-1",
+      clientId: "sahte-marka-gecikmeli",
+      tur: "gorsel",
+      aciklama: GECIKMELI_ICERIK,
+      durum: "bekliyor",
+      gorselUrl: "", driveLinki: "",
+    }],
+    cekimIsleri: [],
+  },
+});
+
 /* ── SUNUCU ──────────────────────────────────────────────────────────────────── */
 const TIP = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
@@ -101,8 +215,16 @@ function sunucuKur(apiYaniti) {
   return s;
 }
 
-/* ── TEK SENARYO ─────────────────────────────────────────────────────────────── */
-async function senaryo(tarayici, ad, apiYaniti, enAzMetin, beklenenMetin) {
+/* ── TEK SENARYO ───────────────────────────────────────────────────────────────
+ * `secenekler.yerelDepo`  : sayfa açılmadan ÖNCE yazılacak localStorage anahtarları.
+ * `secenekler.etkilesim`  : açılış kontrolleri bittikten sonra çalışan, kendi
+ *                           `kontrol()` çağrılarını yapan işlev (ör. bir panel açmak).
+ *                           Verildiğinde sonda etkileşim SONRASI hata kontrolleri de
+ *                           çalışır — açılışta temiz olup tıklayınca patlayan ekran,
+ *                           bu testin kapatmaya çalıştığı boşluğun tam ortasında.
+ * `secenekler.pencere`    : pencere ölçüsü. Verilmezse 1280×900. Dar ekran dalını
+ *                           çizmek için verilir. */
+async function senaryo(tarayici, ad, apiYaniti, enAzMetin, beklenenMetin, secenekler = {}) {
   console.log(`\n── ${ad} ──`);
 
   /* EŞİK POZİTİF OLMAK ZORUNDA — sessizce anlamsızlaşmasın.
@@ -139,7 +261,20 @@ async function senaryo(tarayici, ad, apiYaniti, enAzMetin, beklenenMetin) {
   await new Promise((r) => sunucu.listen(0, "127.0.0.1", r));
   const port = sunucu.address().port;
 
-  const baglam = await tarayici.newContext();
+  /* Pencere ölçüsü SABİT: uygulama 900/860/640 kırılmalarında farklı çiziyor (yan menü
+   * gizleniyor, tablo sarmalanıyor). Varsayılana bırakmak testi makineye bağlar.
+   * `secenekler.pencere` ile başka bir ölçü İSTENEREK verilebilir — dar ekran dalı
+   * (`useIsMobile(640)`) ancak böyle çiziliyor; varsayılan yine sabit. */
+  const baglam = await tarayici.newContext({
+    viewport: secenekler.pencere || { width: 1280, height: 900 },
+  });
+  if (secenekler.yerelDepo) {
+    await baglam.addInitScript((kayitlar) => {
+      try {
+        Object.keys(kayitlar).forEach((k) => localStorage.setItem(k, kayitlar[k]));
+      } catch (e) { /* localStorage kapalıysa sessizce geç */ }
+    }, secenekler.yerelDepo);
+  }
   const sayfa = await baglam.newPage();
 
   const jsHatalari = [];   // yakalanmamış istisnalar — siyah ekranın sebebi
@@ -167,9 +302,23 @@ async function senaryo(tarayici, ad, apiYaniti, enAzMetin, beklenenMetin) {
   let zamanAsimi = false;
   try {
     await sayfa.goto(`http://127.0.0.1:${port}/`, { waitUntil: "load", timeout: 60000 });
-    // React'in çizmesi ve ilk veri turunun bitmesi için bekle.
+    /* React'in çizmesi ve İLK VERİ TURUNUN BİTMESİ için bekle.
+     *
+     * Eskiden yalnızca "`#root`un çocuğu var mı" diye bakılıyordu. Ama `data` gelene kadar
+     * çizilen "Marcus Medya App yükleniyor…" ara ekranı DA `#root`un içinde bir çocuk
+     * düğüm — yani koşul, uygulama daha hiçbir şey çizmeden sağlanıyordu. Yüklü makinede
+     * ölçüldü: senaryo 2'de iki kontrol ("okunur içerik", "beklenen ekran çizildi") ara
+     * ekranı görüp düştü, oysa uygulamada hiçbir sorun yoktu. Kararsız bir test, olmayan
+     * testten kötüdür — ara ekran gidene kadar beklenir.
+     *
+     * Bu bir BEKLEME, bir iddia değil: ara ekran hiç gitmezse zaman aşımına düşer ve
+     * "sayfa açıldı" kontrolü gürültülü biçimde kırılır. */
     await sayfa.waitForFunction(
-      () => { const r = document.getElementById("root"); return r && r.children.length > 0; },
+      () => {
+        const r = document.getElementById("root");
+        if (!r || r.children.length === 0) return false;
+        return !(r.innerText || "").includes("yükleniyor");
+      },
       { timeout: 30000 },
     );
   } catch (e) {
@@ -224,8 +373,339 @@ async function senaryo(tarayici, ad, apiYaniti, enAzMetin, beklenenMetin) {
     console.log("       ama yüklü makinede yavaşlık da olabilir. Testi tek başına tekrar çalıştır.");
   }
 
+  if (secenekler.etkilesim) {
+    await secenekler.etkilesim({ sayfa, ad });
+    // Açılışta temiz olan ekran, bir panel açılınca patlayabilir: o yüzden hata
+    // listeleri etkileşimden SONRA bir kez daha okunuyor (liste birikimli).
+    kontrol(`${ad}: etkileşimden sonra yakalanmamış JS hatası yok`, jsHatalari.length === 0,
+      jsHatalari.slice(0, 3).join(" | "));
+    kontrol(`${ad}: etkileşimden sonra konsol hatası yok`, konsolHatalari.length === 0,
+      konsolHatalari.slice(0, 3).join(" | "));
+  }
+
   await baglam.close();
   await new Promise((r) => sunucu.close(r));
+}
+
+/* ── MÜŞTERİ DETAY PANELİ ETKİLEŞİMİ ─────────────────────────────────────────────
+ *
+ * Neden var: bu testin iki senaryosu da Dashboard'da duruyordu. `ClientDetail` hiç MOUNT
+ * EDİLMİYORDU, yani panelin 441 satırlık çizimi hiçbir katman tarafından ölçülmüyordu.
+ * Ölçüldü: panele garanti çöken bir satır konulduğunda doğrulama zincirinin BEŞ ADIMI da
+ * yeşil kalıyordu (27 denetim ✓, derleme 0, 2570 kontrol ✓, tarayıcı 14/14).
+ *
+ * "Panel açıldı" demek yetmez — hata ekranı da bir şey çizer. Bu yüzden panelin İÇİNDEN
+ * okunuyor: marka kimliği, hangi karar dalının çizildiği, bakiye, birincil düğme, üç
+ * sekme ve SEKME GEÇİŞİNİN gerçekten içeriği değiştirmesi.
+ *
+ * Bütün metin, panelin kendi DOM alt ağacından alınıyor — sayfanın tamamından DEĞİL.
+ * ÖLÇÜLDÜ: çıpa `document.body`'ye gevşetilip panel bozulduğunda düşen kontrol sayısı
+ * 14'ten 12'ye iniyor — "durum rozeti" ve "Para içeriği gitti" kontrolleri arkadaki
+ * Müşteriler ekranından boş yere geçiyor. Yani çıpa iki kontrolü taşıyor.
+ *
+ * (Bir süre burada "Ödenmeyen Ödemeler kartı da aynı cümleyi yazıyor" gerekçesi yazılıydı;
+ *  YANLIŞTI — o kart `odemeAcik` ile koşullu ve varsayılan KAPALI, metni DOM'a hiç girmiyor.
+ *  Karar doğruydu, sebebi değil. Yanlış gerekçe çıpayı ileride "gereksiz" diye
+ *  sadeleştirmeye davet eder.) */
+/* Paneli DOM'da bulmanın çıpası: marka adını TAM olarak taşıyan <h2>. Oradan yukarı
+ * çıkıp `position: fixed` olan örtüye varılıyor (panelin dış kabı). Satır içi stil
+ * METNİNE bakılmıyor — stil düzenlenince sessizce kopan bir çıpa olmasın.
+ *
+ * Okunan her şey PANELİN KENDİ ALT AĞACINDAN geliyor, sayfanın tamamından değil; üç
+ * etkileşim de aynı çıpayı kullanıyor. */
+const panelOkuyucu = (sayfa, marka) => () => sayfa.evaluate((m) => {
+  let el = [...document.querySelectorAll("h2")].find((h) => (h.textContent || "").trim() === m) || null;
+  if (!el) return null;
+  while (el && getComputedStyle(el).position !== "fixed") el = el.parentElement;
+  if (!el) return null;
+  /* BİRİNCİL DÜĞMENİN İMZASI: opak zemin + beyaz yazı (`saveBtnStyle`). Vurgu rengi
+   * SABİT YAZILMIYOR — tema değişince sessizce kopmasın.
+   *
+   * İMZAYI ASIL TUTAN ŞART YAZI RENGİ, zemin değil. `addBtnStyle` koyu temada yarı
+   * saydam (`rgba(91,110,245,0.14)`) ama AÇIK temada opak (`#EAECFD`, src/tema.jsx) —
+   * yani zemin şartını GEÇER ve onu eleyen tek şey `accentText` yazı rengi. Zemin şartı
+   * yine de duruyor çünkü saydam zeminli düğmeleri (cancel/ikon/sekme) ucuza eliyor;
+   * ama taşıyıcı olan o değil. (Bir süre burada "addBtnStyle yarı saydam" yazıyordu —
+   * yalnızca koyu temada doğru; yanlış gerekçe, şartı ileride gereksiz sanıp silmeye
+   * davet ederdi.)
+   *
+   * KÖR NOKTA — bilinerek bırakıldı: imza yalnızca `saveBtnStyle`i görür. `karar.eylem`in
+   * `ODEME_GUNU_EKLE` dalı SESSİZ düğmeye (`cancelBtnStyle`) iniyor ve bu imzayı
+   * taşımıyor; ölçüldü — sakin markaya o düğme sızarsa bu kontrol 0 düşürür. Kontrolün
+   * ADI bu yüzden dar: "birincil (saveBtnStyle) düğme YOK". O dalı tutan şey, aynı
+   * senaryodaki "SAKİN dalını çizdi" başlık kontrolü.
+   *
+   * Ölçüldü (Eylül 2026): gecikme panelinde imzayı TEK düğme taşıyor ("Tebliğ oluştur");
+   * sakin panelde 7 düğmenin hiçbiri taşımıyor. */
+  const birincilDugmeler = [...el.querySelectorAll("button")].filter((b) => {
+    const s = getComputedStyle(b);
+    return /^rgb\(/.test(s.backgroundColor) && s.color === "rgb(255, 255, 255)";
+  }).map((b) => (b.textContent || "").trim());
+  /* PARA SATIRI: panel içindeki, hem "AYLIK ÜCRET" hem "KÂR MARJI" taşıyan grid.
+   * Sütun sayısı `gridTemplateColumns`ten okunuyor — dar ekranda 1, geniş ekranda 3. */
+  const gridler = [...el.querySelectorAll("div")].filter(
+    (d) => getComputedStyle(d).display === "grid"
+      && (d.innerText || "").includes("AYLIK ÜCRET") && (d.innerText || "").includes("KÂR MARJI"),
+  );
+  const paraGrid = gridler[gridler.length - 1] || null;
+  /* PANELİN KENDİ YATAY TAŞMASI. Sayfanın `scrollWidth`i YETMİYOR: panel `position:
+   * fixed` bir örtünün içinde ve tarayıcı, fixed bir kutudan taşan içeriği belgenin
+   * kaydırma alanına EKLEMİYOR — ölçüldü (Eylül 2026): para satırına `minWidth: 900`
+   * konulduğunda 390px pencerede belge taşması 0 kalıyor, yani yalnızca belgeye bakan
+   * bir kontrol bu bozulmayı GÖRMÜYOR (0 kontrol düştü). Panelin kendi kaydırma
+   * bölgesi (`overflowY: auto`) ölçülünce görülüyor: içerik kutudan genişse dar ekranda
+   * ya kırpılır ya yatay kaydırma ister; ikisi de kusur.
+   * Bölge bulunamazsa `null` döner ve kontrol DÜŞER — sessizce geçmesindense gürültülü
+   * kırılsın (panelin yapısı değiştiyse çıpa yeniden kurulmalı). */
+  const kaydirmaAlani = [...el.querySelectorAll("div")]
+    .find((d) => getComputedStyle(d).overflowY === "auto") || null;
+  return {
+    metin: el.innerText || "",
+    yatayTasma: kaydirmaAlani ? kaydirmaAlani.scrollWidth - kaydirmaAlani.clientWidth : null,
+    sekmeler: [...el.querySelectorAll('[role="tab"]')].map((b) => ({
+      ad: (b.textContent || "").trim(),
+      secili: b.getAttribute("aria-selected") === "true",
+    })),
+    birincilDugmeler,
+    paraSutunlari: paraGrid
+      ? getComputedStyle(paraGrid).gridTemplateColumns.trim().split(/\s+/).length : 0,
+  };
+}, marka);
+
+/** Tutar karşılaştırması TARAYICININ kendi tr-TR biçimlendirmesiyle yapılıyor: `fmt` de
+ * `toLocaleString("tr-TR")` çağırıyor, yani beklenen ile gerçek aynı yerden geliyor.
+ * Sınanan şey ayıraç biçimi değil, TUTARIN KENDİSİ — Node ile Chromium'un ICU'su
+ * ayrışırsa test yanlış alarm vermesin. */
+const paraOkuyucu = (sayfa) => (n) => sayfa.evaluate((x) => "₺" + Number(x).toLocaleString("tr-TR"), n);
+
+/** Marka satırına tıklayıp panelin açılmasını bekler; hata metnini döndürür (yoksa null).
+ * Marka adı bir <button> DEĞİL, `onClick` taşıyan bir <div>. Olduğu gibi tıklanıyor —
+ * uygulamayı teste uydurmak yasak, test uygulamaya uyar. */
+async function markayiAc(sayfa, marka) {
+  try {
+    await sayfa.locator("tbody td div").filter({ hasText: marka }).first()
+      .click({ timeout: 20000 });
+    await sayfa.waitForFunction(
+      (m) => [...document.querySelectorAll("h2")].some((h) => (h.textContent || "").trim() === m),
+      marka,
+      { timeout: 20000 },
+    );
+    return null;
+  } catch (e) {
+    return e.message.split("\n")[0];
+  }
+}
+
+async function musteriDetayiEtkilesimi({ sayfa, ad }) {
+  const panelOku = panelOkuyucu(sayfa, GECIKMELI_MARKA);
+  const para = paraOkuyucu(sayfa);
+
+  const acmaHatasi = await markayiAc(sayfa, GECIKMELI_MARKA);
+
+  const panel = await panelOku();
+  // Panel açılmasa bile AŞAĞIDAKİ KONTROLLERİN HEPSİ ÇALIŞIR ve tek tek düşer: erken
+  // dönseydi "kaç kontrol düştü" ölçümü sessizce küçülürdü.
+  const metin = panel ? panel.metin : "";
+  const sekmeler = panel ? panel.sekmeler : [];
+  const ornek = metin.slice(0, 140).replace(/\s+/g, " ");
+  const seciliSekme = (liste) => (liste.find((s) => s.secili) || {}).ad || "(yok)";
+
+  kontrol(`${ad}: marka satırına tıklayınca detay paneli açıldı`,
+    acmaHatasi === null && panel !== null, acmaHatasi || "panel DOM'da bulunamadı");
+
+  /* 1 · MARKA KİMLİĞİ — "kategori · başlangıç · N. ay". */
+  kontrol(`${ad}: kimlik satırı çizildi (${GECIKMELI_KATEGORI} · ${GECIKMELI_BASLANGIC} · ${GECIKMELI_CALISMA_AYI}. ay)`,
+    metin.includes(GECIKMELI_KATEGORI) && metin.includes(GECIKMELI_BASLANGIC)
+      && metin.includes(`${GECIKMELI_CALISMA_AYI}. ay`),
+    `panelde: "${ornek}…"`);
+  kontrol(`${ad}: durum rozeti çizildi (Aktif)`, metin.includes("Aktif"), `panelde: "${ornek}…"`);
+
+  /* 2 · KARAR ŞERİDİ — gecikme dalı. Fixture bugüne göreli kurulduğu için bu dal
+   * hangi gün koşulursa koşulsun aynı. */
+  kontrol(`${ad}: karar şeridi GECİKME dalını çizdi (${GECIKMELI_AY} aydır ödenmedi)`,
+    metin.includes(`${GECIKMELI_AY} aydır ödenmedi`), `panelde: "${ornek}…"`);
+  const bakiyeMetni = await para(GECIKMELI_BAKIYE);
+  kontrol(`${ad}: gecikme bakiyesi doğru (Kalan bakiye ${bakiyeMetni})`,
+    metin.includes("Kalan bakiye") && metin.includes(bakiyeMetni),
+    `panelde: "${ornek}…"`);
+  const ucretMetni = await para(GECIKMELI_UCRET);
+  kontrol(`${ad}: yeni ay ücreti yazıldı (${ucretMetni})`,
+    metin.includes("Yeni ay ücreti") && metin.includes(ucretMetni), `panelde: "${ornek}…"`);
+  kontrol(`${ad}: birincil düğme "Tebliğ oluştur"`, metin.includes("Tebliğ oluştur"),
+    `panelde: "${ornek}…"`);
+
+  /* 3 · ÜÇ SEKME ve varsayılan. */
+  kontrol(`${ad}: üç sekme çizildi (Para · İlişki · İçerik)`,
+    sekmeler.map((s) => s.ad).join("|") === "Para|İlişki|İçerik",
+    `bulunan: ${JSON.stringify(sekmeler.map((s) => s.ad))}`);
+  kontrol(`${ad}: varsayılan sekme Para`, seciliSekme(sekmeler) === "Para",
+    `seçili: ${seciliSekme(sekmeler)}`);
+  kontrol(`${ad}: Para sekmesinin içeriği çizili (FATURALAMA · MALİYETLER · Hesap özeti)`,
+    metin.includes("FATURALAMA") && metin.includes("MALİYETLER") && metin.includes("Hesap özeti")
+      && !metin.includes("İLETİŞİM VE ÇALIŞMA KOŞULLARI"),
+    `panelde: "${ornek}…"`);
+
+  /* 4 · SEKME GEÇİŞİ GERÇEKTEN ÖLÇÜLÜYOR: yalnızca "İlişki geldi" değil, "Para GİTTİ" de
+   * aranıyor. İki sekmenin içeriği aynı anda duruyorsa geçiş çalışmıyor demektir. */
+  let gecisHatasi = null;
+  try {
+    await sayfa.locator('[role="tab"]').filter({ hasText: "İlişki" }).first().click({ timeout: 20000 });
+    await sayfa.waitForFunction(
+      () => document.body.innerText.includes("İLETİŞİM VE ÇALIŞMA KOŞULLARI"),
+      null, { timeout: 20000 },
+    );
+  } catch (e) {
+    gecisHatasi = e.message.split("\n")[0];
+  }
+
+  const panel2 = await panelOku();
+  const metin2 = panel2 ? panel2.metin : "";
+  const sekmeler2 = panel2 ? panel2.sekmeler : [];
+  const ornek2 = metin2.slice(0, 140).replace(/\s+/g, " ");
+
+  kontrol(`${ad}: İlişki sekmesine tıklanınca seçili sekme değişti`,
+    gecisHatasi === null && seciliSekme(sekmeler2) === "İlişki",
+    gecisHatasi || `seçili: ${seciliSekme(sekmeler2)}`);
+  kontrol(`${ad}: İlişki sekmesinin içeriği geldi (iletişim alanları + not)`,
+    metin2.includes("İLETİŞİM VE ÇALIŞMA KOŞULLARI") && metin2.includes(GECIKMELI_NOT)
+      && metin2.includes("Ayın 1'i"),
+    `panelde: "${ornek2}…"`);
+  kontrol(`${ad}: Para sekmesinin içeriği gitti (MALİYETLER · FATURALAMA yok)`,
+    metin2 !== "" && !metin2.includes("MALİYETLER") && !metin2.includes("FATURALAMA"),
+    `panelde: "${ornek2}…"`);
+
+  // Karar şeridi sekmelerin DIŞINDA — sekme değişse de yerinde kalmalı.
+  kontrol(`${ad}: karar şeridi sekme değişince yerinde kaldı`,
+    metin2.includes(`${GECIKMELI_AY} aydır ödenmedi`) && metin2.includes("Tebliğ oluştur"),
+    `panelde: "${ornek2}…"`);
+
+  /* 5 · ÜÇÜNCÜ SEKME — İÇERİK. Sekme geçişi bir süre yalnızca Para → İlişki yönünde
+   * ölçülüyordu; üçüncü sekme hiç AÇILMIYORDU, yani `IcerikYonetimMotoru`'nun bu panel
+   * içinden çizilip çizilmediğini hiçbir katman görmüyordu. İki yön birden aranıyor:
+   * İçerik GELDİ mi (motorun kendi alt sekmeleri + markanın içerik kaydı) ve İlişki
+   * GİTTİ mi — ikisi aynı anda duruyorsa geçiş çalışmıyor demektir. */
+  let icerikHatasi = null;
+  try {
+    await sayfa.locator('[role="tab"]').filter({ hasText: "İçerik" }).first().click({ timeout: 20000 });
+    await sayfa.waitForFunction(
+      () => document.body.innerText.includes("Onay Bekleyenler"),
+      null, { timeout: 20000 },
+    );
+  } catch (e) {
+    icerikHatasi = e.message.split("\n")[0];
+  }
+
+  const panel3 = await panelOku();
+  const metin3 = panel3 ? panel3.metin : "";
+  const sekmeler3 = panel3 ? panel3.sekmeler : [];
+  const ornek3 = metin3.slice(0, 140).replace(/\s+/g, " ");
+
+  kontrol(`${ad}: İçerik sekmesine tıklanınca seçili sekme değişti`,
+    icerikHatasi === null && seciliSekme(sekmeler3) === "İçerik",
+    icerikHatasi || `seçili: ${seciliSekme(sekmeler3)}`);
+  /* "Dört alt sekme başlığı" tek başına sabit metin; asıl kanıt markanın İÇERİK KAYDININ
+   * listede çizilmesi — motor `clientId` süzgecinden geçip gerçekten liste üretmiş. */
+  kontrol(`${ad}: İçerik sekmesinin içeriği geldi (IcerikYonetimMotoru: alt sekmeler + kayıt)`,
+    metin3.includes("Onay Bekleyenler") && metin3.includes("İçerik Fikirleri")
+      && metin3.includes(GECIKMELI_ICERIK),
+    `panelde: "${ornek3}…"`);
+  kontrol(`${ad}: İlişki sekmesinin içeriği gitti (İLETİŞİM… · not yok)`,
+    metin3 !== "" && !metin3.includes("İLETİŞİM VE ÇALIŞMA KOŞULLARI")
+      && !metin3.includes(GECIKMELI_NOT),
+    `panelde: "${ornek3}…"`);
+
+  if (metin3) console.log(`     panelden: "${ornek3}…"`);
+}
+
+/* ── SAĞLIKLI MARKA: "SAKİN" DALI VE OLMAYAN BİRİNCİL DÜĞME ──────────────────────
+ *
+ * `lib/musteri-karar.js`'in en ayırt edici kuralı: yapılacak bir şey yoksa BİRİNCİL
+ * DÜĞME ÇİZİLMEZ (`eylem: null`). Bu dal tarayıcıda hiç çizilmiyordu — yalnızca gecikme
+ * dalı sınanıyordu, yani "düğme gerektiğinde var" ölçülüyor, "gerekmediğinde yok"
+ * ölçülmüyordu.
+ *
+ * "Düğme yok" kontrolü BOŞ YERE GEÇEBİLİR: panel hiç açılmazsa da düğme yoktur. Bu
+ * yüzden aynı senaryoda panelin GERÇEKTEN açıldığını kanıtlayan kontroller var (kimlik
+ * satırı ve para satırı), ve düğme sayımı panelin KENDİ DOM alt ağacında yapılıyor. */
+async function saglikliMarkaEtkilesimi({ sayfa, ad }) {
+  const panelOku = panelOkuyucu(sayfa, SAGLIKLI_MARKA);
+  const para = paraOkuyucu(sayfa);
+
+  const acmaHatasi = await markayiAc(sayfa, SAGLIKLI_MARKA);
+
+  const panel = await panelOku();
+  // Panel açılmasa bile aşağıdaki kontroller çalışır ve tek tek düşer.
+  const metin = panel ? panel.metin : "";
+  const dugmeler = panel ? panel.birincilDugmeler : [];
+  const ornek = metin.slice(0, 140).replace(/\s+/g, " ");
+
+  kontrol(`${ad}: marka satırına tıklayınca detay paneli açıldı`,
+    acmaHatasi === null && panel !== null, acmaHatasi || "panel DOM'da bulunamadı");
+
+  /* PANEL GERÇEKTEN AÇILDI MI — "düğme yok" kontrolünün boş yere geçmemesinin şartı. */
+  kontrol(`${ad}: kimlik satırı çizildi (${SAGLIKLI_KATEGORI} · ${SAGLIKLI_BASLANGIC} · ${SAGLIKLI_CALISMA_AYI}. ay)`,
+    metin.includes(SAGLIKLI_KATEGORI) && metin.includes(SAGLIKLI_BASLANGIC)
+      && metin.includes(`${SAGLIKLI_CALISMA_AYI}. ay`),
+    `panelde: "${ornek}…"`);
+
+  /* SAKİN DAL: başlık `clientPaymentStatus`tan geliyor ve gecikme cümlesi HİÇ olmamalı. */
+  kontrol(`${ad}: karar şeridi SAKİN dalını çizdi (${SAGLIKLI_BASLIK}, gecikme yok)`,
+    metin.includes(SAGLIKLI_BASLIK) && !metin.includes("aydır ödenmedi"),
+    `panelde: "${ornek}…"`);
+
+  /* ASIL İDDİA: panelde birincil düğme YOK. */
+  kontrol(`${ad}: panelde birincil (saveBtnStyle) düğme YOK`,
+    panel !== null && dugmeler.length === 0,
+    panel === null ? "panel açılmadı" : `bulunan: ${JSON.stringify(dugmeler)}`);
+
+  const ucretMetni = await para(SAGLIKLI_UCRET);
+  kontrol(`${ad}: para satırı yine çizildi (AYLIK ÜCRET ${ucretMetni} · KÂR MARJI)`,
+    metin.includes("AYLIK ÜCRET") && metin.includes(ucretMetni) && metin.includes("KÂR MARJI"),
+    `panelde: "${ornek}…"`);
+
+  if (metin) console.log(`     panelden: "${ornek}…"`);
+}
+
+/* ── DAR EKRAN DALI ──────────────────────────────────────────────────────────────
+ *
+ * Panel `useIsMobile(640)` ile kendi dar ekran dalını çiziyor: para satırı tek sütuna
+ * düşüyor, yatay boşluk 24 → 16'ya iniyor. Test tek pencere ölçüsünde (1280×900)
+ * koştuğu için bu dal hiç çizilmiyordu — telefonda açılan panel hiçbir katman
+ * tarafından ölçülmemiş oluyordu.
+ *
+ * Ölçülen üç şey: panel dar ekranda da AÇILIYOR · sayfa gövdesi yatay KAYMIYOR
+ * (dar ekranda taşan bir blok, kullanıcıyı sağa sola kaydırmaya zorlar) · para satırı
+ * TEK SÜTUN (yani dar ekran dalı gerçekten seçilmiş). */
+async function darEkranEtkilesimi({ sayfa, ad }) {
+  const panelOku = panelOkuyucu(sayfa, GECIKMELI_MARKA);
+
+  const acmaHatasi = await markayiAc(sayfa, GECIKMELI_MARKA);
+
+  const panel = await panelOku();
+  const metin = panel ? panel.metin : "";
+  const ornek = metin.slice(0, 140).replace(/\s+/g, " ");
+
+  kontrol(`${ad}: dar ekranda marka satırına tıklayınca panel açıldı`,
+    acmaHatasi === null && panel !== null, acmaHatasi || "panel DOM'da bulunamadı");
+
+  /* Yatay kayma İKİ YERDE birden ölçülüyor — biri tek başına yetmiyor:
+   *   · belge/gövde: sayfanın tamamı sağa sola kayıyor mu,
+   *   · panelin kendi kaydırma bölgesi: fixed örtünün içindeki taşma belgeye HİÇ
+   *     yansımıyor (ölçüldü — `panelOkuyucu` içindeki nota bak). */
+  const kayma = await sayfa.evaluate(() => ({
+    belge: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    govde: document.body.scrollWidth - document.body.clientWidth,
+  }));
+  const panelTasmasi = panel ? panel.yatayTasma : null;
+  kontrol(`${ad}: panel açıkken yatay KAYMA yok (sayfa gövdesi + panel içeriği)`,
+    kayma.belge <= 0 && kayma.govde <= 0 && panelTasmasi !== null && panelTasmasi <= 0,
+    `belge: ${kayma.belge}px, gövde: ${kayma.govde}px, panel: ${panelTasmasi === null ? "kaydırma bölgesi bulunamadı" : panelTasmasi + "px"}`);
+
+  kontrol(`${ad}: para satırı tek sütuna düştü (useIsMobile(640) dalı)`,
+    panel !== null && panel.paraSutunlari === 1,
+    panel === null ? "panel açılmadı" : `sütun sayısı: ${panel.paraSutunlari}`);
+
+  if (metin) console.log(`     panelden: "${ornek}…"`);
 }
 
 /* ── TARAYICIYI BUL ──────────────────────────────────────────────────────────── */
@@ -300,6 +780,32 @@ async function calistir() {
     // gerçekten çizildiğinin kanıtı.
     await senaryo(tarayici, "sahte veriyle", SAHTE_YANIT(), 50,
       ["Dashboard", "ÜRETİM"]);
+    /* 3) MÜŞTERİ DETAY PANELİ — uygulamanın Dashboard'dan SONRAKİ ilk derin ekranı.
+     *    İki localStorage anahtarı açılıştan önce yazılıyor:
+     *      · `marcus-os-son-sekme` → uygulama doğrudan Müşteriler'de açılır (yan menüdeki
+     *        "MÜŞTERİ" grubu kapalı geliyor; iki ayrı tıklamayı beklemek testi menü
+     *        düzenine bağlardı, oysa ölçülmek istenen panel).
+     *      · `marcus-os-gizlilik` → gizlilik modu VARSAYILAN OLARAK AÇIK ve o zaman `fmt`
+     *        bütün tutarları "₺ •••" yazıyor. Kapatılmazsa bakiye kontrolü tutarı değil
+     *        yıldızları doğrular, yani hiçbir şeyi ölçmez. */
+    const PANEL_DEPOSU = { "marcus-os-son-sekme": "musteriler", "marcus-os-gizlilik": "0" };
+    await senaryo(tarayici, "müşteri detay paneli", SAHTE_YANIT_PANEL(), 50,
+      ["Müşteriler", GECIKMELI_MARKA],
+      { yerelDepo: PANEL_DEPOSU, etkilesim: musteriDetayiEtkilesimi });
+    /* 4) SAĞLIKLI MARKA — aynı panelin ÖTEKİ dalı. Gecikme dalı çizildiğinde birincil
+     *    düğmenin VAR olduğu ölçülüyordu; bu senaryo gerekmediğinde YOK olduğunu ölçer. */
+    await senaryo(tarayici, "sağlıklı marka paneli", SAHTE_YANIT_PANEL(), 50,
+      ["Müşteriler", SAGLIKLI_MARKA],
+      { yerelDepo: PANEL_DEPOSU, etkilesim: saglikliMarkaEtkilesimi });
+    /* 5) DAR EKRAN — aynı panel, `useIsMobile(640)` dalı. 390×800 yaygın bir telefon
+     *    ölçüsü; 640'ın altında olması yeterli, tam değeri kritik değil. */
+    await senaryo(tarayici, "dar ekranda müşteri paneli", SAHTE_YANIT_PANEL(), 50,
+      ["Müşteriler", GECIKMELI_MARKA],
+      {
+        yerelDepo: PANEL_DEPOSU,
+        etkilesim: darEkranEtkilesimi,
+        pencere: { width: 390, height: 800 },
+      });
   } finally {
     await tarayici.close();
   }
@@ -319,7 +825,7 @@ async function calistir() {
    *
    * Sayıyı BİLEREK değiştirmek serbest — yeni kontrol eklerken bu sabit de artar. Yasak
    * olan, sayının KENDİLİĞİNDEN düşmesi ve kimsenin görmemesi. */
-  const BEKLENEN = 14;
+  const BEKLENEN = 66;
   if (gecen !== BEKLENEN) {
     console.log(`SONUÇ: ✗ ${gecen} kontrol çalıştı, ${BEKLENEN} bekleniyordu — kapsam DEĞİŞMİŞ.`);
     console.log("       Kontrol eklediysen bu sabiti de artır; artırmadıysan bir kontrol");

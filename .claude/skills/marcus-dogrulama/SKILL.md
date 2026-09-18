@@ -26,7 +26,7 @@ kaldı — her birinde "temiz" diye raporlandı. Bu yüzden buradaki kurallar ü
 | Katman | Yakaladığı | Yakalayamadığı |
 |---|---|---|
 | 27 statik denetim | Sözdizimi, tanımsız ad, kapsam, belge bayatlığı, izin listesi ayrışması | Davranış |
-| t1…t110 (2522 kontrol) | Sunucu ve saf modül davranışı, sahte veritabanıyla | `.jsx`, prop bağlantısı, çizim |
+| t1…t111 (2570 kontrol) | Sunucu ve saf modül davranışı, sahte veritabanıyla | `.jsx`, prop bağlantısı, çizim |
 | `npm run build` | Derleme hatası | Çalışma anı hatası |
 | `npm run test:acilis` | **Uygulamanın gerçekten açılması**, siyah ekran, açılışta JS hatası | Açılış sonrası akışlar |
 
@@ -52,7 +52,7 @@ hatası ölçüldü — prop tekrar kaldırıldığında **0 kontrol düştü.**
 
 ## 3 · Tarayıcı testi (`testler/tarayiciAcilis.mjs`)
 
-Dört kuralı `CLAUDE.md`'de. Yazarken önemli olan: **testin kendisi sessizce
+Beş kuralı `CLAUDE.md`'de (beşincisi: hazır olma BEKLENİR, iddia edilmez). Yazarken önemli olan: **testin kendisi sessizce
 anlamsızlaşamaz.** `enAzMetin` pozitif olmak zorunda, `beklenenMetin` boş olamaz, sonda
 `BEKLENEN` sayacı var — üçü de ölçülerek konuldu, çünkü üçünde de test `0` ile çıkıyor ve
 zincirin beş adımı yeşil kalıyordu.

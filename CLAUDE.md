@@ -52,7 +52,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     110 test dosyası (t1…t110) + 27 statik denetim betiği
+testler/     111 test dosyası (t1…t111) + 27 statik denetim betiği
 .claude/     Komutlar, ajanlar ve UZMANLIK SKILL'LERİ — aşağıdaki tablo
 ```
 
@@ -165,7 +165,7 @@ Komutlar: **`/dogrula`** · **`/olc`** · **`/yayinla`**.
 
 ```bash
 bash testler/hepsinidenetle.sh     # 27 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t110, 2522 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t111, 2570 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 npm run test:acilis                # TARAYICI açılış testi — uygulamayı gerçekten çizer
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
@@ -192,11 +192,42 @@ karar süzgeçten GERİYE KALAN satırlara göre veriliyor.
 **Tarayıcı açılış testi — `testler/tarayiciAcilis.mjs`.** Yukarıdaki diğer üç adımın
 hiçbiri uygulamayı ÇİZMİYOR; siyah ekran hatası tam olarak bu boşluktan üretime çıktı.
 Test derlenmiş uygulamayı `127.0.0.1`'de açar, `#root` içine gerçekten içerik çizildiğini
-ve açılışta yakalanmamış JS hatası olmadığını doğrular. **Ölçüldü**: hata bileşen
-gövdesine geri konulduğunda derleme 0, denetimler 0, 2522 kontrol geçiyor — yalnızca
-bu test düşüyor (12 kontrol).
+ve açılışta yakalanmamış JS hatası olmadığını doğrular. **Beş senaryo, 66 kontrol**:
+boş veritabanı · dolu veritabanı · **müşteri detay paneli** · **sağlıklı marka paneli** ·
+**dar ekranda müşteri paneli**. **Ölçüldü**: hata bileşen gövdesine geri konulduğunda
+derleme 0, denetimler 0, 2570 kontrol geçiyor — yalnızca bu test düşüyor.
 
-Dört kural:
+**Açılış yetmiyor, DERİN EKRAN da çiziliyor.** İlk iki senaryo Dashboard'da duruyordu:
+`ClientDetail` hiç mount edilmiyordu ve panelin 441 satırlık çizimi hiçbir katman
+tarafından ölçülmüyordu. Ölçüldü: panele garanti çöken bir satır konulduğunda doğrulama
+zincirinin BEŞ adımı da yeşil kalıyordu. Üçüncü senaryo markaya tıklayıp paneli açıyor,
+kimlik satırını, karar şeridinin hangi dalı çizdiğini, bakiyeyi, birincil düğmeyi ve
+**üç sekmenin geçişini** ölçüyor. Her kontrol kırarak ölçüldü — hangi bozmanın kaç
+kontrol düşürdüğü `README.md` Güncelleme 183-185'te.
+
+**Bir dalın ÇİZİLMESİ kadar ÇİZİLMEMESİ de ölçülür.** "Sağlıklı markada birincil düğme
+YOK" bu tasarımın en ayırt edici kuralı; NEGATİF bir iddia olduğu için boş yere geçmeye
+açık — panel hiç açılmazsa da düğme yoktur. Bu yüzden kontrol `panel !== null` şartını
+taşır ve aynı senaryoda kimlik + para satırı da aranır. Düğme, panelin KENDİ DOM alt
+ağacında görsel imzayla bulunur; **vurgu rengi sabit yazılmaz**, tema değişince kopmasın.
+
+**Yatay kayma İKİ yerde ölçülür.** Tarayıcı, `position: fixed` bir kutudan taşan içeriği
+belgenin kaydırma alanına EKLEMİYOR — panel de fixed bir örtünün içinde. Yalnızca
+belgeye bakan bir kontrol, panele 900px'lik bir blok konulduğunda **hiçbir şey
+sınamıyordu**; panelin kendi kaydırma bölgesi de ölçülünce aynı bozulma yakalanıyor.
+Yeni bir taşma kontrolü yazarken bu tuzağı hatırla.
+
+**Tarih bağımlı ekran, fixture'da BUGÜNE GÖRELİ kurulur.** Karar şeridi
+`clientOverdueMonths` / `clientPaymentStatus` üzerinden geliyor ve ikisi de `new Date()`e
+bakıyor; sabit tarih yazmak, testin aylar sonra kimse dokunmadan kırmızıya dönmesi
+demektir. Fixture'ın iki markası da `odemeGunu: 1` (ayın kaçı olduğu sonucu değiştiremez):
+gecikmelinin başlangıcı 8 ay önce ve 6 ay önceki ay tam ödenmiş; sağlıklının başlangıcı
+2 ay önce ve BU AY dahil her ay tam ödenmiş — iki dal da her koşuda aynı. Altı farklı
+sahte tarihte (ay sonu, yıl sonu, 29 Şubat dahil), kural kopyalanmadan **gerçek
+modüllerle** (`lib/odeme-hesabi.js`, `lib/musteri-karar.js`) koşturularak doğrulandı:
+altısında da aynı şerit, aynı "3. ay", aynı 6 ay / 72.000 ₺.
+
+Beş kural:
 - **Testin KENDİSİ sessizce anlamsızlaşamaz.** Bu testin bütün gücü iki parametrede duruyor
   ve ikisi de tek karakterle etkisiz hâle getirilebiliyordu: `enAzMetin` 0 olursa
   `(metin || 0) >= 0` her girdide doğrudur, `beklenenMetin` boşalırsa `[].every(...)` her
@@ -213,6 +244,12 @@ Dört kural:
 - **Uydurma belge GERÇEK belgenin bütün üst düzey alanlarını taşır.** Eksik bırakmak testi
   değersizleştirir: fixture hiç oluşmayan bir hâli temsil eder ve test olmayan sorunları
   kovalar. Bu yaşandı — eksik fixture önce yanlış yere baktırdı.
+- **Hazır olma beklenir, iddia edilmez.** Bekleme koşulu bir süre yalnızca "`#root`un
+  çocuğu var mı" diye bakıyordu; oysa `data` gelene kadar çizilen "… yükleniyor…" ara
+  ekranı DA bir çocuk düğüm. Yüklü makinede ölçüldü: senaryo 2'de iki kontrol ara ekranı
+  görüp düştü, uygulamada hiçbir sorun yokken. Artık ara ekran gidene kadar bekleniyor —
+  bu bir bekleme, bir iddia değil: ara ekran hiç gitmezse zaman aşımı olur ve test
+  gürültülü kırılır. Kararsız bir test, olmayan testten kötüdür.
 
 Derleme gerekiyor: `dist/` yoksa test kendisi `npm run build` çalıştırır.
 **Tarayıcının yeri makineden makineye değişir**, bu yüzden sabit yol YAZILMAZ — sırayla
@@ -325,6 +362,6 @@ e-postayı düşürürsün.** Eylül 2026'da panellerden tek tek doğrulandı:
 | `MARCUS-OS-DEVIR-2.md` | İkinci devir notları |
 | `MARCUS-OS-TANITIM.md` | Uygulamanın iş tarafından anlatımı |
 
-En büyük dosyalar: `src/App.jsx` (11.280), `src/CekimEditTakibi.jsx` (3.558),
+En büyük dosyalar: `src/App.jsx` (11.622), `src/CekimEditTakibi.jsx` (3.558),
 `api/data.js` (2.370), `src/musteriPaneli.jsx` (1.384). Bu sayılar Eylül 2026'da ölçüldü;
 kaynak büyüdükçe bayatlar, güncellerken `wc -l` ile doğrula.

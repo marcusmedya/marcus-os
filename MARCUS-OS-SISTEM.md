@@ -37,7 +37,7 @@ Kod ve arayüz tamamen Türkçe — değişken ve fonksiyon adları dahil.
 | `src/` | React arayüzü (Vite ile derlenir) |
 | `api/` | Serverless fonksiyonlar — **her dosya bir fonksiyon**, Hobby sınırı 12 |
 | `lib/` | Ortak mantık — hem `api/` hem `src/` buradan import eder, **fonksiyon sayılmaz** |
-| `testler/` | 110 test dosyası (t1…t110) + 27 statik denetim betiği |
+| `testler/` | 111 test dosyası (t1…t111) + 27 statik denetim betiği |
 | `.claude/` | Claude Code katmanı — komutlar, ajanlar ve uzmanlık skill'leri (denetim 26 bayatlamayı sınar) |
 
 En büyük dosyalar: `src/App.jsx` (9.653), `src/CekimEditTakibi.jsx` (2.734),
@@ -199,6 +199,7 @@ Artık **tanımsızsa kimse giremez.**
 | `kart-secici.js` | Plan hücresine kart seçerken TÜRE göre ayırma: seçilen türün kartları / aynı türün paylaşılmışları / başka tür (gizlenmez, ayrılır) (**saf**) |
 | `bugun.js` | "Bugün" panelinin çekirdeği: geciken/bugün teslim/müşteride/paylaşım özeti, plan tarihini haftaKey+gün kaymasından üretir (**saf**) |
 | `kategori.js` | **Kategoriler ve stok türlerinin TEK kaynağı** — Reels/Post/Carousel + eski adların eşlemesi (**saf**) |
+| `musteri-karar.js` | **Müşteri detayının karar şeridi** — gecikme/ödeme uyarısı/ödeme günü yok/sakin arasından TEK şerit seçer, birincil eylemi ve en fazla üç rozeti belirler; sağlıklı markada düğme üretmez (**saf**) |
 | `drive-denetimi.js` | Kayıtlı stok ile Drive'ın söylediği stoğun farkı + uygulama frenleri (**saf, ağ yok**) |
 | `drive-yukleme.js` | Yükleme oturumu açma, tamamlama, dosya çöpe atma |
 | `onizleme-bellegi.js` | Önizleme önbelleği ve sunucu kaydını bekleme |
