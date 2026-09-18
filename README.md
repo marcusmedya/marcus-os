@@ -5999,3 +5999,46 @@ kendi kapanış parantezinden sonrasına bakıyor. Ölçüldü: sahadaki asıl h
 (`siraliGruplar(gruplar, cekimSirasi);`) hâlâ yakalıyor.
 
 **Sonuç: 25 denetimin 25'i geçiyor, çıkış kodu 0.** 2503 kontrol, derleme temiz.
+
+---
+
+## Güncelleme 181: Tarayıcı Testi Kendi Kendini Anlamsızlaştıramıyor
+
+Siyah ekran korumasının (`testler/tarayiciAcilis.mjs`) bütün gücü iki parametrede
+duruyordu ve **ikisi de tek karakterle etkisiz hâle getirilebiliyordu**:
+
+| Bozma | Eski davranış | Kaybedilen |
+|---|---|---|
+| `enAzMetin` 50 → 0 | `(metin \|\| 0) >= 0` her girdide doğru | 2 kontrol, **sessizce** |
+| `beklenenMetin` → `[]` | `[].every(…)` her girdide doğru | 2 kontrol, **sessizce** |
+| Bir `senaryo()` çağrısı silinir | "7 kontrol geçti, uygulama açılıyor" | 7 kontrol, **sessizce** |
+
+Üçünde de test `0` ile çıkıyor ve **doğrulama zincirinin beş adımı da yeşil kalıyordu.**
+İkinci satır daha sinsiydi: kaybedilen, ikisinden GÜÇLÜ olan kontroldü — eşik "bir şey
+çizildi" der, beklenen metin "DOĞRU dal çizildi" der; hata ekranı da metin üretir.
+Üstelik ekrana `✓ beklenen ekran çizildi ()` diye **yanlış bir onay** basıyordu.
+
+### Ne yapıldı
+
+- Eşik pozitif olmak zorunda (`≥1`), değilse test gürültülü düşüyor.
+- `beklenenMetin` boş liste ya da boş dize içeremiyor.
+- Sonda **`BEKLENEN` kontrol sayacı** — t95'teki bekçinin aynısı. Bir kontrol, bir
+  senaryo ya da bir `await` sessizce düşerse burada yakalanıyor.
+
+> Kontrol eklerken `BEKLENEN` sabitini de artır. Engellenmek istenen, sayıyı bilerek
+> değiştirmek değil; **kendiliğinden düşmesi ve kimsenin görmemesi.**
+
+### Ölçüm
+
+| Bozma | Sonuç |
+|---|---|
+| (bozma yok) | ✓14, çıkış **0** |
+| `enAzMetin` → 0 | ✗ "metin eşiği geçerli (≥1)", çıkış **1** |
+| `beklenenMetin` → `[]` | ✗ "beklenen metin listesi geçerli", çıkış **1** |
+| `senaryo()` silindi | ✗ "7 kontrol çalıştı, 14 bekleniyordu", çıkış **1** |
+
+Bozuk uygulamada (belgelenmiş `veriKaynagi` gerilemesi geri konulduğunda) eşik 50 ile
+12 kontrol düşüyor, eşik 1 ile de 12 — yani `≥1` tabanı bu hata sınıfı için bir kaçamak
+değil, siyah ekranda `#root` zaten bomboş.
+
+**Sonuç: 26 denetim, 2522 kontrol, derleme temiz, tarayıcı testi 14/14, 11/12 fonksiyon.**
