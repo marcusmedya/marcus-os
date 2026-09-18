@@ -60,6 +60,7 @@ import { siraliGruplar, sirayiTasi, elleSiraVarMi } from "../lib/cekim-sirasi.js
 import { planSubesi, subeStokAnahtari, markaninSubeleri, kullanabilenSubeler,
          icerikSubeOzeti, subeListeleri, hazirIcerikSayisi } from "../lib/sube-kullanimi.js";
 import { SUBE_PAYLASIM_ASAMASI, medyalariBirlestir } from "../lib/asamalar.js";
+import { neYapmali } from "../lib/eposta-hata.js";
 import { Finans, HesapBakiyeleri, MiniList, hesapBakiyesi } from "./finans.jsx";
 import { HataYakalayici } from "./hataYakalayici.jsx";
 import { Personel, avansToplami, avansKisiyeAitMi, odemeToplami, odemeKisiyeAitMi, AvansVerFormu, AvansListesi } from "./personel.jsx";
@@ -4441,9 +4442,10 @@ function Birikim({ birikimler, onAddFon, onDeleteFon, onAddHareket, onDeleteHare
 function EmailYedekTest({ endpoint = "/api/daily-backup" }) {
   const [status, setStatus] = useState("idle"); // idle | loading | ok | error
   const [message, setMessage] = useState("");
+  const [kod, setKod] = useState("");
 
   const test = () => {
-    setStatus("loading");
+    setStatus("loading"); setKod("");
     fetch(endpoint, { headers: { "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) } })
       .then((r) => r.json())
       .then((res) => {
@@ -4456,10 +4458,17 @@ function EmailYedekTest({ endpoint = "/api/daily-backup" }) {
           } else setMessage("Tamamlandı.");
           setStatus("ok");
         }
-        else if (res.skipped) { setStatus("error"); setMessage(res.reason); }
-        else { setStatus("error"); setMessage(res.error || "Bilinmeyen hata"); }
+        /* SEBEP GÖSTERİLİR. Eskiden yalnızca `res.error` okunuyordu ("E-posta gönderilemedi.")
+         * ve sunucunun gönderdiği asıl sebep sessizce atılıyordu — kullanıcı neyin yanlış
+         * olduğunu hiçbir ekranda göremiyordu. */
+        else if (res.skipped) { setStatus("error"); setMessage(res.reason); setKod(res.kod || ""); }
+        else {
+          setStatus("error");
+          setMessage(res.sebep ? `${res.error || "Gönderilemedi."} ${res.sebep}` : (res.error || "Bilinmeyen hata"));
+          setKod(res.kod || "");
+        }
       })
-      .catch(() => { setStatus("error"); setMessage("Bağlantı hatası."); });
+      .catch(() => { setStatus("error"); setMessage("Bağlantı hatası."); setKod("ag-hatasi"); });
   };
 
   return (
@@ -4469,6 +4478,11 @@ function EmailYedekTest({ endpoint = "/api/daily-backup" }) {
       </button>
       {message && (
         <div style={{ fontSize: 13, fontFamily: "Inter", color: status === "ok" ? T.success : T.warning, marginTop: 8 }}>{message}</div>
+      )}
+      {/* Ham Resend metni çoğu kullanıcıya bir şey anlatmıyor; asıl değerli olan bu satır.
+          Kod bilinmiyorsa hiçbir şey yazılmaz — tahmin UYDURULMAZ. */}
+      {neYapmali(kod) && (
+        <div style={{ fontSize: 12, fontFamily: "Inter", color: T.textDim, marginTop: 6, lineHeight: 1.6 }}>{neYapmali(kod)}</div>
       )}
     </div>
   );
@@ -6883,13 +6897,8 @@ function EpostaAyariTesti() {
   const [sonuc, setSonuc] = useState(null);
   const [hedef, setHedef] = useState("");
 
-  const NE_YAPMALI = {
-    "anahtar-yok": "Vercel → Settings → Environment Variables → RESEND_API_KEY ekle, sonra Redeploy et.",
-    "anahtar-gecersiz": "Anahtar geçersiz. resend.com/api-keys adresinden YENİ bir anahtar oluştur (re_ ile başlar) ve Vercel'deki MEVCUT RESEND_API_KEY değişkeninin değerini onunla değiştir, sonra Redeploy et.",
-    "alan-adi-dogrulanmamis": "Anahtar çalışıyor ama gönderen adresin alan adı Resend'de doğrulanmamış. Ya resend.com/domains adresinden alan adını doğrula, ya da geçici olarak RESEND_FROM değişkenini \"Marcus Medya App <onboarding@resend.dev>\" yap (o adres yalnızca Resend hesabının sahibine gönderir).",
-    "ag-hatasi": "Resend'e ulaşılamadı. Birkaç dakika sonra tekrar dene.",
-    "alici-yok": "Test için bir adres yaz ya da OWNER_EMAIL değişkenini tanımla.",
-  };
+  /* NE_YAPMALI artık `lib/eposta-hata.js`'te — aynı metin iki yerde duruyordu ve
+   * yedek testi ekranı onu hiç kullanmıyordu. Tek sahip, iki çağıran. */
 
   const testEt = async () => {
     setDurum("gonderiliyor"); setSonuc(null);
@@ -6936,7 +6945,7 @@ function EpostaAyariTesti() {
             ) : (
               <>
                 <strong>Gönderilemedi.</strong>
-                <div style={{ marginTop: 4 }}>{NE_YAPMALI[sonuc.kod] || sonuc.error || "Bilinmeyen hata."}</div>
+                <div style={{ marginTop: 4 }}>{neYapmali(sonuc.kod) || sonuc.error || "Bilinmeyen hata."}</div>
                 {sonuc.sebep && <div style={{ color: T.textFaint, fontSize: 12, marginTop: 6 }}>Resend'in cevabı: {sonuc.sebep}</div>}
                 {sonuc.gonderen && <div style={{ color: T.textFaint, fontSize: 12, marginTop: 2 }}>Gönderen: {sonuc.gonderen}</div>}
               </>
