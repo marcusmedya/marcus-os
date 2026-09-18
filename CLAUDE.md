@@ -47,7 +47,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     102 test dosyası (t1…t102) + 24 statik denetim betiği
+testler/     109 test dosyası (t1…t109) + 25 statik denetim betiği
 ```
 
 ---
@@ -722,11 +722,27 @@ iki kez yapılmasını engeller. Toplu kayıp freni var (`TOPTAN_KAYIP_SINIRI = 
 ## Çalıştırma ve doğrulama
 
 ```bash
-bash testler/hepsinidenetle.sh     # 24 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t102, ~2297 kontrol — SAHTE veritabanı kullanır
+bash testler/hepsinidenetle.sh     # 25 statik denetim (sözdizimi, JSX, hook, kapsam…)
+./testler/sunucutestleri.sh        # t1…t109, 2503 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```
+
+Claude Code'da bu zincirin tamamı **`/dogrula`**, kırarak ölçme ritüeli ise **`/olc`**
+komutunda duruyor (`.claude/commands/`). İkisi de prosedür taşır, kural DEĞİL — kurallar
+burada kalır, iki yere yazılmaz.
+
+**Düşen denetim artık görünür.** `hepsinidenetle.sh` bir süre `komut > /dev/null && echo
+"✓ …"` biçimindeydi: denetim düşünce çıktı çöpe gidiyor, `✓` basılmıyor ve betik sessizce
+devam ediyordu — çıkış kodu da son satırınki oluyordu. Denetim 24 bu yüzden DÖRT sürüm
+boyunca düşük kaldı ve "hepsi temiz" diye raporlandı; `… | grep ✗` ile doğrulamak hiçbir
+zaman bir şey bulamazdı. Artık düşen denetimin çıktısı basılıyor ve betik **1 ile çıkıyor**.
+Doğrularken `✓` saymayı bırak, **çıkış koduna bak.** 7. denetim bir boru hattı olduğu için
+bir süre sarmalayıcının dışında kaldı ve tek başına çıkış kodunu etkilemiyordu; artık o da
+bir fonksiyona alınıp `denetle`den geçiyor. **İstisna kalmadı, 26 denetimin hepsi sayaçta.**
+`cagridenetle.py`'nin KENDİ çıkış kodu kullanılamaz — iki bilinen yanlış alarm
+("Tamamlananlar" bir JSX başlığı, "Ciro" bir dize sabitinin içi) yüzünden zaten 1 dönüyor;
+karar süzgeçten GERİYE KALAN satırlara göre veriliyor.
 
 `sunucutestleri.sh`, `@vercel/kv` paketini geçici olarak `testler/taklit-kv` ile
 değiştirir ve `trap` ile geri koyar. **Testler gerçek Redis'e asla dokunmaz.**
