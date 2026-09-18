@@ -24,8 +24,8 @@ Her adımı ayrı bir Bash çağrısında çalıştır ve çıkış kodunu kayde
 ```
 bash testler/hepsinidenetle.sh; echo "ÇIKIŞ: $?"
 ```
-Beklenen: `✓` ile başlayan **26** satır ve `ÇIKIŞ: 0`.
-(1 ve 1b ayrı sayılır, sonra 2…25 → toplam 26.)
+Beklenen: `✓` ile başlayan **27** satır ve `ÇIKIŞ: 0`.
+(1 ve 1b ayrı sayılır, sonra 2…26 → toplam 27.)
 Düşen denetim çıktısını basar ve betik 1 ile çıkar.
 
 > **27'sinin hepsi sayaçta.** Denetim 7 bir boru hattı olduğu için bir süre `denetle`

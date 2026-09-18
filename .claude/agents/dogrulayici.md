@@ -53,7 +53,7 @@ Tarayıcı testi bu ayrımları ekranda kendisi yazıyor — **yazdığını ayn
 ## Rapor
 
 ```
-1 denetimler     : çıkış <kod> · <n>/26 · düşen: <adlar ya da yok>
+1 denetimler     : çıkış <kod> · <n>/27 · düşen: <adlar ya da yok>
 2 sunucu testleri: çıkış <kod> · <n> kontrol · düşen: <adlar ya da yok>
 3 derleme        : çıkış <kod>
 4 tarayıcı       : çıkış <kod> · <n> kontrol · düşen: <adlar ya da yok>
