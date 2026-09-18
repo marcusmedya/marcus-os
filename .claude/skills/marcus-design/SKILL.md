@@ -26,6 +26,13 @@ Marcus'un imzası logo ya da renk değil. Üç karar:
 anlatılır (`bg` → `surface` → `surfaceRaised`). Bir öğeyi öne çıkarmanın yolu onu
 parlatmak değil, bir ton yukarı almaktır.
 
+> **Bugünkü sapma — ölçüldü (Eylül 2026).** Bu bir HEDEF, henüz tamamlanmış bir durum
+> değil: `src/` altında **9 `boxShadow`** (App.jsx 5 · TeklifSozlesme.jsx 3 ·
+> musteriPaneli.jsx 1, çoğu açılır menü ve modal) ve **2 `linear-gradient`**
+> (`src/instagram.jsx`, Instagram'ın kendi marka halkası — o bilinçli bir alıntı ve
+> kalabilir) var. Yeni kodda gölge **yazılmaz**; var olanlar §5'teki kademeli geçişle,
+> yalnızca zaten dokunulan blokta temizlenir.
+
 **Metin 15'i geçmez, sayı geçer.** Gövde metni 11–15 aralığında kalır; 20, 28 ve 40 yalnızca
 **rakamlara** ayrılmıştır. Böylece göz kaçınılmaz olarak veriye düşer, başlığa ya da süse
 değil. Premium his buradan gelir — büyük başlıktan değil.
@@ -94,8 +101,11 @@ vurgular beyaz üstünde okunacak biçimde koyulaştırılmış, yumuşak zeminl
 | **Inter** | Gövde, etiket, düğme, form — okunan her şey |
 | **IBM Plex Mono** | **Her rakam** — tutar, sayaç, tarih, kimlik |
 
-**Ölçek: 11 · 13 · 15 · 20 · 28** (+ 40 yalnızca Dashboard'ın iki ana rakamı için).
-Aradaki değerleri kullanma.
+**Ölçek: 11 · 13 · 15 · 20 · 28** (+ 40 yalnızca Dashboard'ın iki ana rakamı için —
+`KpiCard`'ın `buyuk` dalı, `src/tema.jsx`). Aradaki değerleri kullanma.
+
+Ölçüm: bugün `src/` altında **Space Grotesk 31**, **IBM Plex Mono 92**, Inter geri kalan —
+yani üç aile ayrımı gerçek, uydurma değil.
 
 | Boy | Rol |
 |---|---|
