@@ -14,7 +14,7 @@
 | Durum | Kural |
 |---|---|
 | **hover** | Bir ton yukarı (`surface` → `surfaceRaised`) ya da metin `textDim` → `text`. Renk değiştirme. |
-| **focus** | **Görünür olmak ZORUNDA** — 2px `accent` çerçeve, `outline: none` tek başına yasak. Klavyeyle gezen personel var. |
+| **focus** | **Görünür olmak ZORUNDA.** Satır içi stil `:focus` ifade edemez, bu yüzden görünürlüğü **global CSS** taşıyor: `button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid accent }` (`src/App.jsx`, iki kabukta birden). `inputStyle`'daki `outline: "none"` bu yüzden ihlal değil — global kural onu geri veriyor. Yasak olan, **`:focus-visible` karşılığı olmadan** outline'ı kapatmak. Bir `<div onClick>` bu kuralın DIŞINDA kalır: tıklanabilir öğe `<button>` olmalı ya da `tabIndex` + kendi focus stilini taşımalı. |
 | **active/press** | 120 ms içinde bir ton aşağı. Ölçek/kayma efekti yok. |
 | **disabled** | `textFaint` + `cursor: not-allowed`. Opaklık düşürme — zeminle karışıyor. |
 | **loading** | Düğme metni yerini eyleme çevirir ("Kaydet" → "Kaydediliyor…") ve düğme kilitlenir. |
@@ -83,8 +83,21 @@ Bu uygulamanın asıl veri yüzeyi.
 
 ## Kart
 
-`Card` — `surface`, 1px `border`, radius 10 (bugün 16, §5 geçişi).
+`Card` — `surface`, 1px `border`, radius 10 (bugün 16; aşağıdaki nota bak).
 **Kart bir gruplama aracıdır, varsayılan kap değil.** Tek bir liste için kart açma.
+
+> **`KpiCard` ile gerilim — hangisi kazanıyor.** `KpiCard` tek bir rakamı `Card` içine
+> sarıyor, yani her KPI otomatik olarak bir kart oluyor; beş KpiCard'lık bir şerit tam da
+> "her şeyi karta çevirme" satırının tarif ettiği şey. **Kural kazanır, bileşen değil:**
+> `KpiCard` bir ekranın **ana ölçütleri** için, en fazla dört tane. Bir varlığın
+> özelliklerini (ücret, marj, bakiye) göstermek KpiCard işi değil — etiket+değer bloğu
+> kart olmadan da yazılır.
+
+> **`Card`'ın radius'u kademeli geçişin DIŞINDA.** `Card` tek bir bileşen; "dokunduğun
+> ekranda 10 yap" onda uygulanamaz, ya hepsi birden değişir ya hiçbiri. Bu yüzden 16
+> bilerek duruyor ve **tek seferlik ayrı bir iş** olarak adlandırılıyor: `Card` 16 → 10,
+> tek commit, davranış değişikliğiyle aynı kutuda değil. O iş yapılana kadar yeni
+> yüzeylerde 10, `Card`'da 16 yan yana durur — bilinen ve kabul edilmiş bir ödün.
 
 `KpiCard` — etiket 11px üstte, rakam 28 (ya da `buyuk` ile 40) mono, altında değişim.
 `buyuk` yalnızca ekranın **iki** ana rakamı için; hepsi büyükse hiçbiri büyük değildir.
@@ -118,6 +131,11 @@ onaylandığında burada görünür." + varsa düğme. İllüstrasyon yok.
 e-posta hatasının gerçek sebebi yutuluyordu ve sorun günlerce teşhis edilemedi
 (`lib/eposta-hata.js` → `neYapmali`). Aynı disiplin her hata yüzeyi için geçerli.
 
+**`window.alert` kullanılmaz** — engelleyici, yığılmıyor ve tasarım sisteminde yeri yok;
+hata uyarı yığınına yazılır. Kodda hâlâ birkaç yerde duruyor (`src/App.jsx` müşteri/şube
+akışları), dokunulan ekranda temizlenir. **`window.confirm` yıkıcı eylem için geçerli
+bir onay yoludur** — kaldırılması gereken yalnızca bilgi amaçlı `alert`.
+
 Uyarılar **yığın hâlinde** gösterilir, tek metin state'iyle değil — ikinci uyarı
 birincisini siliyordu ve kullanıcı birini hiç görmüyordu (`src/App.jsx` → `uyarilar`).
 
@@ -129,3 +147,24 @@ birincisini siliyordu ve kullanıcı birini hiç görmüyordu (`src/App.jsx` →
   denetler (→ `marcus-yetki`).
 - Dar ekranda alt çubuğa iner; **en fazla beş** ana madde, gerisi "Daha fazla".
 - Sayaç rozeti yalnızca **eylem gerektiren** sayı için (geciken iş), toplam için değil.
+
+
+---
+
+## Taşıyıcısı olmayan kurallar — bilinen boşluk
+
+Bu belge bazı davranışları şart koşuyor ama `src/tema.jsx`'te onları taşıyan bir bileşen
+**yok**; sonuç olarak her ekran kuralı elden yeniden yazıyor ve §5'teki ölçülmüş sapma
+(radius 7/8/9/12/14, fontSize 12/14) tam olarak buradan doğuyor. Eksikler:
+
+| Eksik | Hangi kuralı taşıyacaktı |
+|---|---|
+| `Sekmeler` | Sekmeli ayrıntı — bugün en az iki yerde elden çiziliyor |
+| `DegerBlogu` | "Etiket 11 üstte, sayı mono altta" — tek ekranda altı kez tekrarlanıyor |
+| `BosDurum` | Üç parçalı boş durum (ne · neden · tek eylem) |
+| `Tablo` | Yapışkan başlık, zebra yok, satır ≥40, sayı sağa + mono |
+| `fmtYuzde` | Kâr marjının gizlilik modundan geçmesi — bugün çıplak basılıyor |
+
+**Bunlar kod işi ve ayrı ele alınır.** Biri eklendiğinde bu tablodan düşer. `fmtYuzde`
+bir **davranış değişikliğidir** (bugün görünen bir rakam gizlenir) — kullanıcıya söylenir
+ve sapma temizliğiyle aynı commit'e konmaz.

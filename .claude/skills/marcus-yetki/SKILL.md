@@ -5,6 +5,16 @@ description: Marcus OS'ta roller, izinler, marka kilidi ve panel senkronu. owner
 
 # Marcus Yetki — roller, izinler ve paneller
 
+## Hangi rol HANGİ ALANLARI görüyor — `PERMISSION_DATA_FIELDS`
+
+"Bu ekranı kim, hangi verisiyle görüyor" sorusunun tek gerçek cevabı `api/data.js`
+içindeki **`PERMISSION_DATA_FIELDS`** (ve yazma tarafı için `PERMISSION_WRITE_FIELDS`).
+İzin adı → o iznin açtığı belge alanları eşlemesi orada duruyor.
+
+Bir ekran tasarlarken ya da bir alanı yeni bir yüzeye taşırken **önce oraya bak**: listede
+olmayan bir alan o role hiç gitmiyor demektir, yani var olmayan bir veriyi tasarlamış
+olursun. Tersi daha tehlikeli: alanı listeye eklemek o rolün göreceği veriyi genişletir.
+
 ## Bu skill neyi KAPSAMAZ
 
 İki kural bilerek `CLAUDE.md`'de bırakıldı, çünkü **her arayüz işinde** geçerliler ve bu skill
