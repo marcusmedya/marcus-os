@@ -82,12 +82,17 @@ ama sinyal daha zayıf — çıktıdaki konsol hatası satırlarını okumadan g
 
 Şu biçimde yaz, uydurma:
 
+> Sayılar **yer tutucu** — bilerek. Bu belgeye sabit bir sayı yazmak, her yeni testte
+> bayatlar ve daha kötüsü: yukarıdaki "sayı DÜŞTÜYSE bir koruma kayboldu" kuralını
+> yanlış bir tabana bağlar. Sayıyı **koşudan** al, karşılaştırmayı **bir önceki koşuya**
+> karşı yap. (Bu bir kez yaşandı: belgede 2503 yazıyordu, gerçek 2522'ydi.)
+
 ```
-1 statik denetim    → çıkış 0 · 26/26
+1 statik denetim    → çıkış 0 · <geçen>/<toplam>
 2 sunucu testleri   → çıkış 0 · <koşunun yazdığı sayı>
 3 derleme           → çıkış 0
-4 tarayıcı açılışı  → çıkış 0 · 14/14
-5 api fonksiyonu    → 11/12
+4 tarayıcı açılışı  → çıkış 0 · <geçen>/<toplam>
+5 api fonksiyonu    → <koşudan>/12        (12 SABİT sınır, sol taraf değişir)
 ```
 
 Bir adım düştüyse **hangi denetim/test** olduğunu ve çıktısını yaz. "Temiz" kelimesini

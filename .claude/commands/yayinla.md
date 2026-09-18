@@ -95,7 +95,7 @@ değil, iki değişikliğin kesişimidir — düzelt ve ayrıca söyle.
 
 ```
 Belgeler    : CLAUDE.md, MARCUS-OS-SISTEM.md güncellendi
-Doğrulama   : 26/26 denetim · 2522 kontrol · derleme 0 · tarayıcı 14/14 · api 11/12
+Doğrulama   : <koşudan> denetim · <koşudan> kontrol · derleme 0 · tarayıcı <koşudan> · api <koşudan>/12
 Ölçüm       : koruma kırılınca 3 kontrol düştü
 Commit      : <sha>
 PR          : <bağlantı>
