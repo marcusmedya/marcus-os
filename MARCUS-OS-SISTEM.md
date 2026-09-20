@@ -37,7 +37,7 @@ Kod ve arayüz tamamen Türkçe — değişken ve fonksiyon adları dahil.
 | `src/` | React arayüzü (Vite ile derlenir) |
 | `api/` | Serverless fonksiyonlar — **her dosya bir fonksiyon**, Hobby sınırı 12 |
 | `lib/` | Ortak mantık — hem `api/` hem `src/` buradan import eder, **fonksiyon sayılmaz** |
-| `testler/` | 112 test dosyası (t1…t112) + 27 statik denetim betiği |
+| `testler/` | 113 test dosyası (t1…t113) + 27 statik denetim betiği |
 | `.claude/` | Claude Code katmanı — komutlar, ajanlar ve uzmanlık skill'leri (denetim 26 bayatlamayı sınar) |
 
 En büyük dosyalar: `src/App.jsx` (9.653), `src/CekimEditTakibi.jsx` (2.734),
@@ -194,6 +194,8 @@ Artık **tanımsızsa kimse giremez.**
 | `sade-ozet.js` | **Muhasebe bilmeyene göre anlatım** — rakamları düz Türkçe cümlelere çevirir, terim kullanmaz (**saf**) |
 | `gider-dagilimi.js` | **"Para Nereye Gidiyor?" dağılımı** — altı gider kaleminin oranı ve sırası; tutarı SIFIR olan kalem listeden düşmez, neden sıfır olduğunu söyler (**saf**) |
 | `muhasebe-belgesi.js` | **Yazdırılabilir (PDF) raporlar** — tahsilat dökümü, ödeme dökümü, aylık tek sayfa özet (**saf**) |
+| `finans-hareketleri.js` | **Birleşik finans hareketleri** — on beş ayrı para listesini TEK normalleştirilmiş kayıt biçimine çevirir; rakam yeniden hesaplanmaz (`kaydinAyi`, `isUcretiHesapla` import edilir), tarihsiz kayıt gizlenmez, KDV/stopaj uydurulmaz, kimlik kararlıdır (**saf**) |
+| `finans-mutabakat.js` | **Migrasyonun önündeki kapı** — eski motorun (`computeLive`, `hesapBakiyesi`, `para-hareketleri`, `ekstre`) toplamlarıyla yeni hareketleri satır satır karşılaştırır; tek kuruş fark `bloke: true` (**saf**) |
 | `aylik-ozet.js` | **Ay ay gelir–gider** — tahakkuk (o ayın ücretiyle), tahsilat, fark ve freelancer gideri; geçmişi "ayı kapat" fotoğrafından değil kayıtlardan türetir (**saf**) |
 | `is-ucreti.js` | **İş başı ücret matematiği** — freelancer hak edişi, marka maliyeti ve ŞİRKET toplamı (`sirketAylikIsMaliyeti`); dönem = işin teslim edildiği ay (**saf**) |
 | `is-takibi.js` | **Günlük iş takibi** — kim ne zaman hangi işi ilerletti; günlük akış, kişi panosu ("iş kimin elinde" = son dokunan), üretim raporu. Eski tr-TR zaman metnini de ayrıştırır (**saf**) |
@@ -440,7 +442,7 @@ dosya hâlâ ekibin çalışma alanındadır.
 
 ```bash
 bash testler/hepsinidenetle.sh     # 27 statik denetim
-./testler/sunucutestleri.sh        # t1…t102, ~2297 kontrol — SAHTE veritabanı
+./testler/sunucutestleri.sh        # t1…t113, 2655 kontrol — SAHTE veritabanı
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

@@ -26,7 +26,7 @@ kaldı — her birinde "temiz" diye raporlandı. Bu yüzden buradaki kurallar ü
 | Katman | Yakaladığı | Yakalayamadığı |
 |---|---|---|
 | 27 statik denetim | Sözdizimi, tanımsız ad, kapsam, belge bayatlığı, izin listesi ayrışması | Davranış |
-| t1…t112 (2608 kontrol) | Sunucu ve saf modül davranışı, sahte veritabanıyla | `.jsx`, prop bağlantısı, çizim |
+| t1…t113 (2655 kontrol) | Sunucu ve saf modül davranışı, sahte veritabanıyla | `.jsx`, prop bağlantısı, çizim |
 | `npm run build` | Derleme hatası | Çalışma anı hatası |
 | `npm run test:acilis` | **Uygulamanın gerçekten açılması**, siyah ekran, açılışta JS hatası | Açılış sonrası akışlar |
 

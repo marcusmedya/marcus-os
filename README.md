@@ -6466,3 +6466,104 @@ Zincir: 27 denetim ✓ · **2608 kontrol** (t1…t112) ✓ · derleme ✓ · tar
 `testler/tarayiciAcilis.mjs` Dashboard ve müşteri detayını açıyor, Finans → Özet
 sekmesini açmıyor. Yani "sıfır kalem ekranda görünüyor" iddiası modül düzeyinde ölçüldü,
 ekran düzeyinde ölçülmedi. Bilinen boşluk; ayrı bir iş.
+
+---
+
+## Güncelleme 187: Birleşik Finans Hareketleri Katmanının TEMELİ (ekran yok, migrasyon yok)
+
+**Bu bir hazırlık adımı.** Ekran eklenmedi, belgeye yazılmadı, hiçbir mevcut hesap
+değiştirilmedi. Eklenen tek şey iki SAF modül ve onları kırarak ölçen bir test.
+
+### Sorun
+
+Para kayıtları belgede **on beş ayrı listede** ve her biri farklı şekilli duruyor: kimi
+`ay` taşıyor, kimi `tarih`, kimi hiçbiri; kimi `kalem` diyor, kimi `kisiAd`; kimi tutarı
+hiç tutmuyor (`vergiTakvimi`). Her ekran kendi listesini kendi kuralıyla topluyor. Bu,
+bu projenin en pahalı hata sınıfının doğduğu yer: *"aynı dönemi iki ekran farklı toplarsa
+hangisinin doğru olduğu sorusu cevapsız kalır"* (`marcus-operasyon/references/para.md`).
+
+### Ne yapıldı
+
+**`lib/finans-hareketleri.js` (saf)** — on beş kaynağı TEK normalleştirilmiş kayıt biçimine
+çevirir: `id · tur · kaynakAlan · kaynakId · tarih · donem · tutar · kdv · stopaj · kisi ·
+kategori · hesapId · durum · aciklama · eksikBilgi · donusturuldu`.
+
+Katmanın **üstüne** kuruldu, altına değil — **hiçbir rakam yeniden hesaplanmadı**:
+- ayı çözen kural `lib/para-hareketleri.js` → `kaydinAyi`, **kopyalanmadı, import edildi**
+- freelancer hak edişi `lib/is-ucreti.js` → `isUcretiHesapla`, aynı şekilde
+- **KDV oranı koda gömülmedi.** Kayıtta hesaplanmış bir KDV varsa taşınır, yoksa `null`
+  ve `eksikBilgi`ye `"kdv"` yazılır. Stopaj da öyle.
+
+Beş ayrım kodda ayrı türler olarak duruyor ve karıştırılamıyor: **tahsilat ≠ gelir ≠
+fatura**, **gider ≠ ödeme** (avans `kategori: "avans"` ve ikinci kez gider sayılmaz),
+**hak ediş ≠ ödeme**, **transfer ne gelir ne gider**, ve **`monthly` hareket değildir** —
+o bir eski dönem fotoğrafı, hiç dönüştürülmüyor.
+
+**Tarihin üç hâli de gizlenmiyor.** Çözülebilen kayıt döneme düşer. Hiç tarihi olmayan
+tanımlar (gider kalemleri, ofis, üyelik, personel, marka maliyetleri, bekleyen tahsilat)
+ve tarihi ÇÖZÜLEMEYEN kayıtlar (`hesapTransferleri` ekran biçimi "20.09.2026",
+`vergiTakvimi` serbest metin "26 Ağu") listeden düşmez: `donem: null`, `tarihsiz`
+sayacı ve `uyarilar`da kaynağıyla bildirilir.
+
+**Kimlik kararlıdır** — `kaynakAlan` + `kaynakId`den türetilir, rastgele değil. İç içe
+kayıtlar üst kaydın kimliğini de taşır (`clients.maliyetler#2/1`): iki markanın da
+1 numaralı maliyeti olduğu için bu olmadan biri migrasyonda sessizce kaybolurdu.
+
+**Modül `new Date()` ÇAĞIRMAZ** — `donusturulmeTarihi` parametre olarak gelir. Saflık
+şartı; `denetim 24` ve t107 yöntemi bunu ölçüyor.
+
+**`lib/finans-mutabakat.js` (saf)** — gerçek migrasyonun önündeki KAPI. Eski motorun
+toplamlarıyla yeni hareketlerden türetilenleri satır satır yan yana koyar (tahsilat,
+ödeme, fatura, gider parçaları, ek gelir, bekleyen alacak, hesap bakiyeleri, tarihsiz
+kayıt sayıları). **Tek kuruş fark `bloke: true`** ve `sebepler` ne tutmadığını insan
+diliyle yazar. Eski taraf yeniden hesaplanmaz: `computeLive`, `hesapBakiyesi`,
+`lib/para-hareketleri.js` ve `lib/ekstre.js` çağrılır.
+
+İlk ikisi `.jsx` içinde ve Node'dan import edilemiyor, bu yüzden **dışarıdan veriliyor**;
+verilmezlerse modül **fail-close** davranır — "karşılaştıramadım" da bloke eder, çünkü
+ölçülmemiş bir rakamı "tutuyor" saymak tam olarak önlenmek istenen şey.
+
+**Bilerek karşılaştırılmayan tek rakam: üyeliğin aylık karşılığı.** Yıllık üyeliği
+`tutar / 12`'ye çeviren ve efektif aktifliği bitiş tarihinden bulan kurallar arayüz
+katmanında yaşıyor; üçüncü bir kopyasını mutabakata yazmak bu dosyanın var oluş sebebiyle
+çelişirdi. Bu yüzden para satırı üyeliği dışarıda bırakıyor ("Aylık gider — üyelik hariç")
+ve üyelik ayrıca **sayıyla** mutabakata giriyor: dönüşümde bir üyelik kaybolursa yakalanır.
+
+### Ölçüm
+
+`testler/t113.mjs` — **47 kontrol**, on bölüm, sonda `BEKLENEN` bekçisi. Fixture gerçek
+belgenin **bütün** üst düzey alanlarını taşıyor, hiçbir iki tutar eşit değil ve gerçek
+biçim çeşitliliğini temsil ediyor: yalnızca `ay` taşıyan eski kayıt, ne ayı ne tarihi olan
+kayıt, ekran biçimli transfer tarihi, tutarsız vergi kaydı, dondurulmuş marka, teslim
+edilmemiş iş. Mutabakatın "eski" tarafı **gerçekten çağrılıyor**: `src/tema.jsx` esbuild
+ile çevriliyor (t107 yöntemi), `src/finans.jsx` ise React'e bağlı olduğu için paketlenerek
+alınıyor — yeni bağımlılık yok, geçici dosyalar `process.on("exit")` ile siliniyor.
+
+**Kırarak ölçüldü — iki ayrı bozma:**
+
+| Bozma | Düşen kontrol | Hangileri |
+|---|---|---|
+| `kaydinAyi` yerine yalnızca `tarih` alanına bakan sürüm | **4** | "tarihsiz sayacı hareket sayısıyla tutuyor" · "bütün satırlar tutuyor" · "tutuyorsa bloke YOK" · "tarihsiz kayıt sayısı da mutabakata giriyor" |
+| Transfer gider toplamına dahil edildi (`tur: "gider"`) | **3** | "transfer iki bacak üretiyor, ikisi de gelir/gider değil" · "bütün satırlar tutuyor" · "tutuyorsa bloke YOK" |
+
+İkinci bozmada mutabakat **bloke etti** ve dört satırı adıyla bildirdi: aylık gider
+(64.000 → 69.000), transferin gider payı (0 → 5.000) ve İKİ hesap bakiyesi birden
+(Ana Hesap +2.500, Nakit Kasa −2.500). Yani kapı çalışıyor.
+
+**Her iki bozmada da 27 statik denetim ve derleme YEŞİL kaldı** (çıkış kodu 0). Bu
+korumaları ölçen tek katman t113.
+
+Zincir: 27 denetim ✓ · **2655 kontrol** (t1…t113) ✓ · derleme ✓ · tarayıcı açılışı
+66 kontrol ✓ · `api/` 11 fonksiyon (dokunulmadı).
+
+### Ölçülemeyen / bilinen boşluklar
+
+- **Ekran yok**, dolayısıyla bu katman hiçbir kullanıcı akışında ÇİZİLMİYOR. Tarayıcı
+  testi onu göremez; iddia yalnızca modül düzeyinde ölçüldü.
+- **Üyeliğin aylık karşılığı mutabakata girmiyor** (yukarıdaki gerekçe). Bir üyeliğin
+  TUTARI yanlış dönüştürülürse bu kapı onu yakalamaz — sayısı kaybolursa yakalar.
+- `hesapBakiyesi` hâlâ `src/finans.jsx` içinde bir para hesabı; teste ancak paketleme
+  hilesiyle açılıyor (`marcus-mimari` §4'ün uyardığı sınıf). Taşımak ayrı bir iş.
+- `hesapTransferleri` ve `vergiTakvimi` tarihleri belgede **ekran biçiminde** duruyor;
+  bu katman onları döneme yazamıyor, yalnızca sayıp bildiriyor. Gerçek çözüm kaydın
+  tarihini ISO tutmaktır — ayrı ve daha büyük bir iş.
