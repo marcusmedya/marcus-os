@@ -37,7 +37,7 @@ Kod ve arayüz tamamen Türkçe — değişken ve fonksiyon adları dahil.
 | `src/` | React arayüzü (Vite ile derlenir) |
 | `api/` | Serverless fonksiyonlar — **her dosya bir fonksiyon**, Hobby sınırı 12 |
 | `lib/` | Ortak mantık — hem `api/` hem `src/` buradan import eder, **fonksiyon sayılmaz** |
-| `testler/` | 111 test dosyası (t1…t111) + 27 statik denetim betiği |
+| `testler/` | 112 test dosyası (t1…t112) + 27 statik denetim betiği |
 | `.claude/` | Claude Code katmanı — komutlar, ajanlar ve uzmanlık skill'leri (denetim 26 bayatlamayı sınar) |
 
 En büyük dosyalar: `src/App.jsx` (9.653), `src/CekimEditTakibi.jsx` (2.734),
@@ -192,6 +192,7 @@ Artık **tanımsızsa kimse giremez.**
 | `silme-defteri.js` | Yazmanın öncesi/sonrası karşılaştırılıp silinen kayıtları bulur — güvenlik defteri için (**saf**) |
 | `para-hareketleri.js` | Dönem bazlı **giren/çıkan para dökümü** — tahsilatlar, ödemeler, avanslar; tarihi iki alandan okur, tarihsiz kaydı sayar (**saf**) |
 | `sade-ozet.js` | **Muhasebe bilmeyene göre anlatım** — rakamları düz Türkçe cümlelere çevirir, terim kullanmaz (**saf**) |
+| `gider-dagilimi.js` | **"Para Nereye Gidiyor?" dağılımı** — altı gider kaleminin oranı ve sırası; tutarı SIFIR olan kalem listeden düşmez, neden sıfır olduğunu söyler (**saf**) |
 | `muhasebe-belgesi.js` | **Yazdırılabilir (PDF) raporlar** — tahsilat dökümü, ödeme dökümü, aylık tek sayfa özet (**saf**) |
 | `aylik-ozet.js` | **Ay ay gelir–gider** — tahakkuk (o ayın ücretiyle), tahsilat, fark ve freelancer gideri; geçmişi "ayı kapat" fotoğrafından değil kayıtlardan türetir (**saf**) |
 | `is-ucreti.js` | **İş başı ücret matematiği** — freelancer hak edişi, marka maliyeti ve ŞİRKET toplamı (`sirketAylikIsMaliyeti`); dönem = işin teslim edildiği ay (**saf**) |

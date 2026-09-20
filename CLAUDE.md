@@ -52,7 +52,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     111 test dosyası (t1…t111) + 27 statik denetim betiği
+testler/     112 test dosyası (t1…t112) + 27 statik denetim betiği
 .claude/     Komutlar, ajanlar ve UZMANLIK SKILL'LERİ — aşağıdaki tablo
 ```
 
@@ -165,7 +165,7 @@ Komutlar: **`/dogrula`** · **`/olc`** · **`/yayinla`**.
 
 ```bash
 bash testler/hepsinidenetle.sh     # 27 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t111, 2570 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t112, 2608 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 npm run test:acilis                # TARAYICI açılış testi — uygulamayı gerçekten çizer
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
@@ -195,7 +195,7 @@ Test derlenmiş uygulamayı `127.0.0.1`'de açar, `#root` içine gerçekten içe
 ve açılışta yakalanmamış JS hatası olmadığını doğrular. **Beş senaryo, 66 kontrol**:
 boş veritabanı · dolu veritabanı · **müşteri detay paneli** · **sağlıklı marka paneli** ·
 **dar ekranda müşteri paneli**. **Ölçüldü**: hata bileşen gövdesine geri konulduğunda
-derleme 0, denetimler 0, 2570 kontrol geçiyor — yalnızca bu test düşüyor.
+derleme 0, denetimler 0, 2608 kontrol geçiyor — yalnızca bu test düşüyor.
 
 **Açılış yetmiyor, DERİN EKRAN da çiziliyor.** İlk iki senaryo Dashboard'da duruyordu:
 `ClientDetail` hiç mount edilmiyordu ve panelin 441 satırlık çizimi hiçbir katman

@@ -10,6 +10,7 @@ import { aylikOzet } from "../lib/aylik-ozet.js";
 import { tahsilatDokumu, odemeDokumu } from "../lib/para-hareketleri.js";
 import { buAyinCumleleri, kasaKarFarki } from "../lib/sade-ozet.js";
 import { tahsilatRaporuHtml, odemeRaporuHtml, aylikOzetRaporuHtml } from "../lib/muhasebe-belgesi.js";
+import { giderDagilimi, yuzdeMetni } from "../lib/gider-dagilimi.js";
 
 /**
  * FİNANS — beş sekme.
@@ -22,6 +23,17 @@ import { tahsilatRaporuHtml, odemeRaporuHtml, aylikOzetRaporuHtml } from "../lib
  * HESAPLAMA MOTORUNA DOKUNULMADI: bütün rakamlar tema.jsx'teki computeLive()'dan geliyor,
  * bu dosya yalnızca gösteriyor.
  */
+
+/* GİDER DAĞILIMI RAMPASI — "Para Nereye Gidiyor?" şeridi ve satır kutucukları.
+ *
+ * TEK indigo rampası, büyükten küçüğe. İkinci bir vurgu rengi YOK; durum renkleri
+ * (success/warning/danger) burada KULLANILMAZ — bir gider kalemi "iyi" ya da "kötü"
+ * değil, yalnızca büyük ya da küçük. Renk kimlik de taşımıyor: kimliği satır etiketi
+ * taşıyor, renk yalnızca şeritle satırı eşleştiriyor.
+ *
+ * `T`'ye alınmadı çünkü bu bir tema jetonu değil, sıralı bir veri rampası: altı tonun
+ * arasındaki FARK anlam taşıyor ve iki temada da aynı kalması gerekiyor. */
+const GIDER_RAMPASI = ["#C3CBFF", "#8D99FB", "#6472F6", "#4F61DE", "#7C8CFA", "#5B6EF5"];
 
 const KALEM_FIELDS = [
   { key: "kalem", label: "Kalem Adı", type: "text" },
@@ -666,6 +678,23 @@ export function Finans({ data, clients, odemeTakvimiIcerigi, onAddGelir, onDelet
   const { monthly, gelirKalemleri, giderKalemleri, ofisGiderleri, bekleyenTahsilatlar, vergiTakvimi } = data;
   const [addingMonth, setAddingMonth] = useState(false);
   const live = computeLive(data);
+  /* PARA NEREYE GİDİYOR — sıra, oran ve sıfır kalemin sebebi saf modülden geliyor
+   * (`lib/gider-dagilimi.js`). Tutarların hiçbiri burada yeniden hesaplanmıyor. */
+  const giderDagilim = giderDagilimi(live);
+  const giderDolu = giderDagilim.kalemler.filter((x) => x.tutar > 0);
+  const giderSifir = giderDagilim.kalemler.filter((x) => x.tutar === 0);
+  const giderSeridiEtiketi = giderDolu.length
+    ? `Gider dağılımı: ${giderDolu.map((x) => `${x.ad} ${yuzdeMetni(x.oran)}`).join(", ")}`
+    : "Bu ay hiç gider kaydı yok";
+  /* Alt kalemler yalnızca personelde var; kutu değil, satır altında açılıyor. */
+  const giderAltKalemleri = {
+    personel: [
+      { ad: "Maaş", tutar: live.personelMaas },
+      { ad: "SGK / sigorta", tutar: live.personelSigorta },
+      { ad: "Yemek", tutar: live.personelYemek },
+      { ad: "Kıdem tazminatı", tutar: live.personelTazminat },
+    ],
+  };
   const tahsilatOrani = live.ciro ? Math.round((live.tahsilEdilen / live.ciro) * 100) : 0;
   const chartData = [...monthly, { id: "live", ay: "Bu Ay", yil: new Date().getFullYear(), ciro: live.ciro, gider: live.gider, net: live.net }];
 
@@ -764,44 +793,72 @@ export function Finans({ data, clients, odemeTakvimiIcerigi, onAddGelir, onDelet
 
 <Card style={{ padding: "18px 22px", marginBottom: 14 }}>
             <SectionTitle>Para Nereye Gidiyor? <span style={{ fontWeight: 400, opacity: 0.7 }}>— aylık</span></SectionTitle>
-            {/* Kalemler KUTUCUK halinde ve KATLANABİLİR. Personel gibi alt kalemi olanlar
-              * tıklanınca açılır; ilk açılışta kapalıdır — üst seviye rakam yeter, detay
-              * istendiğinde gelir. */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10, marginBottom: 12 }}>
-              {[
-                { key: "personel", ad: "Personel", tutar: live.personelGideri, alt: [
-                  { ad: "Maaş", tutar: live.personelMaas },
-                  { ad: "SGK / sigorta", tutar: live.personelSigorta },
-                  { ad: "Yemek", tutar: live.personelYemek },
-                  { ad: "Kıdem tazminatı", tutar: live.personelTazminat },
-                ] },
-                { key: "ofis", ad: "Ofis gideri", tutar: live.ofisGiderToplam },
-                { key: "musteri", ad: "Müşteri maliyetleri", tutar: live.clientCosts },
-                /* FREELANCER — Operasyon'da o ay TESLİM EDİLEN işlerin iş başı ücretleri.
-                 * Bu kalem bir süre hiç yoktu: para kasadan çıkıyor ama gidere yazılmıyordu. */
-                { key: "freelancer", ad: "Freelancer iş ücretleri", tutar: live.freelancerGideri },
-                { key: "uyelik", ad: "Üyelikler", tutar: live.uyelikGideri },
-                { key: "diger", ad: "Diğer gider kalemleri", tutar: live.giderKalemToplam },
-              ].filter((x) => x.tutar > 0).map((x) => {
-                const altVar = (x.alt || []).some((a) => a.tutar > 0);
-                const acik = acikGider === x.key;
+            {/* ÖNCE TOPLAM, SONRA ORAN ŞERİDİ, SONRA SATIR SATIR DÖKÜM.
+              *
+              * Eskiden altı kutucuk yan yana diziliyordu: her kutuda ayrı bir rakam,
+              * hepsi aynı boyda. Hangi kalemin büyük olduğu ancak altı rakam tek tek
+              * okunarak anlaşılıyordu — oysa bu ekrana gelmenin sebebi tam olarak o soru.
+              * Ekranın tek büyük rakamı artık TOPLAM; kalemler arası oran tek bir
+              * şeritten bakışta okunuyor, döküm altta satır satır duruyor.
+              *
+              * HESAP DEĞİŞMEDİ: rakamların hepsi yine `computeLive`'dan geliyor. Sıra,
+              * oran ve sıfır kalemin sebebi `lib/gider-dagilimi.js`'te — JSX'e gömülen
+              * kural Node'dan çağrılamıyor, yani sınanamıyor (→ marcus-mimari §4). */}
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.4, color: T.textDim, fontFamily: "Inter, sans-serif" }}>BU AY TOPLAM GİDER</div>
+            <div style={{ fontSize: 28, fontWeight: 600, color: T.text, fontFamily: "'IBM Plex Mono', monospace", fontVariantNumeric: "tabular-nums", marginTop: 4 }}>{fmt(giderDagilim.toplam)}</div>
+
+            {/* ORAN ŞERİDİ — tek yatay çizgi. Ekran okuyucuya dağılımın tamamı yazıyla
+              * veriliyor; renk tek başına hiçbir bilgi taşımıyor. */}
+            {giderDolu.length > 0 && (
+              <div role="img" aria-label={giderSeridiEtiketi}
+                style={{ display: "flex", gap: 2, height: 12, marginTop: 16 }}>
+                {giderDolu.map((x, i) => {
+                  const sol = i === 0 ? 6 : 2;
+                  const sag = i === giderDolu.length - 1 ? 6 : 2;
+                  return (
+                    <div key={x.anahtar} title={`${x.ad} · ${yuzdeMetni(x.oran)}`}
+                      style={{ flex: x.tutar, background: GIDER_RAMPASI[i % GIDER_RAMPASI.length], borderRadius: `${sol}px ${sag}px ${sag}px ${sol}px` }} />
+                  );
+                })}
+              </div>
+            )}
+
+            {/* DÖKÜM. Personel gibi alt kalemi olanlar tıklanınca açılır; ilk açılışta
+              * kapalıdır — üst seviye rakam yeter, detay istendiğinde gelir. Tıklanabilir
+              * satır gerçek bir <button>: odak çerçevesini global CSS ondan veriyor. */}
+            <div style={{ display: "flex", flexDirection: "column", marginTop: 16 }}>
+              {giderDolu.map((x, i) => {
+                const alt = (giderAltKalemleri[x.anahtar] || []).filter((a) => a.tutar > 0);
+                const acik = acikGider === x.anahtar;
+                const satirStili = { display: "flex", alignItems: "center", gap: 12, minHeight: 40, width: "100%", padding: 0, background: "none", border: "none", textAlign: "left" };
+                const satirIcerigi = (
+                  <>
+                    <span style={{ width: 10, height: 10, borderRadius: 3, flexShrink: 0, background: GIDER_RAMPASI[i % GIDER_RAMPASI.length] }} />
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: T.text, fontFamily: "Inter, sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {x.ad}
+                      {alt.length > 0 && <span style={{ fontSize: 11, color: T.textFaint, marginLeft: 8 }}>{acik ? "▲" : "▼"}</span>}
+                    </span>
+                    <span style={{ fontSize: 13, color: T.text, fontFamily: "'IBM Plex Mono', monospace", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", textAlign: "right" }}>
+                      {fmt(x.tutar)} <span style={{ color: T.textDim }}>· {yuzdeMetni(x.oran)}</span>
+                    </span>
+                  </>
+                );
                 return (
-                  <div
-                    key={x.key}
-                    onClick={() => altVar && setAcikGider(acik ? null : x.key)}
-                    style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 15px", cursor: altVar ? "pointer" : "default" }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 6 }}>
-                      <span style={{ fontSize: 11, color: T.textDim, fontFamily: "Inter, sans-serif", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.ad}</span>
-                      {altVar && <span style={{ fontSize: 11, color: T.textFaint, flexShrink: 0 }}>{acik ? "▲" : "▼"}</span>}
-                    </div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(x.tutar)}</div>
-                    {acik && (
-                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.border}`, display: "flex", flexDirection: "column", gap: 6 }}>
-                        {(x.alt || []).filter((a) => a.tutar > 0).map((a) => (
-                          <div key={a.ad} style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                  <div key={x.anahtar}>
+                    {alt.length > 0 ? (
+                      <button type="button" onClick={() => setAcikGider(acik ? null : x.anahtar)}
+                        style={{ ...satirStili, cursor: "pointer", fontSize: 13, fontFamily: "Inter, sans-serif", color: T.text }}>
+                        {satirIcerigi}
+                      </button>
+                    ) : (
+                      <div style={satirStili}>{satirIcerigi}</div>
+                    )}
+                    {acik && alt.length > 0 && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "4px 0 12px 24px" }}>
+                        {alt.map((a) => (
+                          <div key={a.ad} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                             <span style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif" }}>{a.ad}</span>
-                            <span style={{ fontSize: 13, color: T.textDim, fontFamily: "'IBM Plex Mono', monospace", whiteSpace: "nowrap" }}>{fmt(a.tutar)}</span>
+                            <span style={{ fontSize: 13, color: T.textDim, fontFamily: "'IBM Plex Mono', monospace", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{fmt(a.tutar)}</span>
                           </div>
                         ))}
                       </div>
@@ -810,10 +867,25 @@ export function Finans({ data, clients, odemeTakvimiIcerigi, onAddGelir, onDelet
                 );
               })}
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
-              <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter, sans-serif", fontWeight: 700 }}>Toplam gider</span>
-              <span style={{ fontSize: 20, color: T.danger, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700 }}>{fmt(live.gider)}</span>
-            </div>
+
+            {/* SIFIR KALEMLER GİZLENMİYOR — eskiden `.filter((x) => x.tutar > 0)` ile
+              * ekrandan tamamen siliniyorlardı. Satırın yokluğu iki ayrı şey demekti ve
+              * ikisi ayırt edilemiyordu: o ay hiç harcama olmaması ya da rakamın
+              * GİRİLMEMİŞ olması. İkincisi gideri düşük, kârı yüksek gösteriyor. */}
+            {giderSifir.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
+                {giderSifir.map((x) => (
+                  <div key={x.anahtar} style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 3, flexShrink: 0, marginTop: 4, border: `1px dashed ${T.border}` }} />
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif" }}>{x.ad}</span>
+                      <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter, sans-serif", lineHeight: 1.6, marginTop: 4 }}>{x.sebep}</div>
+                    </span>
+                    <span style={{ fontSize: 13, color: T.textFaint, fontFamily: "'IBM Plex Mono', monospace", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>₺0</span>
+                  </div>
+                ))}
+              </div>
+            )}
             {/* RAKAM EKSİKSE SÖYLENİR. Ücreti tanımlanmamış kişi-iş, maliyete SIFIR yazıyor —
               * sessiz kalmak gideri olduğundan düşük, kârı olduğundan yüksek gösterir. */}
             {live.isUcretiEksik > 0 && (

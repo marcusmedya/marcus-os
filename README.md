@@ -6378,3 +6378,91 @@ altısında da aynı şerit, aynı "3. ay", gecikmelide aynı 6 ay / 72.000 ₺.
 erişilemezliği) bilerek olduğu gibi bırakıldı.
 
 27 denetim · 2570 kontrol · derleme 0 · tarayıcı **66/66** · 11/12 fonksiyon.
+
+---
+
+## Güncelleme 186: "Para Nereye Gidiyor?" — Sıfır Kalem Artık Kayboluyor Değil, Sebebini Söylüyor
+
+### Asıl sorun: filtre bir bilgiyi yok ediyordu
+
+Panel altı gider kalemini kutucuk ızgarasında çiziyor ve sonunda
+`.filter((x) => x.tutar > 0)` yapıyordu. **Tutarı sıfır olan kalem ekranda hiç yoktu.**
+Bir satırın yokluğu iki apayrı şey demekti ve ikisi ayırt edilemiyordu:
+
+- o ay o kalemde gerçekten harcama olmadı,
+- ya da rakam **girilmedi** — örneğin işler teslim edildi ama iş başı ücretleri
+  tanımlanmadı. Bu ikincisinde gider olduğundan düşük, kâr olduğundan yüksek görünüyor.
+
+Kalemler artık silinmiyor: tutarı sıfır olan kalem ayırıcı çizginin altında, kesik
+çizgili boş kutusu ve **neden sıfır olduğunu söyleyen** bir satırla duruyor
+("Operasyon'da bu ay teslim edilen işlere ücret girilmemiş", "Gelir-Gider sekmesinde
+kalem yok"…). Eksikliği söylemek, sessizce sıfır yazmaktan her zaman iyidir — aynı
+disiplin `lib/sade-ozet.js`'te de var.
+
+### Kural JSX'ten çıktı: `lib/gider-dagilimi.js` (**saf**)
+
+Kalem listesi, sırası ve oranı JSX'in ortasında bir dizi sabitiydi; orada duran hiçbir
+kural Node'dan çağrılamıyor, yani hiçbir test onu sınayamıyor (`marcus-mimari` §4 — bu
+sınıftan dört hata çıktı). `giderDagilimi(live)` artık `{ toplam, kalemler }` döndürüyor:
+
+- `oran` 0–1 arası bir **sayı**, yüzde metni değil (biçim çağıranın işi: tutarlar
+  Gizlilik Modu'ndan geçiyor, modül tema bilmiyor),
+- `sebep` tutarı olan kalemde `null`, sıfır kalemde kısa bir Türkçe açıklama,
+- sıra: tutarı olanlar büyükten küçüğe, **sıfırlar en sonda** ve kendi aralarında sabit
+  sırada (her açılışta yer değiştiren liste okunamaz),
+- toplam 0 iken bölme yapılmıyor, oranlar 0 — `NaN` yok.
+
+`yuzdeMetni(oran)` de aynı modülde: **%1'in altındaki pay tam sayıya yuvarlanıp "%0"
+olmuyor**, bir ondalıkla yazılıyor ("%0,6"). Yuvarlansaydı gerçekten sıfır olan kalemden
+ayırt edilemezdi.
+
+**Hesaba dokunulmadı.** Bütün tutarlar yine `computeLive`'dan olduğu gibi okunuyor;
+`toplam` altı kalemin toplamı, yani `live.gider` ile aynı büyüklük. Rakamlar birebir
+aynı.
+
+### Ekran: ızgara gitti, sıralı döküm geldi
+
+Altı kutucuk aynı boydaydı ve hangi kalemin büyük olduğu ancak altı rakam tek tek
+okunarak anlaşılıyordu — oysa bu ekrana gelmenin sebebi tam olarak o soru. Yeni düzen
+yukarıdan aşağı:
+
+1. **"BU AY TOPLAM GİDER"** etiketi + 28px IBM Plex Mono `tabular-nums` toplam.
+   Ekranın tek büyük rakamı bu ("sessiz yüzey, konuşan sayı").
+2. **Tek yatay oran şeridi** (yükseklik 12, `flex: tutar`). Tutarı sıfır olan kalem
+   şeritte yer almaz. `role="img"` + `aria-label` dağılımın tamamını yazıyla veriyor —
+   renk tek başına hiçbir bilgi taşımıyor.
+3. **Satır listesi**: 10px renk kutusu · ad · sağa hizalı mono tutar `· %oran`.
+   Personel'in katlanabilir alt kalemleri (maaş / SGK / yemek / kıdem) korundu, kutudan
+   satıra taşındı; tıklanabilir satır artık gerçek bir `<button>` — odak çerçevesini
+   global CSS ondan veriyor.
+4. Altta, ayırıcı çizginin ardından **sıfır kalemler**.
+
+Renk **tek indigo rampası** (`#C3CBFF` → `#5B6EF5`), büyükten küçüğe. İkinci bir vurgu
+rengi icat edilmedi ve durum renkleri (success/warning/danger) burada kullanılmıyor: bir
+gider kalemi "iyi" ya da "kötü" değil, yalnızca büyük ya da küçük. Renk kimlik de
+taşımıyor — kimliği satır etiketi taşıyor. Rampa `T`'ye alınmadı çünkü tema jetonu değil,
+sıralı bir veri rampası: tonlar arasındaki **fark** anlam taşıyor ve iki temada da aynı
+kalmalı. Boşluklar 4/8/12/16, radius 10, gölge ve gradient yok.
+
+"Bu toplam eksik: N iş–kişi eşleşmesinde iş başı ücret tanımlı değil" uyarısı olduğu gibi
+duruyor.
+
+### Ölçüm
+
+`testler/t112.mjs` — **38 kontrol**, yedi bölüm, sonda `BEKLENEN` bekçisi (bir bölüm
+`await` edilmezse test sessizce 0 ile çıkardı — t95 bunu yaşadı). Fixture `computeLive`
+çıktısının **bütün** alanlarını taşıyor ve hiçbir iki gider kalemi eşit değil; büyüklük
+sırası tanım sırasıyla çakışmıyor, yani sıralama hiç çalışmasa geçen bir kontrol yok.
+
+**Kırarak ölçüldü:** `sebep` üretimi kaldırılıp her kalemde `null` bırakıldığında
+**6 kontrol düştü** — freelancer/ofis/diğer sebep metinleri, "her kalem sebebini
+söylüyor", personel ve müşteri maliyeti sebepleri. Aynı kırıkla **27 statik denetim ve
+derleme yeşil kaldı** (çıkış kodu 0) — bu korumayı ölçen tek katman t112.
+
+Zincir: 27 denetim ✓ · **2608 kontrol** (t1…t112) ✓ · derleme ✓ · tarayıcı açılışı
+66 kontrol ✓ · `api/` 11 fonksiyon.
+
+**Ölçülemeyen:** panelin yeni çizimi hiçbir katman tarafından ÇİZİLEREK sınanmıyor —
+`testler/tarayiciAcilis.mjs` Dashboard ve müşteri detayını açıyor, Finans → Özet
+sekmesini açmıyor. Yani "sıfır kalem ekranda görünüyor" iddiası modül düzeyinde ölçüldü,
+ekran düzeyinde ölçülmedi. Bilinen boşluk; ayrı bir iş.
