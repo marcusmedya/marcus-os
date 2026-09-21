@@ -37,7 +37,7 @@ Kod ve arayüz tamamen Türkçe — değişken ve fonksiyon adları dahil.
 | `src/` | React arayüzü (Vite ile derlenir) |
 | `api/` | Serverless fonksiyonlar — **her dosya bir fonksiyon**, Hobby sınırı 12 |
 | `lib/` | Ortak mantık — hem `api/` hem `src/` buradan import eder, **fonksiyon sayılmaz** |
-| `testler/` | 111 test dosyası (t1…t111) + 27 statik denetim betiği |
+| `testler/` | 115 test dosyası (t1…t115) + 27 statik denetim betiği |
 | `.claude/` | Claude Code katmanı — komutlar, ajanlar ve uzmanlık skill'leri (denetim 26 bayatlamayı sınar) |
 
 En büyük dosyalar: `src/App.jsx` (9.653), `src/CekimEditTakibi.jsx` (2.734),
@@ -123,9 +123,24 @@ düşmez ve sessizce kaybolurdu. Yeni uç açılmadı, mevcut ödeme ucuna eklen
 ### `api/kasa.js` (125 satır) — şifre kasası
 `dogrula` · `degistir`. Kasa şifresi ayrı; **değiştirmeyi yalnızca owner yapabilir.**
 
-### `api/backup.js` — yedek listesi, özet ve geri yükleme
+### `api/backup.js` — yedek listesi, özet, geri yükleme ve ELLE YEDEK ALMA
 `GET` yedekleri listeler ya da tek bir yedeğin içeriğini/özetini verir; `?ozet=1`
 ayrıca **ne kaybedileceğini** söyler (`yedekDegerlendir`). `POST` geri yükler.
+
+`POST` + `action: "yedekAl"` — **elle yedek alma.** Belgenin o anki hâlini AYRI ve
+EZİLMEYEN bir anahtara yazar: `marcus-os-snapshot-<YYYY-AA-GG>-elle-<SSDD>`. Yeni uç
+açılmadı. Önek aynı ailede kaldığı için listeleme, anahtar doğrulaması ve geri yükleme
+değişmeden çalışır; ama hiçbir otomatik yazma üstüne gelmez. **Günün otomatik anahtarı
+KULLANILAMAZ**: `guvenliYaz` her kayıtta oraya yazıyor, yani orası bir geri dönüş noktası
+tutamaz — ilk sürüm bunu yapıyordu ve düğme hiçbir şey üretmiyordu (t114 bölüm 7 ölçüyor).
+Ömür **30 gün, açık TTL ile**: `api/data.js`'teki süpürücü adın tarih kısmını `new Date`
+ile ayrıştırıyor ve damgalı ad `Invalid Date` verdiği için o kayıt asla silinmezdi.
+Yalnızca yönetici — kapı ucun girişinde (`checkAuth` → 401). Kilidi kendisi alır ve **ana
+belgeye yazmaz** (`_v` artsaydı açık sekmeler kendini bayat sanardı). `islemId` ile
+tekrara dayanıklı: aynı istek iki kez gelirse ikinci yedek oluşmaz ve güvenlik defterine
+ikinci satır düşmez (`yedek-elle-alindi`). Bozuk ya da boş belge yedeklenmez. Arayüz:
+Ayarlar → Veri → Otomatik Yedekler → "Şimdi yedek al"; liste bu kayıtları **"Elle"**
+rozetiyle ve saat:dakika ile ayırt eder. Ölçüm: `testler/t114.mjs` (29 kontrol).
 
 Geri yükleme sistemdeki en tehlikeli yazma. Üç koruma: **yapı doğrulaması** (bozuk ya
 da yabancı belge yazılmadan reddedilir), **kilit** (alınamazsa geri yükleme YAPILMAZ),
@@ -192,13 +207,17 @@ Artık **tanımsızsa kimse giremez.**
 | `silme-defteri.js` | Yazmanın öncesi/sonrası karşılaştırılıp silinen kayıtları bulur — güvenlik defteri için (**saf**) |
 | `para-hareketleri.js` | Dönem bazlı **giren/çıkan para dökümü** — tahsilatlar, ödemeler, avanslar; tarihi iki alandan okur, tarihsiz kaydı sayar (**saf**) |
 | `sade-ozet.js` | **Muhasebe bilmeyene göre anlatım** — rakamları düz Türkçe cümlelere çevirir, terim kullanmaz (**saf**) |
+| `gider-dagilimi.js` | **"Para Nereye Gidiyor?" dağılımı** — altı gider kaleminin oranı ve sırası; tutarı SIFIR olan kalem listeden düşmez, neden sıfır olduğunu söyler (**saf**) |
 | `muhasebe-belgesi.js` | **Yazdırılabilir (PDF) raporlar** — tahsilat dökümü, ödeme dökümü, aylık tek sayfa özet (**saf**) |
+| `finans-hareketleri.js` | **Birleşik finans hareketleri** — on beş ayrı para listesini TEK normalleştirilmiş kayıt biçimine çevirir; rakam yeniden hesaplanmaz (`kaydinAyi`, `isUcretiHesapla` import edilir), tarihsiz kayıt gizlenmez, KDV/stopaj uydurulmaz, kimlik kararlıdır. `eksikBilgiOzeti` eksik alanları kaynak kaynak sayar — sayım ekranda değil modülde (**saf**) |
+| `finans-mutabakat.js` | **Migrasyonun önündeki kapı** — eski motorun (`computeLive`, `hesapBakiyesi`, `para-hareketleri`, `ekstre`) toplamlarıyla yeni hareketleri satır satır karşılaştırır; tek kuruş fark `bloke: true`. Her satır birimini kendisi taşır (`birim: "tl" | "adet"`) — ekran onu başlık metninden tahmin etmesin (**saf**) |
 | `aylik-ozet.js` | **Ay ay gelir–gider** — tahakkuk (o ayın ücretiyle), tahsilat, fark ve freelancer gideri; geçmişi "ayı kapat" fotoğrafından değil kayıtlardan türetir (**saf**) |
 | `is-ucreti.js` | **İş başı ücret matematiği** — freelancer hak edişi, marka maliyeti ve ŞİRKET toplamı (`sirketAylikIsMaliyeti`); dönem = işin teslim edildiği ay (**saf**) |
 | `is-takibi.js` | **Günlük iş takibi** — kim ne zaman hangi işi ilerletti; günlük akış, kişi panosu ("iş kimin elinde" = son dokunan), üretim raporu. Eski tr-TR zaman metnini de ayrıştırır (**saf**) |
 | `kart-secici.js` | Plan hücresine kart seçerken TÜRE göre ayırma: seçilen türün kartları / aynı türün paylaşılmışları / başka tür (gizlenmez, ayrılır) (**saf**) |
 | `bugun.js` | "Bugün" panelinin çekirdeği: geciken/bugün teslim/müşteride/paylaşım özeti, plan tarihini haftaKey+gün kaymasından üretir (**saf**) |
 | `kategori.js` | **Kategoriler ve stok türlerinin TEK kaynağı** — Reels/Post/Carousel + eski adların eşlemesi (**saf**) |
+| `finans-sekmeleri.js` | **Finans menüsünün ve sekmelerinin TEK kaynağı** — hangi iznin hangi sekmeyi açtığı; `finans` Finans sekmelerini, `odemeTakvimi` yalnızca Ödemeler'i, Doğrulama yalnızca yöneticide. `finansMenudeMi` menüde madde çizilip çizilmeyeceğini söyler: yalnızca `odemeTakvimi` izni olan kişi de görür, yoksa ekrana hiç ulaşamaz. Fail-close, girdi değiştirilmez (**saf**) |
 | `musteri-karar.js` | **Müşteri detayının karar şeridi** — gecikme/ödeme uyarısı/ödeme günü yok/sakin arasından TEK şerit seçer, birincil eylemi ve en fazla üç rozeti belirler; sağlıklı markada düğme üretmez (**saf**) |
 | `drive-denetimi.js` | Kayıtlı stok ile Drive'ın söylediği stoğun farkı + uygulama frenleri (**saf, ağ yok**) |
 | `drive-yukleme.js` | Yükleme oturumu açma, tamamlama, dosya çöpe atma |
@@ -296,7 +315,7 @@ personel) · **musteri** (müşteri paneli).
 | Müşteri → Müşteri Hesapları | Müşteri paneli girişleri |
 | Müşteri → Teklif & Sözleşme | Teklif ve sözleşme şablonları, gönderim |
 | Müşteri → Reklamlar | Reklam kampanyası takibi |
-| **Para** → Finans | Gelir/gider, aylık tablo, vergi takvimi |
+| **Para** → Finans | Gelir/gider, aylık tablo, vergi takvimi, **Doğrulama** (yalnızca yönetici) |
 | Para → Ödeme Takvimi | Tahsilat takibi, ödeme günü, hatırlatma |
 | Para → Personel | Ücret, avans, iş başı ödeme, freelancer |
 | Para → Birikim | Fon takibi |
@@ -439,7 +458,7 @@ dosya hâlâ ekibin çalışma alanındadır.
 
 ```bash
 bash testler/hepsinidenetle.sh     # 27 statik denetim
-./testler/sunucutestleri.sh        # t1…t102, ~2297 kontrol — SAHTE veritabanı
+./testler/sunucutestleri.sh        # t1…t115, 2717 kontrol — SAHTE veritabanı
 npm run build                      # üretim derlemesi
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
 ```

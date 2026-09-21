@@ -65,6 +65,7 @@ import { planSubesi, subeStokAnahtari, markaninSubeleri, kullanabilenSubeler,
 import { SUBE_PAYLASIM_ASAMASI, medyalariBirlestir } from "../lib/asamalar.js";
 import { neYapmali } from "../lib/eposta-hata.js";
 import { Finans, HesapBakiyeleri, MiniList, hesapBakiyesi } from "./finans.jsx";
+import { finansMenudeMi } from "../lib/finans-sekmeleri.js";
 import { HataYakalayici } from "./hataYakalayici.jsx";
 import { Personel, avansToplami, avansKisiyeAitMi, odemeToplami, odemeKisiyeAitMi, AvansVerFormu, AvansListesi } from "./personel.jsx";
 import { surenIsVarMi } from "../lib/suren-isler.js";
@@ -4835,6 +4836,8 @@ function YedekGecmisi() {
   const [restoring, setRestoring] = useState(null);
   const [indiriliyor, setIndiriliyor] = useState(null);
   const [gorunum, setGorunum] = useState("gunluk"); // "gunluk" | "saatlik" | "geriAlma"
+  const [yedekAliniyor, setYedekAliniyor] = useState(false);
+  const [yedekSonucu, setYedekSonucu] = useState(null); // { tur: "ok"|"hata", metin }
 
   const listeyiCek = () => {
     fetch("/api/backup", { headers: { "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) } })
@@ -4843,6 +4846,46 @@ function YedekGecmisi() {
       .catch(() => setListe({ dates: [], saatlikler: [], geriAlmalar: [] }));
   };
   useEffect(listeyiCek, []);
+
+  /** ŞİMDİ YEDEK AL — riskli bir işten hemen önce bilerek bir durak koymanın yolu.
+   *
+   * Yedekler bugüne kadar yalnızca yazma anında ve gece cron'undan oluşuyordu; elle
+   * yedek almak için kullanıcının bir kayıt DEĞİŞTİRMESİ gerekiyordu.
+   *
+   * `islemId` ile tekrara dayanıklı: çift tık ya da ağ kopması sonrası otomatik tekrar
+   * ikinci bir yedek üretmez ve güvenlik defterine ikinci satır düşmez (sunucu tarafı
+   * `api/backup.js` → `yedekAl`). Kimlik burada, ÇAĞRI ANINDA üretiliyor. */
+  const yedekAl = () => {
+    if (yedekAliniyor) return;
+    setYedekAliniyor(true);
+    setYedekSonucu(null);
+    const govde = { action: "yedekAl", islemId: islemKimligiUret() };
+    fetch("/api/backup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
+      body: JSON.stringify(govde),
+    })
+      .then((r) => r.json())
+      .then((res) => {
+        if (!res.ok) {
+          /* Sebep söyleniyor ve ne yapılacağı yazıyor — "başarısız" tek başına teşhis
+           * ettirmiyor (bu proje o dersi e-posta hatasında aldı). */
+          setYedekSonucu({ tur: "hata", metin: res.error || "Yedek alınamadı — bağlantıyı kontrol edip tekrar dene." });
+          return;
+        }
+        const o = res.yedekOzeti;
+        const icerik = o ? ` — ${o.musteri} müşteri, ${o.cekimIsleri} operasyon işi` : "";
+        setYedekSonucu({
+          tur: "ok",
+          metin: res.tekrarlandi
+            ? `Bu yedek az önce zaten alınmıştı${icerik}. İkinci kopya oluşturulmadı.`
+            : `Yedek alındı${icerik}. Aşağıdaki "Günlük" listesinde "Elle" etiketiyle duruyor.`,
+        });
+        listeyiCek();
+      })
+      .catch(() => setYedekSonucu({ tur: "hata", metin: "Bağlantı hatası — yedek alınamadı, tekrar dene." }))
+      .finally(() => setYedekAliniyor(false));
+  };
 
   /** Geri yüklemeden ÖNCE o yedeğin içinde ne olduğunu gösterir. Yanlış tarihe dönmenin
    * en yaygın sebebi, içeriğini görmeden karar vermekti. */
@@ -4892,6 +4935,21 @@ function YedekGecmisi() {
     if (Number.isNaN(tarih.getTime())) return d;
     return tarih.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
   };
+  /* ELLE ALINAN YEDEK LİSTEDE AYIRT EDİLİR.
+   *
+   * Anahtar `marcus-os-snapshot-<gun>-elle-<SSDD>` biçiminde (`api/backup.js`). Etiket
+   * yalnızca tarih yazsaydı "günün otomatik hâli" ile "benim aldığım güvenlik noktası"
+   * aynı satır gibi görünürdü — geri dönerken hangisine döndüğünü bilmek tam da bu
+   * ekranın işi. Sondaki damga saat:dakika olarak açılıyor. */
+  const ELLE_ISARETI = "-elle-";
+  const gunlukEtiket = (d) => {
+    const yer = d.indexOf(ELLE_ISARETI);
+    if (yer === -1) return okunakliTarih(d);
+    const damga = d.slice(yer + ELLE_ISARETI.length);
+    const saat = damga.slice(0, 2);
+    const dakika = damga.slice(2, 4);
+    return `${okunakliTarih(d.slice(0, yer))} — saat ${saat}:${dakika} · elle alındı`;
+  };
   const okunakliSaat = (s2) => {
     const p2 = s2.split("-");
     if (p2.length < 4) return s2;
@@ -4912,18 +4970,35 @@ function YedekGecmisi() {
   ];
 
   let kayitlar = [];
-  if (gorunum === "gunluk") kayitlar = liste.dates.slice(0, 30).map((d) => ({ anahtar: `marcus-os-snapshot-${d}`, etiket: okunakliTarih(d) }));
+  if (gorunum === "gunluk") kayitlar = liste.dates.slice(0, 30).map((d) => ({ anahtar: `marcus-os-snapshot-${d}`, etiket: gunlukEtiket(d), elle: d.includes(ELLE_ISARETI) }));
   else if (gorunum === "saatlik") kayitlar = liste.saatlikler.map((h) => ({ anahtar: `marcus-os-saatlik-${h}`, etiket: okunakliSaat(h) }));
   else kayitlar = liste.geriAlmalar.map((g) => ({ anahtar: `marcus-os-geri-alma-${g}`, etiket: okunakliGeriAlma(g) }));
 
   const aciklama = {
-    gunluk: "Her günün SON hâli. 30 gün saklanır.",
+    gunluk: "Her günün SON hâli, artı \"Şimdi yedek al\" ile aldığın noktalar (\"Elle\" etiketli). 30 gün saklanır.",
     saatlik: "Son 48 saatin her saati. Gün içinde bir şey ters giderse buradan saat saat geri dönebilirsin.",
     geriAlma: "Bir geri yükleme yapmadan HEMEN ÖNCEKİ hâller. Yanlış tarihe döndüysen buradan eski durumuna dönebilirsin. 30 gün saklanır.",
   }[gorunum];
 
   return (
     <div>
+      {/* İKİNCİL düğme (`addBtnStyle`) — bu ekranın birincil eylemi yedek ALMAK değil,
+        * listeden bir hâle DÖNMEK. Yükleniyor durumunda metin eyleme dönüyor ve düğme
+        * kilitleniyor (bileşen standartları). */}
+      <div style={{ marginBottom: 12 }}>
+        <button style={{ ...addBtnStyle, opacity: yedekAliniyor ? 0.7 : 1, cursor: yedekAliniyor ? "not-allowed" : "pointer" }}
+          disabled={yedekAliniyor} onClick={yedekAl}>
+          {yedekAliniyor ? "Yedek alınıyor…" : "Şimdi yedek al"}
+        </button>
+        <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 6, lineHeight: 1.6 }}>
+          Verinin o anki hâlini AYRI bir geri dönüş noktası olarak saklar — sonraki kayıtlar bu noktayı ezmez. Riskli bir işe girişmeden önce basman yeterli.
+        </div>
+        {yedekSonucu && (
+          <div style={{ fontSize: 13, fontFamily: "Inter", marginTop: 8, lineHeight: 1.6, color: yedekSonucu.tur === "ok" ? T.success : T.danger }}>
+            {yedekSonucu.metin}
+          </div>
+        )}
+      </div>
       <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
         {sekmeler.map((sk) => (
           <button
@@ -4945,7 +5020,10 @@ function YedekGecmisi() {
         <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 320, overflowY: "auto" }}>
           {kayitlar.map((k) => (
             <div key={k.anahtar} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: T.surfaceRaised, borderRadius: 9, flexWrap: "wrap", gap: 8 }}>
-              <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter" }}>{k.etiket}</span>
+              <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter" }}>
+                {k.etiket}
+                {k.elle && <span style={{ fontSize: 11, color: T.accentText, background: T.accentSoft, borderRadius: 999, padding: "2px 8px", marginLeft: 8 }}>Elle</span>}
+              </span>
               <div style={{ display: "flex", gap: 6 }}>
                 <button style={cancelBtnStyle} disabled={indiriliyor === k.anahtar} onClick={() => indir(k.anahtar, k.etiket)}>{indiriliyor === k.anahtar ? "İndiriliyor…" : "İndir (JSON)"}</button>
                 <button style={cancelBtnStyle} disabled={restoring === k.anahtar} onClick={() => restore(k.anahtar, k.etiket)}>{restoring === k.anahtar ? "Geri yükleniyor…" : "Bu hâle dön"}</button>
@@ -7408,6 +7486,7 @@ function GuvenlikDefteri() {
     "giris-basarisiz": { ad: "Başarısız giriş denemesi", renk: T.danger },
     "tum-oturumlar-iptal": { ad: "Tüm cihazlardan çıkış yapıldı", renk: T.warning },
     "yedek-geri-yuklendi": { ad: "Yedekten geri yükleme", renk: T.warning },
+    "yedek-elle-alindi": { ad: "Elle yedek alındı", renk: T.textDim },
     "hesap-islemi": { ad: "Hesap/yetki değişikliği", renk: T.textDim },
   }[olay] || { ad: olay, renk: T.textFaint });
 
@@ -8548,8 +8627,16 @@ const NAV = [
 ];
 
 export default function MarcusOS() {
+  /* ESKİ SEKME ADLARI YÖNLENDİRİLİR. Son sekme tarayıcıda saklanıyor; "Ödeme Takvimi"
+   * menüden kalkıp Finans'ın içine sekme olduğunda, o ekranda bırakmış herkesin
+   * kaydında hâlâ "odeme-takvimi" yazıyor. Yönlendirilmezse uygulama HİÇBİR ŞEY
+   * çizilmeyen bir sekmeyle açılırdı — boş ekran, sebepsiz. */
+  const ESKI_SEKMELER = { "odeme-takvimi": "finans" };
   const [tab, setTab] = useState(() => {
-    try { return localStorage.getItem("marcus-os-son-sekme") || "dashboard"; } catch (e) { return "dashboard"; }
+    try {
+      const kayitli = localStorage.getItem("marcus-os-son-sekme") || "dashboard";
+      return ESKI_SEKMELER[kayitli] || kayitli;
+    } catch (e) { return "dashboard"; }
   });
   useEffect(() => {
     try { localStorage.setItem("marcus-os-son-sekme", tab); } catch (e) { /* localStorage erişilemezse sessizce geç */ }
@@ -9988,7 +10075,12 @@ export default function MarcusOS() {
    * buraya da eklenir — denetim 21 bunu zorluyor. */
   const BELGE_DISI_ALANLAR = ["ok", "driveSonuc", "error", "mesgul", "tekrarlandi",
     "eslestirme", "sebep", "degismedi", "onayGerekli", "kimlikOnarildi", "duzeltildi",
-    "uygulanan", "uygulanmadi", "acilanKartlar", "acilmadi", "onaylanamadi"];
+    "uygulanan", "uygulanmadi", "acilanKartlar", "acilmadi", "onaylanamadi",
+    /* `api/backup.js` → `yedekAl` yanıtı. Bu uç bugün `setData` içine YAYILMIYOR
+     * (`YedekGecmisi` yanıtı kendi okuyor), ama alan adları listeye yazılmazsa yanıtın
+     * bir gün ortak yola bağlanması belgeye sızıntı üretir — denetim 21'in kovaladığı
+     * hata sınıfı tam olarak bu. */
+    "yedekAnahtari", "yedekOzeti"];
   const [driveSonuc, setDriveSonuc] = useState(null);
   const mergePaylasimLocally = (patch) => {
     const temiz = { ...patch };
@@ -10733,7 +10825,7 @@ export default function MarcusOS() {
     else setTab("finans");
   };
 
-  const titles = { dashboard: "Dashboard", musteriler: "Müşteriler", finans: "Finans", takvim: "Takvim", "odeme-takvimi": "Ödeme Takvimi", teklif: "Teklif & Sözleşme", reklamlar: "Reklamlar", paylasimlar: "Paylaşımlar", "gunluk-kontrol": "Günlük Kontrol", "cekim-listesi": "Çekim", "cekim-edit": "Operasyon", personel: "Personel", birikim: "Birikim", uyelikler: "Üyelikler", "musteri-girisleri": "Şifre Kasası", ayarlar: "Ayarlar" };
+  const titles = { dashboard: "Dashboard", musteriler: "Müşteriler", finans: "Finans", takvim: "Takvim", teklif: "Teklif & Sözleşme", reklamlar: "Reklamlar", paylasimlar: "Paylaşımlar", "gunluk-kontrol": "Günlük Kontrol", "cekim-listesi": "Çekim", "cekim-edit": "Operasyon", personel: "Personel", birikim: "Birikim", uyelikler: "Üyelikler", "musteri-girisleri": "Şifre Kasası", ayarlar: "Ayarlar" };
   const todayLabel = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
 
   if (needsAuth) {
@@ -10830,14 +10922,19 @@ export default function MarcusOS() {
 
   if (role === "staff") {
     const izinler = { dashboard: false, musteriler: false, finans: false, takvim: false, odemeTakvimi: false, teklif: false, reklamlar: true, paylasimlar: true, cekimEdit: true, personel: false, birikim: false, cekimListesi: false, sifreKasasi: false, markaYoneticisi: false, uyelikler: false, ...(data.staffPermissions || {}) };
+    /* Finans menüsünün ve sekmelerinin TEK kaynağı — iki yerde (menü maddesi + bileşen)
+     * kullanılıyor, ikisi ayrışmasın diye tek nesnede. Personel kabuğunda `yonetici`
+     * HER ZAMAN false: Doğrulama sekmesi yalnızca yönetici kabuğunda çiziliyor. */
+    const finansIzinleri = { finans: izinler.finans === true, odemeTakvimi: izinler.odemeTakvimi === true, yonetici: false };
     const staffNavAll = [
       { key: "dashboard", label: "Dashboard", izin: izinler.dashboard },
       { key: "musteriler", label: "Müşteriler", izin: izinler.musteriler },
-      { key: "finans", label: "Finans", izin: izinler.finans },
-      /* FİNANS'I DA GÖREBİLİYORSA AYRI MADDE GEREKMİYOR — ekran artık Finans'ın içinde
-       * bir sekme. Yalnızca "Ödeme Takvimi" izni olup Finans izni OLMAYAN personel için
-       * duruyor; kaldırılsaydı o kişi ekrana hiç ulaşamazdı. */
-      { key: "odeme-takvimi", label: "Ödeme Takvimi", izin: izinler.odemeTakvimi && !izinler.finans },
+      /* PARA EKRANLARI TEK MADDEDE. "Ödeme Takvimi" ayrı bir menü maddesiydi ve yalnızca
+       * `odemeTakvimi` izni olup `finans` izni OLMAYAN personel için duruyordu. Artık
+       * menüde tek "Finans" var; içindeki sekmeler kişinin iznine göre çiziliyor
+       * (`lib/finans-sekmeleri.js`). KİMSE ERİŞİM KAYBETMEDİ: yalnızca `odemeTakvimi`
+       * izni olan kişi de maddeyi görür, içinde yalnızca Ödemeler sekmesi çizilir. */
+      { key: "finans", label: "Finans", izin: finansMenudeMi(finansIzinleri) },
       { key: "teklif", label: "Teklif & Sözleşme", izin: izinler.teklif },
       { key: "reklamlar", label: "Reklamlar", izin: izinler.reklamlar },
       { key: "paylasimlar", label: "Paylaşımlar", izin: izinler.paylasimlar },
@@ -10937,8 +11034,12 @@ export default function MarcusOS() {
             <Finans
               data={data}
               clients={data.clients || []}
-              /* YETKİ KAPISI: "Ödeme Takvimi" AYRI bir izin. Finans'ı görebilen
-                * herkes ödeme kayıtlarını görmemeli — sekme yalnızca izni olana çizilir. */
+              /* YETKİ KAPISI: "Ödeme Takvimi" AYRI bir izin. Finans'ı görebilen herkes
+                * ödeme kayıtlarını görmemeli, ödeme izni olan da Finans rakamlarını —
+                * hangi sekmenin çizileceğine `lib/finans-sekmeleri.js` karar veriyor.
+                * İçerik yalnızca izin varsa üretiliyor: `<OdemeTakvimi>` izinsiz kişide
+                * hiç MOUNT EDİLMESİN. */
+              izinler={finansIzinleri}
               odemeTakvimiIcerigi={izinler.odemeTakvimi
                 ? <OdemeTakvimi hesaplariGizle {...odemeTakvimiProps} />
                 : null}
@@ -10960,32 +11061,9 @@ export default function MarcusOS() {
               firmaAdi={data.firmaAdi}
             />
           )}
-          {staffTab === "odeme-takvimi" && (
-            <OdemeTakvimi
-              bekleyenTahsilatlar={data.bekleyenTahsilatlar || []}
-              onAddBekleyen={addBekleyen}
-              onDeleteBekleyen={deleteBekleyen}
-              clients={data.clients || []}
-              hesaplar={data.hesaplar}
-              transferler={data.hesapTransferleri}
-              avanslar={data.avanslar || []}
-              odemeler={data.personelOdemeleri || []}
-              duzeltmeler={data.hesapDuzeltmeleri || []}
-              onUpdateClient={(id, patch) => setOdemeGunuSafe(id, patch.odemeGunu)}
-              onAddOdemeKaydi={addOdemeKaydi}
-              onDeleteOdemeKaydi={deleteOdemeKaydi}
-              onAddFatura={addFatura}
-              onDeleteFatura={deleteFatura}
-              onTransfer={transferEt}
-              onDeleteTransfer={deleteTransfer}
-              onUpdateHesap={updateHesap}
-              onAddDuzeltme={addHesapDuzeltme}
-              onDeleteDuzeltme={deleteHesapDuzeltme}
-              onAddHesap={addHesap}
-              onDeleteHesap={deleteHesap}
-              firmaAdi={data.firmaAdi}
-            />
-          )}
+          {/* Eski "odeme-takvimi" ekranı BURADAN KALKTI — kaybolmadı, Finans'ın
+            * Ödemeler sekmesine taşındı (yukarıdaki `odemeTakvimiIcerigi`). Prop'ları
+            * burada ikinci kez yazılıydı; `odemeTakvimiProps` ile tek kaynağa indi. */}
           {staffTab === "teklif" && (
             <TeklifSozlesme
               firmaAdi={data.firmaAdi || "Marcus Medya"}
@@ -11398,6 +11476,11 @@ export default function MarcusOS() {
             <Finans
               data={data}
               clients={data.clients}
+              /* Doğrulama sekmesi YALNIZCA burada açılıyor — personel kabuğundaki
+                * çağrı yeri `yonetici`yi vermiyor, yani sekme orada hiç çizilmiyor.
+                * Yönetici bütün para ekranlarını görür: iki izin de açık. */
+              yonetici
+              izinler={{ finans: true, odemeTakvimi: true, yonetici: true }}
               odemeTakvimiIcerigi={<OdemeTakvimi hesaplariGizle {...odemeTakvimiProps} />}
               onAddGelir={addGelir} onDeleteGelir={deleteGelir}
               onAddGider={addGider} onDeleteGider={deleteGider}
@@ -11417,32 +11500,10 @@ export default function MarcusOS() {
               firmaAdi={data.firmaAdi}
             />
           )}
-          {tab === "odeme-takvimi" && (
-            <OdemeTakvimi
-              bekleyenTahsilatlar={data.bekleyenTahsilatlar || []}
-              onAddBekleyen={addBekleyen}
-              onDeleteBekleyen={deleteBekleyen}
-              clients={data.clients}
-              hesaplar={data.hesaplar}
-              transferler={data.hesapTransferleri}
-              avanslar={data.avanslar || []}
-              odemeler={data.personelOdemeleri || []}
-              duzeltmeler={data.hesapDuzeltmeleri || []}
-              onUpdateClient={(id, patch) => setOdemeGunuSafe(id, patch.odemeGunu)}
-              onAddOdemeKaydi={addOdemeKaydi}
-              onDeleteOdemeKaydi={deleteOdemeKaydi}
-              onAddFatura={addFatura}
-              onDeleteFatura={deleteFatura}
-              onTransfer={transferEt}
-              onDeleteTransfer={deleteTransfer}
-              onUpdateHesap={updateHesap}
-              onAddDuzeltme={addHesapDuzeltme}
-              onDeleteDuzeltme={deleteHesapDuzeltme}
-              onAddHesap={addHesap}
-              onDeleteHesap={deleteHesap}
-              firmaAdi={data.firmaAdi}
-            />
-          )}
+          {/* Eski "odeme-takvimi" ekranı BURADAN DA KALKTI. Menüde karşılığı zaten
+            * yoktu (NAV'da madde yok), yalnızca tarayıcısında eski sekme adı kalmış
+            * kullanıcı buraya düşebiliyordu — o ad artık açılışta "finans"a
+            * yönlendiriliyor (`ESKI_SEKMELER`). Ekran kaybolmadı: Finans → Ödemeler. */}
           {tab === "teklif" && (
             <TeklifSozlesme
               firmaAdi={data.firmaAdi || "Marcus Medya"}

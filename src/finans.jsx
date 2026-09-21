@@ -10,9 +10,18 @@ import { aylikOzet } from "../lib/aylik-ozet.js";
 import { tahsilatDokumu, odemeDokumu } from "../lib/para-hareketleri.js";
 import { buAyinCumleleri, kasaKarFarki } from "../lib/sade-ozet.js";
 import { tahsilatRaporuHtml, odemeRaporuHtml, aylikOzetRaporuHtml } from "../lib/muhasebe-belgesi.js";
+import { giderDagilimi, yuzdeMetni } from "../lib/gider-dagilimi.js";
+import { finansHareketleri, eksikBilgiOzeti } from "../lib/finans-hareketleri.js";
+import { finansMutabakati } from "../lib/finans-mutabakat.js";
+import { finansSekmeleri, aktifFinansSekmesi } from "../lib/finans-sekmeleri.js";
 
 /**
- * FİNANS — beş sekme.
+ * FİNANS — para ekranlarının TEK menüsü.
+ *
+ * Sekmeler kişinin iznine göre çiziliyor ve liste `lib/finans-sekmeleri.js`'te:
+ * `finans` izni Finans sekmelerini, `odemeTakvimi` izni yalnızca Ödemeler sekmesini
+ * açar, Doğrulama yalnızca yöneticide. "Ödeme Takvimi" ayrı bir menü maddesiydi;
+ * kaldırıldı, ekran aynen burada bir sekme (→ `README.md` Güncelleme 190).
  *
  * Tek uzun sayfaydı ve bir muhasebe programı gibi görünüyordu. Bir işletme sahibinin ilk
  * bakışta görmesi gereken dört şey vardı: kasada ne var, bu ay ne kazandım, ne kadar
@@ -22,6 +31,17 @@ import { tahsilatRaporuHtml, odemeRaporuHtml, aylikOzetRaporuHtml } from "../lib
  * HESAPLAMA MOTORUNA DOKUNULMADI: bütün rakamlar tema.jsx'teki computeLive()'dan geliyor,
  * bu dosya yalnızca gösteriyor.
  */
+
+/* GİDER DAĞILIMI RAMPASI — "Para Nereye Gidiyor?" şeridi ve satır kutucukları.
+ *
+ * TEK indigo rampası, büyükten küçüğe. İkinci bir vurgu rengi YOK; durum renkleri
+ * (success/warning/danger) burada KULLANILMAZ — bir gider kalemi "iyi" ya da "kötü"
+ * değil, yalnızca büyük ya da küçük. Renk kimlik de taşımıyor: kimliği satır etiketi
+ * taşıyor, renk yalnızca şeritle satırı eşleştiriyor.
+ *
+ * `T`'ye alınmadı çünkü bu bir tema jetonu değil, sıralı bir veri rampası: altı tonun
+ * arasındaki FARK anlam taşıyor ve iki temada da aynı kalması gerekiyor. */
+const GIDER_RAMPASI = ["#C3CBFF", "#8D99FB", "#6472F6", "#4F61DE", "#7C8CFA", "#5B6EF5"];
 
 const KALEM_FIELDS = [
   { key: "kalem", label: "Kalem Adı", type: "text" },
@@ -45,15 +65,12 @@ const MONTH_FIELDS = [
   { key: "gider", label: "Gider (₺)", type: "number" },
 ];
 
-const FINANS_SEKMELERI = [
-  { key: "ozet", label: "Özet" },
-  { key: "gelir-gider", label: "Gelir-Gider" },
-  { key: "karsilastirma", label: "Ay Ay Karşılaştırma" },
-  { key: "tahsilat", label: "Tahsilatlar" },
-  { key: "raporlar", label: "Raporlar (PDF)" },
-  { key: "hesaplar", label: "Hesaplar" },
-  { key: "vergi", label: "Vergi & Arşiv" },
-];
+/* SEKME LİSTESİ ARTIK `lib/finans-sekmeleri.js`'TE — burada elle kopyalanmıyor.
+ *
+ * Sebebi: menüde tek "Finans" maddesi var ve içindeki sekmeler kişinin iznine göre
+ * çiziliyor. Aynı kuralı hem menüyü çizen App.jsx'in İKİ kabuğunun hem de bu bileşenin
+ * bilmesi gerekiyor; JSX'e gömülen kural Node'dan çağrılamıyor ve hiçbir test onu
+ * sınayamıyor (`marcus-mimari` §4). Kural saf modülde, burası yalnızca çiziyor. */
 
 export function MiniList({ title, icon, items, fields, renderRow, onAdd, onDelete, addLabel }) {
   const [adding, setAdding] = useState(false);
@@ -660,12 +677,242 @@ export function HesapBakiyeleri({ hesaplar, clients, transferler, avanslar, odem
   );
 }
 
-export function Finans({ data, clients, odemeTakvimiIcerigi, onAddGelir, onDeleteGelir, onAddGider, onDeleteGider, onAddOfisGider, onDeleteOfisGider, onAddBekleyen, onDeleteBekleyen, onAddVergi, onDeleteVergi, onAddMonth, onDeleteMonth, onCloseMonth, onExport, onTransfer, onDeleteTransfer, onAddHesap, onDeleteHesap, onUpdateHesap, onAddDuzeltme, onDeleteDuzeltme }) {
+/* ────────────────────────────────────────────────────────────────────────────────
+ * DOĞRULAMA SEKMESİ — yeni finans motorunun önündeki kapı, EKRANDA
+ *
+ * KULLANICI BURAYA NEDEN GELDİ: "yeni hesaplama katmanı bugünkü rakamların aynısını mı
+ * veriyor?" sorusunun cevabını görmek için. Bu bir KARŞILAŞTIRMA ekranı; `kompozisyon.md`
+ * §2'ye göre tablo birincil, kart yok — rakamlar alt alta ve aynı sağ kenara hizalı
+ * olmazsa göz onları karşılaştıramaz, oysa bu ekranın TEK işi karşılaştırma.
+ *
+ * İLK ÜÇ SANİYEDE GÖRÜLECEK ŞEY bir toplam değil, bir KARAR: tutuyor mu, tutmuyor mu.
+ * Bu yüzden en üstte tek bir karar satırı var (kart değil — kart bir gruplama aracı,
+ * tek cümlelik bir sonucu kutuya koymak onu başka bir bilgi bloğu gibi gösterirdi).
+ *
+ * BURADAN ÇIKMADAN YAPILACAK BİR EYLEM YOK: bu ekran rapor eder, karar vermez. Sağlıklı
+ * durumda birincil düğme ÇİZİLMEZ — müşteri panelinde kurduğumuz kuralın aynısı
+ * ("yapılacak bir şey yoksa düğme de yok").
+ *
+ * HİÇBİR RAKAM BURADA HESAPLANMIYOR. Eski taraf `computeLive` ve `hesapBakiyesi`'nden,
+ * yeni taraf `lib/finans-hareketleri.js`'ten geliyor; karşılaştırmayı `lib/finans-mutabakat.js`
+ * yapıyor. `finansMutabakati` eski tarafı DIŞARIDAN istiyor ve verilmezse fail-close
+ * davranıp `bloke: true` döndürüyor — bu yüzden ikisi de çağrı yerinde veriliyor.
+ * ──────────────────────────────────────────────────────────────────────────────── */
+function DogrulamaSatiri({ satir, bicim }) {
+  const farkVar = satir.fark !== 0;
+  const hucre = {
+    padding: "10px 8px", fontSize: 13, textAlign: "right",
+    fontFamily: "'IBM Plex Mono', monospace", fontVariantNumeric: "tabular-nums",
+    borderBottom: `1px solid ${T.borderSoft}`,
+  };
+  return (
+    <tr>
+      <td style={{ padding: "10px 8px", fontSize: 13, fontFamily: "Inter, sans-serif", color: farkVar ? T.danger : T.textDim, borderBottom: `1px solid ${T.borderSoft}` }}>
+        {satir.ad}
+      </td>
+      <td style={{ ...hucre, color: T.textDim }}>{bicim(satir, satir.eski)}</td>
+      <td style={{ ...hucre, color: T.textDim }}>{bicim(satir, satir.yeni)}</td>
+      <td style={{ ...hucre, color: farkVar ? T.danger : T.textFaint, fontWeight: farkVar ? 700 : 400 }}>
+        {bicim(satir, satir.fark)}
+      </td>
+    </tr>
+  );
+}
+
+function Dogrulama({ data, live }) {
+  /* Dönüştürülme tarihi DIŞARIDAN veriliyor: iki saf modül de `new Date()` çağırmıyor
+   * (saflık şartı). Tarih burada, arayüz katmanında üretiliyor. */
+  const bugun = bugunISOTarih();
+  const uretim = useMemo(
+    () => finansHareketleri(data, { donusturulmeTarihi: bugun }),
+    [data, bugun],
+  );
+  const hareketler = uretim.hareketler;
+  const rapor = useMemo(
+    () => finansMutabakati(data, hareketler, { live, hesapBakiyesi, donusturulmeTarihi: bugun }),
+    [data, hareketler, live, bugun],
+  );
+  const eksik = useMemo(() => eksikBilgiOzeti(hareketler), [hareketler]);
+
+  /* Birim satırın kendisinde taşınıyor (`lib/finans-mutabakat.js`): adet satırına ₺
+   * yazmak "₺3 üyelik" gibi anlamsız bir rakam üretirdi. */
+  const bicim = (satir, deger) => (satir.birim === "adet" ? String(deger) : fmt(deger));
+
+  /* BOŞ DURUM — üç parça: ne · neden · tek eylem (`bilesenler.md`). */
+  if (hareketler.length === 0) {
+    return (
+      <Card style={{ padding: "18px 22px" }}>
+        <SectionTitle>Doğrulama</SectionTitle>
+        <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif", lineHeight: 1.7 }}>
+          Karşılaştırılacak hiçbir para kaydı yok. Bu ekran belgedeki tahsilat, fatura, gider,
+          ödeme ve hak ediş kayıtlarını yeni hesaplama katmanına çevirip bugünkü rakamlarla
+          yan yana koyuyor; henüz hiç kayıt girilmediği için karşılaştıracak bir şey bulamadı.
+          <div style={{ marginTop: 12 }}>
+            <strong style={{ color: T.text }}>Gelir-Gider</strong> sekmesinden ilk kalemi ekle;
+            kayıt girildiği anda bu ekran kendiliğinden dolar.
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  const tutmayan = rapor.satirlar.filter((s) => s.fark !== 0);
+  /* "Karşılaştırılamadı" da bir mutabakatsızlıktır: fark satırı üretmeyen sebepler
+   * (eski motor verilmedi, tarih okunamadı) `bloke`yi tek başına doğru yapabiliyor.
+   * Ekranda bunu saklamak, ölçülmemiş bir rakamı "tutuyor" saymak olurdu. */
+  const olculemeyen = rapor.sebepler.filter((s) => !/fark /.test(s));
+
+  return (
+    <div>
+      {/* 1 · TEK KARAR SATIRI — kart değil. */}
+      <div style={{
+        display: "flex", alignItems: "flex-start", gap: 12, borderRadius: 10,
+        padding: "16px 16px", marginBottom: 16,
+        background: rapor.bloke ? T.dangerSoft : T.successSoft,
+      }}>
+        <Percent size={16} color={rapor.bloke ? T.danger : T.success} style={{ marginTop: 2, flexShrink: 0 }} />
+        <div style={{ fontSize: 13, fontFamily: "Inter, sans-serif", lineHeight: 1.7, color: rapor.bloke ? T.danger : T.success }}>
+          {rapor.bloke ? (
+            <>
+              <strong>
+                {tutmayan.length > 0
+                  ? `${tutmayan.length} satırda fark var — geçiş ENGELLENDİ.`
+                  : "Karşılaştırma tamamlanamadı — geçiş ENGELLENDİ."}
+              </strong>
+              <div style={{ marginTop: 6 }}>
+                Yeni motor eski rakamların aynısını vermiyor. Fark sıfırlanana kadar hiçbir
+                ekran yeni katmana bağlanmaz; iki ekranın aynı dönemi farklı toplaması bu
+                sistemdeki en pahalı hata sınıfı.
+              </div>
+            </>
+          ) : (
+            <>
+              <strong>Eski ve yeni motor birebir tutuyor.</strong>
+              <div style={{ marginTop: 6 }}>
+                {rapor.satirlar.length} karşılaştırma satırının hepsinde fark sıfır
+                ({hareketler.length} hareket üzerinden). Yapılacak bir şey yok.
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* 2 · MUTABAKAT TABLOSU — bu ekranın birincil yüzeyi. */}
+      <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+        <SectionTitle>Mutabakat</SectionTitle>
+        <div className="marcus-table-wrap">
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 420 }}>
+            <thead>
+              <tr>
+                {["Satır", "Eski", "Yeni", "Fark"].map((baslik, i) => (
+                  <th key={baslik} style={{
+                    padding: "8px", fontSize: 11, fontWeight: 600, letterSpacing: 0.4,
+                    color: T.textDim, fontFamily: "Inter, sans-serif",
+                    textAlign: i === 0 ? "left" : "right",
+                    borderBottom: `1px solid ${T.border}`, whiteSpace: "nowrap",
+                  }}>{baslik}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rapor.satirlar.map((s) => (
+                <DogrulamaSatiri key={s.ad} satir={s} bicim={bicim} />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* 3 · EKSİK BİLGİ ÖZETİ — sayı çıplak bırakılmıyor, YORUMLANIYOR. */}
+      <Card style={{ padding: "18px 22px", marginBottom: 16 }}>
+        <SectionTitle>Eksik bilgi</SectionTitle>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 13, fontFamily: "Inter, sans-serif", lineHeight: 1.7, color: T.textDim }}>
+          <div>
+            {eksik.tarihsiz > 0
+              ? <><strong style={{ color: T.warning }}>{eksik.tarihsiz} hareket tarihsiz</strong> — dönem raporlarında görünmüyor. Çoğu tekrar eden bir tanım (ofis gideri, maaş, üyelik): belgede ay ay geçmişleri yok, bu yüzden bir döneme yazmak yalan üretirdi. Kayıtların hiçbiri silinmedi.</>
+              : <>Hareketlerin hepsinin dönemi çözüldü — dönem raporlarının dışında kalan kayıt yok.</>}
+          </div>
+          <div>
+            {eksik.kdvBilinmeyen > 0 || eksik.stopajBilinmeyen > 0
+              ? <><strong style={{ color: T.warning }}>{eksik.kdvBilinmeyen} kayıtta KDV, {eksik.stopajBilinmeyen} kayıtta stopaj bilinmiyor</strong> — kayıtta hesaplanmış bir vergi tutarı yok. Oran koda gömülmediği için uydurulmuyor; bu kayıtlar vergi dökümünde eksik çıkar.</>
+              : <>Vergiye konu her kayıtta KDV ve stopaj bilgisi var.</>}
+          </div>
+          {eksik.tutarBilinmeyen > 0 && (
+            <div><strong style={{ color: T.warning }}>{eksik.tutarBilinmeyen} kaydın tutarı bilinmiyor</strong> — toplamlara sıfır olarak giriyor, yani gider olduğundan düşük görünüyor. Vergi takvimi kalemleri ve ücreti tanımsız freelancer işleri buraya düşer.</div>
+          )}
+          {eksik.sirayaBagliKimlik > 0 && (
+            <div><strong style={{ color: T.warning }}>{eksik.sirayaBagliKimlik} kaydın kendi kimliği yok</strong> — kimliği listedeki SIRASINA bağlı ve liste değişirse kayar. Gerçek geçiş öncesinde bu kayıtlara kimlik verilmeli.</div>
+          )}
+          <div style={{ color: T.textFaint, fontSize: 11 }}>
+            {eksik.eksigiOlan} / {eksik.toplam} hareket en az bir eksik alan taşıyor.
+          </div>
+        </div>
+
+        {(uretim.uyarilar.length > 0 || olculemeyen.length > 0) && (
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${T.borderSoft}` }}>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.4, color: T.textDim, fontFamily: "Inter, sans-serif", marginBottom: 8 }}>
+              UYARI ÜRETEN KAYNAKLAR
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {[...uretim.uyarilar, ...olculemeyen].map((u) => (
+                <div key={u} style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif", lineHeight: 1.7 }}>· {u}</div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+export function Finans({ data, clients, yonetici = false, izinler, odemeTakvimiIcerigi, onAddGelir, onDeleteGelir, onAddGider, onDeleteGider, onAddOfisGider, onDeleteOfisGider, onAddBekleyen, onDeleteBekleyen, onAddVergi, onDeleteVergi, onAddMonth, onDeleteMonth, onCloseMonth, onExport, onTransfer, onDeleteTransfer, onAddHesap, onDeleteHesap, onUpdateHesap, onAddDuzeltme, onDeleteDuzeltme }) {
   const [sekme, setSekme] = useState("ozet");
   const [acikGider, setAcikGider] = useState(null); // Para Nereye Gidiyor: açık kalem
-  const { monthly, gelirKalemleri, giderKalemleri, ofisGiderleri, bekleyenTahsilatlar, vergiTakvimi } = data;
+  /* ALANLAR `|| []` İLE OKUNUYOR — bu ekran artık `finans` izni OLMAYAN birine de
+   * çiziliyor (yalnızca `odemeTakvimi` izniyle, tek sekmeyle). Sunucu o kişiye
+   * `monthly`, `gelirKalemleri`, `vergiTakvimi` gibi alanları HİÇ göndermiyor
+   * (`PERMISSION_DATA_FIELDS.odemeTakvimi`), yani çıplak `data.monthly` undefined
+   * geliyor ve aşağıdaki `[...monthly]` yayılımı bileşeni patlatıyordu. Sekme
+   * çizilmese bile GÖVDEDEKİ HER SATIR ÇALIŞIR. */
+  const monthly = data.monthly || [];
+  const gelirKalemleri = data.gelirKalemleri || [];
+  const giderKalemleri = data.giderKalemleri || [];
+  const ofisGiderleri = data.ofisGiderleri || [];
+  const bekleyenTahsilatlar = data.bekleyenTahsilatlar || [];
+  const vergiTakvimi = data.vergiTakvimi || [];
   const [addingMonth, setAddingMonth] = useState(false);
   const live = computeLive(data);
+  /* Rolün göremeyeceği sekme ÇİZİLMEZ ve kural saf modülde (`lib/finans-sekmeleri.js`).
+   * Sekme gizlemek tek başına bir güvenlik sınırı DEĞİL — verinin kime gittiği
+   * `PERMISSION_DATA_FIELDS` ile belirleniyor (→ `marcus-yetki`); burada yapılan,
+   * kişiye ait olmayan bir yüzeyi ona hiç göstermemek.
+   *
+   * VARSAYILAN FAIL-CLOSE DEĞİL, GERİYE UYUMLU: `izinler` verilmeyen bir çağrı yeri
+   * bugünkü Finans sekmelerini görür ama Ödemeler sekmesini GÖRMEZ — ödeme kayıtları
+   * ayrı bir izin ve onu açık saymak yetki kazandırırdı. */
+  const yetkiler = { finans: true, odemeTakvimi: false, ...(izinler || {}), yonetici };
+  const gorunurSekmeler = finansSekmeleri(yetkiler);
+  /* Seçili sekme artık görünmüyorsa ilk görünür sekmeye DÜŞÜLÜR (state sıfırlanmaz,
+   * türetilir): yalnızca `odemeTakvimi` izni olan kişide başlangıç değeri "ozet" ve
+   * o sekme ona hiç çizilmiyor — düzeltilmezse ekran BOMBOŞ açılırdı. */
+  const aktifSekme = aktifFinansSekmesi(sekme, gorunurSekmeler);
+  /* PARA NEREYE GİDİYOR — sıra, oran ve sıfır kalemin sebebi saf modülden geliyor
+   * (`lib/gider-dagilimi.js`). Tutarların hiçbiri burada yeniden hesaplanmıyor. */
+  const giderDagilim = giderDagilimi(live);
+  const giderDolu = giderDagilim.kalemler.filter((x) => x.tutar > 0);
+  const giderSifir = giderDagilim.kalemler.filter((x) => x.tutar === 0);
+  const giderSeridiEtiketi = giderDolu.length
+    ? `Gider dağılımı: ${giderDolu.map((x) => `${x.ad} ${yuzdeMetni(x.oran)}`).join(", ")}`
+    : "Bu ay hiç gider kaydı yok";
+  /* Alt kalemler yalnızca personelde var; kutu değil, satır altında açılıyor. */
+  const giderAltKalemleri = {
+    personel: [
+      { ad: "Maaş", tutar: live.personelMaas },
+      { ad: "SGK / sigorta", tutar: live.personelSigorta },
+      { ad: "Yemek", tutar: live.personelYemek },
+      { ad: "Kıdem tazminatı", tutar: live.personelTazminat },
+    ],
+  };
   const tahsilatOrani = live.ciro ? Math.round((live.tahsilEdilen / live.ciro) * 100) : 0;
   const chartData = [...monthly, { id: "live", ay: "Bu Ay", yil: new Date().getFullYear(), ciro: live.ciro, gider: live.gider, net: live.net }];
 
@@ -686,16 +933,37 @@ export function Finans({ data, clients, odemeTakvimiIcerigi, onAddGelir, onDelet
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 6, marginBottom: 16, overflowX: "auto", paddingBottom: 2 }}>
-        {FINANS_SEKMELERI.map((s) => (
-          <button key={s.key} onClick={() => setSekme(s.key)}
-            style={{ padding: "12px 15px", borderRadius: 10, border: "none", cursor: "pointer", whiteSpace: "nowrap", background: sekme === s.key ? T.accentSoft : "transparent", color: sekme === s.key ? T.text : T.textDim, fontSize: 13, fontWeight: sekme === s.key ? 700 : 500, fontFamily: "Inter, sans-serif" }}>
+      {/* SEKME ŞERİDİ — dar ekranda SAYFA kaymaz, şerit KENDİ kabında kayar.
+        *
+        * Sekme sayısı kişinin iznine göre değişiyor ve en fazla 8'e çıkıyor; 390px'lik
+        * bir telefonda hepsi sığmaz. `overflowX: auto` + `minWidth: 0` ikilisi taşmayı
+        * şeridin kendi kaydırma bölgesinde tutar: `minWidth: 0` olmadan bir flex çocuk
+        * kendi içeriğinden daha dar olamaz ve taşma DIŞARI, sayfa gövdesine çıkar
+        * ("sayfa gövdesi asla yatay kaymaz" — `marcus-design`).
+        * `flexShrink: 0` düğmeleri ezilmekten korur; ezilselerdi metin kırpılırdı. */}
+      <div role="tablist" aria-label="Finans bölümleri"
+        style={{ display: "flex", gap: 8, marginBottom: 16, overflowX: "auto", paddingBottom: 4, minWidth: 0 }}>
+        {gorunurSekmeler.map((s) => (
+          <button key={s.key} role="tab" aria-selected={aktifSekme === s.key} onClick={() => setSekme(s.key)}
+            style={{ padding: "12px 15px", borderRadius: 10, border: "none", cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0, minHeight: 40, background: aktifSekme === s.key ? T.accentSoft : "transparent", color: aktifSekme === s.key ? T.accentText : T.textDim, fontSize: 13, fontWeight: aktifSekme === s.key ? 700 : 500, fontFamily: "Inter, sans-serif" }}>
             {s.label}
           </button>
         ))}
       </div>
 
-      {sekme === "ozet" && (
+      {/* HİÇ SEKME YOKSA — ne olduğu · neden · ne yapılacağı. Bu ekrana yetkisiz biri
+        * normalde HİÇ ulaşamaz (menüde Finans maddesi de çizilmez, `finansMenudeMi`),
+        * ama bileşen doğrudan çağrılırsa bomboş bir sayfa yerine sebep yazılır. */}
+      {aktifSekme === null && (
+        <Card style={{ padding: "18px 22px" }}>
+          <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif", lineHeight: 1.6 }}>
+            Bu ekranda sana açık bir bölüm yok. Finans için "Finans", ödeme kayıtları
+            için "Ödeme Takvimi" yetkisi gerekiyor — yöneticinden isteyebilirsin.
+          </div>
+        </Card>
+      )}
+
+      {aktifSekme === "ozet" && (
         <>
           {/* SADE ANLATIM — rakamlardan ÖNCE, cümlelerle.
             *
@@ -764,44 +1032,72 @@ export function Finans({ data, clients, odemeTakvimiIcerigi, onAddGelir, onDelet
 
 <Card style={{ padding: "18px 22px", marginBottom: 14 }}>
             <SectionTitle>Para Nereye Gidiyor? <span style={{ fontWeight: 400, opacity: 0.7 }}>— aylık</span></SectionTitle>
-            {/* Kalemler KUTUCUK halinde ve KATLANABİLİR. Personel gibi alt kalemi olanlar
-              * tıklanınca açılır; ilk açılışta kapalıdır — üst seviye rakam yeter, detay
-              * istendiğinde gelir. */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10, marginBottom: 12 }}>
-              {[
-                { key: "personel", ad: "Personel", tutar: live.personelGideri, alt: [
-                  { ad: "Maaş", tutar: live.personelMaas },
-                  { ad: "SGK / sigorta", tutar: live.personelSigorta },
-                  { ad: "Yemek", tutar: live.personelYemek },
-                  { ad: "Kıdem tazminatı", tutar: live.personelTazminat },
-                ] },
-                { key: "ofis", ad: "Ofis gideri", tutar: live.ofisGiderToplam },
-                { key: "musteri", ad: "Müşteri maliyetleri", tutar: live.clientCosts },
-                /* FREELANCER — Operasyon'da o ay TESLİM EDİLEN işlerin iş başı ücretleri.
-                 * Bu kalem bir süre hiç yoktu: para kasadan çıkıyor ama gidere yazılmıyordu. */
-                { key: "freelancer", ad: "Freelancer iş ücretleri", tutar: live.freelancerGideri },
-                { key: "uyelik", ad: "Üyelikler", tutar: live.uyelikGideri },
-                { key: "diger", ad: "Diğer gider kalemleri", tutar: live.giderKalemToplam },
-              ].filter((x) => x.tutar > 0).map((x) => {
-                const altVar = (x.alt || []).some((a) => a.tutar > 0);
-                const acik = acikGider === x.key;
+            {/* ÖNCE TOPLAM, SONRA ORAN ŞERİDİ, SONRA SATIR SATIR DÖKÜM.
+              *
+              * Eskiden altı kutucuk yan yana diziliyordu: her kutuda ayrı bir rakam,
+              * hepsi aynı boyda. Hangi kalemin büyük olduğu ancak altı rakam tek tek
+              * okunarak anlaşılıyordu — oysa bu ekrana gelmenin sebebi tam olarak o soru.
+              * Ekranın tek büyük rakamı artık TOPLAM; kalemler arası oran tek bir
+              * şeritten bakışta okunuyor, döküm altta satır satır duruyor.
+              *
+              * HESAP DEĞİŞMEDİ: rakamların hepsi yine `computeLive`'dan geliyor. Sıra,
+              * oran ve sıfır kalemin sebebi `lib/gider-dagilimi.js`'te — JSX'e gömülen
+              * kural Node'dan çağrılamıyor, yani sınanamıyor (→ marcus-mimari §4). */}
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.4, color: T.textDim, fontFamily: "Inter, sans-serif" }}>BU AY TOPLAM GİDER</div>
+            <div style={{ fontSize: 28, fontWeight: 600, color: T.text, fontFamily: "'IBM Plex Mono', monospace", fontVariantNumeric: "tabular-nums", marginTop: 4 }}>{fmt(giderDagilim.toplam)}</div>
+
+            {/* ORAN ŞERİDİ — tek yatay çizgi. Ekran okuyucuya dağılımın tamamı yazıyla
+              * veriliyor; renk tek başına hiçbir bilgi taşımıyor. */}
+            {giderDolu.length > 0 && (
+              <div role="img" aria-label={giderSeridiEtiketi}
+                style={{ display: "flex", gap: 2, height: 12, marginTop: 16 }}>
+                {giderDolu.map((x, i) => {
+                  const sol = i === 0 ? 6 : 2;
+                  const sag = i === giderDolu.length - 1 ? 6 : 2;
+                  return (
+                    <div key={x.anahtar} title={`${x.ad} · ${yuzdeMetni(x.oran)}`}
+                      style={{ flex: x.tutar, background: GIDER_RAMPASI[i % GIDER_RAMPASI.length], borderRadius: `${sol}px ${sag}px ${sag}px ${sol}px` }} />
+                  );
+                })}
+              </div>
+            )}
+
+            {/* DÖKÜM. Personel gibi alt kalemi olanlar tıklanınca açılır; ilk açılışta
+              * kapalıdır — üst seviye rakam yeter, detay istendiğinde gelir. Tıklanabilir
+              * satır gerçek bir <button>: odak çerçevesini global CSS ondan veriyor. */}
+            <div style={{ display: "flex", flexDirection: "column", marginTop: 16 }}>
+              {giderDolu.map((x, i) => {
+                const alt = (giderAltKalemleri[x.anahtar] || []).filter((a) => a.tutar > 0);
+                const acik = acikGider === x.anahtar;
+                const satirStili = { display: "flex", alignItems: "center", gap: 12, minHeight: 40, width: "100%", padding: 0, background: "none", border: "none", textAlign: "left" };
+                const satirIcerigi = (
+                  <>
+                    <span style={{ width: 10, height: 10, borderRadius: 3, flexShrink: 0, background: GIDER_RAMPASI[i % GIDER_RAMPASI.length] }} />
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: T.text, fontFamily: "Inter, sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {x.ad}
+                      {alt.length > 0 && <span style={{ fontSize: 11, color: T.textFaint, marginLeft: 8 }}>{acik ? "▲" : "▼"}</span>}
+                    </span>
+                    <span style={{ fontSize: 13, color: T.text, fontFamily: "'IBM Plex Mono', monospace", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", textAlign: "right" }}>
+                      {fmt(x.tutar)} <span style={{ color: T.textDim }}>· {yuzdeMetni(x.oran)}</span>
+                    </span>
+                  </>
+                );
                 return (
-                  <div
-                    key={x.key}
-                    onClick={() => altVar && setAcikGider(acik ? null : x.key)}
-                    style={{ background: T.surfaceRaised, borderRadius: 10, padding: "12px 15px", cursor: altVar ? "pointer" : "default" }}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 6 }}>
-                      <span style={{ fontSize: 11, color: T.textDim, fontFamily: "Inter, sans-serif", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{x.ad}</span>
-                      {altVar && <span style={{ fontSize: 11, color: T.textFaint, flexShrink: 0 }}>{acik ? "▲" : "▼"}</span>}
-                    </div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: T.text, fontFamily: "'IBM Plex Mono', monospace" }}>{fmt(x.tutar)}</div>
-                    {acik && (
-                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${T.border}`, display: "flex", flexDirection: "column", gap: 6 }}>
-                        {(x.alt || []).filter((a) => a.tutar > 0).map((a) => (
-                          <div key={a.ad} style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                  <div key={x.anahtar}>
+                    {alt.length > 0 ? (
+                      <button type="button" onClick={() => setAcikGider(acik ? null : x.anahtar)}
+                        style={{ ...satirStili, cursor: "pointer", fontSize: 13, fontFamily: "Inter, sans-serif", color: T.text }}>
+                        {satirIcerigi}
+                      </button>
+                    ) : (
+                      <div style={satirStili}>{satirIcerigi}</div>
+                    )}
+                    {acik && alt.length > 0 && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "4px 0 12px 24px" }}>
+                        {alt.map((a) => (
+                          <div key={a.ad} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                             <span style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif" }}>{a.ad}</span>
-                            <span style={{ fontSize: 13, color: T.textDim, fontFamily: "'IBM Plex Mono', monospace", whiteSpace: "nowrap" }}>{fmt(a.tutar)}</span>
+                            <span style={{ fontSize: 13, color: T.textDim, fontFamily: "'IBM Plex Mono', monospace", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{fmt(a.tutar)}</span>
                           </div>
                         ))}
                       </div>
@@ -810,10 +1106,25 @@ export function Finans({ data, clients, odemeTakvimiIcerigi, onAddGelir, onDelet
                 );
               })}
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
-              <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter, sans-serif", fontWeight: 700 }}>Toplam gider</span>
-              <span style={{ fontSize: 20, color: T.danger, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 700 }}>{fmt(live.gider)}</span>
-            </div>
+
+            {/* SIFIR KALEMLER GİZLENMİYOR — eskiden `.filter((x) => x.tutar > 0)` ile
+              * ekrandan tamamen siliniyorlardı. Satırın yokluğu iki ayrı şey demekti ve
+              * ikisi ayırt edilemiyordu: o ay hiç harcama olmaması ya da rakamın
+              * GİRİLMEMİŞ olması. İkincisi gideri düşük, kârı yüksek gösteriyor. */}
+            {giderSifir.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${T.border}` }}>
+                {giderSifir.map((x) => (
+                  <div key={x.anahtar} style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 3, flexShrink: 0, marginTop: 4, border: `1px dashed ${T.border}` }} />
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif" }}>{x.ad}</span>
+                      <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter, sans-serif", lineHeight: 1.6, marginTop: 4 }}>{x.sebep}</div>
+                    </span>
+                    <span style={{ fontSize: 13, color: T.textFaint, fontFamily: "'IBM Plex Mono', monospace", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>₺0</span>
+                  </div>
+                ))}
+              </div>
+            )}
             {/* RAKAM EKSİKSE SÖYLENİR. Ücreti tanımlanmamış kişi-iş, maliyete SIFIR yazıyor —
               * sessiz kalmak gideri olduğundan düşük, kârı olduğundan yüksek gösterir. */}
             {live.isUcretiEksik > 0 && (
@@ -864,22 +1175,26 @@ export function Finans({ data, clients, odemeTakvimiIcerigi, onAddGelir, onDelet
         </>
       )}
 
-      {sekme === "karsilastirma" && <AyAyKarsilastirma data={data} chartData={chartData} />}
+      {aktifSekme === "karsilastirma" && <AyAyKarsilastirma data={data} chartData={chartData} />}
 
-      {sekme === "raporlar" && <Raporlar data={data} />}
+      {aktifSekme === "raporlar" && <Raporlar data={data} />}
 
-      {/* TAHSİLATLAR — içerik ÇAĞIRANDAN geliyor (`odemeTakvimiIcerigi`). Sebebi YETKİ:
-        * "Ödeme Takvimi" ayrı bir izin; Finans'ı görebilen herkes ödeme kayıtlarını
-        * görmemeli. İzni çağıran taraf biliyor, o yüzden kararı da orada. */}
-      {sekme === "tahsilat" && (odemeTakvimiIcerigi || (
+      {/* ÖDEMELER — eski "Ödeme Takvimi" ekranı. İçerik ÇAĞIRANDAN geliyor
+        * (`odemeTakvimiIcerigi`): ekranın yirmi prop'u App.jsx'te ve orada zaten TEK
+        * bir nesnede toplanıyor (`odemeTakvimiProps`). Sekmenin kendisi `odemeTakvimi`
+        * izniyle çiziliyor (`lib/finans-sekmeleri.js`); aşağıdaki metin yalnızca çağıran
+        * içeriği vermeyi unutursa görünür — sessiz boş ekran yerine sebebi yazan bir
+        * kutu (fail-close). */}
+      {aktifSekme === "tahsilat" && (odemeTakvimiIcerigi || (
         <Card style={{ padding: "18px 22px" }}>
-          <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter, sans-serif", lineHeight: 1.6 }}>
-            Bu bölümü görmek için "Ödeme Takvimi" yetkisi gerekiyor.
+          <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif", lineHeight: 1.6 }}>
+            Ödeme ekranı yüklenemedi. Bu bölümü görmek için "Ödeme Takvimi" yetkisi
+            gerekiyor — yöneticinden isteyebilirsin.
           </div>
         </Card>
       ))}
 
-      {sekme === "gelir-gider" && (
+      {aktifSekme === "gelir-gider" && (
         <>
 <MiniList
           title="Gelirler"
@@ -984,7 +1299,7 @@ export function Finans({ data, clients, odemeTakvimiIcerigi, onAddGelir, onDelet
         </>
       )}
 
-      {sekme === "hesaplar" && (
+      {aktifSekme === "hesaplar" && (
         <>
           {/* HESAP BAKİYELERİ — sekme yalnızca "Banka Hareketleri" gösteriyordu, hesapların
             * kendisi ve bakiyeleri hiç görünmüyordu. Transfer, bakiye düzeltme ve hesap
@@ -1043,7 +1358,7 @@ export function Finans({ data, clients, odemeTakvimiIcerigi, onAddGelir, onDelet
         </>
       )}
 
-      {sekme === "vergi" && (
+      {aktifSekme === "vergi" && (
         <>
 <MiniList
           title="Vergi Takibi"
@@ -1112,6 +1427,12 @@ export function Finans({ data, clients, odemeTakvimiIcerigi, onAddGelir, onDelet
             </div>
           </Card>
         </>
+      )}
+
+      {/* DOĞRULAMA — yalnızca yönetici. `yonetici` şartı burada TEKRAR aranıyor: sekme
+        * listesini süzmek düğmeyi gizler ama `sekme` durumunu garanti etmez. */}
+      {aktifSekme === "dogrulama" && yonetici && (
+        <Dogrulama data={data} live={live} />
       )}
     </div>
   );

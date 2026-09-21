@@ -73,14 +73,39 @@ türetiliyor; o düğmeye hiç basılmamış aylar da görünüyor. Üç kural:
 Ay döngüsünde **sonsuz döngü üst sınırı** var (`lib/ekstre.js` gibi): ölçüldü, koruma
 yokken bozuk bir ay aritmetiği testi sonsuza soktu — tarayıcıda bu kilitlenme demek.
 
-**Para TEK EKRANDA: Finans.** "Ödeme Takvimi" ayrı bir menüydü ve `HesapBakiyeleri` İKİ
-ekranda birden çiziliyordu. Ekran artık Finans'ın içinde bir sekme (`odemeTakvimiIcerigi`
-prop'u); gömülü hâlde `hesaplariGizle` ile hesap tablosu TEKRARLANMIYOR.
-**YETKİ KORUNDU — dikkat:** `odemeTakvimi` AYRI bir izin. Finans'ı görebilen herkes ödeme
-kayıtlarını görmemeli, bu yüzden sekmenin içeriğini ÇAĞIRAN taraf veriyor: personel
-görünümünde `izinler.odemeTakvimi` kapısından geçiyor. Ayrı menü maddesi yalnızca
-"Ödeme Takvimi izni VAR, Finans izni YOK" personeli için duruyor — kaldırılsaydı o kişi
-ekrana hiç ulaşamazdı.
+**Para TEK EKRANDA: Finans — menüde TEK madde.** "Ödeme Takvimi" ayrı bir menüydü ve
+`HesapBakiyeleri` İKİ ekranda birden çiziliyordu. Ekran artık Finans'ın içinde
+**Ödemeler** sekmesi (`odemeTakvimiIcerigi` prop'u); gömülü hâlde `hesaplariGizle` ile
+hesap tablosu TEKRARLANMIYOR. **Ayrı menü maddesi de kaldırıldı** — bir süre yalnızca
+"Ödeme Takvimi izni VAR, Finans izni YOK" personeli için duruyordu, çünkü o kişi aksi
+hâlde ekrana hiç ulaşamazdı.
+
+**YETKİ KORUNDU — kim ne görüyor `lib/finans-sekmeleri.js`'te.** Menüde madde çizilip
+çizilmeyeceğine `finansMenudeMi`, sekmelere `finansSekmeleri` karar veriyor ve İKİ kabuk
+da (yönetici + personel) oradan okuyor:
+
+| İzin | Menüde Finans | Görünen sekmeler |
+|---|---|---|
+| `finans` VAR · `odemeTakvimi` YOK | var | Finans sekmeleri — **Ödemeler YOK** |
+| `finans` YOK · `odemeTakvimi` VAR | **var** | yalnızca **Ödemeler** |
+| ikisi de VAR | var | hepsi (Doğrulama hariç) |
+| ikisi de YOK | **yok** | — |
+
+Doğrulama sekmesi yalnızca yöneticide (`yonetici` prop'u, varsayılanı kapalı).
+`odemeTakvimi` AYRI bir izin olarak DURUYOR — Finans'ı görebilen herkes ödeme kayıtlarını
+görmemeli. Sekmenin içeriğini yine ÇAĞIRAN taraf veriyor, yani izinsiz kişide
+`<OdemeTakvimi>` hiç MOUNT EDİLMİYOR.
+
+**Ama gizli sekme bir güvenlik sınırı değildir ve burada gerçekten değil:**
+`PERMISSION_DATA_FIELDS.odemeTakvimi` (`clients`, `hesaplar`, `hesapTransferleri`,
+`hesapDuzeltmeleri`) `finans` izninin alan listesinin **tamamen içinde**. Yani
+`finans`-only bir personele ödeme kayıtları (`clients[].odemeKayitlari`) ve hesap
+bakiyeleri zaten gidiyor; Ödemeler sekmesini gizlemek onları YÜZEYden kaldırır, ağdan
+değil. Daraltmak istenirse yapılacak iş `clients` alanının izne göre alan alan
+süzülmesidir — ayrı ve daha büyük bir karar (→ `marcus-yetki`).
+Personelin ödeme ekranında **personel ödemeleri ve avanslar boş görünür**: `avanslar` ve
+`personelOdemeleri` hiçbir izin listesinde yok, yani sunucu onları personele hiç
+göndermiyor (bugünkü davranış, değişmedi).
 
 **Ön muhasebe üç saf modülde**: `lib/para-hareketleri.js` (dönem dökümü),
 `lib/sade-ozet.js` (düz Türkçe anlatım), `lib/muhasebe-belgesi.js` (yazdırılabilir rapor).

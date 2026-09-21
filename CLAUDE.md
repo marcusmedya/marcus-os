@@ -52,7 +52,7 @@ TEK bir JSON belgesi** olarak `marcus-os-data` anahtarında duruyor.
 src/         React arayüzü (Vite ile derlenir)
 api/         Vercel serverless fonksiyonları — HER DOSYA BİR FONKSİYON
 lib/         Ortak mantık — hem api/ hem src/ buradan import eder, fonksiyon SAYILMAZ
-testler/     111 test dosyası (t1…t111) + 27 statik denetim betiği
+testler/     115 test dosyası (t1…t115) + 27 statik denetim betiği
 .claude/     Komutlar, ajanlar ve UZMANLIK SKILL'LERİ — aşağıdaki tablo
 ```
 
@@ -122,7 +122,7 @@ eklerken yeni dosya AÇMA** — mevcut bir uca yeni bir `action` ekle. Örnek:
 
 **Bileşen gövdesindeki her satır İLK RENDER'DA da çalışır — `data` o an `null`.**
 `operasyonOrtakProps` nesnesi JSX'ten gövdeye taşınınca `data.clients` null üzerinden
-okundu ve uygulama SİYAH EKRANLA açılmadı; üretime böyle çıktı. Derleme ve 2297 kontrolün
+okundu ve uygulama SİYAH EKRANLA açılmadı; üretime böyle çıktı. Derleme ve 2717 kontrolün
 hiçbiri yakalamadı çünkü hiçbiri uygulamayı gerçekten ÇİZMİYOR. Gövdede `data`ya
 dokunuyorsan `const veriKaynagi = data || {}` gibi bir korumadan geç.
 
@@ -132,6 +132,17 @@ yazılıydı ve bu oturumda üç kez yalnızca birine eklendi: yeni yetenek diğ
 görünmedi. Role özel olanlar (yetki alanları, ücret/avans) çağrı yerinde kalır. **Nesne,
 kullandığı fonksiyonlardan SONRA tanımlanmalı** — önce tanımlanırsa çalışma anında
 "before initialization" hatası verir ve derleme bunu yakalamaz.
+
+**Para ekranları TEK "Finans" menüsünde; sekmeler İZNE göre çizilir**
+(`lib/finans-sekmeleri.js`). "Ödeme Takvimi" ayrı bir menü maddesiydi ve yalnızca
+`odemeTakvimi` izni olup `finans` izni OLMAYAN personel için duruyordu. İki izin de
+YERİNDE: `finans` Finans sekmelerini, `odemeTakvimi` yalnızca **Ödemeler** sekmesini,
+Doğrulama yalnızca yöneticiyi açar; hiçbiri yoksa menüde madde çizilmez. **Kuralı
+menünün ya da bileşenin içine geri yazma** — iki kabuk (yönetici + personel) ve bileşen
+aynı saf modülden okuyor; kopyalandığı an biri güncellenir, diğeri sessizce bayatlar.
+**Gizli sekme güvenlik sınırı değildir**: `odemeTakvimi`nin açtığı alanların HEPSİ zaten
+`finans` izninin de içinde (`PERMISSION_DATA_FIELDS`), yani sekmeyi gizlemek veriyi
+gizlemez — ayrıntı `marcus-yetki`'de.
 
 **Bir davranış değiştiğinde personel ve çözüm ortağı panellerini de kontrol et** —
 kullanıcının açık talimatı bu. Müşteri ve çözüm ortağı görünümünün tek kaynağı
@@ -165,7 +176,7 @@ Komutlar: **`/dogrula`** · **`/olc`** · **`/yayinla`**.
 
 ```bash
 bash testler/hepsinidenetle.sh     # 27 statik denetim (sözdizimi, JSX, hook, kapsam…)
-./testler/sunucutestleri.sh        # t1…t111, 2570 kontrol — SAHTE veritabanı kullanır
+./testler/sunucutestleri.sh        # t1…t115, 2717 kontrol — SAHTE veritabanı kullanır
 npm run build                      # üretim derlemesi
 npm run test:acilis                # TARAYICI açılış testi — uygulamayı gerçekten çizer
 ls api/*.js | wc -l                # 12'yi GEÇMEMELİ
@@ -192,10 +203,11 @@ karar süzgeçten GERİYE KALAN satırlara göre veriliyor.
 **Tarayıcı açılış testi — `testler/tarayiciAcilis.mjs`.** Yukarıdaki diğer üç adımın
 hiçbiri uygulamayı ÇİZMİYOR; siyah ekran hatası tam olarak bu boşluktan üretime çıktı.
 Test derlenmiş uygulamayı `127.0.0.1`'de açar, `#root` içine gerçekten içerik çizildiğini
-ve açılışta yakalanmamış JS hatası olmadığını doğrular. **Beş senaryo, 66 kontrol**:
+ve açılışta yakalanmamış JS hatası olmadığını doğrular. **Dokuz senaryo, 125 kontrol**:
 boş veritabanı · dolu veritabanı · **müşteri detay paneli** · **sağlıklı marka paneli** ·
-**dar ekranda müşteri paneli**. **Ölçüldü**: hata bileşen gövdesine geri konulduğunda
-derleme 0, denetimler 0, 2570 kontrol geçiyor — yalnızca bu test düşüyor.
+**dar ekranda müşteri paneli** · **Finans → Doğrulama sekmesi** · **personel finans sekmeleri** ·
+**yalnızca ödeme takvimi izni** · **dar ekranda finans sekmeleri**. **Ölçüldü**: hata bileşen gövdesine geri konulduğunda
+derleme 0, denetimler 0, 2717 kontrol geçiyor — yalnızca bu test düşüyor.
 
 **Açılış yetmiyor, DERİN EKRAN da çiziliyor.** İlk iki senaryo Dashboard'da duruyordu:
 `ClientDetail` hiç mount edilmiyordu ve panelin 441 satırlık çizimi hiçbir katman

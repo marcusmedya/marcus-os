@@ -6378,3 +6378,440 @@ altısında da aynı şerit, aynı "3. ay", gecikmelide aynı 6 ay / 72.000 ₺.
 erişilemezliği) bilerek olduğu gibi bırakıldı.
 
 27 denetim · 2570 kontrol · derleme 0 · tarayıcı **66/66** · 11/12 fonksiyon.
+
+---
+
+## Güncelleme 186: "Para Nereye Gidiyor?" — Sıfır Kalem Artık Kayboluyor Değil, Sebebini Söylüyor
+
+### Asıl sorun: filtre bir bilgiyi yok ediyordu
+
+Panel altı gider kalemini kutucuk ızgarasında çiziyor ve sonunda
+`.filter((x) => x.tutar > 0)` yapıyordu. **Tutarı sıfır olan kalem ekranda hiç yoktu.**
+Bir satırın yokluğu iki apayrı şey demekti ve ikisi ayırt edilemiyordu:
+
+- o ay o kalemde gerçekten harcama olmadı,
+- ya da rakam **girilmedi** — örneğin işler teslim edildi ama iş başı ücretleri
+  tanımlanmadı. Bu ikincisinde gider olduğundan düşük, kâr olduğundan yüksek görünüyor.
+
+Kalemler artık silinmiyor: tutarı sıfır olan kalem ayırıcı çizginin altında, kesik
+çizgili boş kutusu ve **neden sıfır olduğunu söyleyen** bir satırla duruyor
+("Operasyon'da bu ay teslim edilen işlere ücret girilmemiş", "Gelir-Gider sekmesinde
+kalem yok"…). Eksikliği söylemek, sessizce sıfır yazmaktan her zaman iyidir — aynı
+disiplin `lib/sade-ozet.js`'te de var.
+
+### Kural JSX'ten çıktı: `lib/gider-dagilimi.js` (**saf**)
+
+Kalem listesi, sırası ve oranı JSX'in ortasında bir dizi sabitiydi; orada duran hiçbir
+kural Node'dan çağrılamıyor, yani hiçbir test onu sınayamıyor (`marcus-mimari` §4 — bu
+sınıftan dört hata çıktı). `giderDagilimi(live)` artık `{ toplam, kalemler }` döndürüyor:
+
+- `oran` 0–1 arası bir **sayı**, yüzde metni değil (biçim çağıranın işi: tutarlar
+  Gizlilik Modu'ndan geçiyor, modül tema bilmiyor),
+- `sebep` tutarı olan kalemde `null`, sıfır kalemde kısa bir Türkçe açıklama,
+- sıra: tutarı olanlar büyükten küçüğe, **sıfırlar en sonda** ve kendi aralarında sabit
+  sırada (her açılışta yer değiştiren liste okunamaz),
+- toplam 0 iken bölme yapılmıyor, oranlar 0 — `NaN` yok.
+
+`yuzdeMetni(oran)` de aynı modülde: **%1'in altındaki pay tam sayıya yuvarlanıp "%0"
+olmuyor**, bir ondalıkla yazılıyor ("%0,6"). Yuvarlansaydı gerçekten sıfır olan kalemden
+ayırt edilemezdi.
+
+**Hesaba dokunulmadı.** Bütün tutarlar yine `computeLive`'dan olduğu gibi okunuyor;
+`toplam` altı kalemin toplamı, yani `live.gider` ile aynı büyüklük. Rakamlar birebir
+aynı.
+
+### Ekran: ızgara gitti, sıralı döküm geldi
+
+Altı kutucuk aynı boydaydı ve hangi kalemin büyük olduğu ancak altı rakam tek tek
+okunarak anlaşılıyordu — oysa bu ekrana gelmenin sebebi tam olarak o soru. Yeni düzen
+yukarıdan aşağı:
+
+1. **"BU AY TOPLAM GİDER"** etiketi + 28px IBM Plex Mono `tabular-nums` toplam.
+   Ekranın tek büyük rakamı bu ("sessiz yüzey, konuşan sayı").
+2. **Tek yatay oran şeridi** (yükseklik 12, `flex: tutar`). Tutarı sıfır olan kalem
+   şeritte yer almaz. `role="img"` + `aria-label` dağılımın tamamını yazıyla veriyor —
+   renk tek başına hiçbir bilgi taşımıyor.
+3. **Satır listesi**: 10px renk kutusu · ad · sağa hizalı mono tutar `· %oran`.
+   Personel'in katlanabilir alt kalemleri (maaş / SGK / yemek / kıdem) korundu, kutudan
+   satıra taşındı; tıklanabilir satır artık gerçek bir `<button>` — odak çerçevesini
+   global CSS ondan veriyor.
+4. Altta, ayırıcı çizginin ardından **sıfır kalemler**.
+
+Renk **tek indigo rampası** (`#C3CBFF` → `#5B6EF5`), büyükten küçüğe. İkinci bir vurgu
+rengi icat edilmedi ve durum renkleri (success/warning/danger) burada kullanılmıyor: bir
+gider kalemi "iyi" ya da "kötü" değil, yalnızca büyük ya da küçük. Renk kimlik de
+taşımıyor — kimliği satır etiketi taşıyor. Rampa `T`'ye alınmadı çünkü tema jetonu değil,
+sıralı bir veri rampası: tonlar arasındaki **fark** anlam taşıyor ve iki temada da aynı
+kalmalı. Boşluklar 4/8/12/16, radius 10, gölge ve gradient yok.
+
+"Bu toplam eksik: N iş–kişi eşleşmesinde iş başı ücret tanımlı değil" uyarısı olduğu gibi
+duruyor.
+
+### Ölçüm
+
+`testler/t112.mjs` — **38 kontrol**, yedi bölüm, sonda `BEKLENEN` bekçisi (bir bölüm
+`await` edilmezse test sessizce 0 ile çıkardı — t95 bunu yaşadı). Fixture `computeLive`
+çıktısının **bütün** alanlarını taşıyor ve hiçbir iki gider kalemi eşit değil; büyüklük
+sırası tanım sırasıyla çakışmıyor, yani sıralama hiç çalışmasa geçen bir kontrol yok.
+
+**Kırarak ölçüldü:** `sebep` üretimi kaldırılıp her kalemde `null` bırakıldığında
+**6 kontrol düştü** — freelancer/ofis/diğer sebep metinleri, "her kalem sebebini
+söylüyor", personel ve müşteri maliyeti sebepleri. Aynı kırıkla **27 statik denetim ve
+derleme yeşil kaldı** (çıkış kodu 0) — bu korumayı ölçen tek katman t112.
+
+Zincir: 27 denetim ✓ · **2608 kontrol** (t1…t112) ✓ · derleme ✓ · tarayıcı açılışı
+66 kontrol ✓ · `api/` 11 fonksiyon.
+
+**Ölçülemeyen:** panelin yeni çizimi hiçbir katman tarafından ÇİZİLEREK sınanmıyor —
+`testler/tarayiciAcilis.mjs` Dashboard ve müşteri detayını açıyor, Finans → Özet
+sekmesini açmıyor. Yani "sıfır kalem ekranda görünüyor" iddiası modül düzeyinde ölçüldü,
+ekran düzeyinde ölçülmedi. Bilinen boşluk; ayrı bir iş.
+
+---
+
+## Güncelleme 187: Birleşik Finans Hareketleri Katmanının TEMELİ (ekran yok, migrasyon yok)
+
+**Bu bir hazırlık adımı.** Ekran eklenmedi, belgeye yazılmadı, hiçbir mevcut hesap
+değiştirilmedi. Eklenen tek şey iki SAF modül ve onları kırarak ölçen bir test.
+
+### Sorun
+
+Para kayıtları belgede **on beş ayrı listede** ve her biri farklı şekilli duruyor: kimi
+`ay` taşıyor, kimi `tarih`, kimi hiçbiri; kimi `kalem` diyor, kimi `kisiAd`; kimi tutarı
+hiç tutmuyor (`vergiTakvimi`). Her ekran kendi listesini kendi kuralıyla topluyor. Bu,
+bu projenin en pahalı hata sınıfının doğduğu yer: *"aynı dönemi iki ekran farklı toplarsa
+hangisinin doğru olduğu sorusu cevapsız kalır"* (`marcus-operasyon/references/para.md`).
+
+### Ne yapıldı
+
+**`lib/finans-hareketleri.js` (saf)** — on beş kaynağı TEK normalleştirilmiş kayıt biçimine
+çevirir: `id · tur · kaynakAlan · kaynakId · tarih · donem · tutar · kdv · stopaj · kisi ·
+kategori · hesapId · durum · aciklama · eksikBilgi · donusturuldu`.
+
+Katmanın **üstüne** kuruldu, altına değil — **hiçbir rakam yeniden hesaplanmadı**:
+- ayı çözen kural `lib/para-hareketleri.js` → `kaydinAyi`, **kopyalanmadı, import edildi**
+- freelancer hak edişi `lib/is-ucreti.js` → `isUcretiHesapla`, aynı şekilde
+- **KDV oranı koda gömülmedi.** Kayıtta hesaplanmış bir KDV varsa taşınır, yoksa `null`
+  ve `eksikBilgi`ye `"kdv"` yazılır. Stopaj da öyle.
+
+Beş ayrım kodda ayrı türler olarak duruyor ve karıştırılamıyor: **tahsilat ≠ gelir ≠
+fatura**, **gider ≠ ödeme** (avans `kategori: "avans"` ve ikinci kez gider sayılmaz),
+**hak ediş ≠ ödeme**, **transfer ne gelir ne gider**, ve **`monthly` hareket değildir** —
+o bir eski dönem fotoğrafı, hiç dönüştürülmüyor.
+
+**Tarihin üç hâli de gizlenmiyor.** Çözülebilen kayıt döneme düşer. Hiç tarihi olmayan
+tanımlar (gider kalemleri, ofis, üyelik, personel, marka maliyetleri, bekleyen tahsilat)
+ve tarihi ÇÖZÜLEMEYEN kayıtlar (`hesapTransferleri` ekran biçimi "20.09.2026",
+`vergiTakvimi` serbest metin "26 Ağu") listeden düşmez: `donem: null`, `tarihsiz`
+sayacı ve `uyarilar`da kaynağıyla bildirilir.
+
+**Kimlik kararlıdır** — `kaynakAlan` + `kaynakId`den türetilir, rastgele değil. İç içe
+kayıtlar üst kaydın kimliğini de taşır (`clients.maliyetler#2/1`): iki markanın da
+1 numaralı maliyeti olduğu için bu olmadan biri migrasyonda sessizce kaybolurdu.
+
+**Modül `new Date()` ÇAĞIRMAZ** — `donusturulmeTarihi` parametre olarak gelir. Saflık
+şartı; `denetim 24` ve t107 yöntemi bunu ölçüyor.
+
+**`lib/finans-mutabakat.js` (saf)** — gerçek migrasyonun önündeki KAPI. Eski motorun
+toplamlarıyla yeni hareketlerden türetilenleri satır satır yan yana koyar (tahsilat,
+ödeme, fatura, gider parçaları, ek gelir, bekleyen alacak, hesap bakiyeleri, tarihsiz
+kayıt sayıları). **Tek kuruş fark `bloke: true`** ve `sebepler` ne tutmadığını insan
+diliyle yazar. Eski taraf yeniden hesaplanmaz: `computeLive`, `hesapBakiyesi`,
+`lib/para-hareketleri.js` ve `lib/ekstre.js` çağrılır.
+
+İlk ikisi `.jsx` içinde ve Node'dan import edilemiyor, bu yüzden **dışarıdan veriliyor**;
+verilmezlerse modül **fail-close** davranır — "karşılaştıramadım" da bloke eder, çünkü
+ölçülmemiş bir rakamı "tutuyor" saymak tam olarak önlenmek istenen şey.
+
+**Bilerek karşılaştırılmayan tek rakam: üyeliğin aylık karşılığı.** Yıllık üyeliği
+`tutar / 12`'ye çeviren ve efektif aktifliği bitiş tarihinden bulan kurallar arayüz
+katmanında yaşıyor; üçüncü bir kopyasını mutabakata yazmak bu dosyanın var oluş sebebiyle
+çelişirdi. Bu yüzden para satırı üyeliği dışarıda bırakıyor ("Aylık gider — üyelik hariç")
+ve üyelik ayrıca **sayıyla** mutabakata giriyor: dönüşümde bir üyelik kaybolursa yakalanır.
+
+### Ölçüm
+
+`testler/t113.mjs` — **47 kontrol**, on bölüm, sonda `BEKLENEN` bekçisi. Fixture gerçek
+belgenin **bütün** üst düzey alanlarını taşıyor, hiçbir iki tutar eşit değil ve gerçek
+biçim çeşitliliğini temsil ediyor: yalnızca `ay` taşıyan eski kayıt, ne ayı ne tarihi olan
+kayıt, ekran biçimli transfer tarihi, tutarsız vergi kaydı, dondurulmuş marka, teslim
+edilmemiş iş. Mutabakatın "eski" tarafı **gerçekten çağrılıyor**: `src/tema.jsx` esbuild
+ile çevriliyor (t107 yöntemi), `src/finans.jsx` ise React'e bağlı olduğu için paketlenerek
+alınıyor — yeni bağımlılık yok, geçici dosyalar `process.on("exit")` ile siliniyor.
+
+**Kırarak ölçüldü — iki ayrı bozma:**
+
+| Bozma | Düşen kontrol | Hangileri |
+|---|---|---|
+| `kaydinAyi` yerine yalnızca `tarih` alanına bakan sürüm | **4** | "tarihsiz sayacı hareket sayısıyla tutuyor" · "bütün satırlar tutuyor" · "tutuyorsa bloke YOK" · "tarihsiz kayıt sayısı da mutabakata giriyor" |
+| Transfer gider toplamına dahil edildi (`tur: "gider"`) | **3** | "transfer iki bacak üretiyor, ikisi de gelir/gider değil" · "bütün satırlar tutuyor" · "tutuyorsa bloke YOK" |
+
+İkinci bozmada mutabakat **bloke etti** ve dört satırı adıyla bildirdi: aylık gider
+(64.000 → 69.000), transferin gider payı (0 → 5.000) ve İKİ hesap bakiyesi birden
+(Ana Hesap +2.500, Nakit Kasa −2.500). Yani kapı çalışıyor.
+
+**Her iki bozmada da 27 statik denetim ve derleme YEŞİL kaldı** (çıkış kodu 0). Bu
+korumaları ölçen tek katman t113.
+
+Zincir: 27 denetim ✓ · **2655 kontrol** (t1…t113) ✓ · derleme ✓ · tarayıcı açılışı
+66 kontrol ✓ · `api/` 11 fonksiyon (dokunulmadı).
+
+### Ölçülemeyen / bilinen boşluklar
+
+- **Ekran yok**, dolayısıyla bu katman hiçbir kullanıcı akışında ÇİZİLMİYOR. Tarayıcı
+  testi onu göremez; iddia yalnızca modül düzeyinde ölçüldü.
+- **Üyeliğin aylık karşılığı mutabakata girmiyor** (yukarıdaki gerekçe). Bir üyeliğin
+  TUTARI yanlış dönüştürülürse bu kapı onu yakalamaz — sayısı kaybolursa yakalar.
+- `hesapBakiyesi` hâlâ `src/finans.jsx` içinde bir para hesabı; teste ancak paketleme
+  hilesiyle açılıyor (`marcus-mimari` §4'ün uyardığı sınıf). Taşımak ayrı bir iş.
+- `hesapTransferleri` ve `vergiTakvimi` tarihleri belgede **ekran biçiminde** duruyor;
+  bu katman onları döneme yazamıyor, yalnızca sayıp bildiriyor. Gerçek çözüm kaydın
+  tarihini ISO tutmaktır — ayrı ve daha büyük bir iş.
+
+---
+
+## Güncelleme 188: Elle Yedek Alma + Yönetici Doğrulama Ekranı (finans birleştirmesi aşama 2 ve 4)
+
+Aşama 1 (Güncelleme 187) yeni finans katmanının **temelini** kurmuştu ama iki bilinen
+boşluk bırakmıştı: katmanın hiçbir **ekranı** yoktu (yani hiçbir kullanıcı akışında
+çizilmiyordu) ve riskli bir işten hemen önce **elle yedek almanın** yolu yoktu. Bu
+güncelleme ikisini kapatıyor. **Hiçbir tutar hesabına dokunulmadı**; `computeLive`,
+`hesapBakiyesi` ve mevcut sekmelerin hepsi olduğu gibi duruyor.
+
+### 1 · Elle yedek alma — `api/backup.js` → `action: "yedekAl"`
+
+Yedekler bugüne kadar iki yerden oluşuyordu: her yazmada (`guvenliYaz` → günlük + saatlik
+anlık görüntü) ve gece cron'undan (`api/daily-backup.js` → e-posta). İkisi de OTOMATİK.
+Sonuç: kullanıcı bir yedek almak istediğinde **veriyi değiştirmek zorundaydı** — riskli
+bir işe girişmeden önce bilerek bir durak koymanın yolu yoktu.
+
+**Yeni uç AÇILMADI** (11/12 dolu): mevcut yedek ucuna bir `action` eklendi.
+
+**İlk sürüm bu işi YAPMIYORDU — kusur inceleme sırasında yakalandı ve düzeltildi.**
+Yedek günün otomatik anahtarına (`marcus-os-snapshot-<bugun>`) yazılıyordu; oysa
+`guvenliYaz` HER güvenli yazmada zaten oraya yazıyor (`lib/kv-yaz.js`). Yani düğmeye
+basmak, son kaydın oraya koyduğu içeriği aynı anahtara tekrar yazmaktan ibaretti ve
+**yeni bir geri dönüş noktası oluşmuyordu**: bundan sonraki ilk kayıt o noktayı eziyordu.
+Kullanıcı "riskli işlemden önce güvenlik noktası aldım" sanıyor, elinde zaten var olandan
+başka bir şey yok — etiketinin vaat ettiğini yapmayan bir özellik. İlk testler bunu
+göremiyordu çünkü "anahtar yazıldı mı, deftere düştü mü" diye bakıyorlardı; düğmenin İŞE
+YARADIĞINA bakan kontrol yoktu.
+
+Anahtar artık `marcus-os-snapshot-<YYYY-AA-GG>-elle-<SSDD>`. Önek aynı ailede kaldığı için
+listeleme (`kv.keys`), anahtar doğrulaması (`gecerliYedekAnahtari`) ve geri yükleme
+**değişmeden** çalışıyor — t114 üçünü de ayrıca sınıyor — ama hiçbir otomatik yazma artık
+üstüne gelmiyor. Damga dakika çözünürlüklü ve bu bilinçli: saniyeler arayla alınmış iki
+nokta pratikte aynı noktadır.
+
+**Ömür açık TTL ile 30 gün.** `api/data.js`'teki 30 günlük süpürücü anahtarın tarih kısmını
+`new Date(d)` ile ayrıştırıyor; damgalı ad `Invalid Date` veriyor, karşılaştırma `false`
+dönüyor ve kayıt **asla silinmiyordu** (ölçüldü). Süpürücüye güvenmek yerine ömür uçta
+açıkça yazılıyor.
+
+Dört karar:
+
+- **Ana belgeye YAZMIYOR.** `guvenliGuncelle`/`guvenliYaz` çağrılsaydı `_v` boşuna artar
+  ve o anda açık olan her sekme kendini bayat sanardı — yedek almak kimsenin işini
+  bölmemeli. Yine de **kilit alınıyor**: kilitsiz okunan belge "oku → değiştir → yaz"
+  döngüsünün ortasından gelebilir ve o ara hâl yedek diye dondurulurdu.
+- **`islemId` ile tekrara dayanıklı.** Kontrol kilidin İÇİNDE; kimlik yalnızca gerçekten
+  yazıldıysa işaretleniyor. 503'te işaretlenseydi tarayıcının otomatik tekrarı "bunu zaten
+  yaptım" sanılır ve yedek hiç alınmazdı.
+- **Yan etki tekrarda çalışmıyor.** Tekrarlanan istek ne yeni anlık görüntü yazar ne de
+  güvenlik defterine ikinci satır düşer. Anahtar gün bazlı olduğu için "ikinci dosya"
+  zaten oluşmazdı; korunan şey, ARADA DEĞİŞMİŞ belgenin ilk yedeğin üstüne yazılmaması.
+- **Bozuk ya da boş belge yedeklenmiyor** (`belgeOkunabilirMi`). Böyle bir "yedek" listede
+  sağlam görünür; kullanıcı gerçekten sağlam olan kopyayı aramak yerine ona güvenirdi.
+
+Arayüz: **Ayarlar → Veri → Otomatik Yedekler**, listenin hemen üstünde "Şimdi yedek al"
+(ikincil düğme — bu ekranın birincil eylemi yedek almak değil, bir hâle DÖNMEK). Yükleniyor
+durumunda metin eyleme dönüyor ve düğme kilitleniyor. Güvenlik defterinde gece yedeğinden
+ayrı bir türle görünüyor: `yedek-elle-alindi`.
+
+**Listede ayırt ediliyor:** elle alınan kayıt "21 Eylül 2026 — saat 14:32 · elle alındı"
+diye yazılıyor ve yanında **"Elle"** rozeti duruyor. Liste yalnızca tarih gösterseydi
+"günün otomatik hâli" ile "benim aldığım nokta" aynı satır gibi görünürdü; geri dönerken
+hangisine döndüğünü bilmek tam da bu ekranın işi.
+
+### 2 · Finans → Doğrulama sekmesi (yalnızca yönetici)
+
+`lib/finans-mutabakat.js`'in çıktısı artık ekranda. Bu bir **karşılaştırma** ekranı, yani
+tablo birincil ve kart yok (`kompozisyon.md` §2). Üç blok:
+
+1. **Tek karar satırı** (kart değil): tutuyorsa `success`, tutmuyorsa `danger` ve kaç
+   satırda fark olduğunu + geçişin ENGELLENDİĞİNİ söyler. **Sağlıklı durumda birincil
+   düğme çizilmez** — müşteri panelinde kurulan kuralın aynısı.
+2. **Mutabakat tablosu**: Satır · Eski · Yeni · Fark. Sayılar sağa hizalı, IBM Plex Mono,
+   `tabular-nums`; farkı sıfır olmayan satır `danger`; zebra yok, ayrım `borderSoft`.
+3. **Eksik bilgi özeti**: kaç hareket tarihsiz, kaç kayıtta KDV/stopaj bilinmiyor, hangi
+   kaynaklar uyarı üretti. **Sayı çıplak bırakılmıyor, yorumlanıyor**: "13 hareket
+   tarihsiz — dönem raporlarında görünmüyor".
+
+İki küçük saf modül eklemesi bu ekran için yapıldı ve ikisi de **JSX'e gömülmedi**
+(`marcus-mimari` §4 — gömülen kural Node'dan çağrılamaz, yani sınanamaz):
+
+- `eksikBilgiOzeti(hareketler)` (`lib/finans-hareketleri.js`) — `eksikBilgi` etiketlerini
+  sayar. Yeni kural üretmiyor, hiçbir rakam hesaplamıyor.
+- Mutabakat satırları artık **birimini kendileri taşıyor** (`birim: "tl" | "adet"`). Ayrımı
+  ekranda `ad.includes("(adet)")` diye yapmak, başlık metni değişince sessizce kopan bir
+  kural olurdu ve adet satırına "₺3" yazılırdı.
+
+`finansMutabakati` eski tarafı DIŞARIDAN istiyor (`computeLive` ve `hesapBakiyesi` `.jsx`
+içinde ve Node'dan import edilemiyor); çağrı yerinde veriliyor — verilmeseydi modül
+fail-close davranıp `bloke: true` döndürür ve ekran **yanlış alarm** verirdi.
+
+**Yetki:** sekme yalnızca yöneticiye çiziliyor ve şart iki yerde birden aranıyor (sekme
+listesi süzgeci + içerik dalı). Prop'un varsayılanı `false`, yani prop vermeyen bir çağrı
+yeri sekmeyi açmaz, kapatır. Personel kabuğundaki `<Finans>` çağrısı prop'u vermiyor.
+
+### Ölçüm
+
+- `testler/t114.mjs` — **29 kontrol**, yedi bölüm, sonda `BEKLENEN` bekçisi. Sahte
+  veritabanı; gerçek Redis'e dokunulmuyor. Yedinci bölüm yukarıdaki kusurdan doğdu ve
+  **davranışa** bakıyor: yedek alındıktan sonra gerçek yazma yolu (`guvenliYaz`)
+  çağrılıyor ve elle alınan noktanın içeriğinin DEĞİŞMEDİĞİ doğrulanıyor.
+  "Yedek yazılmadı" iddiaları da sabit anahtar yerine **anahtar ailesinin tamamını**
+  sayıyor — sabit bir ada bakan kontrol yeni şemada her zaman `null` görüp boş yere geçerdi.
+- `testler/t113.mjs` — 47 → **56 kontrol** (`eksikBilgiOzeti` ve satır birimi).
+- `testler/tarayiciAcilis.mjs` — **altıncı senaryo**: Finans → Doğrulama sekmesi gerçekten
+  açılıyor ve çiziliyor. 66 → **84 kontrol**. Fixture bugüne GÖRELİ kurulu (mutabakatın iki
+  satırı ay bazlı ve `computeLive` `new Date()`e bakıyor) ve **bilerek tutuyor** — böylece
+  "sağlıklı dal çizildi" ile "sağlıklı dalda birincil düğme YOK" aynı senaryoda ölçülüyor.
+  Yatay kayma İKİ yerde: belge/gövde ve tablonun kendi kaydırma kabı.
+
+**Kırarak ölçüldü — iki ayrı bozma:**
+
+| Bozma | Düşen kontrol | Hangileri |
+|---|---|---|
+| Doğrulama ekranı mutabakat tablosunu hiç çizmiyor | tarayıcı testinde **9** | "Doğrulama sekmesine tıklayınca içerik çizildi" · "karar şeridi TUTUYOR dalını çizdi" · "mutabakat tablosunda 20 satır var" · "satır adları çizildi" · "tahsilat satırının tutarı doğru" · "eksik bilgi özeti çizildi" · "uyarı üreten kaynaklar adıyla yazıldı" · "birincil düğme YOK" · "yatay KAYMA yok" |
+| `yedekAl`'dan `islemId` kontrolü kaldırıldı | t114'te **3** | "tekrar bildiriliyor" · "yedek İLK hâlde kaldı — değişen belge üstüne YAZILMADI" · "YAN ETKİ TEKRARLANMADI — deftere ikinci satır düşmedi" |
+| Elle yedek günün otomatik anahtarına yazılıyor (**gerçek kusurdu, düzeltildi**) | t114'te **3** | "elle yedek, günün OTOMATİK anahtarından farklı bir ada yazılıyor" · "sonraki kayıttan SONRA elle yedeğin içeriği DEĞİŞMEDİ" · "elle yedek hâlâ YEDEK ANINDAKİ belgeyi taşıyor" |
+
+Birinci bozmada **27 denetim, derleme ve 2687 sunucu kontrolünün hepsi YEŞİL kaldı**
+(çıkış kodu 0) — o ekranı ölçen tek katman tarayıcı testi. İkinci bozmada **denetimler,
+derleme ve tarayıcı testi yeşil kaldı** — kimliği ölçen tek katman t114.
+
+Üçüncü satır bir **tahmin değil ölçüm**: kontrol kusurlu kod üzerinde önce yazıldı, üç
+kontrolün düştüğü görüldü ("elle yedeğin içeriği" kontrolü sonraki belgeyi gösteriyordu),
+sonra düzeltildi ve geçtiği görüldü.
+
+Zincir: 27 denetim ✓ · **2693 kontrol** (t1…t114) ✓ · derleme ✓ · tarayıcı **84 kontrol** ✓ ·
+`api/` 11 fonksiyon (dokunulmadı).
+
+### Ölçülemeyen / bilinen boşluklar
+
+- **`yedekAl` içindeki ikinci yönetici kontrolü KALDIRILDI.** Ucun kapısı (`checkAuth`)
+  owner dışında kimseyi içeri almıyor ve 401 döndürüyor; action içindeki 403 dalı bu
+  yüzden asla çalışmıyordu, yani hiçbir test onu düşüremiyordu. Ölçülemeyen savunma kodu
+  yük olduğu için silindi ve yorumda kapının nerede olduğu yazıldı.
+- **Elle yedek anahtarı DAKİKA çözünürlüklü.** Aynı dakika içinde farklı `islemId` ile iki
+  kez basılırsa ikisi tek noktaya iner. Bilinçli ödün; saniyeler arayla alınmış iki nokta
+  pratikte aynı noktadır.
+- **Tarayıcı senaryosu yalnızca TUTAN dalı çiziyor.** Mutabakatın `bloke: true` dalı
+  ekranda hiç çizilmedi; o dalın metni ve rengi yalnızca modül düzeyinde (t113) ölçülü.
+- **Doğrulama ekranının çıpası mutabakat tablosu.** Tablo çizilmezse dokuz kontrolün
+  hepsi birden düşüyor — gürültülü ve doğru, ama "yalnızca tablo gitti" ile "ekranın
+  tamamı gitti" ayrımını yapmıyor.
+- **"Şimdi yedek al" düğmesi tarayıcı testinde TIKLANMIYOR.** Düğmenin çizildiği ve
+  akışın uçtan uca çalıştığı ölçülmedi; sunucu tarafı t114'te tam ölçülü.
+
+
+---
+
+## Güncelleme 189: Para Ekranları TEK "Finans" Menüsünde — Sekmeler İzne Göre Çiziliyor
+
+**Sorun.** Menüde iki para maddesi vardı: "Finans" ve "Ödeme Takvimi". İkincisi ekran
+olarak zaten Finans'ın içine bir sekme olarak taşınmıştı; menüde kalmasının TEK sebebi
+"Ödeme Takvimi izni VAR, Finans izni YOK" personeliydi — o kişi madde kaldırılsaydı
+ekrana hiç ulaşamazdı. Yani menü, bir yetki boşluğunu kapatmak için ikiye bölünmüştü ve
+kural dört ayrı yere dağılmıştı: yönetici kabuğunun NAV listesi, personel kabuğunun
+`staffNavAll` listesi, `Finans` bileşeninin kendi sekme tablosu ve çağrı yerindeki
+`izinler.odemeTakvimi ? … : null` kapısı. **Hiçbiri Node'dan çağrılamıyordu**, yani
+"kim hangi para ekranını görüyor" sorusunu ölçen tek bir test yoktu.
+
+**Karar (kullanıcı onayladı).** Menüde tek "Finans" maddesi; içindeki sekmeler kişinin
+iznine göre çizilir. **Kimse yetki kazanmaz, kimse erişim kaybetmez** — işin tek kabul
+ölçütü bu.
+
+| İzin | Menüde Finans | Görünen sekmeler |
+|---|---|---|
+| `finans` VAR · `odemeTakvimi` YOK | var | Özet · Gelir-Gider · Ay Ay Karşılaştırma · Raporlar · Hesaplar · Vergi & Arşiv — **Ödemeler YOK** |
+| `finans` YOK · `odemeTakvimi` VAR | **var** | yalnızca **Ödemeler** |
+| ikisi de VAR | var | hepsi |
+| ikisi de YOK | **yok** | — |
+| yönetici | var | hepsi + **Doğrulama** (bugünkü davranış, değişmedi) |
+
+**Yapılanlar.**
+
+- **`lib/finans-sekmeleri.js` (yeni, saf).** Sekme tanımları ve üç fonksiyon:
+  `finansSekmeleri(izinler)` · `finansMenudeMi(izinler)` · `aktifFinansSekmesi(secili, liste)`.
+  Kural JSX'e GÖMÜLMEDİ (`marcus-mimari` §4) — üç yer birden okuyor ve artık test edilebilir.
+  Fail-close: izin açıkça `true` değilse sekme yok; `1` ya da `"evet"` yetmez.
+- **`src/finans.jsx`.** Sekme tablosu buradan kalktı, modülden geliyor. Seçili sekme artık
+  `setState` ile sıfırlanmıyor, **türetiliyor**: yalnızca `odemeTakvimi` izni olan kişide
+  başlangıç değeri `"ozet"` ve o sekme ona hiç çizilmiyor — düzeltilmeseydi ekran BOMBOŞ
+  açılırdı. "Tahsilatlar" sekmesi **"Ödemeler"** adını aldı (içeriği eski Ödeme Takvimi
+  ekranı; ad artık içeriği söylüyor) ve `odemeTakvimi` iznine bağlandı — `finans`-only
+  personel eskiden bu sekmeyi görüyor ama içinde yalnızca "bu bölüm için yetki gerekiyor"
+  yazısını buluyordu; ölü sekme kalktı.
+- **Bileşen gövdesi eksik alanlara dayanıklı.** Ekran artık `finans` izni OLMAYAN birine
+  de çiziliyor ve sunucu o kişiye `monthly` · `gelirKalemleri` · `giderKalemleri` ·
+  `ofisGiderleri` · `bekleyenTahsilatlar` · `vergiTakvimi` alanlarını **hiç göndermiyor**
+  (`PERMISSION_DATA_FIELDS.odemeTakvimi`). Çıplak `data.monthly` üzerinden yapılan
+  `[...monthly]` yayılımı bileşeni patlatırdı — **sekme çizilmese bile gövdedeki her satır
+  çalışır** (`CLAUDE.md` §3). Alanlar `|| []` ile okunuyor.
+- **`src/App.jsx` — İKİ kabuk birden.** Personel kabuğunda ayrı "Ödeme Takvimi" menü
+  maddesi ve `staffTab === "odeme-takvimi"` ekranı kaldırıldı (prop'ları ikinci kez
+  yazılıydı; `odemeTakvimiProps` ile tek kaynağa indi). Yönetici kabuğundaki
+  `tab === "odeme-takvimi"` bloğu **ölü koddu** — NAV'da karşılığı yoktu, oraya yalnızca
+  tarayıcısında eski sekme adı kalmış kullanıcı düşebiliyordu; o ad artık açılışta
+  `finans`'a yönlendiriliyor (`ESKI_SEKMELER`) ve blok silindi. Bu projede aynı sınıftan
+  hata daha önce oldu (`operasyonOrtakProps`): yeni yeteneği yalnızca bir role eklemek.
+- **Sekme şeridi.** `role="tablist"` + `role="tab"` + `aria-selected` (klavye/ekran
+  okuyucu ve test çıpası), aktif sekme `accentSoft` + `accentText`, gap 6 → **8**
+  (jeton ölçeği), `flexShrink: 0` + `overflowX: auto` — dar ekranda taşma şeridin KENDİ
+  kabında kalır, sayfa gövdesi kaymaz.
+
+**Testler.**
+
+- `testler/t115.mjs` (yeni) — **24 kontrol**, beş bölüm: dört izin bileşiminin dördü,
+  artı sıra/saflık/fail-close sınırları. Davranış sınanıyor, kaynak metni değil.
+- `testler/tarayiciAcilis.mjs` — **üç yeni senaryo**, 84 → **125 kontrol**:
+  *personel finans sekmeleri* (menüde tek madde, yedi sekme, Doğrulama YOK, sekme geçişi
+  hem "geldi" hem "gitti" tarafından) · *yalnızca ödeme takvimi izni* (erişim kaybı yok,
+  tek sekme, içerik çizildi) · *dar ekranda finans sekmeleri* (390px). Personel
+  fixture'ları **sunucunun o izne göndereceği kadarını** taşıyor; belgenin tamamını
+  koymak gerçekte hiç oluşmayan bir hâli sınamak olurdu.
+
+**Kırarak ölçüldü — iki ayrı bozma:**
+
+| Bozma | Düşen kontrol | Hangileri |
+|---|---|---|
+| `finansMenudeMi` yalnızca `finans === true` diyor (yani `odemeTakvimi`-only kullanıcı menüyü HİÇ görmüyor — istenmeyen erişim kaybı) | **6** (t115'te 1, tarayıcıda 5) | t115: "Finans menüde ÇİZİLİYOR (ayrı menü maddesi kalktı, erişim kalmalı)" · tarayıcı: "beklenen ekran çizildi" · "erişim kaybı YOK" · "YALNIZCA Ödemeler sekmesi var" · "Finans'ın kendi sekmeleri YOK" · "Ödemeler içeriği doğrudan çizildi" |
+| Sekme şeridinden `overflowX: auto` kaldırıldı | tarayıcıda **1** | "dar ekranda: yatay KAYMA yok (sayfa gövdesi + sekme çubuğunun ebeveyni)" — belge 364px, gövde 364px, kap 384px taştı |
+
+Birinci bozmada **27 denetim ve derleme YEŞİL kaldı** (çıkış kodu 0); ekranda beliren şey
+personel kabuğunun "Henüz erişimin olan bir bölüm yok. Yöneticine sor." cümlesiydi — yani
+hata sessiz değil ama zinciri kıran tek katman t115 + tarayıcı testiydi.
+
+Zincir: 27 denetim ✓ · **2717 kontrol** (t1…t115) ✓ · derleme ✓ · tarayıcı **125 kontrol** ✓ ·
+`api/` 11 fonksiyon (dokunulmadı).
+
+### Ölçülemeyen / bilinen boşluklar
+
+- **`PERMISSION_DATA_FIELDS` DEĞİŞTİRİLMEDİ ve bir şey söylüyor.**
+  `odemeTakvimi` izninin açtığı alanlar (`clients`, `hesaplar`, `hesapTransferleri`,
+  `hesapDuzeltmeleri`) `finans` izninin alan listesinin **tamamen içinde**. Yani
+  `finans`-only bir personele ödeme kayıtları (`clients[].odemeKayitlari`, `faturalar`)
+  ve hesap bakiyeleri **zaten gidiyor**; Ödemeler sekmesini ona çizmemek veriyi
+  yüzeyden kaldırır, ağdan değil. Gerçekten daraltmak `clients` alanının izne göre alan
+  alan süzülmesini gerektirir — ayrı ve daha büyük bir karar, bu işin kapsamında değil.
+- **Personelin ödeme ekranında avans ve personel ödemeleri BOŞ.** `avanslar` ve
+  `personelOdemeleri` hiçbir izin listesinde yok, yani sunucu onları personele hiç
+  göndermiyor. Bugünkü davranış — bu işte değişmedi, ama ekran bunu ayrıca SÖYLEMİYOR.
+- **Menü çubuğu tek maddede hiç çizilmiyor** (`staffNavAll.length > 1`). Yalnızca
+  `odemeTakvimi` izni olan kişide tek madde kalıyor ve menü gizleniyor; "Finans maddesi
+  çizildi" iddiası o senaryoda menüden değil, ekranın kendisinden ölçülüyor.
+- **Sekme geçişi yalnızca Özet → Ödemeler yönünde çizilerek ölçüldü.** Diğer beş sekmenin
+  içeriği (Gelir-Gider, Ay Ay Karşılaştırma, Raporlar, Hesaplar, Vergi & Arşiv) tarayıcıda
+  AÇILMIYOR; sekme çubuğunda adları var, gövdeleri ölçülü değil.
