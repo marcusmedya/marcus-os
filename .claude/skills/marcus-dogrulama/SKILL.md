@@ -26,7 +26,7 @@ kaldı — her birinde "temiz" diye raporlandı. Bu yüzden buradaki kurallar ü
 | Katman | Yakaladığı | Yakalayamadığı |
 |---|---|---|
 | 27 statik denetim | Sözdizimi, tanımsız ad, kapsam, belge bayatlığı, izin listesi ayrışması | Davranış |
-| t1…t114 (2693 kontrol) | Sunucu ve saf modül davranışı, sahte veritabanıyla | `.jsx`, prop bağlantısı, çizim |
+| t1…t115 (2717 kontrol) | Sunucu ve saf modül davranışı, sahte veritabanıyla | `.jsx`, prop bağlantısı, çizim |
 | `npm run build` | Derleme hatası | Çalışma anı hatası |
 | `npm run test:acilis` | **Uygulamanın gerçekten açılması**, siyah ekran, açılışta JS hatası | Açılış sonrası akışlar |
 
@@ -59,6 +59,19 @@ zincirin beş adımı yeşil kalıyordu.
 
 Uydurma belge **gerçek belgenin bütün üst düzey alanlarını taşımalı**; eksik fixture bir
 kez testi olmayan bir sorunu kovalattı.
+
+**PERSONEL senaryosunda fixture EKSİK OLMALI.** Yukarıdaki kural `role: "owner"` içindir.
+Personel yanıtı sunucuda izne göre SÜZÜLÜYOR (`PERMISSION_DATA_FIELDS`); fixture'a belgenin
+tamamını koymak gerçekte hiç oluşmayan bir hâli sınamak olur ve asıl riski gizler — bileşen
+gövdesinin, o role HİÇ GÖNDERİLMEYEN alanlara korumasız dokunup dokunmadığı. Fixture
+yalnızca o iznin açtığı alanları taşır (emsal: `SAHTE_YANIT_ODEME_IZNI`).
+
+**Kendi kabında kayması İSTENEN bir şeride taşma kontrolü yazarken dikkat.** Yatay kayma
+"İKİ yerde ölçülür" kuralının burada yönü değişiyor: sekme şeridi 390px'te bilerek kendi
+içinde kayar, yani `scrollWidth - clientWidth > 0` bir KUSUR DEĞİL. Ölçülecek olan
+**EBEVEYNİN** taşması (taşma şeridin içinde kaldı mı) ve yanına şeridin gerçekten taştığı
+konulur — taşma hiç yoksa "ebeveyn taşmıyor" iddiası boş yere geçer. `position: fixed`
+tuzağının (panelde) tersi bir durum; ikisini karıştırma.
 
 ## 4 · Yeni statik denetim ekleme
 

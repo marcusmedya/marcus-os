@@ -13,9 +13,15 @@ import { tahsilatRaporuHtml, odemeRaporuHtml, aylikOzetRaporuHtml } from "../lib
 import { giderDagilimi, yuzdeMetni } from "../lib/gider-dagilimi.js";
 import { finansHareketleri, eksikBilgiOzeti } from "../lib/finans-hareketleri.js";
 import { finansMutabakati } from "../lib/finans-mutabakat.js";
+import { finansSekmeleri, aktifFinansSekmesi } from "../lib/finans-sekmeleri.js";
 
 /**
- * FİNANS — beş sekme.
+ * FİNANS — para ekranlarının TEK menüsü.
+ *
+ * Sekmeler kişinin iznine göre çiziliyor ve liste `lib/finans-sekmeleri.js`'te:
+ * `finans` izni Finans sekmelerini, `odemeTakvimi` izni yalnızca Ödemeler sekmesini
+ * açar, Doğrulama yalnızca yöneticide. "Ödeme Takvimi" ayrı bir menü maddesiydi;
+ * kaldırıldı, ekran aynen burada bir sekme (→ `README.md` Güncelleme 190).
  *
  * Tek uzun sayfaydı ve bir muhasebe programı gibi görünüyordu. Bir işletme sahibinin ilk
  * bakışta görmesi gereken dört şey vardı: kasada ne var, bu ay ne kazandım, ne kadar
@@ -59,20 +65,12 @@ const MONTH_FIELDS = [
   { key: "gider", label: "Gider (₺)", type: "number" },
 ];
 
-/* YÖNETİCİYE ÖZEL SEKME. Doğrulama ekranı belgenin BÜTÜN para kayıtlarını (her markanın
- * tahsilatı, her personelin maaşı, her hesabın bakiyesi) tek tabloda topluyor; Finans'ı
- * görebilen her personel bunu görmemeli. Kapı `yonetici` prop'unda ve VARSAYILANI KAPALI:
- * prop verilmeyen bir çağrı yeri sekmeyi açmaz, kapatır (fail-close). */
-const FINANS_SEKMELERI = [
-  { key: "ozet", label: "Özet" },
-  { key: "gelir-gider", label: "Gelir-Gider" },
-  { key: "karsilastirma", label: "Ay Ay Karşılaştırma" },
-  { key: "tahsilat", label: "Tahsilatlar" },
-  { key: "raporlar", label: "Raporlar (PDF)" },
-  { key: "hesaplar", label: "Hesaplar" },
-  { key: "vergi", label: "Vergi & Arşiv" },
-  { key: "dogrulama", label: "Doğrulama", yalnizcaYonetici: true },
-];
+/* SEKME LİSTESİ ARTIK `lib/finans-sekmeleri.js`'TE — burada elle kopyalanmıyor.
+ *
+ * Sebebi: menüde tek "Finans" maddesi var ve içindeki sekmeler kişinin iznine göre
+ * çiziliyor. Aynı kuralı hem menüyü çizen App.jsx'in İKİ kabuğunun hem de bu bileşenin
+ * bilmesi gerekiyor; JSX'e gömülen kural Node'dan çağrılamıyor ve hiçbir test onu
+ * sınayamıyor (`marcus-mimari` §4). Kural saf modülde, burası yalnızca çiziyor. */
 
 export function MiniList({ title, icon, items, fields, renderRow, onAdd, onDelete, addLabel }) {
   const [adding, setAdding] = useState(false);
@@ -867,17 +865,37 @@ function Dogrulama({ data, live }) {
   );
 }
 
-export function Finans({ data, clients, yonetici = false, odemeTakvimiIcerigi, onAddGelir, onDeleteGelir, onAddGider, onDeleteGider, onAddOfisGider, onDeleteOfisGider, onAddBekleyen, onDeleteBekleyen, onAddVergi, onDeleteVergi, onAddMonth, onDeleteMonth, onCloseMonth, onExport, onTransfer, onDeleteTransfer, onAddHesap, onDeleteHesap, onUpdateHesap, onAddDuzeltme, onDeleteDuzeltme }) {
+export function Finans({ data, clients, yonetici = false, izinler, odemeTakvimiIcerigi, onAddGelir, onDeleteGelir, onAddGider, onDeleteGider, onAddOfisGider, onDeleteOfisGider, onAddBekleyen, onDeleteBekleyen, onAddVergi, onDeleteVergi, onAddMonth, onDeleteMonth, onCloseMonth, onExport, onTransfer, onDeleteTransfer, onAddHesap, onDeleteHesap, onUpdateHesap, onAddDuzeltme, onDeleteDuzeltme }) {
   const [sekme, setSekme] = useState("ozet");
   const [acikGider, setAcikGider] = useState(null); // Para Nereye Gidiyor: açık kalem
-  const { monthly, gelirKalemleri, giderKalemleri, ofisGiderleri, bekleyenTahsilatlar, vergiTakvimi } = data;
+  /* ALANLAR `|| []` İLE OKUNUYOR — bu ekran artık `finans` izni OLMAYAN birine de
+   * çiziliyor (yalnızca `odemeTakvimi` izniyle, tek sekmeyle). Sunucu o kişiye
+   * `monthly`, `gelirKalemleri`, `vergiTakvimi` gibi alanları HİÇ göndermiyor
+   * (`PERMISSION_DATA_FIELDS.odemeTakvimi`), yani çıplak `data.monthly` undefined
+   * geliyor ve aşağıdaki `[...monthly]` yayılımı bileşeni patlatıyordu. Sekme
+   * çizilmese bile GÖVDEDEKİ HER SATIR ÇALIŞIR. */
+  const monthly = data.monthly || [];
+  const gelirKalemleri = data.gelirKalemleri || [];
+  const giderKalemleri = data.giderKalemleri || [];
+  const ofisGiderleri = data.ofisGiderleri || [];
+  const bekleyenTahsilatlar = data.bekleyenTahsilatlar || [];
+  const vergiTakvimi = data.vergiTakvimi || [];
   const [addingMonth, setAddingMonth] = useState(false);
   const live = computeLive(data);
-  /* Rolün göremeyeceği sekme ÇİZİLMEZ. Sekme gizlemek tek başına bir güvenlik sınırı
-   * değil — bu ekranın verisi zaten yalnızca yöneticiye giden alanlardan geliyor
-   * (`PERMISSION_DATA_FIELDS`, → `marcus-yetki`); burada yapılan, personele ait
-   * olmayan bir yüzeyi ona hiç göstermemek. */
-  const gorunurSekmeler = FINANS_SEKMELERI.filter((x) => !x.yalnizcaYonetici || yonetici);
+  /* Rolün göremeyeceği sekme ÇİZİLMEZ ve kural saf modülde (`lib/finans-sekmeleri.js`).
+   * Sekme gizlemek tek başına bir güvenlik sınırı DEĞİL — verinin kime gittiği
+   * `PERMISSION_DATA_FIELDS` ile belirleniyor (→ `marcus-yetki`); burada yapılan,
+   * kişiye ait olmayan bir yüzeyi ona hiç göstermemek.
+   *
+   * VARSAYILAN FAIL-CLOSE DEĞİL, GERİYE UYUMLU: `izinler` verilmeyen bir çağrı yeri
+   * bugünkü Finans sekmelerini görür ama Ödemeler sekmesini GÖRMEZ — ödeme kayıtları
+   * ayrı bir izin ve onu açık saymak yetki kazandırırdı. */
+  const yetkiler = { finans: true, odemeTakvimi: false, ...(izinler || {}), yonetici };
+  const gorunurSekmeler = finansSekmeleri(yetkiler);
+  /* Seçili sekme artık görünmüyorsa ilk görünür sekmeye DÜŞÜLÜR (state sıfırlanmaz,
+   * türetilir): yalnızca `odemeTakvimi` izni olan kişide başlangıç değeri "ozet" ve
+   * o sekme ona hiç çizilmiyor — düzeltilmezse ekran BOMBOŞ açılırdı. */
+  const aktifSekme = aktifFinansSekmesi(sekme, gorunurSekmeler);
   /* PARA NEREYE GİDİYOR — sıra, oran ve sıfır kalemin sebebi saf modülden geliyor
    * (`lib/gider-dagilimi.js`). Tutarların hiçbiri burada yeniden hesaplanmıyor. */
   const giderDagilim = giderDagilimi(live);
@@ -915,16 +933,37 @@ export function Finans({ data, clients, yonetici = false, odemeTakvimiIcerigi, o
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 6, marginBottom: 16, overflowX: "auto", paddingBottom: 2 }}>
+      {/* SEKME ŞERİDİ — dar ekranda SAYFA kaymaz, şerit KENDİ kabında kayar.
+        *
+        * Sekme sayısı kişinin iznine göre değişiyor ve en fazla 8'e çıkıyor; 390px'lik
+        * bir telefonda hepsi sığmaz. `overflowX: auto` + `minWidth: 0` ikilisi taşmayı
+        * şeridin kendi kaydırma bölgesinde tutar: `minWidth: 0` olmadan bir flex çocuk
+        * kendi içeriğinden daha dar olamaz ve taşma DIŞARI, sayfa gövdesine çıkar
+        * ("sayfa gövdesi asla yatay kaymaz" — `marcus-design`).
+        * `flexShrink: 0` düğmeleri ezilmekten korur; ezilselerdi metin kırpılırdı. */}
+      <div role="tablist" aria-label="Finans bölümleri"
+        style={{ display: "flex", gap: 8, marginBottom: 16, overflowX: "auto", paddingBottom: 4, minWidth: 0 }}>
         {gorunurSekmeler.map((s) => (
-          <button key={s.key} onClick={() => setSekme(s.key)}
-            style={{ padding: "12px 15px", borderRadius: 10, border: "none", cursor: "pointer", whiteSpace: "nowrap", background: sekme === s.key ? T.accentSoft : "transparent", color: sekme === s.key ? T.text : T.textDim, fontSize: 13, fontWeight: sekme === s.key ? 700 : 500, fontFamily: "Inter, sans-serif" }}>
+          <button key={s.key} role="tab" aria-selected={aktifSekme === s.key} onClick={() => setSekme(s.key)}
+            style={{ padding: "12px 15px", borderRadius: 10, border: "none", cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0, minHeight: 40, background: aktifSekme === s.key ? T.accentSoft : "transparent", color: aktifSekme === s.key ? T.accentText : T.textDim, fontSize: 13, fontWeight: aktifSekme === s.key ? 700 : 500, fontFamily: "Inter, sans-serif" }}>
             {s.label}
           </button>
         ))}
       </div>
 
-      {sekme === "ozet" && (
+      {/* HİÇ SEKME YOKSA — ne olduğu · neden · ne yapılacağı. Bu ekrana yetkisiz biri
+        * normalde HİÇ ulaşamaz (menüde Finans maddesi de çizilmez, `finansMenudeMi`),
+        * ama bileşen doğrudan çağrılırsa bomboş bir sayfa yerine sebep yazılır. */}
+      {aktifSekme === null && (
+        <Card style={{ padding: "18px 22px" }}>
+          <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif", lineHeight: 1.6 }}>
+            Bu ekranda sana açık bir bölüm yok. Finans için "Finans", ödeme kayıtları
+            için "Ödeme Takvimi" yetkisi gerekiyor — yöneticinden isteyebilirsin.
+          </div>
+        </Card>
+      )}
+
+      {aktifSekme === "ozet" && (
         <>
           {/* SADE ANLATIM — rakamlardan ÖNCE, cümlelerle.
             *
@@ -1136,22 +1175,26 @@ export function Finans({ data, clients, yonetici = false, odemeTakvimiIcerigi, o
         </>
       )}
 
-      {sekme === "karsilastirma" && <AyAyKarsilastirma data={data} chartData={chartData} />}
+      {aktifSekme === "karsilastirma" && <AyAyKarsilastirma data={data} chartData={chartData} />}
 
-      {sekme === "raporlar" && <Raporlar data={data} />}
+      {aktifSekme === "raporlar" && <Raporlar data={data} />}
 
-      {/* TAHSİLATLAR — içerik ÇAĞIRANDAN geliyor (`odemeTakvimiIcerigi`). Sebebi YETKİ:
-        * "Ödeme Takvimi" ayrı bir izin; Finans'ı görebilen herkes ödeme kayıtlarını
-        * görmemeli. İzni çağıran taraf biliyor, o yüzden kararı da orada. */}
-      {sekme === "tahsilat" && (odemeTakvimiIcerigi || (
+      {/* ÖDEMELER — eski "Ödeme Takvimi" ekranı. İçerik ÇAĞIRANDAN geliyor
+        * (`odemeTakvimiIcerigi`): ekranın yirmi prop'u App.jsx'te ve orada zaten TEK
+        * bir nesnede toplanıyor (`odemeTakvimiProps`). Sekmenin kendisi `odemeTakvimi`
+        * izniyle çiziliyor (`lib/finans-sekmeleri.js`); aşağıdaki metin yalnızca çağıran
+        * içeriği vermeyi unutursa görünür — sessiz boş ekran yerine sebebi yazan bir
+        * kutu (fail-close). */}
+      {aktifSekme === "tahsilat" && (odemeTakvimiIcerigi || (
         <Card style={{ padding: "18px 22px" }}>
-          <div style={{ fontSize: 12.5, color: T.textFaint, fontFamily: "Inter, sans-serif", lineHeight: 1.6 }}>
-            Bu bölümü görmek için "Ödeme Takvimi" yetkisi gerekiyor.
+          <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif", lineHeight: 1.6 }}>
+            Ödeme ekranı yüklenemedi. Bu bölümü görmek için "Ödeme Takvimi" yetkisi
+            gerekiyor — yöneticinden isteyebilirsin.
           </div>
         </Card>
       ))}
 
-      {sekme === "gelir-gider" && (
+      {aktifSekme === "gelir-gider" && (
         <>
 <MiniList
           title="Gelirler"
@@ -1256,7 +1299,7 @@ export function Finans({ data, clients, yonetici = false, odemeTakvimiIcerigi, o
         </>
       )}
 
-      {sekme === "hesaplar" && (
+      {aktifSekme === "hesaplar" && (
         <>
           {/* HESAP BAKİYELERİ — sekme yalnızca "Banka Hareketleri" gösteriyordu, hesapların
             * kendisi ve bakiyeleri hiç görünmüyordu. Transfer, bakiye düzeltme ve hesap
@@ -1315,7 +1358,7 @@ export function Finans({ data, clients, yonetici = false, odemeTakvimiIcerigi, o
         </>
       )}
 
-      {sekme === "vergi" && (
+      {aktifSekme === "vergi" && (
         <>
 <MiniList
           title="Vergi Takibi"
@@ -1388,7 +1431,7 @@ export function Finans({ data, clients, yonetici = false, odemeTakvimiIcerigi, o
 
       {/* DOĞRULAMA — yalnızca yönetici. `yonetici` şartı burada TEKRAR aranıyor: sekme
         * listesini süzmek düğmeyi gizler ama `sekme` durumunu garanti etmez. */}
-      {sekme === "dogrulama" && yonetici && (
+      {aktifSekme === "dogrulama" && yonetici && (
         <Dogrulama data={data} live={live} />
       )}
     </div>

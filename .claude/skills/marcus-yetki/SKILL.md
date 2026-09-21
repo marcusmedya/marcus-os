@@ -15,6 +15,18 @@ Bir ekran tasarlarken ya da bir alanı yeni bir yüzeye taşırken **önce oraya
 olmayan bir alan o role hiç gitmiyor demektir, yani var olmayan bir veriyi tasarlamış
 olursun. Tersi daha tehlikeli: alanı listeye eklemek o rolün göreceği veriyi genişletir.
 
+**Gizli sekme/düğme bir güvenlik sınırı DEĞİLDİR — ölçülmüş bir örnek.** Finans menüsü
+tek maddeye indirilirken bakıldı: `PERMISSION_DATA_FIELDS.odemeTakvimi` (`clients`,
+`hesaplar`, `hesapTransferleri`, `hesapDuzeltmeleri`) `finans` izninin alan listesinin
+**tamamen içinde**. Yani yalnızca `finans` izni olan bir personele ödeme kayıtları
+(`clients[].odemeKayitlari`, `faturalar`) ve hesap bakiyeleri **zaten gidiyor**; Ödemeler
+sekmesini ona çizmemek veriyi YÜZEYden kaldırır, ağdan değil. Ters yön dar: yalnızca
+`odemeTakvimi` izni olan kişiye `gelirKalemleri` · `giderKalemleri` · `ofisGiderleri` ·
+`monthly` · `vergiTakvimi` · `personel` HİÇ gitmiyor — ama `clients` TAM gittiği için
+(`FULL_CLIENT_PERMS` içinde) aylık ücret ve marka maliyetleri onda da var.
+Gerçekten daraltmak isteniyorsa yapılacak iş `clients` alanının izne göre **alan alan**
+süzülmesidir; bu ayrı ve daha büyük bir karar, bir sekme gizleme işi değil.
+
 ## Bu skill neyi KAPSAMAZ
 
 İki kural bilerek `CLAUDE.md`'de bırakıldı, çünkü **her arayüz işinde** geçerliler ve bu skill
@@ -60,6 +72,17 @@ diye bakıyor. Gizli düğme güvenlik sınırı değildir; sınır artık burad
 değişikliği geri alır, kaydın tamamını REDDETMEZ** — reddetmek aynı kayıttaki ilgisiz
 düzenlemeleri de çöpe atardı. **Stok motorundan ÖNCE** çalışır: izinsiz onay sonradan geri
 alınsaydı stok üretilmiş ve Drive'da dosya taşınmış olurdu.
+
+**Para ekranları TEK menü maddesi, sekmeler izne göre — `lib/finans-sekmeleri.js`.**
+"Finans" ve "Ödeme Takvimi" menüde ayrı maddelerdi; ikincisi yalnızca `odemeTakvimi` izni
+olup `finans` izni OLMAYAN personel için duruyordu (o kişi aksi hâlde ekrana hiç
+ulaşamazdı). **İkisi de AYRI izin olarak DURUYOR**, değişen yalnızca yüzey: menüde tek
+"Finans" maddesi var ve içindeki sekmeler kişiye göre çiziliyor — `finans` Finans
+sekmelerini, `odemeTakvimi` yalnızca **Ödemeler**'i, Doğrulama yalnızca yöneticiyi açar,
+hiçbiri yoksa madde çizilmez (`finansMenudeMi`). Kural saf modülde çünkü **üç yer birden**
+okuyor: yönetici kabuğu, personel kabuğu ve `Finans` bileşeni; JSX'e gömülseydi hiçbir
+test onu çağıramazdı (t115 ve tarayıcı senaryoları 7-9 ölçüyor). Ölçüldü: `odemeTakvimi`
+izni olan kişiye menü çizilmeyen bir sürümde **6 kontrol** düşüyor.
 
 **Yetki kutucukları İKİ ayrı listeden çiziliyor** (`src/App.jsx`): `STAFF_IZIN_LISTESI`
 (ortak şifre kartı) ve `IZIN_LISTESI` (kişiye özel panel). Bir kez ayrıştı: alt yetkiler

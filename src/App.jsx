@@ -65,6 +65,7 @@ import { planSubesi, subeStokAnahtari, markaninSubeleri, kullanabilenSubeler,
 import { SUBE_PAYLASIM_ASAMASI, medyalariBirlestir } from "../lib/asamalar.js";
 import { neYapmali } from "../lib/eposta-hata.js";
 import { Finans, HesapBakiyeleri, MiniList, hesapBakiyesi } from "./finans.jsx";
+import { finansMenudeMi } from "../lib/finans-sekmeleri.js";
 import { HataYakalayici } from "./hataYakalayici.jsx";
 import { Personel, avansToplami, avansKisiyeAitMi, odemeToplami, odemeKisiyeAitMi, AvansVerFormu, AvansListesi } from "./personel.jsx";
 import { surenIsVarMi } from "../lib/suren-isler.js";
@@ -8626,8 +8627,16 @@ const NAV = [
 ];
 
 export default function MarcusOS() {
+  /* ESKİ SEKME ADLARI YÖNLENDİRİLİR. Son sekme tarayıcıda saklanıyor; "Ödeme Takvimi"
+   * menüden kalkıp Finans'ın içine sekme olduğunda, o ekranda bırakmış herkesin
+   * kaydında hâlâ "odeme-takvimi" yazıyor. Yönlendirilmezse uygulama HİÇBİR ŞEY
+   * çizilmeyen bir sekmeyle açılırdı — boş ekran, sebepsiz. */
+  const ESKI_SEKMELER = { "odeme-takvimi": "finans" };
   const [tab, setTab] = useState(() => {
-    try { return localStorage.getItem("marcus-os-son-sekme") || "dashboard"; } catch (e) { return "dashboard"; }
+    try {
+      const kayitli = localStorage.getItem("marcus-os-son-sekme") || "dashboard";
+      return ESKI_SEKMELER[kayitli] || kayitli;
+    } catch (e) { return "dashboard"; }
   });
   useEffect(() => {
     try { localStorage.setItem("marcus-os-son-sekme", tab); } catch (e) { /* localStorage erişilemezse sessizce geç */ }
@@ -10816,7 +10825,7 @@ export default function MarcusOS() {
     else setTab("finans");
   };
 
-  const titles = { dashboard: "Dashboard", musteriler: "Müşteriler", finans: "Finans", takvim: "Takvim", "odeme-takvimi": "Ödeme Takvimi", teklif: "Teklif & Sözleşme", reklamlar: "Reklamlar", paylasimlar: "Paylaşımlar", "gunluk-kontrol": "Günlük Kontrol", "cekim-listesi": "Çekim", "cekim-edit": "Operasyon", personel: "Personel", birikim: "Birikim", uyelikler: "Üyelikler", "musteri-girisleri": "Şifre Kasası", ayarlar: "Ayarlar" };
+  const titles = { dashboard: "Dashboard", musteriler: "Müşteriler", finans: "Finans", takvim: "Takvim", teklif: "Teklif & Sözleşme", reklamlar: "Reklamlar", paylasimlar: "Paylaşımlar", "gunluk-kontrol": "Günlük Kontrol", "cekim-listesi": "Çekim", "cekim-edit": "Operasyon", personel: "Personel", birikim: "Birikim", uyelikler: "Üyelikler", "musteri-girisleri": "Şifre Kasası", ayarlar: "Ayarlar" };
   const todayLabel = new Date().toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
 
   if (needsAuth) {
@@ -10913,14 +10922,19 @@ export default function MarcusOS() {
 
   if (role === "staff") {
     const izinler = { dashboard: false, musteriler: false, finans: false, takvim: false, odemeTakvimi: false, teklif: false, reklamlar: true, paylasimlar: true, cekimEdit: true, personel: false, birikim: false, cekimListesi: false, sifreKasasi: false, markaYoneticisi: false, uyelikler: false, ...(data.staffPermissions || {}) };
+    /* Finans menüsünün ve sekmelerinin TEK kaynağı — iki yerde (menü maddesi + bileşen)
+     * kullanılıyor, ikisi ayrışmasın diye tek nesnede. Personel kabuğunda `yonetici`
+     * HER ZAMAN false: Doğrulama sekmesi yalnızca yönetici kabuğunda çiziliyor. */
+    const finansIzinleri = { finans: izinler.finans === true, odemeTakvimi: izinler.odemeTakvimi === true, yonetici: false };
     const staffNavAll = [
       { key: "dashboard", label: "Dashboard", izin: izinler.dashboard },
       { key: "musteriler", label: "Müşteriler", izin: izinler.musteriler },
-      { key: "finans", label: "Finans", izin: izinler.finans },
-      /* FİNANS'I DA GÖREBİLİYORSA AYRI MADDE GEREKMİYOR — ekran artık Finans'ın içinde
-       * bir sekme. Yalnızca "Ödeme Takvimi" izni olup Finans izni OLMAYAN personel için
-       * duruyor; kaldırılsaydı o kişi ekrana hiç ulaşamazdı. */
-      { key: "odeme-takvimi", label: "Ödeme Takvimi", izin: izinler.odemeTakvimi && !izinler.finans },
+      /* PARA EKRANLARI TEK MADDEDE. "Ödeme Takvimi" ayrı bir menü maddesiydi ve yalnızca
+       * `odemeTakvimi` izni olup `finans` izni OLMAYAN personel için duruyordu. Artık
+       * menüde tek "Finans" var; içindeki sekmeler kişinin iznine göre çiziliyor
+       * (`lib/finans-sekmeleri.js`). KİMSE ERİŞİM KAYBETMEDİ: yalnızca `odemeTakvimi`
+       * izni olan kişi de maddeyi görür, içinde yalnızca Ödemeler sekmesi çizilir. */
+      { key: "finans", label: "Finans", izin: finansMenudeMi(finansIzinleri) },
       { key: "teklif", label: "Teklif & Sözleşme", izin: izinler.teklif },
       { key: "reklamlar", label: "Reklamlar", izin: izinler.reklamlar },
       { key: "paylasimlar", label: "Paylaşımlar", izin: izinler.paylasimlar },
@@ -11020,8 +11034,12 @@ export default function MarcusOS() {
             <Finans
               data={data}
               clients={data.clients || []}
-              /* YETKİ KAPISI: "Ödeme Takvimi" AYRI bir izin. Finans'ı görebilen
-                * herkes ödeme kayıtlarını görmemeli — sekme yalnızca izni olana çizilir. */
+              /* YETKİ KAPISI: "Ödeme Takvimi" AYRI bir izin. Finans'ı görebilen herkes
+                * ödeme kayıtlarını görmemeli, ödeme izni olan da Finans rakamlarını —
+                * hangi sekmenin çizileceğine `lib/finans-sekmeleri.js` karar veriyor.
+                * İçerik yalnızca izin varsa üretiliyor: `<OdemeTakvimi>` izinsiz kişide
+                * hiç MOUNT EDİLMESİN. */
+              izinler={finansIzinleri}
               odemeTakvimiIcerigi={izinler.odemeTakvimi
                 ? <OdemeTakvimi hesaplariGizle {...odemeTakvimiProps} />
                 : null}
@@ -11043,32 +11061,9 @@ export default function MarcusOS() {
               firmaAdi={data.firmaAdi}
             />
           )}
-          {staffTab === "odeme-takvimi" && (
-            <OdemeTakvimi
-              bekleyenTahsilatlar={data.bekleyenTahsilatlar || []}
-              onAddBekleyen={addBekleyen}
-              onDeleteBekleyen={deleteBekleyen}
-              clients={data.clients || []}
-              hesaplar={data.hesaplar}
-              transferler={data.hesapTransferleri}
-              avanslar={data.avanslar || []}
-              odemeler={data.personelOdemeleri || []}
-              duzeltmeler={data.hesapDuzeltmeleri || []}
-              onUpdateClient={(id, patch) => setOdemeGunuSafe(id, patch.odemeGunu)}
-              onAddOdemeKaydi={addOdemeKaydi}
-              onDeleteOdemeKaydi={deleteOdemeKaydi}
-              onAddFatura={addFatura}
-              onDeleteFatura={deleteFatura}
-              onTransfer={transferEt}
-              onDeleteTransfer={deleteTransfer}
-              onUpdateHesap={updateHesap}
-              onAddDuzeltme={addHesapDuzeltme}
-              onDeleteDuzeltme={deleteHesapDuzeltme}
-              onAddHesap={addHesap}
-              onDeleteHesap={deleteHesap}
-              firmaAdi={data.firmaAdi}
-            />
-          )}
+          {/* Eski "odeme-takvimi" ekranı BURADAN KALKTI — kaybolmadı, Finans'ın
+            * Ödemeler sekmesine taşındı (yukarıdaki `odemeTakvimiIcerigi`). Prop'ları
+            * burada ikinci kez yazılıydı; `odemeTakvimiProps` ile tek kaynağa indi. */}
           {staffTab === "teklif" && (
             <TeklifSozlesme
               firmaAdi={data.firmaAdi || "Marcus Medya"}
@@ -11482,8 +11477,10 @@ export default function MarcusOS() {
               data={data}
               clients={data.clients}
               /* Doğrulama sekmesi YALNIZCA burada açılıyor — personel kabuğundaki
-                * çağrı yeri bu prop'u vermiyor, yani sekme orada hiç çizilmiyor. */
+                * çağrı yeri `yonetici`yi vermiyor, yani sekme orada hiç çizilmiyor.
+                * Yönetici bütün para ekranlarını görür: iki izin de açık. */
               yonetici
+              izinler={{ finans: true, odemeTakvimi: true, yonetici: true }}
               odemeTakvimiIcerigi={<OdemeTakvimi hesaplariGizle {...odemeTakvimiProps} />}
               onAddGelir={addGelir} onDeleteGelir={deleteGelir}
               onAddGider={addGider} onDeleteGider={deleteGider}
@@ -11503,32 +11500,10 @@ export default function MarcusOS() {
               firmaAdi={data.firmaAdi}
             />
           )}
-          {tab === "odeme-takvimi" && (
-            <OdemeTakvimi
-              bekleyenTahsilatlar={data.bekleyenTahsilatlar || []}
-              onAddBekleyen={addBekleyen}
-              onDeleteBekleyen={deleteBekleyen}
-              clients={data.clients}
-              hesaplar={data.hesaplar}
-              transferler={data.hesapTransferleri}
-              avanslar={data.avanslar || []}
-              odemeler={data.personelOdemeleri || []}
-              duzeltmeler={data.hesapDuzeltmeleri || []}
-              onUpdateClient={(id, patch) => setOdemeGunuSafe(id, patch.odemeGunu)}
-              onAddOdemeKaydi={addOdemeKaydi}
-              onDeleteOdemeKaydi={deleteOdemeKaydi}
-              onAddFatura={addFatura}
-              onDeleteFatura={deleteFatura}
-              onTransfer={transferEt}
-              onDeleteTransfer={deleteTransfer}
-              onUpdateHesap={updateHesap}
-              onAddDuzeltme={addHesapDuzeltme}
-              onDeleteDuzeltme={deleteHesapDuzeltme}
-              onAddHesap={addHesap}
-              onDeleteHesap={deleteHesap}
-              firmaAdi={data.firmaAdi}
-            />
-          )}
+          {/* Eski "odeme-takvimi" ekranı BURADAN DA KALKTI. Menüde karşılığı zaten
+            * yoktu (NAV'da madde yok), yalnızca tarayıcısında eski sekme adı kalmış
+            * kullanıcı buraya düşebiliyordu — o ad artık açılışta "finans"a
+            * yönlendiriliyor (`ESKI_SEKMELER`). Ekran kaybolmadı: Finans → Ödemeler. */}
           {tab === "teklif" && (
             <TeklifSozlesme
               firmaAdi={data.firmaAdi || "Marcus Medya"}

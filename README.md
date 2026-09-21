@@ -6714,3 +6714,104 @@ Zincir: 27 denetim ✓ · **2693 kontrol** (t1…t114) ✓ · derleme ✓ · tar
   tamamı gitti" ayrımını yapmıyor.
 - **"Şimdi yedek al" düğmesi tarayıcı testinde TIKLANMIYOR.** Düğmenin çizildiği ve
   akışın uçtan uca çalıştığı ölçülmedi; sunucu tarafı t114'te tam ölçülü.
+
+
+---
+
+## Güncelleme 189: Para Ekranları TEK "Finans" Menüsünde — Sekmeler İzne Göre Çiziliyor
+
+**Sorun.** Menüde iki para maddesi vardı: "Finans" ve "Ödeme Takvimi". İkincisi ekran
+olarak zaten Finans'ın içine bir sekme olarak taşınmıştı; menüde kalmasının TEK sebebi
+"Ödeme Takvimi izni VAR, Finans izni YOK" personeliydi — o kişi madde kaldırılsaydı
+ekrana hiç ulaşamazdı. Yani menü, bir yetki boşluğunu kapatmak için ikiye bölünmüştü ve
+kural dört ayrı yere dağılmıştı: yönetici kabuğunun NAV listesi, personel kabuğunun
+`staffNavAll` listesi, `Finans` bileşeninin kendi sekme tablosu ve çağrı yerindeki
+`izinler.odemeTakvimi ? … : null` kapısı. **Hiçbiri Node'dan çağrılamıyordu**, yani
+"kim hangi para ekranını görüyor" sorusunu ölçen tek bir test yoktu.
+
+**Karar (kullanıcı onayladı).** Menüde tek "Finans" maddesi; içindeki sekmeler kişinin
+iznine göre çizilir. **Kimse yetki kazanmaz, kimse erişim kaybetmez** — işin tek kabul
+ölçütü bu.
+
+| İzin | Menüde Finans | Görünen sekmeler |
+|---|---|---|
+| `finans` VAR · `odemeTakvimi` YOK | var | Özet · Gelir-Gider · Ay Ay Karşılaştırma · Raporlar · Hesaplar · Vergi & Arşiv — **Ödemeler YOK** |
+| `finans` YOK · `odemeTakvimi` VAR | **var** | yalnızca **Ödemeler** |
+| ikisi de VAR | var | hepsi |
+| ikisi de YOK | **yok** | — |
+| yönetici | var | hepsi + **Doğrulama** (bugünkü davranış, değişmedi) |
+
+**Yapılanlar.**
+
+- **`lib/finans-sekmeleri.js` (yeni, saf).** Sekme tanımları ve üç fonksiyon:
+  `finansSekmeleri(izinler)` · `finansMenudeMi(izinler)` · `aktifFinansSekmesi(secili, liste)`.
+  Kural JSX'e GÖMÜLMEDİ (`marcus-mimari` §4) — üç yer birden okuyor ve artık test edilebilir.
+  Fail-close: izin açıkça `true` değilse sekme yok; `1` ya da `"evet"` yetmez.
+- **`src/finans.jsx`.** Sekme tablosu buradan kalktı, modülden geliyor. Seçili sekme artık
+  `setState` ile sıfırlanmıyor, **türetiliyor**: yalnızca `odemeTakvimi` izni olan kişide
+  başlangıç değeri `"ozet"` ve o sekme ona hiç çizilmiyor — düzeltilmeseydi ekran BOMBOŞ
+  açılırdı. "Tahsilatlar" sekmesi **"Ödemeler"** adını aldı (içeriği eski Ödeme Takvimi
+  ekranı; ad artık içeriği söylüyor) ve `odemeTakvimi` iznine bağlandı — `finans`-only
+  personel eskiden bu sekmeyi görüyor ama içinde yalnızca "bu bölüm için yetki gerekiyor"
+  yazısını buluyordu; ölü sekme kalktı.
+- **Bileşen gövdesi eksik alanlara dayanıklı.** Ekran artık `finans` izni OLMAYAN birine
+  de çiziliyor ve sunucu o kişiye `monthly` · `gelirKalemleri` · `giderKalemleri` ·
+  `ofisGiderleri` · `bekleyenTahsilatlar` · `vergiTakvimi` alanlarını **hiç göndermiyor**
+  (`PERMISSION_DATA_FIELDS.odemeTakvimi`). Çıplak `data.monthly` üzerinden yapılan
+  `[...monthly]` yayılımı bileşeni patlatırdı — **sekme çizilmese bile gövdedeki her satır
+  çalışır** (`CLAUDE.md` §3). Alanlar `|| []` ile okunuyor.
+- **`src/App.jsx` — İKİ kabuk birden.** Personel kabuğunda ayrı "Ödeme Takvimi" menü
+  maddesi ve `staffTab === "odeme-takvimi"` ekranı kaldırıldı (prop'ları ikinci kez
+  yazılıydı; `odemeTakvimiProps` ile tek kaynağa indi). Yönetici kabuğundaki
+  `tab === "odeme-takvimi"` bloğu **ölü koddu** — NAV'da karşılığı yoktu, oraya yalnızca
+  tarayıcısında eski sekme adı kalmış kullanıcı düşebiliyordu; o ad artık açılışta
+  `finans`'a yönlendiriliyor (`ESKI_SEKMELER`) ve blok silindi. Bu projede aynı sınıftan
+  hata daha önce oldu (`operasyonOrtakProps`): yeni yeteneği yalnızca bir role eklemek.
+- **Sekme şeridi.** `role="tablist"` + `role="tab"` + `aria-selected` (klavye/ekran
+  okuyucu ve test çıpası), aktif sekme `accentSoft` + `accentText`, gap 6 → **8**
+  (jeton ölçeği), `flexShrink: 0` + `overflowX: auto` — dar ekranda taşma şeridin KENDİ
+  kabında kalır, sayfa gövdesi kaymaz.
+
+**Testler.**
+
+- `testler/t115.mjs` (yeni) — **24 kontrol**, beş bölüm: dört izin bileşiminin dördü,
+  artı sıra/saflık/fail-close sınırları. Davranış sınanıyor, kaynak metni değil.
+- `testler/tarayiciAcilis.mjs` — **üç yeni senaryo**, 84 → **125 kontrol**:
+  *personel finans sekmeleri* (menüde tek madde, yedi sekme, Doğrulama YOK, sekme geçişi
+  hem "geldi" hem "gitti" tarafından) · *yalnızca ödeme takvimi izni* (erişim kaybı yok,
+  tek sekme, içerik çizildi) · *dar ekranda finans sekmeleri* (390px). Personel
+  fixture'ları **sunucunun o izne göndereceği kadarını** taşıyor; belgenin tamamını
+  koymak gerçekte hiç oluşmayan bir hâli sınamak olurdu.
+
+**Kırarak ölçüldü — iki ayrı bozma:**
+
+| Bozma | Düşen kontrol | Hangileri |
+|---|---|---|
+| `finansMenudeMi` yalnızca `finans === true` diyor (yani `odemeTakvimi`-only kullanıcı menüyü HİÇ görmüyor — istenmeyen erişim kaybı) | **6** (t115'te 1, tarayıcıda 5) | t115: "Finans menüde ÇİZİLİYOR (ayrı menü maddesi kalktı, erişim kalmalı)" · tarayıcı: "beklenen ekran çizildi" · "erişim kaybı YOK" · "YALNIZCA Ödemeler sekmesi var" · "Finans'ın kendi sekmeleri YOK" · "Ödemeler içeriği doğrudan çizildi" |
+| Sekme şeridinden `overflowX: auto` kaldırıldı | tarayıcıda **1** | "dar ekranda: yatay KAYMA yok (sayfa gövdesi + sekme çubuğunun ebeveyni)" — belge 364px, gövde 364px, kap 384px taştı |
+
+Birinci bozmada **27 denetim ve derleme YEŞİL kaldı** (çıkış kodu 0); ekranda beliren şey
+personel kabuğunun "Henüz erişimin olan bir bölüm yok. Yöneticine sor." cümlesiydi — yani
+hata sessiz değil ama zinciri kıran tek katman t115 + tarayıcı testiydi.
+
+Zincir: 27 denetim ✓ · **2717 kontrol** (t1…t115) ✓ · derleme ✓ · tarayıcı **125 kontrol** ✓ ·
+`api/` 11 fonksiyon (dokunulmadı).
+
+### Ölçülemeyen / bilinen boşluklar
+
+- **`PERMISSION_DATA_FIELDS` DEĞİŞTİRİLMEDİ ve bir şey söylüyor.**
+  `odemeTakvimi` izninin açtığı alanlar (`clients`, `hesaplar`, `hesapTransferleri`,
+  `hesapDuzeltmeleri`) `finans` izninin alan listesinin **tamamen içinde**. Yani
+  `finans`-only bir personele ödeme kayıtları (`clients[].odemeKayitlari`, `faturalar`)
+  ve hesap bakiyeleri **zaten gidiyor**; Ödemeler sekmesini ona çizmemek veriyi
+  yüzeyden kaldırır, ağdan değil. Gerçekten daraltmak `clients` alanının izne göre alan
+  alan süzülmesini gerektirir — ayrı ve daha büyük bir karar, bu işin kapsamında değil.
+- **Personelin ödeme ekranında avans ve personel ödemeleri BOŞ.** `avanslar` ve
+  `personelOdemeleri` hiçbir izin listesinde yok, yani sunucu onları personele hiç
+  göndermiyor. Bugünkü davranış — bu işte değişmedi, ama ekran bunu ayrıca SÖYLEMİYOR.
+- **Menü çubuğu tek maddede hiç çizilmiyor** (`staffNavAll.length > 1`). Yalnızca
+  `odemeTakvimi` izni olan kişide tek madde kalıyor ve menü gizleniyor; "Finans maddesi
+  çizildi" iddiası o senaryoda menüden değil, ekranın kendisinden ölçülüyor.
+- **Sekme geçişi yalnızca Özet → Ödemeler yönünde çizilerek ölçüldü.** Diğer beş sekmenin
+  içeriği (Gelir-Gider, Ay Ay Karşılaştırma, Raporlar, Hesaplar, Vergi & Arşiv) tarayıcıda
+  AÇILMIYOR; sekme çubuğunda adları var, gövdeleri ölçülü değil.

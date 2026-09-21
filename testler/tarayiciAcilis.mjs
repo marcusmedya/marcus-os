@@ -269,6 +269,94 @@ const SAHTE_YANIT_DOGRULAMA = () => ({
   },
 });
 
+/* ── PERSONEL KABUĞU: FİNANS MENÜSÜ VE SEKMELERİ ────────────────────────────────
+ *
+ * Neden var: para ekranları menüde İKİ maddeydi ("Finans" · "Ödeme Takvimi") ve tek
+ * maddeye indirildi; içindeki sekmeler artık kişinin iznine göre çiziliyor
+ * (`lib/finans-sekmeleri.js`). Kuralın SAF tarafını t115 ölçüyor — ama "menü maddesi
+ * gerçekten çizildi mi", "sekme çubuğu dar ekranda sayfayı kaydırıyor mu", "tıklayınca
+ * içerik değişiyor mu" sorularını hiçbir Node testi göremez. Çizilmeyen ekran yok sayılır.
+ *
+ * UYDURMA BELGE SUNUCUNUN GÖNDERECEĞİ KADARINI TAŞIYOR. Personel yanıtı izne göre
+ * SÜZÜLÜYOR (`api/data.js` → `PERMISSION_DATA_FIELDS`); fixture'a belgenin tamamını
+ * koymak, gerçekte hiç oluşmayan bir hâli sınamak olurdu. Asıl risk de tam burada:
+ * yalnızca `odemeTakvimi` izni olan kişiye `monthly` / `gelirKalemleri` / `vergiTakvimi`
+ * HİÇ gitmiyor ve Finans bileşeninin gövdesi o alanlara dokunuyor — sekme çizilmese bile
+ * gövdedeki her satır çalışır (`CLAUDE.md` §3).
+ *
+ * Adlar bilerek gerçek dışı; buraya asla üretim verisi kopyalanmaz. */
+const PERSONEL_MARKA = "Personel Test Marka (TEST)";
+const PERSONEL_UCRET = 24000;
+
+/* Bütün izinler kapalı bir taban: fixture yalnızca AÇTIĞI izni yazsın, gerisi sessizce
+ * varsayılana düşmesin. (App.jsx'te `reklamlar`/`paylasimlar`/`cekimEdit` varsayılan
+ * AÇIK — yazılmazlarsa menüye fazladan madde girer ve senaryo ölçtüğü şeyi kaybeder.) */
+const IZIN_KAPALI = {
+  dashboard: false, musteriler: false, finans: false, takvim: false, odemeTakvimi: false,
+  teklif: false, reklamlar: false, paylasimlar: false, cekimListesi: false, cekimEdit: false,
+  markaYoneticisi: false, personel: false, birikim: false, uyelikler: false,
+  sifreKasasi: false, musteriAkisi: false,
+};
+
+const PERSONEL_MUSTERI = {
+  id: "sahte-marka-personel", ad: PERSONEL_MARKA, name: PERSONEL_MARKA,
+  kategori: "Kafe", durum: "aktif", aylikUcret: PERSONEL_UCRET,
+  odemeGunu: 1, odemeSekli: "pesin", baslangic: ayGeriye(2),
+  maliyetler: [], faturalar: [], ucretGecmisi: [],
+  odemeKayitlari: [{ id: 1, ay: ayGeriye(1), tutar: PERSONEL_UCRET, tarih: `${ayGeriye(1)}-03`, hesapId: "ana" }],
+};
+const PERSONEL_HESAPLAR = [{ id: "ana", ad: "Ana Hesap (TEST)", anaHesap: true }];
+
+/* İKİ İZİN BİRDEN — personel hem Finans sekmelerini hem Ödemeler sekmesini görür,
+ * Doğrulama'yı GÖRMEZ (o yalnızca yönetici kabuğunda). `dashboard` da açık: personel
+ * menü çubuğu ancak İKİ maddeden itibaren çiziliyor, yani "Finans menüde bir madde"
+ * iddiası ancak böyle ölçülebiliyor. */
+const SAHTE_YANIT_PERSONEL_FINANS = () => ({
+  role: "staff",
+  staffName: "Deneme Personel (TEST)",
+  data: {
+    staffPermissions: { ...IZIN_KAPALI, dashboard: true, finans: true, odemeTakvimi: true },
+    firmaAdi: "Deneme Ajans (TEST)", _v: 0, _alanSurumleri: {},
+    // PERMISSION_DATA_FIELDS.finans ∪ .odemeTakvimi — fazlası YOK.
+    clients: [PERSONEL_MUSTERI],
+    monthly: [], gelirKalemleri: [{ id: 1, kalem: "Proje Bazli Cekim (TEST)", tutar: 4500, tekrar: "tek seferlik", faturali: "evet" }],
+    giderKalemleri: [{ id: 1, kalem: "Ekipman (TEST)", tutar: 1700, tekrar: "tek seferlik" }],
+    ofisGiderleri: [], bekleyenTahsilatlar: [], vergiTakvimi: [], personel: [],
+    hesaplar: PERSONEL_HESAPLAR, hesapTransferleri: [], hesapDuzeltmeleri: [],
+  },
+});
+
+/* YALNIZCA ÖDEME TAKVİMİ İZNİ — bu işin ASIL RİSKİ.
+ *
+ * Eski menüdeki ayrı "Ödeme Takvimi" maddesi tam olarak bu kişi için duruyordu. Finans
+ * maddesi ona da çizilmezse ekrana HİÇ ULAŞAMAZ ve personel kabuğu "Henüz erişimin olan
+ * bir bölüm yok" yazar — bu senaryonun ölçtüğü şey tam olarak o cümlenin ÇIKMAMASI.
+ *
+ * Belge bilerek EKSİK: sunucu bu kişiye yalnızca `clients` · `hesaplar` ·
+ * `hesapTransferleri` · `hesapDuzeltmeleri` gönderiyor. `monthly` ve arkadaşları
+ * undefined geliyor; Finans gövdesi onlara korumasız dokunsaydı ekran patlardı. */
+const SAHTE_YANIT_ODEME_IZNI = () => ({
+  role: "staff",
+  staffName: "Odeme Personeli (TEST)",
+  data: {
+    staffPermissions: { ...IZIN_KAPALI, odemeTakvimi: true },
+    firmaAdi: "Deneme Ajans (TEST)", _v: 0, _alanSurumleri: {},
+    clients: [PERSONEL_MUSTERI],
+    hesaplar: PERSONEL_HESAPLAR, hesapTransferleri: [], hesapDuzeltmeleri: [],
+  },
+});
+
+/* Finans sekmelerinin ADLARI tek yerde: üç senaryo da aynı listeyi kullanıyor ve sekme
+ * eklenince tek satır değişir. "Doğrulama" bilerek YOK — personel onu görmemeli. */
+const PERSONEL_SEKMELERI = ["Özet", "Gelir-Gider", "Ay Ay Karşılaştırma", "Ödemeler",
+  "Raporlar (PDF)", "Hesaplar", "Vergi & Arşiv"];
+const ODEMELER_SEKMESI = "Ödemeler";
+/* Ödemeler sekmesinin İÇERİĞİNİN çizildiğinin kanıtı (`OdemeTakvimi`): iki KPI kartı
+ * ve bekleyen tahsilat listesi. Sekme başlığı sabit metin, içerik değil. */
+const ODEME_ICERIGI = ["TAKİP EDİLEN MÜŞTERİ", "BİRİKMİŞ TOPLAM BORÇ"];
+/* Özet sekmesinin imzası — "içerik değişti" iddiasının öteki yarısı. */
+const OZET_IMZASI = "Para Nereye Gidiyor?";
+
 /* ── SUNUCU ──────────────────────────────────────────────────────────────────── */
 const TIP = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
@@ -913,6 +1001,168 @@ async function dogrulamaEtkilesimi({ sayfa, ad }) {
   if (metin) console.log(`     doğrulamadan: "${ornek}…"`);
 }
 
+/* ── FİNANS SEKME ÇUBUĞU — OKUYUCU ──────────────────────────────────────────────
+ *
+ * ÇIPA: `role="tablist"` + `aria-label="Finans bölümleri"`. Satır içi stil METNİNE ya da
+ * sınıf adına bakılmıyor — stil düzenlenince sessizce kopan bir çıpa olmasın. Çubuk
+ * bulunamazsa `null` döner ve kontroller DÜŞER; sessizce geçmesindense gürültülü kırılsın.
+ *
+ * Okunan her şey Finans ekranının KENDİ alt ağacından (çubuğun ebeveyni) geliyor,
+ * sayfanın tamamından değil: personel kabuğunun üst çubuğu ve menüsü de metin üretiyor
+ * ve gevşek bir çıpa, ekran hiç çizilmese bile bazı kontrolleri boş yere geçirirdi. */
+const finansOkuyucu = (sayfa) => () => sayfa.evaluate(() => {
+  const serit = document.querySelector('[role="tablist"][aria-label="Finans bölümleri"]');
+  if (!serit) return null;
+  const kap = serit.parentElement;   // Finans ekranının kökü
+  return {
+    sekmeler: [...serit.querySelectorAll('[role="tab"]')].map((b) => ({
+      ad: (b.textContent || "").trim(),
+      secili: b.getAttribute("aria-selected") === "true",
+    })),
+    /* İKİ YERDE ÖLÇÜLEN YATAY TAŞMA — biri tek başına yetmiyor:
+     *   · `seritTasmasi`: çubuğun KENDİ kaydırma bölgesi. Dar ekranda bunun POZİTİF
+     *     olması bir kusur DEĞİL, tasarımın kendisi — sekmeler sığmadığında çubuk kendi
+     *     içinde kayar. Ölçülmesinin sebebi, aşağıdaki kontrolün boş yere geçmemesi:
+     *     taşma hiç yoksa "kap taşmıyor" iddiası hiçbir şey sınamaz.
+     *   · `kapTasmasi`: çubuğun EBEVEYNİ. Taşma çubuğun içinde kalmayıp dışarı çıkarsa
+     *     burada görünür ve sayfa gövdesine kadar yürür ("sayfa gövdesi asla yatay
+     *     kaymaz" — `marcus-design`). */
+    seritTasmasi: serit.scrollWidth - serit.clientWidth,
+    kapTasmasi: kap ? kap.scrollWidth - kap.clientWidth : null,
+    metin: kap ? (kap.innerText || "") : "",
+  };
+});
+
+/** Personel kabuğunun üst menüsündeki madde adları. İki maddeden azsa menü HİÇ
+ *  çizilmiyor (`staffNavAll.length > 1`) — o zaman boş dizi döner. */
+const personelMenusu = (sayfa) => () => sayfa.evaluate(() => {
+  const kok = document.getElementById("root");
+  const serit = kok ? [...kok.querySelectorAll("div")].find((d) => {
+    const cocuklar = [...d.children];
+    return cocuklar.length > 1 && cocuklar.every((c) => c.tagName === "BUTTON")
+      && cocuklar.some((c) => (c.textContent || "").trim() === "Finans");
+  }) : null;
+  return serit ? [...serit.children].map((b) => (b.textContent || "").trim()) : [];
+});
+
+/* ── PERSONEL · İKİ İZİN BİRDEN ───────────────────────────────────────────────── */
+async function personelFinansEtkilesimi({ sayfa, ad }) {
+  const finansOku = finansOkuyucu(sayfa);
+  const menuyuOku = personelMenusu(sayfa);
+
+  const menu = await menuyuOku();
+  const ekran = await finansOku();
+  // Ekran hiç çizilmese bile AŞAĞIDAKİ KONTROLLERİN HEPSİ ÇALIŞIR ve tek tek düşer:
+  // erken dönseydi "kaç kontrol düştü" ölçümü sessizce küçülürdü.
+  const sekmeAdlari = ekran ? ekran.sekmeler.map((x) => x.ad) : [];
+  const seciliSekme = ekran ? ((ekran.sekmeler.find((x) => x.secili) || {}).ad || "(yok)") : "(ekran yok)";
+  const metin = ekran ? ekran.metin : "";
+  const ornek = metin.slice(0, 140).replace(/\s+/g, " ");
+
+  kontrol(`${ad}: menüde TEK "Finans" maddesi var (ayrı "Ödeme Takvimi" yok)`,
+    menu.filter((x) => x === "Finans").length === 1 && !menu.includes("Ödeme Takvimi"),
+    `menü: ${JSON.stringify(menu)}`);
+  kontrol(`${ad}: sekme çubuğu çizildi (${PERSONEL_SEKMELERI.join(" · ")})`,
+    sekmeAdlari.join("|") === PERSONEL_SEKMELERI.join("|"),
+    `bulunan: ${JSON.stringify(sekmeAdlari)}`);
+  /* NEGATİF İDDİA — boş yere geçmeye açık: ekran hiç çizilmezse de Doğrulama yoktur.
+   * Bu yüzden `ekran !== null` şartı taşıyor ve yukarıda çubuğun DOLU olduğu aranıyor. */
+  kontrol(`${ad}: personelde Doğrulama sekmesi YOK`,
+    ekran !== null && !sekmeAdlari.includes("Doğrulama"),
+    ekran === null ? "ekran çizilmedi" : `bulunan: ${JSON.stringify(sekmeAdlari)}`);
+  kontrol(`${ad}: varsayılan sekme Özet ve içeriği çizili (${OZET_IMZASI})`,
+    seciliSekme === "Özet" && metin.includes(OZET_IMZASI) && metin.includes("KASADA"),
+    `seçili: ${seciliSekme} · ekranda: "${ornek}…"`);
+
+  /* SEKME GEÇİŞİ GERÇEKTEN ÖLÇÜLÜYOR: yalnızca "Ödemeler geldi" değil, "Özet GİTTİ" de
+   * aranıyor. İki sekmenin içeriği aynı anda duruyorsa geçiş çalışmıyor demektir. */
+  let gecisHatasi = null;
+  try {
+    await sayfa.locator('[role="tab"]').filter({ hasText: ODEMELER_SEKMESI }).first()
+      .click({ timeout: 20000 });
+    await sayfa.waitForFunction(
+      (m) => document.body.innerText.includes(m), ODEME_ICERIGI[0], { timeout: 20000 },
+    );
+  } catch (e) {
+    gecisHatasi = e.message.split("\n")[0];
+  }
+
+  const ekran2 = await finansOku();
+  const metin2 = ekran2 ? ekran2.metin : "";
+  const secili2 = ekran2 ? ((ekran2.sekmeler.find((x) => x.secili) || {}).ad || "(yok)") : "(ekran yok)";
+  const ornek2 = metin2.slice(0, 140).replace(/\s+/g, " ");
+
+  kontrol(`${ad}: "${ODEMELER_SEKMESI}" sekmesine tıklanınca seçili sekme değişti`,
+    gecisHatasi === null && secili2 === ODEMELER_SEKMESI,
+    gecisHatasi || `seçili: ${secili2}`);
+  kontrol(`${ad}: Ödemeler sekmesinin içeriği geldi (${ODEME_ICERIGI.join(" · ")})`,
+    ODEME_ICERIGI.every((m) => metin2.includes(m)), `ekranda: "${ornek2}…"`);
+  kontrol(`${ad}: Özet sekmesinin içeriği gitti (${OZET_IMZASI} · KASADA yok)`,
+    metin2 !== "" && !metin2.includes(OZET_IMZASI) && !metin2.includes("KASADA"),
+    `ekranda: "${ornek2}…"`);
+
+  if (metin2) console.log(`     finanstan: "${ornek2}…"`);
+}
+
+/* ── PERSONEL · YALNIZCA ÖDEME TAKVİMİ İZNİ ───────────────────────────────────── */
+async function odemeIzniEtkilesimi({ sayfa, ad }) {
+  const finansOku = finansOkuyucu(sayfa);
+
+  const ekran = await finansOku();
+  const govde = await sayfa.evaluate(() => (document.getElementById("root") || {}).innerText || "");
+  const sekmeAdlari = ekran ? ekran.sekmeler.map((x) => x.ad) : [];
+  const metin = ekran ? ekran.metin : "";
+  const ornek = metin.slice(0, 140).replace(/\s+/g, " ");
+
+  /* ASIL İDDİA — ERİŞİM KAYBI YOK. Finans maddesi bu kişiye çizilmezse personel kabuğu
+   * hiçbir bölüm bulamaz ve tam olarak bu cümleyi yazar. */
+  kontrol(`${ad}: erişim kaybı YOK ("Henüz erişimin olan bir bölüm yok" çıkmadı)`,
+    !govde.includes("Henüz erişimin olan bir bölüm yok"),
+    `ekranda: "${govde.slice(0, 140).replace(/\s+/g, " ")}…"`);
+  kontrol(`${ad}: Finans ekranı çizildi ve YALNIZCA "${ODEMELER_SEKMESI}" sekmesi var`,
+    ekran !== null && sekmeAdlari.join("|") === ODEMELER_SEKMESI,
+    ekran === null ? "sekme çubuğu çizilmedi" : `bulunan: ${JSON.stringify(sekmeAdlari)}`);
+  kontrol(`${ad}: Finans'ın kendi sekmeleri YOK (Özet · Hesaplar · Doğrulama)`,
+    ekran !== null && !sekmeAdlari.includes("Özet") && !sekmeAdlari.includes("Hesaplar")
+      && !sekmeAdlari.includes("Doğrulama"),
+    ekran === null ? "ekran çizilmedi" : `bulunan: ${JSON.stringify(sekmeAdlari)}`);
+  /* Sekme BAŞLIĞI sabit metin; asıl kanıt ekranın içeriğinin çizilmesi — üstelik belge
+   * bilerek eksik (`monthly` ve arkadaşları hiç gelmiyor), yani bu kontrol aynı zamanda
+   * "Finans gövdesi eksik alanlarda patlamıyor" demek. */
+  kontrol(`${ad}: Ödemeler içeriği doğrudan çizildi (${ODEME_ICERIGI.join(" · ")})`,
+    ODEME_ICERIGI.every((m) => metin.includes(m)) && metin.includes(PERSONEL_MARKA),
+    `ekranda: "${ornek}…"`);
+
+  if (metin) console.log(`     finanstan: "${ornek}…"`);
+}
+
+/* ── DAR EKRAN · SEKME ÇUBUĞU TAŞMASI ─────────────────────────────────────────── */
+async function darFinansEtkilesimi({ sayfa, ad }) {
+  const finansOku = finansOkuyucu(sayfa);
+
+  const ekran = await finansOku();
+  const sekmeAdlari = ekran ? ekran.sekmeler.map((x) => x.ad) : [];
+
+  kontrol(`${ad}: dar ekranda da bütün sekmeler çizildi (${PERSONEL_SEKMELERI.length} sekme)`,
+    sekmeAdlari.join("|") === PERSONEL_SEKMELERI.join("|"),
+    `bulunan: ${JSON.stringify(sekmeAdlari)}`);
+
+  /* KONTROL BOŞ YERE GEÇMESİN: sekmeler 390px'e sığıyorsa "kap taşmıyor" iddiası hiçbir
+   * şey sınamaz. Önce taşmanın GERÇEKTEN olduğu, sonra çubuğun içinde KALDIĞI ölçülüyor. */
+  kontrol(`${ad}: sekmeler 390px'e sığmıyor, yani taşma kontrolü gerçekten bir şey ölçüyor`,
+    ekran !== null && ekran.seritTasmasi > 0,
+    ekran === null ? "ekran çizilmedi" : `şerit taşması: ${ekran.seritTasmasi}px`);
+
+  const kayma = await sayfa.evaluate(() => ({
+    belge: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    govde: document.body.scrollWidth - document.body.clientWidth,
+  }));
+  const kapTasmasi = ekran ? ekran.kapTasmasi : null;
+  kontrol(`${ad}: yatay KAYMA yok (sayfa gövdesi + sekme çubuğunun ebeveyni)`,
+    kayma.belge <= 0 && kayma.govde <= 0 && kapTasmasi !== null && kapTasmasi <= 0,
+    `belge: ${kayma.belge}px, gövde: ${kayma.govde}px, kap: ${kapTasmasi === null ? "bulunamadı" : kapTasmasi + "px"}`);
+}
+
 /* ── TARAYICIYI BUL ──────────────────────────────────────────────────────────── */
 /**
  * Chromium'un yeri MAKİNEDEN MAKİNEYE DEĞİŞİR. Yol sabit yazılıydı
@@ -1023,6 +1273,31 @@ async function calistir() {
         yerelDepo: { "marcus-os-son-sekme": "finans", "marcus-os-gizlilik": "0" },
         etkilesim: dogrulamaEtkilesimi,
       });
+    /* 7) PERSONEL · FİNANS SEKMELERİ — para ekranları tek menüde toplandı.
+     *    Yönetici kabuğu senaryo 6'da zaten çiziliyor; bu senaryo PERSONEL kabuğunu
+     *    ölçüyor. Bu projede aynı yetenek bir kez yalnızca bir role eklenip diğerinde
+     *    hiç görünmedi (`operasyonOrtakProps`) — iki kabuk ayrı ayrı sınanır.
+     *    `marcus-os-son-sekme` ile uygulama doğrudan Finans'ta açılıyor,
+     *    `marcus-os-gizlilik` ile gizlilik modu kapatılıyor. */
+    const FINANS_DEPOSU = { "marcus-os-son-sekme": "finans", "marcus-os-gizlilik": "0" };
+    await senaryo(tarayici, "personel finans sekmeleri", SAHTE_YANIT_PERSONEL_FINANS(), 50,
+      ["Finans", ODEMELER_SEKMESI],
+      { yerelDepo: FINANS_DEPOSU, etkilesim: personelFinansEtkilesimi });
+    /* 8) YALNIZCA ÖDEME TAKVİMİ İZNİ — bu işin ASIL RİSKİ ve kırarak ölçmenin hedefi.
+     *    Eski ayrı menü maddesi tam bu kişi içindi; Finans maddesi ona da çizilmezse
+     *    ekrana HİÇ ulaşamaz. Belge bilerek eksik (sunucunun bu izne göndereceği kadarı). */
+    await senaryo(tarayici, "yalnızca ödeme takvimi izni", SAHTE_YANIT_ODEME_IZNI(), 50,
+      [ODEMELER_SEKMESI, ODEME_ICERIGI[0]],
+      { yerelDepo: FINANS_DEPOSU, etkilesim: odemeIzniEtkilesimi });
+    /* 9) DAR EKRAN — sekme sayısı izne göre 8'e kadar çıkıyor ve 390px'lik bir telefonda
+     *    hepsi sığmıyor. Taşmanın sayfa gövdesine SIZMAMASI burada ölçülüyor. */
+    await senaryo(tarayici, "dar ekranda finans sekmeleri", SAHTE_YANIT_PERSONEL_FINANS(), 50,
+      ["Finans", ODEMELER_SEKMESI],
+      {
+        yerelDepo: FINANS_DEPOSU,
+        etkilesim: darFinansEtkilesimi,
+        pencere: { width: 390, height: 800 },
+      });
   } finally {
     await tarayici.close();
   }
@@ -1042,7 +1317,7 @@ async function calistir() {
    *
    * Sayıyı BİLEREK değiştirmek serbest — yeni kontrol eklerken bu sabit de artar. Yasak
    * olan, sayının KENDİLİĞİNDEN düşmesi ve kimsenin görmemesi. */
-  const BEKLENEN = 84;
+  const BEKLENEN = 125;
   if (gecen !== BEKLENEN) {
     console.log(`SONUÇ: ✗ ${gecen} kontrol çalıştı, ${BEKLENEN} bekleniyordu — kapsam DEĞİŞMİŞ.`);
     console.log("       Kontrol eklediysen bu sabiti de artır; artırmadıysan bir kontrol");
