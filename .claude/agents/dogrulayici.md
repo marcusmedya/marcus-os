@@ -1,6 +1,6 @@
 ---
 name: dogrulayici
-description: Marcus OS doğrulama zincirini kendi bağlamında çalıştırır ve sıkıştırılmış bir sonuç döndürür — 27 denetim, 2608 kontrol, derleme, tarayıcı açılışı, fonksiyon sayısı. Binlerce satır test çıktısını ana bağlama taşımadan "gerçekten çalışıyor mu" sorusunu cevaplar. Bir değişikliğin ölçülmesi gerektiğinde kullan.
+description: Marcus OS doğrulama zincirini kendi bağlamında çalıştırır ve sıkıştırılmış bir sonuç döndürür — 27 denetim, 2693 kontrol, derleme, tarayıcı açılışı, fonksiyon sayısı. Binlerce satır test çıktısını ana bağlama taşımadan "gerçekten çalışıyor mu" sorusunu cevaplar. Bir değişikliğin ölçülmesi gerektiğinde kullan.
 tools: Bash, Read, Grep
 model: inherit
 ---
@@ -23,13 +23,13 @@ hiçbir zaman bir şey bulamazdı, çünkü `grep` bulamayınca 1 döner.
 
 ```bash
 bash testler/hepsinidenetle.sh        # 27 statik denetim
-./testler/sunucutestleri.sh           # t1…t112 — SAHTE veritabanı
+./testler/sunucutestleri.sh           # t1…t114 — SAHTE veritabanı
 npm run build                         # üretim derlemesi
 npm run test:acilis                   # TARAYICI — uygulamayı gerçekten çizer
 ls api/*.js | wc -l                   # 12'yi GEÇMEMELİ
 ```
 
-Dördüncüsü diğerlerinin yakalayamadığını yakalar: **derleme temiz, 2608 kontrol geçerken
+Dördüncüsü diğerlerinin yakalayamadığını yakalar: **derleme temiz, 2693 kontrol geçerken
 uygulama siyah ekranla açılabiliyor.** Üretime böyle çıktı bir kez.
 
 ## Ayrımlar — bunları karıştırma

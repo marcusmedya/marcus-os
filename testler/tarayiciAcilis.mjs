@@ -190,6 +190,85 @@ const SAHTE_YANIT_PANEL = () => ({
   },
 });
 
+/* ── FİNANS → DOĞRULAMA SEKMESİ İÇİN FİXTURE ────────────────────────────────────
+ *
+ * Neden ayrı bir belge: doğrulama ekranı belgedeki BÜTÜN para kayıtlarını yeni hesaplama
+ * katmanına çevirip bugünkü motorun rakamlarıyla yan yana koyuyor. `SAHTE_BELGE`'nin para
+ * listeleri boş olduğu için orada her satır sıfır çıkar — ekran çizilir ama hiçbir şey
+ * ölçülmez: yirmi satırın hepsi 0 = 0 olurdu ve tablonun gerçekten DOLU olduğunu kimse
+ * göremezdi.
+ *
+ * TARİHLER BUGÜNE GÖRELİ. Mutabakatın iki satırı (`Freelancer hak edişi (bu ay)`,
+ * `Aylık gider`) AY bazlı ve `computeLive` de `new Date()`e bakıyor; sabit tarih yazmak,
+ * testin aylar sonra kimse dokunmadan kırmızıya dönmesi demekti.
+ *
+ * MUTABAKAT BİLEREK TUTUYOR. Kayıtlar, eski motorla yeni katmanın aynı rakamı vermesini
+ * sağlayacak şekilde kuruldu (ölçüldü: 20 satır, hepsinin farkı 0). Böylece senaryo hem
+ * "sağlıklı dal çizildi" hem de "sağlıklı dalda birincil düğme YOK" iddiasını sınayabiliyor.
+ * Tutmayan dal ekranda daha kolay göze çarpar; asıl boş yere geçmeye açık olan SAĞLIKLI
+ * dal — bu yüzden aynı senaryoda tablonun dolu olduğu ayrıca aranıyor.
+ *
+ * Adlar bilerek gerçek dışı; buraya asla üretim verisi kopyalanmaz. */
+const DOGRULAMA_TAHSILAT = 17600;      // 12.000 + 5.600 (dönemi çözülen iki tahsilat)
+const DOGRULAMA_SATIR = 20;            // mutabakat tablosunun satır sayısı
+const DOGRULAMA_TARIHSIZ = 13;         // dönemi olmayan hareket
+const DOGRULAMA_KDVSIZ = 17;           // KDV'si kayıtta olmayan hareket
+const DOGRULAMA_HESAP = "Ana Hesap (TEST)";
+
+const SAHTE_YANIT_DOGRULAMA = () => ({
+  role: "owner",
+  data: {
+    ...SAHTE_BELGE,
+    clients: [
+      {
+        id: "sahte-marka-para-1", ad: "Denge Kafe (TEST)", name: "Denge Kafe (TEST)",
+        durum: "aktif", aylikUcret: 30000, baslangic: ayGeriye(4), odemeGunu: 1,
+        odemeler: [], faturaliTutar: 30000, ucretGecmisi: [],
+        odemeKayitlari: [
+          { id: 1, ay: ayGeriye(2), tarih: `${ayGeriye(2)}-05`, tutar: 12000, hesapId: "ana", not: "Kapanis" },
+          /* Ne tarihi ne ayı var: kaybolmamalı, "tarihsiz" sayacına girmeli. */
+          { id: 2, tutar: 7100, hesapId: "ana", not: "ayi girilmemis" },
+        ],
+        faturalar: [{ id: 1, ay: ayGeriye(2), tarih: `${ayGeriye(2)}-06`, no: "A-1", tutar: 9400 }],
+        maliyetler: [{ id: 1, kalem: "Videographer Payi", tutar: 3300 }],
+      },
+      {
+        /* Dondurulmuş marka: geçmiş tahsilatı KORUNUR, maliyeti aktif küme dışında kalır. */
+        id: "sahte-marka-para-2", ad: "Donuk Marka (TEST)", name: "Donuk Marka (TEST)",
+        durum: "donduruldu", aylikUcret: 18000, odemeGunu: 1,
+        odemeler: [], faturaliTutar: 0, ucretGecmisi: [], faturalar: [],
+        odemeKayitlari: [{ id: 1, ay: ayGeriye(5), tarih: `${ayGeriye(5)}-11`, tutar: 5600, hesapId: "kasa" }],
+        maliyetler: [{ id: 1, kalem: "Drone Kiralama", tutar: 2100 }],
+      },
+    ],
+    gelirKalemleri: [{ id: 1, kalem: "Proje Bazli Cekim", tutar: 4500, tekrar: "tek seferlik", faturali: "evet" }],
+    giderKalemleri: [{ id: 1, kalem: "Ekipman", tutar: 1700, tekrar: "tek seferlik" }],
+    ofisGiderleri: [{ id: 1, kalem: "Kira", tutar: 8900, tekrar: "sabit" }],
+    bekleyenTahsilatlar: [{ id: 1, musteri: "Donuk Marka (TEST)", tutar: 2600, vade: "3 gun gecikti" }],
+    personelOdemeleri: [{ id: 1, tur: "personel", kisiId: 1, kisiAd: "Ege (TEST)", tutar: 4300, ay: ayGeriye(1), tarih: `${ayGeriye(1)}-09`, hesapId: "ana", not: "" }],
+    avanslar: [{ id: 1, tur: "freelancer", kisiId: null, kisiAd: "Selin (TEST)", tutar: 1900, ay: ayGeriye(1), hesapId: "kasa", not: "acil" }],
+    hesaplar: [{ id: "ana", ad: DOGRULAMA_HESAP, anaHesap: true }, { id: "kasa", ad: "Nakit Kasa (TEST)" }],
+    /* Transferin tarihi EKRAN biçiminde: döneme yazılamaz, kayıt silinmez, uyarı üretir. */
+    hesapTransferleri: [{ id: 1, kaynakHesapId: "ana", hedefHesapId: "kasa", tutar: 2500, tarih: "20.09.2026" }],
+    hesapDuzeltmeleri: [{ id: 1, hesapId: "kasa", tutar: -450, tarih: `${ayGeriye(1)}-02`, not: "Elle duzeltme" }],
+    /* Vergi kaydının tarihi serbest metin, TUTARI HİÇ YOK → "tutarı bilinmiyor". */
+    vergiTakvimi: [{ id: 1, kalem: "KDV Beyannamesi", tarih: "26 Agu", durum: "yaklaşıyor" }],
+    uyelikler: [
+      { id: 1, ad: "Canva Pro", tutar: 600, periyot: "aylik", aktif: true },
+      { id: 2, ad: "Adobe CC", tutar: 9600, periyot: "yillik" },   // `aktif` elle girilmemiş
+    ],
+    personel: [{ id: 1, ad: "Ege (TEST)", pozisyon: "Video Editoru", maas: 32000, sigorta: 9500, yemek: 3500, tazminatBirikimi: 1500 }],
+    cekimIsleri: [
+      { id: 101, marka: "Denge Kafe (TEST)", kameraman: "Selin (TEST)", editor: "Ege (TEST)", teslimEdilmeTarihi: `${ayGeriye(0)}-12`, medya: [], gecmis: [] },
+      { id: 102, marka: "Donuk Marka (TEST)", editor: "Selin (TEST)", teslimEdilmeTarihi: `${ayGeriye(3)}-20`, medya: [], gecmis: [] },
+      { id: 103, marka: "Denge Kafe (TEST)", editor: "Kerem (TEST)", medya: [], gecmis: [] },  // teslim edilmemiş
+    ],
+    isUcretleri: { "Selin (TEST)": 2200, "Ege (TEST)": 1400 },
+    isUcretDetaylari: {},
+    monthly: [],
+  },
+});
+
 /* ── SUNUCU ──────────────────────────────────────────────────────────────────── */
 const TIP = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
@@ -708,6 +787,132 @@ async function darEkranEtkilesimi({ sayfa, ad }) {
   if (metin) console.log(`     panelden: "${ornek}…"`);
 }
 
+/* ── FİNANS → DOĞRULAMA SEKMESİ ─────────────────────────────────────────────────
+ *
+ * Neden var: bu ekran uygulamanın en yeni derin yüzeyi ve hiçbir katman onu ÇİZEREK
+ * ölçmüyordu. Bu projenin en pahalı dersi tam burada: "derleme temiz, 2655 kontrol
+ * geçiyor" ve uygulama yine de siyah ekranla açılabiliyor. Çizilmeyen ekran yok sayılır.
+ *
+ * Ölçülen altı şey: sekmeye tıklanınca içerik GELİYOR · karar şeridi hangi dalı çizdi ·
+ * mutabakat tablosunun satırları GERÇEKTEN var ve dolu · eksik bilgi özeti sayıyı
+ * YORUMLUYOR · sağlıklı dalda birincil düğme YOK · yatay kayma yok (İKİ yerde).
+ *
+ * Okunan her şey doğrulama ekranının KENDİ DOM alt ağacından geliyor, sayfanın
+ * tamamından değil: arkadaki Finans sekmeleri ve özet kartları da metin üretiyor ve
+ * gevşek bir çıpa, ekran hiç çizilmese bile bazı kontrolleri boş yere geçirirdi. */
+const dogrulamaOkuyucu = (sayfa) => () => sayfa.evaluate(() => {
+  /* ÇIPA: başlıkları tam olarak "Satır|Eski|Yeni|Fark" olan tablo. Sınıf adına ya da
+   * satır içi stil metnine bakılmıyor — stil düzenlenince sessizce kopan bir çıpa olmasın. */
+  const tablo = [...document.querySelectorAll("table")].find((x) => (
+    [...x.querySelectorAll("thead th")].map((h) => (h.textContent || "").trim()).join("|")
+      === "Satır|Eski|Yeni|Fark"
+  ));
+  if (!tablo) return null;
+  /* Tablodan yukarı çıkıp doğrulama ekranının kökünü bul: karar şeridini DE, eksik bilgi
+   * özetini DE kapsayan ilk ata. */
+  let kok = tablo;
+  while (kok && !((kok.innerText || "").includes("Mutabakat")
+    && (kok.innerText || "").includes("Eksik bilgi"))) kok = kok.parentElement;
+  if (!kok) return null;
+  /* Tablonun KENDİ kaydırma bölgesi. Belgenin `scrollWidth`i tek başına yetmiyor: geniş
+   * bir tablo kendi kabında kayar ve belgeye hiç yansımaz — yani yalnızca belgeye bakan
+   * bir kontrol o bozulmayı görmez. Bölge bulunamazsa `null` döner ve kontrol DÜŞER;
+   * sessizce geçmesindense gürültülü kırılsın. */
+  const kaydirma = tablo.closest(".marcus-table-wrap");
+  /* BİRİNCİL DÜĞMENİN İMZASI: opak zemin + beyaz yazı (`saveBtnStyle`). Vurgu rengi
+   * SABİT YAZILMIYOR — tema değişince sessizce kopmasın. */
+  const birincilDugmeler = [...kok.querySelectorAll("button")].filter((b) => {
+    const st = getComputedStyle(b);
+    return /^rgb\(/.test(st.backgroundColor) && st.color === "rgb(255, 255, 255)";
+  }).map((b) => (b.textContent || "").trim());
+  return {
+    metin: kok.innerText || "",
+    birincilDugmeler,
+    satirSayisi: tablo.querySelectorAll("tbody tr").length,
+    ilkSutun: [...tablo.querySelectorAll("tbody tr td:first-child")].map((x) => (x.textContent || "").trim()),
+    yatayTasma: kaydirma ? kaydirma.scrollWidth - kaydirma.clientWidth : null,
+  };
+});
+
+async function dogrulamaEtkilesimi({ sayfa, ad }) {
+  const ekraniOku = dogrulamaOkuyucu(sayfa);
+  const para = paraOkuyucu(sayfa);
+
+  let acmaHatasi = null;
+  try {
+    await sayfa.locator("button").filter({ hasText: "Doğrulama" }).first().click({ timeout: 20000 });
+    await sayfa.waitForFunction(
+      () => document.body.innerText.includes("Mutabakat"), null, { timeout: 20000 },
+    );
+  } catch (e) {
+    acmaHatasi = e.message.split("\n")[0];
+  }
+
+  const ekran = await ekraniOku();
+  // Sekme hiç açılmasa bile AŞAĞIDAKİ KONTROLLERİN HEPSİ ÇALIŞIR ve tek tek düşer:
+  // erken dönseydi "kaç kontrol düştü" ölçümü sessizce küçülürdü.
+  const metin = ekran ? ekran.metin : "";
+  const ornek = metin.slice(0, 140).replace(/\s+/g, " ");
+
+  kontrol(`${ad}: Doğrulama sekmesine tıklayınca içerik çizildi`,
+    acmaHatasi === null && ekran !== null, acmaHatasi || "doğrulama ekranı DOM'da bulunamadı");
+
+  /* 1 · KARAR ŞERİDİ — hangi dal? Fixture bilerek TUTAN tarafta kuruldu. */
+  kontrol(`${ad}: karar şeridi TUTUYOR dalını çizdi (engelleme yok)`,
+    metin.includes("Eski ve yeni motor birebir tutuyor")
+      && !metin.includes("geçiş ENGELLENDİ"),
+    `ekranda: "${ornek}…"`);
+
+  /* 2 · MUTABAKAT TABLOSU gerçekten DOLU. "Tablo var" demek yetmez: boş bir <tbody> de
+   * bir tablodur. Satır sayısı ve bir satırın ADI birlikte aranıyor. */
+  kontrol(`${ad}: mutabakat tablosunda ${DOGRULAMA_SATIR} satır var`,
+    ekran !== null && ekran.satirSayisi === DOGRULAMA_SATIR,
+    ekran === null ? "ekran yok" : `satır: ${ekran.satirSayisi}`);
+  kontrol(`${ad}: satır adları çizildi (tahsilat · personel gideri · hesap bakiyesi)`,
+    ekran !== null
+      && ekran.ilkSutun.some((x) => x.includes("Tahsilat toplamı"))
+      && ekran.ilkSutun.some((x) => x.includes("Personel gideri"))
+      && ekran.ilkSutun.some((x) => x.includes(DOGRULAMA_HESAP)),
+    ekran === null ? "ekran yok" : JSON.stringify(ekran.ilkSutun.slice(0, 4)));
+
+  /* 3 · RAKAM GERÇEKTEN TABLOYA GİRDİ. Tutar tarayıcının kendi tr-TR biçimlendirmesiyle
+   * karşılaştırılıyor (`fmt` de onu çağırıyor): sınanan şey ayıraç biçimi değil TUTAR. */
+  const tahsilatMetni = await para(DOGRULAMA_TAHSILAT);
+  kontrol(`${ad}: tahsilat satırının tutarı doğru (${tahsilatMetni})`,
+    metin.includes(tahsilatMetni), `ekranda: "${ornek}…"`);
+
+  /* 4 · EKSİK BİLGİ ÖZETİ — sayı YORUMLANIYOR, çıplak bırakılmıyor. */
+  kontrol(`${ad}: eksik bilgi özeti çizildi (${DOGRULAMA_TARIHSIZ} tarihsiz · ${DOGRULAMA_KDVSIZ} KDV'siz)`,
+    metin.includes(`${DOGRULAMA_TARIHSIZ} hareket tarihsiz`)
+      && metin.includes("dönem raporlarında görünmüyor")
+      && metin.includes(`${DOGRULAMA_KDVSIZ} kayıtta KDV`),
+    `ekranda: "${ornek}…"`);
+  kontrol(`${ad}: uyarı üreten kaynaklar adıyla yazıldı (vergiTakvimi · cekimIsleri)`,
+    metin.includes("UYARI ÜRETEN KAYNAKLAR") && metin.includes("vergiTakvimi")
+      && metin.includes("cekimIsleri"),
+    `ekranda: "${ornek}…"`);
+
+  /* 5 · SAĞLIKLI DURUMDA BİRİNCİL DÜĞME YOK — müşteri panelindeki kuralın aynısı.
+   * NEGATİF bir iddia olduğu için boş yere geçmeye açık: ekran hiç çizilmezse de düğme
+   * yoktur. Bu yüzden `ekran !== null` şartı taşıyor ve aynı senaryoda tablonun DOLU
+   * olduğu ayrıca aranıyor. */
+  kontrol(`${ad}: tutan mutabakatta birincil (saveBtnStyle) düğme YOK`,
+    ekran !== null && ekran.birincilDugmeler.length === 0,
+    ekran === null ? "ekran çizilmedi" : `bulunan: ${JSON.stringify(ekran.birincilDugmeler)}`);
+
+  /* 6 · YATAY KAYMA İKİ YERDE: belge/gövde ve tablonun KENDİ kaydırma bölgesi. */
+  const kayma = await sayfa.evaluate(() => ({
+    belge: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    govde: document.body.scrollWidth - document.body.clientWidth,
+  }));
+  const tabloTasmasi = ekran ? ekran.yatayTasma : null;
+  kontrol(`${ad}: yatay KAYMA yok (sayfa gövdesi + tablonun kendi kabı)`,
+    kayma.belge <= 0 && kayma.govde <= 0 && tabloTasmasi !== null && tabloTasmasi <= 0,
+    `belge: ${kayma.belge}px, gövde: ${kayma.govde}px, tablo: ${tabloTasmasi === null ? "kaydırma bölgesi bulunamadı" : tabloTasmasi + "px"}`);
+
+  if (metin) console.log(`     doğrulamadan: "${ornek}…"`);
+}
+
 /* ── TARAYICIYI BUL ──────────────────────────────────────────────────────────── */
 /**
  * Chromium'un yeri MAKİNEDEN MAKİNEYE DEĞİŞİR. Yol sabit yazılıydı
@@ -806,6 +1011,18 @@ async function calistir() {
         etkilesim: darEkranEtkilesimi,
         pencere: { width: 390, height: 800 },
       });
+    /* 6) FİNANS → DOĞRULAMA — yeni hesaplama katmanının önündeki KAPI, ekranda.
+     *    Yalnızca YÖNETİCİ görüyor; fixture `role: "owner"` olduğu için sekme çiziliyor.
+     *    `marcus-os-son-sekme` ile uygulama doğrudan Finans'ta açılıyor (yan menüdeki
+     *    grup kapalı geliyor ve iki ayrı tıklamayı beklemek testi menü düzenine bağlardı),
+     *    `marcus-os-gizlilik` ile gizlilik modu kapatılıyor — açık kalsaydı `fmt` bütün
+     *    tutarları "₺ •••" yazar ve tutar kontrolü hiçbir şey ölçmezdi. */
+    await senaryo(tarayici, "finans doğrulama sekmesi", SAHTE_YANIT_DOGRULAMA(), 50,
+      ["Finans", "Doğrulama"],
+      {
+        yerelDepo: { "marcus-os-son-sekme": "finans", "marcus-os-gizlilik": "0" },
+        etkilesim: dogrulamaEtkilesimi,
+      });
   } finally {
     await tarayici.close();
   }
@@ -825,7 +1042,7 @@ async function calistir() {
    *
    * Sayıyı BİLEREK değiştirmek serbest — yeni kontrol eklerken bu sabit de artar. Yasak
    * olan, sayının KENDİLİĞİNDEN düşmesi ve kimsenin görmemesi. */
-  const BEKLENEN = 66;
+  const BEKLENEN = 84;
   if (gecen !== BEKLENEN) {
     console.log(`SONUÇ: ✗ ${gecen} kontrol çalıştı, ${BEKLENEN} bekleniyordu — kapsam DEĞİŞMİŞ.`);
     console.log("       Kontrol eklediysen bu sabiti de artır; artırmadıysan bir kontrol");

@@ -6567,3 +6567,150 @@ Zincir: 27 denetim ✓ · **2655 kontrol** (t1…t113) ✓ · derleme ✓ · tar
 - `hesapTransferleri` ve `vergiTakvimi` tarihleri belgede **ekran biçiminde** duruyor;
   bu katman onları döneme yazamıyor, yalnızca sayıp bildiriyor. Gerçek çözüm kaydın
   tarihini ISO tutmaktır — ayrı ve daha büyük bir iş.
+
+---
+
+## Güncelleme 188: Elle Yedek Alma + Yönetici Doğrulama Ekranı (finans birleştirmesi aşama 2 ve 4)
+
+Aşama 1 (Güncelleme 187) yeni finans katmanının **temelini** kurmuştu ama iki bilinen
+boşluk bırakmıştı: katmanın hiçbir **ekranı** yoktu (yani hiçbir kullanıcı akışında
+çizilmiyordu) ve riskli bir işten hemen önce **elle yedek almanın** yolu yoktu. Bu
+güncelleme ikisini kapatıyor. **Hiçbir tutar hesabına dokunulmadı**; `computeLive`,
+`hesapBakiyesi` ve mevcut sekmelerin hepsi olduğu gibi duruyor.
+
+### 1 · Elle yedek alma — `api/backup.js` → `action: "yedekAl"`
+
+Yedekler bugüne kadar iki yerden oluşuyordu: her yazmada (`guvenliYaz` → günlük + saatlik
+anlık görüntü) ve gece cron'undan (`api/daily-backup.js` → e-posta). İkisi de OTOMATİK.
+Sonuç: kullanıcı bir yedek almak istediğinde **veriyi değiştirmek zorundaydı** — riskli
+bir işe girişmeden önce bilerek bir durak koymanın yolu yoktu.
+
+**Yeni uç AÇILMADI** (11/12 dolu): mevcut yedek ucuna bir `action` eklendi.
+
+**İlk sürüm bu işi YAPMIYORDU — kusur inceleme sırasında yakalandı ve düzeltildi.**
+Yedek günün otomatik anahtarına (`marcus-os-snapshot-<bugun>`) yazılıyordu; oysa
+`guvenliYaz` HER güvenli yazmada zaten oraya yazıyor (`lib/kv-yaz.js`). Yani düğmeye
+basmak, son kaydın oraya koyduğu içeriği aynı anahtara tekrar yazmaktan ibaretti ve
+**yeni bir geri dönüş noktası oluşmuyordu**: bundan sonraki ilk kayıt o noktayı eziyordu.
+Kullanıcı "riskli işlemden önce güvenlik noktası aldım" sanıyor, elinde zaten var olandan
+başka bir şey yok — etiketinin vaat ettiğini yapmayan bir özellik. İlk testler bunu
+göremiyordu çünkü "anahtar yazıldı mı, deftere düştü mü" diye bakıyorlardı; düğmenin İŞE
+YARADIĞINA bakan kontrol yoktu.
+
+Anahtar artık `marcus-os-snapshot-<YYYY-AA-GG>-elle-<SSDD>`. Önek aynı ailede kaldığı için
+listeleme (`kv.keys`), anahtar doğrulaması (`gecerliYedekAnahtari`) ve geri yükleme
+**değişmeden** çalışıyor — t114 üçünü de ayrıca sınıyor — ama hiçbir otomatik yazma artık
+üstüne gelmiyor. Damga dakika çözünürlüklü ve bu bilinçli: saniyeler arayla alınmış iki
+nokta pratikte aynı noktadır.
+
+**Ömür açık TTL ile 30 gün.** `api/data.js`'teki 30 günlük süpürücü anahtarın tarih kısmını
+`new Date(d)` ile ayrıştırıyor; damgalı ad `Invalid Date` veriyor, karşılaştırma `false`
+dönüyor ve kayıt **asla silinmiyordu** (ölçüldü). Süpürücüye güvenmek yerine ömür uçta
+açıkça yazılıyor.
+
+Dört karar:
+
+- **Ana belgeye YAZMIYOR.** `guvenliGuncelle`/`guvenliYaz` çağrılsaydı `_v` boşuna artar
+  ve o anda açık olan her sekme kendini bayat sanardı — yedek almak kimsenin işini
+  bölmemeli. Yine de **kilit alınıyor**: kilitsiz okunan belge "oku → değiştir → yaz"
+  döngüsünün ortasından gelebilir ve o ara hâl yedek diye dondurulurdu.
+- **`islemId` ile tekrara dayanıklı.** Kontrol kilidin İÇİNDE; kimlik yalnızca gerçekten
+  yazıldıysa işaretleniyor. 503'te işaretlenseydi tarayıcının otomatik tekrarı "bunu zaten
+  yaptım" sanılır ve yedek hiç alınmazdı.
+- **Yan etki tekrarda çalışmıyor.** Tekrarlanan istek ne yeni anlık görüntü yazar ne de
+  güvenlik defterine ikinci satır düşer. Anahtar gün bazlı olduğu için "ikinci dosya"
+  zaten oluşmazdı; korunan şey, ARADA DEĞİŞMİŞ belgenin ilk yedeğin üstüne yazılmaması.
+- **Bozuk ya da boş belge yedeklenmiyor** (`belgeOkunabilirMi`). Böyle bir "yedek" listede
+  sağlam görünür; kullanıcı gerçekten sağlam olan kopyayı aramak yerine ona güvenirdi.
+
+Arayüz: **Ayarlar → Veri → Otomatik Yedekler**, listenin hemen üstünde "Şimdi yedek al"
+(ikincil düğme — bu ekranın birincil eylemi yedek almak değil, bir hâle DÖNMEK). Yükleniyor
+durumunda metin eyleme dönüyor ve düğme kilitleniyor. Güvenlik defterinde gece yedeğinden
+ayrı bir türle görünüyor: `yedek-elle-alindi`.
+
+**Listede ayırt ediliyor:** elle alınan kayıt "21 Eylül 2026 — saat 14:32 · elle alındı"
+diye yazılıyor ve yanında **"Elle"** rozeti duruyor. Liste yalnızca tarih gösterseydi
+"günün otomatik hâli" ile "benim aldığım nokta" aynı satır gibi görünürdü; geri dönerken
+hangisine döndüğünü bilmek tam da bu ekranın işi.
+
+### 2 · Finans → Doğrulama sekmesi (yalnızca yönetici)
+
+`lib/finans-mutabakat.js`'in çıktısı artık ekranda. Bu bir **karşılaştırma** ekranı, yani
+tablo birincil ve kart yok (`kompozisyon.md` §2). Üç blok:
+
+1. **Tek karar satırı** (kart değil): tutuyorsa `success`, tutmuyorsa `danger` ve kaç
+   satırda fark olduğunu + geçişin ENGELLENDİĞİNİ söyler. **Sağlıklı durumda birincil
+   düğme çizilmez** — müşteri panelinde kurulan kuralın aynısı.
+2. **Mutabakat tablosu**: Satır · Eski · Yeni · Fark. Sayılar sağa hizalı, IBM Plex Mono,
+   `tabular-nums`; farkı sıfır olmayan satır `danger`; zebra yok, ayrım `borderSoft`.
+3. **Eksik bilgi özeti**: kaç hareket tarihsiz, kaç kayıtta KDV/stopaj bilinmiyor, hangi
+   kaynaklar uyarı üretti. **Sayı çıplak bırakılmıyor, yorumlanıyor**: "13 hareket
+   tarihsiz — dönem raporlarında görünmüyor".
+
+İki küçük saf modül eklemesi bu ekran için yapıldı ve ikisi de **JSX'e gömülmedi**
+(`marcus-mimari` §4 — gömülen kural Node'dan çağrılamaz, yani sınanamaz):
+
+- `eksikBilgiOzeti(hareketler)` (`lib/finans-hareketleri.js`) — `eksikBilgi` etiketlerini
+  sayar. Yeni kural üretmiyor, hiçbir rakam hesaplamıyor.
+- Mutabakat satırları artık **birimini kendileri taşıyor** (`birim: "tl" | "adet"`). Ayrımı
+  ekranda `ad.includes("(adet)")` diye yapmak, başlık metni değişince sessizce kopan bir
+  kural olurdu ve adet satırına "₺3" yazılırdı.
+
+`finansMutabakati` eski tarafı DIŞARIDAN istiyor (`computeLive` ve `hesapBakiyesi` `.jsx`
+içinde ve Node'dan import edilemiyor); çağrı yerinde veriliyor — verilmeseydi modül
+fail-close davranıp `bloke: true` döndürür ve ekran **yanlış alarm** verirdi.
+
+**Yetki:** sekme yalnızca yöneticiye çiziliyor ve şart iki yerde birden aranıyor (sekme
+listesi süzgeci + içerik dalı). Prop'un varsayılanı `false`, yani prop vermeyen bir çağrı
+yeri sekmeyi açmaz, kapatır. Personel kabuğundaki `<Finans>` çağrısı prop'u vermiyor.
+
+### Ölçüm
+
+- `testler/t114.mjs` — **29 kontrol**, yedi bölüm, sonda `BEKLENEN` bekçisi. Sahte
+  veritabanı; gerçek Redis'e dokunulmuyor. Yedinci bölüm yukarıdaki kusurdan doğdu ve
+  **davranışa** bakıyor: yedek alındıktan sonra gerçek yazma yolu (`guvenliYaz`)
+  çağrılıyor ve elle alınan noktanın içeriğinin DEĞİŞMEDİĞİ doğrulanıyor.
+  "Yedek yazılmadı" iddiaları da sabit anahtar yerine **anahtar ailesinin tamamını**
+  sayıyor — sabit bir ada bakan kontrol yeni şemada her zaman `null` görüp boş yere geçerdi.
+- `testler/t113.mjs` — 47 → **56 kontrol** (`eksikBilgiOzeti` ve satır birimi).
+- `testler/tarayiciAcilis.mjs` — **altıncı senaryo**: Finans → Doğrulama sekmesi gerçekten
+  açılıyor ve çiziliyor. 66 → **84 kontrol**. Fixture bugüne GÖRELİ kurulu (mutabakatın iki
+  satırı ay bazlı ve `computeLive` `new Date()`e bakıyor) ve **bilerek tutuyor** — böylece
+  "sağlıklı dal çizildi" ile "sağlıklı dalda birincil düğme YOK" aynı senaryoda ölçülüyor.
+  Yatay kayma İKİ yerde: belge/gövde ve tablonun kendi kaydırma kabı.
+
+**Kırarak ölçüldü — iki ayrı bozma:**
+
+| Bozma | Düşen kontrol | Hangileri |
+|---|---|---|
+| Doğrulama ekranı mutabakat tablosunu hiç çizmiyor | tarayıcı testinde **9** | "Doğrulama sekmesine tıklayınca içerik çizildi" · "karar şeridi TUTUYOR dalını çizdi" · "mutabakat tablosunda 20 satır var" · "satır adları çizildi" · "tahsilat satırının tutarı doğru" · "eksik bilgi özeti çizildi" · "uyarı üreten kaynaklar adıyla yazıldı" · "birincil düğme YOK" · "yatay KAYMA yok" |
+| `yedekAl`'dan `islemId` kontrolü kaldırıldı | t114'te **3** | "tekrar bildiriliyor" · "yedek İLK hâlde kaldı — değişen belge üstüne YAZILMADI" · "YAN ETKİ TEKRARLANMADI — deftere ikinci satır düşmedi" |
+| Elle yedek günün otomatik anahtarına yazılıyor (**gerçek kusurdu, düzeltildi**) | t114'te **3** | "elle yedek, günün OTOMATİK anahtarından farklı bir ada yazılıyor" · "sonraki kayıttan SONRA elle yedeğin içeriği DEĞİŞMEDİ" · "elle yedek hâlâ YEDEK ANINDAKİ belgeyi taşıyor" |
+
+Birinci bozmada **27 denetim, derleme ve 2687 sunucu kontrolünün hepsi YEŞİL kaldı**
+(çıkış kodu 0) — o ekranı ölçen tek katman tarayıcı testi. İkinci bozmada **denetimler,
+derleme ve tarayıcı testi yeşil kaldı** — kimliği ölçen tek katman t114.
+
+Üçüncü satır bir **tahmin değil ölçüm**: kontrol kusurlu kod üzerinde önce yazıldı, üç
+kontrolün düştüğü görüldü ("elle yedeğin içeriği" kontrolü sonraki belgeyi gösteriyordu),
+sonra düzeltildi ve geçtiği görüldü.
+
+Zincir: 27 denetim ✓ · **2693 kontrol** (t1…t114) ✓ · derleme ✓ · tarayıcı **84 kontrol** ✓ ·
+`api/` 11 fonksiyon (dokunulmadı).
+
+### Ölçülemeyen / bilinen boşluklar
+
+- **`yedekAl` içindeki ikinci yönetici kontrolü KALDIRILDI.** Ucun kapısı (`checkAuth`)
+  owner dışında kimseyi içeri almıyor ve 401 döndürüyor; action içindeki 403 dalı bu
+  yüzden asla çalışmıyordu, yani hiçbir test onu düşüremiyordu. Ölçülemeyen savunma kodu
+  yük olduğu için silindi ve yorumda kapının nerede olduğu yazıldı.
+- **Elle yedek anahtarı DAKİKA çözünürlüklü.** Aynı dakika içinde farklı `islemId` ile iki
+  kez basılırsa ikisi tek noktaya iner. Bilinçli ödün; saniyeler arayla alınmış iki nokta
+  pratikte aynı noktadır.
+- **Tarayıcı senaryosu yalnızca TUTAN dalı çiziyor.** Mutabakatın `bloke: true` dalı
+  ekranda hiç çizilmedi; o dalın metni ve rengi yalnızca modül düzeyinde (t113) ölçülü.
+- **Doğrulama ekranının çıpası mutabakat tablosu.** Tablo çizilmezse dokuz kontrolün
+  hepsi birden düşüyor — gürültülü ve doğru, ama "yalnızca tablo gitti" ile "ekranın
+  tamamı gitti" ayrımını yapmıyor.
+- **"Şimdi yedek al" düğmesi tarayıcı testinde TIKLANMIYOR.** Düğmenin çizildiği ve
+  akışın uçtan uca çalıştığı ölçülmedi; sunucu tarafı t114'te tam ölçülü.

@@ -4835,6 +4835,8 @@ function YedekGecmisi() {
   const [restoring, setRestoring] = useState(null);
   const [indiriliyor, setIndiriliyor] = useState(null);
   const [gorunum, setGorunum] = useState("gunluk"); // "gunluk" | "saatlik" | "geriAlma"
+  const [yedekAliniyor, setYedekAliniyor] = useState(false);
+  const [yedekSonucu, setYedekSonucu] = useState(null); // { tur: "ok"|"hata", metin }
 
   const listeyiCek = () => {
     fetch("/api/backup", { headers: { "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) } })
@@ -4843,6 +4845,46 @@ function YedekGecmisi() {
       .catch(() => setListe({ dates: [], saatlikler: [], geriAlmalar: [] }));
   };
   useEffect(listeyiCek, []);
+
+  /** ŞİMDİ YEDEK AL — riskli bir işten hemen önce bilerek bir durak koymanın yolu.
+   *
+   * Yedekler bugüne kadar yalnızca yazma anında ve gece cron'undan oluşuyordu; elle
+   * yedek almak için kullanıcının bir kayıt DEĞİŞTİRMESİ gerekiyordu.
+   *
+   * `islemId` ile tekrara dayanıklı: çift tık ya da ağ kopması sonrası otomatik tekrar
+   * ikinci bir yedek üretmez ve güvenlik defterine ikinci satır düşmez (sunucu tarafı
+   * `api/backup.js` → `yedekAl`). Kimlik burada, ÇAĞRI ANINDA üretiliyor. */
+  const yedekAl = () => {
+    if (yedekAliniyor) return;
+    setYedekAliniyor(true);
+    setYedekSonucu(null);
+    const govde = { action: "yedekAl", islemId: islemKimligiUret() };
+    fetch("/api/backup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Oturum": getOturum(), "X-Site-Password": sadeceAscii(getPw()), "X-Site-Password-B64": basligaCevir(getPw()) },
+      body: JSON.stringify(govde),
+    })
+      .then((r) => r.json())
+      .then((res) => {
+        if (!res.ok) {
+          /* Sebep söyleniyor ve ne yapılacağı yazıyor — "başarısız" tek başına teşhis
+           * ettirmiyor (bu proje o dersi e-posta hatasında aldı). */
+          setYedekSonucu({ tur: "hata", metin: res.error || "Yedek alınamadı — bağlantıyı kontrol edip tekrar dene." });
+          return;
+        }
+        const o = res.yedekOzeti;
+        const icerik = o ? ` — ${o.musteri} müşteri, ${o.cekimIsleri} operasyon işi` : "";
+        setYedekSonucu({
+          tur: "ok",
+          metin: res.tekrarlandi
+            ? `Bu yedek az önce zaten alınmıştı${icerik}. İkinci kopya oluşturulmadı.`
+            : `Yedek alındı${icerik}. Aşağıdaki "Günlük" listesinde "Elle" etiketiyle duruyor.`,
+        });
+        listeyiCek();
+      })
+      .catch(() => setYedekSonucu({ tur: "hata", metin: "Bağlantı hatası — yedek alınamadı, tekrar dene." }))
+      .finally(() => setYedekAliniyor(false));
+  };
 
   /** Geri yüklemeden ÖNCE o yedeğin içinde ne olduğunu gösterir. Yanlış tarihe dönmenin
    * en yaygın sebebi, içeriğini görmeden karar vermekti. */
@@ -4892,6 +4934,21 @@ function YedekGecmisi() {
     if (Number.isNaN(tarih.getTime())) return d;
     return tarih.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
   };
+  /* ELLE ALINAN YEDEK LİSTEDE AYIRT EDİLİR.
+   *
+   * Anahtar `marcus-os-snapshot-<gun>-elle-<SSDD>` biçiminde (`api/backup.js`). Etiket
+   * yalnızca tarih yazsaydı "günün otomatik hâli" ile "benim aldığım güvenlik noktası"
+   * aynı satır gibi görünürdü — geri dönerken hangisine döndüğünü bilmek tam da bu
+   * ekranın işi. Sondaki damga saat:dakika olarak açılıyor. */
+  const ELLE_ISARETI = "-elle-";
+  const gunlukEtiket = (d) => {
+    const yer = d.indexOf(ELLE_ISARETI);
+    if (yer === -1) return okunakliTarih(d);
+    const damga = d.slice(yer + ELLE_ISARETI.length);
+    const saat = damga.slice(0, 2);
+    const dakika = damga.slice(2, 4);
+    return `${okunakliTarih(d.slice(0, yer))} — saat ${saat}:${dakika} · elle alındı`;
+  };
   const okunakliSaat = (s2) => {
     const p2 = s2.split("-");
     if (p2.length < 4) return s2;
@@ -4912,18 +4969,35 @@ function YedekGecmisi() {
   ];
 
   let kayitlar = [];
-  if (gorunum === "gunluk") kayitlar = liste.dates.slice(0, 30).map((d) => ({ anahtar: `marcus-os-snapshot-${d}`, etiket: okunakliTarih(d) }));
+  if (gorunum === "gunluk") kayitlar = liste.dates.slice(0, 30).map((d) => ({ anahtar: `marcus-os-snapshot-${d}`, etiket: gunlukEtiket(d), elle: d.includes(ELLE_ISARETI) }));
   else if (gorunum === "saatlik") kayitlar = liste.saatlikler.map((h) => ({ anahtar: `marcus-os-saatlik-${h}`, etiket: okunakliSaat(h) }));
   else kayitlar = liste.geriAlmalar.map((g) => ({ anahtar: `marcus-os-geri-alma-${g}`, etiket: okunakliGeriAlma(g) }));
 
   const aciklama = {
-    gunluk: "Her günün SON hâli. 30 gün saklanır.",
+    gunluk: "Her günün SON hâli, artı \"Şimdi yedek al\" ile aldığın noktalar (\"Elle\" etiketli). 30 gün saklanır.",
     saatlik: "Son 48 saatin her saati. Gün içinde bir şey ters giderse buradan saat saat geri dönebilirsin.",
     geriAlma: "Bir geri yükleme yapmadan HEMEN ÖNCEKİ hâller. Yanlış tarihe döndüysen buradan eski durumuna dönebilirsin. 30 gün saklanır.",
   }[gorunum];
 
   return (
     <div>
+      {/* İKİNCİL düğme (`addBtnStyle`) — bu ekranın birincil eylemi yedek ALMAK değil,
+        * listeden bir hâle DÖNMEK. Yükleniyor durumunda metin eyleme dönüyor ve düğme
+        * kilitleniyor (bileşen standartları). */}
+      <div style={{ marginBottom: 12 }}>
+        <button style={{ ...addBtnStyle, opacity: yedekAliniyor ? 0.7 : 1, cursor: yedekAliniyor ? "not-allowed" : "pointer" }}
+          disabled={yedekAliniyor} onClick={yedekAl}>
+          {yedekAliniyor ? "Yedek alınıyor…" : "Şimdi yedek al"}
+        </button>
+        <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter", marginTop: 6, lineHeight: 1.6 }}>
+          Verinin o anki hâlini AYRI bir geri dönüş noktası olarak saklar — sonraki kayıtlar bu noktayı ezmez. Riskli bir işe girişmeden önce basman yeterli.
+        </div>
+        {yedekSonucu && (
+          <div style={{ fontSize: 13, fontFamily: "Inter", marginTop: 8, lineHeight: 1.6, color: yedekSonucu.tur === "ok" ? T.success : T.danger }}>
+            {yedekSonucu.metin}
+          </div>
+        )}
+      </div>
       <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
         {sekmeler.map((sk) => (
           <button
@@ -4945,7 +5019,10 @@ function YedekGecmisi() {
         <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 320, overflowY: "auto" }}>
           {kayitlar.map((k) => (
             <div key={k.anahtar} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", background: T.surfaceRaised, borderRadius: 9, flexWrap: "wrap", gap: 8 }}>
-              <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter" }}>{k.etiket}</span>
+              <span style={{ fontSize: 13, color: T.text, fontFamily: "Inter" }}>
+                {k.etiket}
+                {k.elle && <span style={{ fontSize: 11, color: T.accentText, background: T.accentSoft, borderRadius: 999, padding: "2px 8px", marginLeft: 8 }}>Elle</span>}
+              </span>
               <div style={{ display: "flex", gap: 6 }}>
                 <button style={cancelBtnStyle} disabled={indiriliyor === k.anahtar} onClick={() => indir(k.anahtar, k.etiket)}>{indiriliyor === k.anahtar ? "İndiriliyor…" : "İndir (JSON)"}</button>
                 <button style={cancelBtnStyle} disabled={restoring === k.anahtar} onClick={() => restore(k.anahtar, k.etiket)}>{restoring === k.anahtar ? "Geri yükleniyor…" : "Bu hâle dön"}</button>
@@ -7408,6 +7485,7 @@ function GuvenlikDefteri() {
     "giris-basarisiz": { ad: "Başarısız giriş denemesi", renk: T.danger },
     "tum-oturumlar-iptal": { ad: "Tüm cihazlardan çıkış yapıldı", renk: T.warning },
     "yedek-geri-yuklendi": { ad: "Yedekten geri yükleme", renk: T.warning },
+    "yedek-elle-alindi": { ad: "Elle yedek alındı", renk: T.textDim },
     "hesap-islemi": { ad: "Hesap/yetki değişikliği", renk: T.textDim },
   }[olay] || { ad: olay, renk: T.textFaint });
 
@@ -9988,7 +10066,12 @@ export default function MarcusOS() {
    * buraya da eklenir — denetim 21 bunu zorluyor. */
   const BELGE_DISI_ALANLAR = ["ok", "driveSonuc", "error", "mesgul", "tekrarlandi",
     "eslestirme", "sebep", "degismedi", "onayGerekli", "kimlikOnarildi", "duzeltildi",
-    "uygulanan", "uygulanmadi", "acilanKartlar", "acilmadi", "onaylanamadi"];
+    "uygulanan", "uygulanmadi", "acilanKartlar", "acilmadi", "onaylanamadi",
+    /* `api/backup.js` → `yedekAl` yanıtı. Bu uç bugün `setData` içine YAYILMIYOR
+     * (`YedekGecmisi` yanıtı kendi okuyor), ama alan adları listeye yazılmazsa yanıtın
+     * bir gün ortak yola bağlanması belgeye sızıntı üretir — denetim 21'in kovaladığı
+     * hata sınıfı tam olarak bu. */
+    "yedekAnahtari", "yedekOzeti"];
   const [driveSonuc, setDriveSonuc] = useState(null);
   const mergePaylasimLocally = (patch) => {
     const temiz = { ...patch };
@@ -11398,6 +11481,9 @@ export default function MarcusOS() {
             <Finans
               data={data}
               clients={data.clients}
+              /* Doğrulama sekmesi YALNIZCA burada açılıyor — personel kabuğundaki
+                * çağrı yeri bu prop'u vermiyor, yani sekme orada hiç çizilmiyor. */
+              yonetici
               odemeTakvimiIcerigi={<OdemeTakvimi hesaplariGizle {...odemeTakvimiProps} />}
               onAddGelir={addGelir} onDeleteGelir={deleteGelir}
               onAddGider={addGider} onDeleteGider={deleteGider}

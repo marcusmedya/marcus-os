@@ -26,7 +26,7 @@
 import { build, transform } from "esbuild";
 import { readFileSync, writeFileSync, rmSync } from "fs";
 import path from "node:path";
-import { finansHareketleri, KAYNAKLAR } from "../lib/finans-hareketleri.js";
+import { finansHareketleri, eksikBilgiOzeti, KAYNAKLAR } from "../lib/finans-hareketleri.js";
 import { finansMutabakati } from "../lib/finans-mutabakat.js";
 
 let g = 0, k = 0;
@@ -352,12 +352,63 @@ await bolum("10) MUTABAKAT DA SAF", 2, () => {
   t("hareket listesi değişmedi", JSON.stringify(hareketler) === oncekiHareket);
 });
 
+/* ---------------------------------------------------------------- */
+await bolum("11) EKSİK BİLGİ ÖZETİ — sayım ekranda değil, MODÜLDE", 6, () => {
+  const d = belge();
+  const { hareketler, tarihsiz } = uret(d);
+  const ozet = eksikBilgiOzeti(hareketler);
+
+  /* İKİ SAYAÇ AYRIŞAMAZ: `finansHareketleri`'nin `tarihsiz` sayacı ile özetinki aynı
+   * kaynaktan (`donem`) geliyor. Ayrışırlarsa ekran ile motor farklı şey söyler —
+   * bu projedeki en pahalı hata sınıfının ta kendisi. */
+  t("tarihsiz sayacı üreticiyle birebir aynı", ozet.tarihsiz === tarihsiz,
+    `özet ${ozet.tarihsiz}, üretici ${tarihsiz}`);
+  t("toplam hareket sayısı doğru", ozet.toplam === hareketler.length,
+    `${ozet.toplam} / ${hareketler.length}`);
+
+  /* Sayım UYDURULMUYOR: her rakam `eksikBilgi` etiketlerinin kendisinden sayılıyor. */
+  const elle = (etiket) => hareketler.filter((h) => h.eksikBilgi.includes(etiket)).length;
+  t("KDV sayımı etiketlerle tutuyor", ozet.kdvBilinmeyen === elle("kdv") && ozet.kdvBilinmeyen > 0,
+    `${ozet.kdvBilinmeyen} / ${elle("kdv")}`);
+  t("stopaj sayımı etiketlerle tutuyor",
+    ozet.stopajBilinmeyen === elle("stopaj") && ozet.stopajBilinmeyen > 0,
+    `${ozet.stopajBilinmeyen} / ${elle("stopaj")}`);
+  t("tutarı bilinmeyen kayıt sayılıyor (vergi takvimi tutar taşımıyor)",
+    ozet.tutarBilinmeyen === elle("tutar") && ozet.tutarBilinmeyen > 0,
+    `${ozet.tutarBilinmeyen} / ${elle("tutar")}`);
+
+  /* SAF: girdi değişmiyor. */
+  const once = JSON.stringify(hareketler);
+  eksikBilgiOzeti(hareketler);
+  t("hareket listesi değişmedi", JSON.stringify(hareketler) === once);
+});
+
+/* ---------------------------------------------------------------- */
+await bolum("12) MUTABAKAT SATIRI BİRİMİNİ KENDİSİ TAŞIYOR", 3, () => {
+  const d = belge();
+  const { hareketler } = uret(d);
+  const r = finansMutabakati(d, hareketler, { live: computeLive(d), hesapBakiyesi, donusturulmeTarihi: bugun });
+
+  /* Ekran birimi satırın ADINDAN tahmin etmemeli: başlık metni değişince sessizce
+   * kopan bir kural olurdu ve adet satırına "₺3" yazılırdı. */
+  t("her satırın birimi yazılı", r.satirlar.every((x) => x.birim === "tl" || x.birim === "adet"),
+    r.satirlar.map((x) => `${x.ad}=${x.birim}`).join(" | "));
+  t("adet satırları 'adet' işaretli",
+    r.satirlar.filter((x) => x.birim === "adet").length === 3
+    && r.satirlar.filter((x) => x.birim === "adet").every((x) => x.ad.includes("(adet)")),
+    r.satirlar.filter((x) => x.birim === "adet").map((x) => x.ad).join(" | "));
+  t("para satırları 'tl' işaretli ve çoğunlukta",
+    r.satirlar.filter((x) => x.birim === "tl").length >= 9
+    && r.satirlar.filter((x) => x.birim === "tl").every((x) => !x.ad.includes("(adet)")),
+    String(r.satirlar.filter((x) => x.birim === "tl").length));
+});
+
 /* KAÇ KONTROLÜN ÇALIŞTIĞI DA SINANIYOR.
  *
  * Bir bölüm `await` edilmezse ya da `bolum()` çağrısı silinirse test hiçbir şey ölçmeden
  * 0 ile çıkar — koşucu da yakalayamaz (çıkış kodu 0, ✗ yok). Bu yaşandı (t95).
  * KONTROL EKLERKEN BU SAYIYI DA ARTIR. */
-const BEKLENEN = 47;
+const BEKLENEN = 56;
 if (g + k !== BEKLENEN) {
   k++;
   console.log(`  ✗ yalnızca ${g + k - 1} kontrol çalıştı, ${BEKLENEN} olmalıydı — bir bölüm hiç koşmamış`);
