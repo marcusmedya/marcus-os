@@ -346,10 +346,70 @@ const SAHTE_YANIT_ODEME_IZNI = () => ({
   },
 });
 
+/* ── ÖNÜMÜZDEKİ AYLAR (İLERİYE DÖNÜK TAHMİN) İÇİN FİXTURE ──────────────────────
+ *
+ * Neden ayrı bir belge: bu ekranın çizdiği HER ŞEY markanın `bitisAyi` alanına bağlı ve
+ * diğer fixture'ların hiçbirinde o alan yok. Düşen marka satırı da ancak bir marka
+ * gerçekten BİTİYORSA çiziliyor — yoksa boş durum çizilir ve test "tablo var" derken
+ * aslında hiçbir şey ölçmemiş olur.
+ *
+ * TARİHTEN BAĞIMSIZ: ekran `monthKey()` ile BU AYDAN başlıyor, yani sabit ay yazmak
+ * testi birkaç ay sonra kimse dokunmadan kırardı. İki marka da bugüne göreli kuruldu:
+ *   · TAHMIN_SUREN  → bitiş ayı YOK, altı ayın hepsinde çalışır (20.000 ₺)
+ *   · TAHMIN_BITEN  → bitiş ayı GELECEK AY, yani bu ay ve gelecek ay çalışır (30.000 ₺)
+ * Sonuç her koşuda aynı: ilk iki ay 50.000, üçüncü aydan itibaren 20.000 ve düşüş
+ * ÜÇÜNCÜ ayda bildirilir. Ayın kaçı olduğu hiçbir dalı değiştiremez — hesap ay
+ * düzeyinde, gün hiç okunmuyor.
+ *
+ * Adlar bilerek gerçek dışı; buraya asla üretim verisi kopyalanmaz. */
+const ayIleri = (k) => {
+  const d = new Date();
+  const g = new Date(d.getFullYear(), d.getMonth() + k, 1);
+  return `${g.getFullYear()}-${String(g.getMonth() + 1).padStart(2, "0")}`;
+};
+const TAHMIN_SUREN = "Suren Marka (TEST)";
+const TAHMIN_BITEN = "Biten Marka (TEST)";
+const TAHMIN_SUREN_UCRET = 20000;
+/* ZAM ÜÇÜNCÜ AYDAN GEÇERLİ — fixture'ın AYIRT EDİCİ olması için.
+ * Tahmin `ayinUcreti(client, ay)` kullanmak zorunda; `client.aylikUcret` kullanılsaydı
+ * üçüncü ay hâlâ 20.000 çıkardı ve ekran yanlış rakam gösterirdi. Ölçüldü: bu dönem
+ * kaydı olmadan `aylikUcret`e geçmek tarayıcıda HİÇBİR kontrolü düşürmüyordu. */
+const TAHMIN_SUREN_ZAMLI = 26000;
+const TAHMIN_BITEN_UCRET = 30000;
+const TAHMIN_AY_ADEDI = 6;           // ekranın varsayılanı
+const TAHMIN_ILK_AY_GELIRI = TAHMIN_SUREN_UCRET + TAHMIN_BITEN_UCRET;
+
+const SAHTE_YANIT_TAHMIN = () => ({
+  role: "owner",
+  data: {
+    ...SAHTE_BELGE,
+    clients: [
+      {
+        id: "sahte-tahmin-1", ad: TAHMIN_SUREN, name: TAHMIN_SUREN, kategori: "Kafe",
+        durum: "aktif", aylikUcret: TAHMIN_SUREN_UCRET, odemeGunu: 1,
+        baslangic: ayGeriye(3), maliyetler: [], odemeKayitlari: [], faturalar: [],
+        ucretGecmisi: [
+          { baslangicAy: "0000-00", tutar: TAHMIN_SUREN_UCRET, dagilim: null },
+          { baslangicAy: ayIleri(2), tutar: TAHMIN_SUREN_ZAMLI, dagilim: null },
+        ],
+      },
+      {
+        id: "sahte-tahmin-2", ad: TAHMIN_BITEN, name: TAHMIN_BITEN, kategori: "Kuafor",
+        durum: "aktif", aylikUcret: TAHMIN_BITEN_UCRET, odemeGunu: 1,
+        baslangic: ayGeriye(3), bitisAyi: ayIleri(1),
+        maliyetler: [], odemeKayitlari: [], faturalar: [], ucretGecmisi: [],
+      },
+    ],
+  },
+});
+
 /* Finans sekmelerinin ADLARI tek yerde: üç senaryo da aynı listeyi kullanıyor ve sekme
  * eklenince tek satır değişir. "Doğrulama" bilerek YOK — personel onu görmemeli. */
-const PERSONEL_SEKMELERI = ["Özet", "Gelir-Gider", "Ay Ay Karşılaştırma", "Ödemeler",
-  "Raporlar (PDF)", "Hesaplar", "Vergi & Arşiv"];
+const PERSONEL_SEKMELERI = ["Özet", "Gelir-Gider", "Ay Ay Karşılaştırma",
+  "Önümüzdeki Aylar", "Ödemeler", "Raporlar (PDF)", "Hesaplar", "Vergi & Arşiv"];
+/* `CLIENT_FIELDS`'teki alan sayısı. Sayı KENDİLİĞİNDEN düşerse (bir alan silinirse ya da
+ * ızgara kayarsa) senaryo gürültülü kırılır — alan eklerken bu sabit de artar. */
+const MUSTERI_ALAN_SAYISI = 15;
 const ODEMELER_SEKMESI = "Ödemeler";
 /* Ödemeler sekmesinin İÇERİĞİNİN çizildiğinin kanıtı (`OdemeTakvimi`): iki KPI kartı
  * ve bekleyen tahsilat listesi. Sekme başlığı sabit metin, içerik değil. */
@@ -1163,6 +1223,301 @@ async function darFinansEtkilesimi({ sayfa, ad }) {
     `belge: ${kayma.belge}px, gövde: ${kayma.govde}px, kap: ${kapTasmasi === null ? "bulunamadı" : kapTasmasi + "px"}`);
 }
 
+/* ── ÖNÜMÜZDEKİ AYLAR — OKUYUCU ────────────────────────────────────────────────
+ *
+ * ÇIPA: ilk sütunu tam olarak "Gelir|Gider|Net" olan tablo. Satır içi stil METNİNE ya da
+ * sınıf adına bakılmıyor — stil düzenlenince sessizce kopan bir çıpa olmasın. Tablo
+ * bulunamazsa `null` döner ve kontroller DÜŞER; sessizce geçmesindense gürültülü kırılsın.
+ *
+ * Düşen markalar tablosu AYRI bir tablo ve AYRI bir kaydırma kabı: ikisi de tek tek
+ * ölçülüyor, çünkü biri çizilip diğeri çizilmeyebilir. */
+const tahminOkuyucu = (sayfa) => () => sayfa.evaluate(() => {
+  const tablolar = [...document.querySelectorAll("table")];
+  const ilkSutun = (x) => [...x.querySelectorAll("tbody tr td:first-child")]
+    .map((c) => (c.textContent || "").trim()).join("|");
+  const tahminTablosu = tablolar.find((x) => ilkSutun(x) === "Gelir|Gider|Net");
+  if (!tahminTablosu) return null;
+
+  /* Tablodan yukarı çıkıp ekranın kökünü bul: hem tahmin tablosunu hem "Düşen markalar"
+   * bölümünü kapsayan ilk ata. İkisi ayrı Card, ortak ataları Finans ekranının kökü. */
+  let kok = tahminTablosu;
+  while (kok && !((kok.innerText || "").includes("Önümüzdeki Aylar")
+    && (kok.innerText || "").includes("Düşen markalar"))) kok = kok.parentElement;
+  if (!kok) return null;
+
+  const dusenTablosu = [...kok.querySelectorAll("table")].find((x) => (
+    [...x.querySelectorAll("thead th")].map((h) => (h.textContent || "").trim()).join("|")
+      === "AY|MARKA|AYLIK TUTAR"
+  ));
+  const kap = (x) => (x ? x.closest(".marcus-table-wrap") : null);
+  const tasma = (x) => (x ? x.scrollWidth - x.clientWidth : null);
+
+  /* RAKAM HÜCRESİNİN BİÇİMİ — "sayı sağa hizalı ve tabular" bu uygulamanın tasarım
+   * kuralı (karşılaştırma ekranında hizalanmayan rakam karşılaştırılamaz). Renk ya da
+   * font ADI aranmıyor; ölçülen şey hizalama ve tabular rakam. */
+  const ornekHucre = tahminTablosu.querySelector("tbody tr td:nth-child(2)");
+  const hucreBicimi = ornekHucre ? (() => {
+    const st = getComputedStyle(ornekHucre);
+    return { hiza: st.textAlign, tabular: st.fontVariantNumeric };
+  })() : null;
+
+  return {
+    metin: kok.innerText || "",
+    basliklar: [...tahminTablosu.querySelectorAll("thead th")].map((h) => (h.textContent || "").trim()),
+    satirlar: [...tahminTablosu.querySelectorAll("tbody tr")]
+      .map((tr) => [...tr.querySelectorAll("td")].map((td) => (td.textContent || "").trim())),
+    dusenSatirlari: dusenTablosu
+      ? [...dusenTablosu.querySelectorAll("tbody tr")]
+        .map((tr) => [...tr.querySelectorAll("td")].map((td) => (td.textContent || "").trim()))
+      : null,
+    hucreBicimi,
+    /* İKİ AYRI ÖLÇÜM, ikisi de gerekli:
+     *   · `tabloTasmasi`: tablonun KENDİ kaydırma bölgesi. Dar ekranda pozitif olması
+     *     KUSUR DEĞİL — geniş içerik kendi kabında kayar (`marcus-design`).
+     *   · `kapTasmasi`: o kabın EBEVEYNİ (kart). Taşma kabın içinde kalmayıp dışarı
+     *     çıkarsa burada görünür ve sayfa gövdesine kadar yürür. */
+    tabloTasmasi: tasma(kap(tahminTablosu)),
+    kapTasmasi: (() => { const c = kap(tahminTablosu); return c && c.parentElement ? tasma(c.parentElement) : null; })(),
+    dusenTasmasi: tasma(kap(dusenTablosu)),
+  };
+});
+
+/** "Önümüzdeki Aylar" sekmesine tıklar ve tablonun çizilmesini bekler. */
+async function tahminSekmesiniAc(sayfa) {
+  try {
+    await sayfa.locator('[role="tab"]').filter({ hasText: "Önümüzdeki Aylar" }).first()
+      .click({ timeout: 20000 });
+    await sayfa.waitForFunction(
+      () => document.body.innerText.includes("Düşen markalar"), null, { timeout: 20000 },
+    );
+    return null;
+  } catch (e) {
+    return e.message.split("\n")[0];
+  }
+}
+
+/* ── ÖNÜMÜZDEKİ AYLAR · GENİŞ EKRAN ──────────────────────────────────────────── */
+async function tahminEtkilesimi({ sayfa, ad }) {
+  const ekraniOku = tahminOkuyucu(sayfa);
+  const para = paraOkuyucu(sayfa);
+
+  const acmaHatasi = await tahminSekmesiniAc(sayfa);
+  const ekran = await ekraniOku();
+  // Sekme hiç açılmasa bile AŞAĞIDAKİ KONTROLLERİN HEPSİ ÇALIŞIR ve tek tek düşer:
+  // erken dönseydi "kaç kontrol düştü" ölçümü sessizce küçülürdü.
+  const metin = ekran ? ekran.metin : "";
+  const ornek = metin.slice(0, 140).replace(/\s+/g, " ");
+
+  kontrol(`${ad}: "Önümüzdeki Aylar" sekmesine tıklayınca içerik çizildi`,
+    acmaHatasi === null && ekran !== null, acmaHatasi || "tahmin tablosu DOM'da bulunamadı");
+
+  /* 1 · TABLO — satırlar Gelir · Gider · Net, sütunlar AY + 6 ay. */
+  kontrol(`${ad}: tablo ${TAHMIN_AY_ADEDI} ay sütunu çizdi (AY + ${TAHMIN_AY_ADEDI})`,
+    ekran !== null && ekran.basliklar.length === TAHMIN_AY_ADEDI + 1
+      && ekran.basliklar[0] === "AY",
+    ekran === null ? "ekran yok" : JSON.stringify(ekran.basliklar));
+  kontrol(`${ad}: Gelir · Gider · Net satırlarının üçü de çizildi`,
+    ekran !== null && ekran.satirlar.length === 3
+      && ekran.satirlar.map((s) => s[0]).join("|") === "Gelir|Gider|Net",
+    ekran === null ? "ekran yok" : JSON.stringify((ekran.satirlar || []).map((s) => s[0])));
+
+  /* 2 · GELİR RAKAMI GERÇEKTEN TABLOYA GİRDİ. Tutar tarayıcının kendi tr-TR
+   * biçimlendirmesiyle karşılaştırılıyor (`fmt` de onu çağırıyor): sınanan şey ayıraç
+   * biçimi değil TUTAR. Gizlilik modu kapatılmasaydı burada "₺ •••" olurdu. */
+  const ilkAyMetni = await para(TAHMIN_ILK_AY_GELIRI);
+  kontrol(`${ad}: bu ayın geliri doğru tutarla çizildi (${ilkAyMetni})`,
+    ekran !== null && ekran.satirlar.length === 3 && ekran.satirlar[0][1] === ilkAyMetni,
+    ekran === null ? "ekran yok" : `bulunan: ${ekran.satirlar[0] && ekran.satirlar[0][1]}`);
+  /* Biten marka düştükten SONRAKİ ay yalnızca süren markanın ücreti kalmalı — tahminin
+   * `bitisAyi`'nı gerçekten okuduğunun kanıtı bu satır. Üstelik o ay ZAM da yürürlükte:
+   * rakam `ayinUcreti` ile 26.000, `client.aylikUcret` ile (yanlış yoldan) 20.000 olurdu.
+   * Yani tek satır İKİ kuralı birden ölçüyor ve fixture ayırt edici. */
+  const sonrakiAyMetni = await para(TAHMIN_SUREN_ZAMLI);
+  const zamsizMetni = await para(TAHMIN_SUREN_UCRET);
+  kontrol(`${ad}: biten markadan sonraki ay geliri düştü ve O AYIN ücreti kullanıldı (${sonrakiAyMetni})`,
+    ekran !== null && ekran.satirlar.length === 3 && ekran.satirlar[0][3] === sonrakiAyMetni
+      && ekran.satirlar[0][3] !== zamsizMetni,
+    ekran === null ? "ekran yok" : `bulunan: ${ekran.satirlar[0] && ekran.satirlar[0][3]}`);
+
+  /* 3 · GİDER SATIRI DOLU — `sabitGider` çağıran taraftan gerçekten geçti mi.
+   * Boş kalsaydı "—" yazardı ve bu kontrol düşerdi (sessiz sıfır da yok). */
+  kontrol(`${ad}: gider satırı dolu (çağırandan sabit gider geçti, "—" değil)`,
+    ekran !== null && ekran.satirlar.length === 3
+      && ekran.satirlar[1].slice(1).every((h) => h !== "—" && h.includes("₺")),
+    ekran === null ? "ekran yok" : JSON.stringify(ekran.satirlar[1]));
+
+  /* 4 · VARSAYIM CÜMLESİ — rakam yorumsuz bırakılmıyor. */
+  kontrol(`${ad}: varsayım cümlesi yazıldı (o ayın ücreti · sabit gider geçmişi yok)`,
+    metin.includes("bugünkü ücretle değil")
+      && metin.includes("sabit giderlerin ay ay geçmişi sistemde yok"),
+    `ekranda: "${ornek}…"`);
+
+  /* 5 · DÜŞEN MARKA SATIRI — asıl iddia. Rakam tek başına "neden düştü"yü cevaplamaz. */
+  kontrol(`${ad}: düşen marka satırı çizildi (${TAHMIN_BITEN})`,
+    ekran !== null && Array.isArray(ekran.dusenSatirlari)
+      && ekran.dusenSatirlari.length === 1
+      && ekran.dusenSatirlari[0][1] === TAHMIN_BITEN,
+    ekran === null ? "ekran yok" : JSON.stringify(ekran.dusenSatirlari));
+  const bitenMetni = await para(TAHMIN_BITEN_UCRET);
+  kontrol(`${ad}: düşen markanın tutarı yazıldı (${bitenMetni})`,
+    ekran !== null && Array.isArray(ekran.dusenSatirlari)
+      && ekran.dusenSatirlari.length === 1
+      && ekran.dusenSatirlari[0][2].includes(bitenMetni),
+    ekran === null ? "ekran yok" : JSON.stringify(ekran.dusenSatirlari));
+  /* Boş durum metni bu fixture'da ÇIKMAMALI — çıkıyorsa tablo hiç dolmamış demektir. */
+  kontrol(`${ad}: boş durum metni çıkmadı (liste gerçekten dolu)`,
+    metin !== "" && !metin.includes("Önümüzdeki aylarda düşen marka yok"),
+    `ekranda: "${ornek}…"`);
+
+  /* 6 · RAKAM BİÇİMİ — sağa hizalı ve tabular. Karşılaştırma ekranının tamamı buna bağlı. */
+  kontrol(`${ad}: rakam hücresi sağa hizalı ve tabular-nums`,
+    ekran !== null && ekran.hucreBicimi !== null
+      && ekran.hucreBicimi.hiza === "right"
+      && ekran.hucreBicimi.tabular.includes("tabular-nums"),
+    ekran === null ? "ekran yok" : JSON.stringify(ekran.hucreBicimi));
+
+  /* 7 · YATAY KAYMA İKİ YERDE: belge/gövde ve tablonun KENDİ kaydırma bölgesi.
+   * Geniş ekranda tablo kendi kabına sığmalı; sığmıyorsa yerleşim bozulmuştur. */
+  const kayma = await sayfa.evaluate(() => ({
+    belge: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    govde: document.body.scrollWidth - document.body.clientWidth,
+  }));
+  kontrol(`${ad}: yatay KAYMA yok (sayfa gövdesi + tablonun kendi kabı)`,
+    kayma.belge <= 0 && kayma.govde <= 0
+      && ekran !== null && ekran.tabloTasmasi !== null && ekran.tabloTasmasi <= 0
+      && ekran.dusenTasmasi !== null && ekran.dusenTasmasi <= 0,
+    `belge: ${kayma.belge}px, gövde: ${kayma.govde}px, tablo: ${ekran === null ? "ekran yok" : ekran.tabloTasmasi}, düşenler: ${ekran === null ? "-" : ekran.dusenTasmasi}`);
+
+  if (metin) console.log(`     tahminden: "${ornek}…"`);
+}
+
+/* ── ÖNÜMÜZDEKİ AYLAR · DAR EKRAN (390) ──────────────────────────────────────── */
+async function darTahminEtkilesimi({ sayfa, ad }) {
+  const ekraniOku = tahminOkuyucu(sayfa);
+
+  const acmaHatasi = await tahminSekmesiniAc(sayfa);
+  const ekran = await ekraniOku();
+
+  kontrol(`${ad}: dar ekranda da tahmin tablosu çizildi`,
+    acmaHatasi === null && ekran !== null
+      && ekran.satirlar.map((s) => s[0]).join("|") === "Gelir|Gider|Net",
+    acmaHatasi || (ekran === null ? "tahmin tablosu bulunamadı" : JSON.stringify(ekran.satirlar.map((s) => s[0]))));
+  kontrol(`${ad}: dar ekranda düşen marka satırı da çizildi`,
+    ekran !== null && Array.isArray(ekran.dusenSatirlari)
+      && ekran.dusenSatirlari.length === 1 && ekran.dusenSatirlari[0][1] === TAHMIN_BITEN,
+    ekran === null ? "ekran yok" : JSON.stringify(ekran.dusenSatirlari));
+
+  /* KONTROL BOŞ YERE GEÇMESİN: tablo 390px'e sığıyorsa "kap taşmıyor" iddiası hiçbir şey
+   * sınamaz. Önce taşmanın GERÇEKTEN olduğu, sonra kendi kabının İÇİNDE kaldığı ölçülüyor.
+   * (Bu, `position: fixed` tuzağının tersi bir durum — ikisini karıştırma.) */
+  kontrol(`${ad}: tablo 390px'e sığmıyor, yani taşma kontrolü gerçekten bir şey ölçüyor`,
+    ekran !== null && ekran.tabloTasmasi > 0,
+    ekran === null ? "ekran çizilmedi" : `tablo taşması: ${ekran.tabloTasmasi}px`);
+
+  /* İKİ YERDE ÖLÇÜLEN YATAY KAYMA: sayfa gövdesi VE tablo kabının EBEVEYNİ (kart).
+   * Yalnızca belgeye bakan bir kontrol, taşma bir kaydırma kabına düştüğünde hiçbir
+   * şey sınamaz — bu projede tam olarak o boşluk yaşandı. */
+  const kayma = await sayfa.evaluate(() => ({
+    belge: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    govde: document.body.scrollWidth - document.body.clientWidth,
+  }));
+  kontrol(`${ad}: yatay KAYMA yok (sayfa gövdesi + tablo kabının ebeveyni)`,
+    kayma.belge <= 0 && kayma.govde <= 0
+      && ekran !== null && ekran.kapTasmasi !== null && ekran.kapTasmasi <= 0,
+    `belge: ${kayma.belge}px, gövde: ${kayma.govde}px, kap: ${ekran === null ? "bulunamadı" : ekran.kapTasmasi + "px"}`);
+}
+
+/* ── MÜŞTERİ FORMU (CLIENT_FIELDS IZGARASI) — OKUYUCU ──────────────────────────
+ *
+ * NEDEN VAR: `CLIENT_FIELDS` İKİ SÜTUNLU bir ızgaraya SIRAYLA diziliyor (`para.md`:
+ * `temelUcret` tam bu yüzden listeye konmadı). Araya alan eklemek, altındaki alanların
+ * hangi satırda eşleşeceğini kaydırır. Kaydırmanın KUSUR olduğu hâl şudur: bir etiketin
+ * altında BAŞKA bir alanın girdisi kalması. Bu yüzden ölçülen şey sütun sayısı DEĞİL,
+ * her hücrenin KENDİ etiketi ve KENDİ girdisiyle bir arada durması.
+ *
+ * İkinci ve daha kritik ölçüm: `bitisAyi` alanı BOŞ mu açılıyor. Ay alanları varsayılan
+ * olarak BU AYLA doldurulur; bu alanda o davranış, var olan bir müşteriyi düzenleyip
+ * kaydeden herkese sessizce "bu ay bitiyor" yazardı ve marka bir sonraki aydan itibaren
+ * tahminlerden düşerdi. Node'dan görülemez, yalnızca burada görülür. */
+const musteriFormuOkuyucu = (sayfa) => () => sayfa.evaluate(() => {
+  const izgara = document.querySelector(".marcus-field-grid");
+  if (!izgara) return null;
+  const hucreler = [...izgara.children].filter((c) => c.querySelector("label"));
+  return {
+    alanSayisi: hucreler.length,
+    etiketler: hucreler.map((c) => (c.querySelector("label").textContent || "").trim()),
+    /* HER HÜCRE TEK ETİKET + EN AZ BİR GİRDİ taşımalı. Eşleşme kayarsa bu bozulur. */
+    eslesmeSaglam: hucreler.every((c) => c.querySelectorAll("label").length === 1
+      && c.querySelectorAll("input, select").length >= 1),
+    /* BİTİŞ AYI hücresinin ay seçicisi: boş mu açılıyor, "Belirtilmedi" seçeneği var mı. */
+    bitisAyi: (() => {
+      const h = hucreler.find((c) => (c.querySelector("label").textContent || "").includes("Bitiş Ayı"));
+      if (!h) return null;
+      const sec = h.querySelector("select");
+      if (!sec) return null;
+      return {
+        deger: sec.value,
+        secenekler: [...sec.options].map((o) => (o.textContent || "").trim()),
+      };
+    })(),
+    /* BAŞLANGIÇ AYI hâlâ DOLU açılmalı — yeni davranış eski alanlara sızmasın. */
+    baslangicDolu: (() => {
+      const h = hucreler.find((c) => (c.querySelector("label").textContent || "").includes("Başlangıç Ayı"));
+      const sec = h ? h.querySelector("select") : null;
+      return sec ? sec.value !== "" : null;
+    })(),
+    izgaraTasmasi: izgara.scrollWidth - izgara.clientWidth,
+  };
+});
+
+/* ── MÜŞTERİ FORMU · CLIENT_FIELDS IZGARASI ──────────────────────────────────── */
+async function musteriFormuEtkilesimi({ sayfa, ad }) {
+  const formuOku = musteriFormuOkuyucu(sayfa);
+
+  let acmaHatasi = null;
+  try {
+    await sayfa.locator("button").filter({ hasText: "Yeni müşteri ekle" }).first()
+      .click({ timeout: 20000 });
+    await sayfa.waitForFunction(
+      () => !!document.querySelector(".marcus-field-grid"), null, { timeout: 20000 },
+    );
+  } catch (e) {
+    acmaHatasi = e.message.split("\n")[0];
+  }
+
+  const form = await formuOku();
+  kontrol(`${ad}: müşteri formu çizildi`,
+    acmaHatasi === null && form !== null, acmaHatasi || "ızgara DOM'da bulunamadı");
+  kontrol(`${ad}: ${MUSTERI_ALAN_SAYISI} alanın hepsi çizildi`,
+    form !== null && form.alanSayisi === MUSTERI_ALAN_SAYISI,
+    form === null ? "form yok" : `bulunan: ${form.alanSayisi}`);
+  /* IZGARA KAYMASI: her etiketin altında KENDİ girdisi duruyor mu. */
+  kontrol(`${ad}: ızgara eşleşmesi sağlam (her etiketin altında kendi girdisi)`,
+    form !== null && form.eslesmeSaglam === true,
+    form === null ? "form yok" : JSON.stringify(form.etiketler.slice(0, 3)));
+  kontrol(`${ad}: "Bitiş Ayı" alanı Başlangıç Ayı'nın hemen altında`,
+    form !== null && form.etiketler.findIndex((x) => x.includes("Bitiş Ayı"))
+      === form.etiketler.findIndex((x) => x.includes("Başlangıç Ayı")) + 1,
+    form === null ? "form yok" : JSON.stringify(form.etiketler));
+  /* EN ÖNEMLİSİ: bitiş ayı BOŞ açılıyor — yoksa kaydeden herkes markaya bitiş yazardı. */
+  kontrol(`${ad}: "Bitiş Ayı" BOŞ açılıyor ve "Belirtilmedi" seçeneği var`,
+    form !== null && form.bitisAyi !== null && form.bitisAyi.deger === ""
+      && form.bitisAyi.secenekler.includes("Belirtilmedi"),
+    form === null ? "form yok" : JSON.stringify(form.bitisAyi));
+  kontrol(`${ad}: "Başlangıç Ayı" hâlâ DOLU açılıyor (eski davranış korundu)`,
+    form !== null && form.baslangicDolu === true,
+    form === null ? "form yok" : `baslangicDolu: ${form && form.baslangicDolu}`);
+
+  const kayma = await sayfa.evaluate(() => ({
+    belge: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    govde: document.body.scrollWidth - document.body.clientWidth,
+  }));
+  kontrol(`${ad}: yatay KAYMA yok (sayfa gövdesi + formun kendi ızgarası)`,
+    kayma.belge <= 0 && kayma.govde <= 0
+      && form !== null && form.izgaraTasmasi <= 0,
+    `belge: ${kayma.belge}px, gövde: ${kayma.govde}px, ızgara: ${form === null ? "yok" : form.izgaraTasmasi + "px"}`);
+}
+
 /* ── TARAYICIYI BUL ──────────────────────────────────────────────────────────── */
 /**
  * Chromium'un yeri MAKİNEDEN MAKİNEYE DEĞİŞİR. Yol sabit yazılıydı
@@ -1298,6 +1653,29 @@ async function calistir() {
         etkilesim: darFinansEtkilesimi,
         pencere: { width: 390, height: 800 },
       });
+    /* 10) ÖNÜMÜZDEKİ AYLAR — ileriye dönük tahmin ekranı. Bu ekranın çizdiği her şey
+     *     markanın `bitisAyi` alanına bağlı; fixture'da bir marka GERÇEKTEN bitiyor,
+     *     yoksa "düşen markalar" boş durum çizer ve kontrol hiçbir şey ölçmez.
+     *     `marcus-os-gizlilik` kapalı — açık kalsaydı bütün tutarlar "₺ •••" olurdu
+     *     ve tutar kontrolleri yıldızları doğrulardı. */
+    await senaryo(tarayici, "önümüzdeki aylar", SAHTE_YANIT_TAHMIN(), 50,
+      ["Finans", "Önümüzdeki Aylar"],
+      { yerelDepo: FINANS_DEPOSU, etkilesim: tahminEtkilesimi });
+    /* 11) DAR EKRAN — altı ay sütunu 390px'e sığmaz. Taşmanın tablonun KENDİ kabında
+     *     kalması, sayfa gövdesine sızmaması ölçülüyor (iki yerde). */
+    await senaryo(tarayici, "dar ekranda önümüzdeki aylar", SAHTE_YANIT_TAHMIN(), 50,
+      ["Finans", "Önümüzdeki Aylar"],
+      {
+        yerelDepo: FINANS_DEPOSU,
+        etkilesim: darTahminEtkilesimi,
+        pencere: { width: 390, height: 800 },
+      });
+    /* 12) MÜŞTERİ FORMU — `bitisAyi` alanı buraya eklendi ve `CLIENT_FIELDS` iki sütunlu
+     *     ızgaraya SIRAYLA diziliyor. Ne ızgara eşleşmesini ne de alanın BOŞ açıldığını
+     *     hiçbir Node testi görebiliyor: ikisi de ancak çizildiğinde ortaya çıkıyor. */
+    await senaryo(tarayici, "müşteri formu ızgarası", SAHTE_YANIT_PANEL(), 50,
+      ["Müşteriler", "Yeni müşteri ekle"],
+      { yerelDepo: PANEL_DEPOSU, etkilesim: musteriFormuEtkilesimi });
   } finally {
     await tarayici.close();
   }
@@ -1317,7 +1695,7 @@ async function calistir() {
    *
    * Sayıyı BİLEREK değiştirmek serbest — yeni kontrol eklerken bu sabit de artar. Yasak
    * olan, sayının KENDİLİĞİNDEN düşmesi ve kimsenin görmemesi. */
-  const BEKLENEN = 125;
+  const BEKLENEN = 175;
   if (gecen !== BEKLENEN) {
     console.log(`SONUÇ: ✗ ${gecen} kontrol çalıştı, ${BEKLENEN} bekleniyordu — kapsam DEĞİŞMİŞ.`);
     console.log("       Kontrol eklediysen bu sabiti de artır; artırmadıysan bir kontrol");

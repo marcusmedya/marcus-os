@@ -6815,3 +6815,105 @@ Zincir: 27 denetim ✓ · **2717 kontrol** (t1…t115) ✓ · derleme ✓ · tar
 - **Sekme geçişi yalnızca Özet → Ödemeler yönünde çizilerek ölçüldü.** Diğer beş sekmenin
   içeriği (Gelir-Gider, Ay Ay Karşılaştırma, Raporlar, Hesaplar, Vergi & Arşiv) tarayıcıda
   AÇILMIYOR; sekme çubuğunda adları var, gövdeleri ölçülü değil.
+
+---
+
+## Güncelleme 190: Marka BİTİŞ AYI + İleriye Dönük Mali Tahmin ("Önümüzdeki Aylar")
+
+**Sorun.** `CLIENT_FIELDS`'te `baslangic` (başlangıç ayı) vardı ama **bitiş ayı yoktu**.
+`durum` ("aktif"/"yeni"/"donduruldu"/"ayrildi") TARİHSİZDİR ve işaretlendiği ANDA geçerli
+olur. Sonuç: **Eylül'de çalışan, Ekim'de çalışmayacak bir markayı bugün işaretlemenin
+doğru yolu yoktu.** "aktif" bırakırsan Ekim tahmini şişiyor, "ayrildi" yaparsan Eylül
+geliri de düşüyordu — yani kullanıcı ya geleceği ya geçmişi yanlış göstermek zorundaydı.
+Üstelik bütün para ekranları GERİYE bakıyordu; bir markanın biteceğini bilen kişi bunun
+gelirine ne yapacağını hiçbir ekranda göremiyordu.
+
+**Yapılan.**
+
+- **`bitisAyi` alanı** (`src/App.jsx` → `CLIENT_FIELDS`, `baslangic`in hemen altında).
+  "YYYY-AA"; **boşsa devam ediyor** ve o hâlde hiçbir davranış değişmiyor.
+- **`lib/marka-donemi.js` (yeni, saf).** `markaAydaAktifMi(client, ay)` ·
+  `markaninBitisAyi(client)` · `aydaAktifMarkalar` · `bitisAyiGirilmemisler`.
+  Kural sırası: `baslangic` öncesi hayır → **bitiş ayı DOLUYSA tarih durumu yener**
+  (bitiş ayına kadar DAHİL evet, sonrası hayır) → **BOŞSA bugünkü davranış aynen**
+  (`donduruldu`/`ayrildi` aktif değil). `new Date` yok, ay parametre.
+- **`lib/mali-tahmin.js` (yeni, saf).** `maliTahmin(data, { baslangicAy, ayAdedi,
+  sabitGider })` → ay ay `{ ay, gelir, gider, net, markaSayisi, dusenler }` + insan diliyle
+  `varsayimlar`. Gelir **`ayinUcreti(client, ay)`** ile (bugünkü `aylikUcret` ile DEĞİL);
+  gider **dışarıdan** gelir (`computeLive` `.jsx` içinde, `lib/` onu import edemez) ve
+  verilmezse `gider: null` + `net: null` + sebep — **sessiz sıfır yok**. Ay döngüsünde
+  sonsuz döngü üst sınırı (600 ay).
+- **Finans → "Önümüzdeki Aylar" sekmesi** (`lib/finans-sekmeleri.js`'e eklendi, izin
+  `finans`; kural yine TEK kaynakta, çağrı yerinde kopyalanmadı). Ekran bir KARŞILAŞTIRMA
+  ekranı: **tablo birincil, kart yok** — üstte kaç ay + varsayım cümlesi, satırlar
+  Gelir · Gider · Net, sütunlar aylar (mono, `tabular-nums`, sağa hizalı, `fmt` ile yani
+  gizlilik modundan geçerek, negatif net `danger`), altında **"Düşen markalar"** hangi ay ·
+  hangi marka · ne kadar. Boşsa üç parçalı boş durum.
+
+**`AySeciciAlan`'da `bosaIzin` — sessiz veri bozulmasına karşı.** Ay alanları varsayılan
+olarak BU AYLA doldurulur (`FieldForm` ve `AySeciciAlan`'ın `useEffect`'i). `bitisAyi`'nda
+o davranış, **var olan bir müşteriyi düzenleyip Kaydet'e basan herkese sessizce "bu ay
+bitiyor" yazardı** ve marka bir sonraki aydan itibaren tahminlerden düşerdi. Alan
+`bosaIzin: true` taşıyor: otomatik doldurma yok, listede "Belirtilmedi" seçeneği var, boş
+seçilince yıl kutusu pasifleşiyor. `baslangic` dahil diğer ay alanlarının davranışı
+DEĞİŞMEDİ (tarayıcı senaryosu ikisini de ayrı ayrı ölçüyor).
+
+**Izgara kontrolü.** `CLIENT_FIELDS` iki sütunlu ızgaraya SIRAYLA diziliyor (`para.md`:
+`temelUcret` tam bu yüzden listeye konmamıştı). Alan eklendikten sonra 14 → **15 alan**;
+ızgara gözle ve ölçerek kontrol edildi: `bitisAyi` `baslangic`in YANINA düşüyor, her
+etiketin altında kendi girdisi duruyor, eşleşme kaymıyor, yatay kayma yok. Alanı listenin
+sonuna almak gerekmedi.
+
+**Testler.**
+
+- `testler/t116.mjs` (yeni) — **48 kontrol**, sekiz bölüm, `BEKLENEN` bekçisiyle ve
+  bölümler `await` edilerek. En önemlisi 1. bölüm: bağımsız bir ORAKEL (alan eklenmeden
+  önceki kural elle yazılmış) ile 8 marka × 6 ay = **48 ay–marka karşılaştırmasının
+  hepsinde** çıktı eski kuralla birebir aynı.
+- `testler/tarayiciAcilis.mjs` — **üç yeni senaryo**, 125 → **175 kontrol**:
+  *önümüzdeki aylar* (tablo, ay sütunları, tutarlar, gider satırının DOLU olması, varsayım
+  cümlesi, düşen marka satırı, rakam biçimi, iki yerde taşma) · *dar ekranda önümüzdeki
+  aylar* (390px; taşma tablonun KENDİ kabında kalıyor mu) · *müşteri formu ızgarası*
+  (15 alan, eşleşme, `bitisAyi` BOŞ açılıyor, `baslangic` hâlâ dolu).
+- Tahmin fixture'ı **ayırt edici**: süren markaya üçüncü aydan geçerli bir ZAM dönemi
+  kondu. Bu dönem olmadan `ayinUcreti` → `aylikUcret` bozması tarayıcıda **hiçbir**
+  kontrolü düşürmüyordu (ölçüldü); dönem eklenince düşürüyor.
+
+**Kırarak ölçüldü — iki ayrı bozma:**
+
+| Bozma | Düşen kontrol | Hangileri |
+|---|---|---|
+| `markaAydaAktifMi`'den bitiş sınırı kaldırıldı (`if (bitis) return true` — marka sonsuza kadar aktif) | **16** (t116'da 10, tarayıcıda 6) | t116: "bitiş ayından SONRAKİ ay aktif DEĞİL" · "çok sonraki ay da aktif değil" · "ayrildi olsa bile bitiş ayına kadar aktif" · "donduruldu + bitiş ayı dolu" · "baslangic > bitisAyi → hiçbir ay aktif değil" · "aydaAktifMarkalar yalnızca o ayın markaları" · "Kasım geliri 20.000" · "düşüş KASIM'da bildiriliyor" · "düşen markanın ADI ve TUTARI" · "dusenMarkaSatirlari ayı koruyor" — tarayıcı: "sonraki ay geliri düştü" · "düşen marka satırı çizildi" · "düşen markanın tutarı" · "boş durum metni çıkmadı" · "yatay kayma yok" · dar ekranda "düşen marka satırı" |
+| Tahminde `ayinUcreti(c, ay)` yerine `c.aylikUcret` | **3** (t116'da 2, tarayıcıda 1) | t116: "Ekim geliri 60.000 — o ay yürürlükteki dönem" (45.000 çıktı) · "Ekim geliri bugünkü aylikUcret DEĞİL" — tarayıcı: "biten markadan sonraki ay geliri düştü ve O AYIN ücreti kullanıldı" (₺26.000 yerine ₺20.000) |
+
+İki bozmada da **27 statik denetim ve derleme YEŞİL kaldı** (çıkış kodu 0) — yani bu
+kuralların tek bekçisi t116 ve tarayıcı testi.
+
+**Dokunulmayanlar (bilerek).**
+
+- **`computeLive` ve mevcut hiçbir tutar hesabı değişmedi.** Ciro, kâr, ödeme durumu,
+  ekstre, ay ay karşılaştırma: bugünkü rakamlar birebir aynı. `bitisAyi` yalnızca yeni
+  ekranı besliyor.
+- **`lib/aylik-ozet.js` → `markaAktifMiydi` `bitisAyi`'nı OKUMUYOR.** Geçmiş aylar hâlâ
+  "kanıt yoksa tahakkuk yazma" kuralında. `bitisAyi` orayı da düzeltebilir ama o AYRI bir
+  iş: geçmiş ay rakamlarını değiştirir. Bugün iki kural yan yana duruyor — geçmişte
+  "kanıt", gelecekte "tarih" (`para.md`'de yazılı).
+- `PERMISSION_DATA_FIELDS`, `Card` radius'u ve `api/` (11 fonksiyon) dokunulmadı.
+
+Zincir: 27 denetim ✓ · **2765 kontrol** (t1…t116) ✓ · derleme ✓ · tarayıcı **175 kontrol** ✓ ·
+`api/` 11 fonksiyon.
+
+### Ölçülemeyen / bilinen boşluklar
+
+- **Gider tahmini TEK RAKAM ve her ay aynı.** `sabitGider` olarak `computeLive`'ın bugünkü
+  `gider` toplamı veriliyor; içinde marka bazlı maliyetler ve BU AYIN freelancer hak edişi
+  de var. Bir marka bittiğinde onun maliyeti de düşmeli ama bu tahminde düşmüyor —
+  ekran "giderler bugünkü değerlerle" diye SÖYLÜYOR, ama rakamı düzeltmiyor. Doğru çözüm
+  sabit giderleri TARİHLİ kaydetmek; ayrı ve daha büyük bir iş.
+- **`bitisAyi` sunucuda doğrulanmıyor.** Alan, müşteri kaydının geri kalanıyla birlikte
+  olduğu gibi yazılıyor; bozuk bir değer (`"abc"`) veri bozmuyor çünkü okuma tarafı
+  `ayNormalle` ile fail-close davranıyor, ama sunucu "bu geçersiz" demiyor.
+- **Ay adedi ekranda DEĞİŞTİRİLEMİYOR.** Modül `ayAdedi` alıyor ve sınırlıyor, ekran hep 6
+  veriyor; seçici yok.
+- **Düşen markalar yalnızca ÇIKIŞI gösteriyor.** Yeni başlayan marka (`baslangic` gelecek
+  bir ay) gelire ekleniyor ama ayrı bir "eklenenler" listesi yok.

@@ -718,8 +718,22 @@ export const AY_ADLARI = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran"
 /** Native <input type="month"> Safari masaüstünde desteklenmediği için (düz metin kutusuna
  * dönüşüyor ve yanlış/gün eklenmiş değerler kabul edilebiliyor), bunun yerine iki ayrı <select>
  * (Ay + Yıl) ile tüm tarayıcılarda garanti aynı şekilde çalışan bir seçici kullanılıyor. */
-export function AySeciciAlan({ value, onChange }) {
+/**
+ * AY SEÇİCİ.
+ *
+ * `bosaIzin` — alan BOŞ KALABİLİR mi? Varsayılanı `false` ve o hâlde davranış eskisiyle
+ * birebir aynı: boş/bozuk değer açılışta bu ayla DOLDURULUR (aşağıdaki `useEffect`).
+ *
+ * Bazı ay alanları ise opsiyonel ve "boş" anlamlı bir değer: markanın BİTİŞ AYI boşsa
+ * "devam ediyor" demek. Orada otomatik doldurma bir VERİ BOZULMASI olurdu — var olan
+ * bir müşteriyi düzenleyip Kaydet'e basmak, kullanıcı o alana hiç dokunmadan markaya
+ * "bu ay bitiyor" yazardı ve marka bir sonraki aydan itibaren tahminlerden düşerdi.
+ * Bu yüzden `bosaIzin` verildiğinde: otomatik doldurma YOK, listede "Belirtilmedi"
+ * seçeneği VAR ve seçilince değer boşaltılır.
+ */
+export function AySeciciAlan({ value, onChange, bosaIzin = false }) {
   const gecerli = value && /^\d{4}-\d{1,2}$/.test(value);
+  const bos = bosaIzin && !gecerli;
   const [yil, ay] = gecerli ? value.split("-").map(Number) : [new Date().getFullYear(), new Date().getMonth() + 1];
   const buYil = new Date().getFullYear();
   const yilListesi = [];
@@ -732,16 +746,22 @@ export function AySeciciAlan({ value, onChange }) {
   // durumunu da hemen düzelt. Yoksa kullanıcı hiç dokunmadan "Kaydet"e basınca bozuk/boş
   // değer sessizce kaydedilmeye devam ediyordu ("yeniden kaydetsem de işlemiyor" sorunu buydu).
   useEffect(() => {
-    if (!gecerli) guncelle(yil, ay);
+    if (!gecerli && !bosaIzin) guncelle(yil, ay);
     // eslint-disable-next-line
   }, []);
 
   return (
     <div style={{ display: "flex", gap: 8 }}>
-      <select value={ay} onChange={(e) => guncelle(yil, Number(e.target.value))} style={{ ...inputStyle, flex: 1.4 }}>
+      <select
+        value={bos ? "" : ay}
+        onChange={(e) => (e.target.value === "" ? onChange("") : guncelle(yil, Number(e.target.value)))}
+        style={{ ...inputStyle, flex: 1.4 }}
+      >
+        {bosaIzin && <option value="">Belirtilmedi</option>}
         {AY_ADLARI.map((ad, i) => <option key={i} value={i + 1}>{ad}</option>)}
       </select>
-      <select value={yil} onChange={(e) => guncelle(Number(e.target.value), ay)} style={{ ...inputStyle, flex: 1 }}>
+      <select value={yil} disabled={bos} onChange={(e) => guncelle(Number(e.target.value), ay)}
+        style={{ ...inputStyle, flex: 1, color: bos ? T.textFaint : inputStyle.color, cursor: bos ? "not-allowed" : "pointer" }}>
         {yilListesi.map((y) => <option key={y} value={y}>{y}</option>)}
       </select>
     </div>
@@ -990,7 +1010,11 @@ export function FieldForm({ fields, initial, onSubmit, onCancel, submitLabel = "
       if (initial && initial[f.key] !== undefined) { v[f.key] = initial[f.key]; return; }
       if (f.type === "number") { v[f.key] = 0; return; }
       if (f.type === "select") { v[f.key] = f.options[0].value; return; }
-      if (f.type === "month") { v[f.key] = new Date().toISOString().slice(0, 7); return; }
+      /* OPSİYONEL AY ALANI BOŞ BAŞLAR. `bosaIzin` taşımayan ay alanlarında davranış
+       * eskisiyle aynı (bu ay). Bunu ayırmak zorunlu: `bitisAyi` gibi "boş = devam
+       * ediyor" anlamı taşıyan bir alan otomatik doldurulsaydı, var olan bir müşteriyi
+       * düzenleyip kaydetmek markaya sessizce bir bitiş tarihi yazardı. */
+      if (f.type === "month") { v[f.key] = f.bosaIzin ? "" : new Date().toISOString().slice(0, 7); return; }
       if (f.type === "date") { v[f.key] = bugunISOTarih(); return; }
       v[f.key] = "";
     });
@@ -1006,7 +1030,7 @@ export function FieldForm({ fields, initial, onSubmit, onCancel, submitLabel = "
               {f.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           ) : f.type === "month" ? (
-            <AySeciciAlan value={values[f.key]} onChange={(val) => setValues((v) => ({ ...v, [f.key]: val }))} />
+            <AySeciciAlan value={values[f.key]} bosaIzin={f.bosaIzin === true} onChange={(val) => setValues((v) => ({ ...v, [f.key]: val }))} />
           ) : f.type === "client-select" ? (
             <MarkaSecici value={values[f.key]} onChange={(val) => setValues((v) => ({ ...v, [f.key]: val }))} clientList={clientList} />
           ) : (

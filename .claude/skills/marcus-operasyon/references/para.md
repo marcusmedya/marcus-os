@@ -62,16 +62,47 @@ yazıyordu. Yeni bir toplam eklerken hangi kümeyi kullandığına bak (t107 öl
 türetiliyor; o düğmeye hiç basılmamış aylar da görünüyor. Üç kural:
 - **Tahakkuk O AYIN ücretiyle** (`ayinUcreti`), bugünküyle değil — yoksa ücret düşünce
   geçmiş aylar da düşer ve tahsil edilmiş para "fazla ödeme" görünür.
-- **Ayrılan/dondurulan markanın BİTİŞ AYI KAYITLI DEĞİL.** Geçmiş aylarda ancak KANIT
-  varsa sayılır: o ay ödeme kaydı varsa evet, yoksa hayır. Ne zaman ayrıldığını bilmeden
-  tahakkuk yazmak fatura uydurmaktır. **Tahsilat bu süzgeçten geçmez** — alınan para
-  alınmıştır.
+- **Geçmiş aylarda ayrılan/dondurulan marka ancak KANIT varsa sayılır**: o ay ödeme kaydı
+  varsa evet, yoksa hayır. Ne zaman ayrıldığını bilmeden tahakkuk yazmak fatura
+  uydurmaktır. **Tahsilat bu süzgeçten geçmez** — alınan para alınmıştır.
+  **DİKKAT — bu satır artık yalnızca GEÇMİŞ için geçerli.** Markanın `bitisAyi` alanı VAR
+  (aşağıdaki bölüm); ama `lib/aylik-ozet.js` onu **bilerek okumuyor**: geçmiş ay
+  rakamlarını değiştirmek ayrı ve daha büyük bir karar. Yani bugün iki kural yan yana
+  duruyor — geçmişte "kanıt", gelecekte "tarih". İkisini karıştırma.
 - **SABİT GİDERLERİN AY AY GEÇMİŞİ YOK** (ofis, maaş, üyelik, gider kalemleri): belgede
   yalnızca bugünkü değerleri var. Geçmiş aya bugünkü kirayı yazmak yalan üretir, bu yüzden
   hiç yazılmıyor ve ekran sebebini söylüyor. İstenirse yol, sabit giderleri TARİHLİ
   kaydetmektir — ayrı ve daha büyük bir iş.
 Ay döngüsünde **sonsuz döngü üst sınırı** var (`lib/ekstre.js` gibi): ölçüldü, koruma
 yokken bozuk bir ay aritmetiği testi sonsuza soktu — tarayıcıda bu kilitlenme demek.
+
+**Markanın BİTİŞ AYI kayıtlı — `lib/marka-donemi.js`.** `durum`
+("aktif"/"yeni"/"donduruldu"/"ayrildi") TARİHSİZDİR ve işaretlendiği ANDA geçerli olur.
+Bu yüzden "Eylül'de çalışan, Ekim'de çalışmayacak" markayı bugün işaretlemenin doğru yolu
+yoktu: "aktif" bırakmak Ekim tahminini şişiriyor, "ayrildi" yapmak Eylül gelirini de
+düşürüyordu. `CLIENT_FIELDS`'e `bitisAyi` eklendi ("YYYY-AA", boşsa devam ediyor) ve kural
+tek saf modülde: **bitiş ayı DOLUYSA tarih durumu yener** (bitiş ayına kadar DAHİL aktif,
+sonrası değil), **BOŞSA bugünkü davranış birebir sürer** (`donduruldu`/`ayrildi` aktif
+sayılmaz). Geriye dönük uyumluluğun tamamı ikinci maddede.
+**Form tarafında bir tuzak var ve ölçüldü:** ay alanları varsayılan olarak BU AYLA
+doldurulur (`AySeciciAlan`); `bitisAyi`'nda o davranış, var olan bir müşteriyi düzenleyip
+kaydeden herkese sessizce "bu ay bitiyor" yazardı. Alan `bosaIzin: true` taşıyor —
+"Belirtilmedi" seçeneği var, otomatik doldurma yok. `temelUcret`in aksine `CLIENT_FIELDS`e
+KONDU: iki sütunlu ızgarada `baslangic`in yanına düşüyor ve eşleşme kaymıyor (tarayıcı
+senaryosu "müşteri formu ızgarası" bunu ölçüyor).
+
+**İleriye dönük tahmin — `lib/mali-tahmin.js`** (Finans → Önümüzdeki Aylar). Bütün para
+ekranları GERİYE bakıyordu. Üç kural:
+- **Gelir `ayinUcreti(client, ay)` ile** — `client.aylikUcret` ile DEĞİL. Sebep bu
+  dosyanın başındakiyle aynı: bugünkü ücretle başka bir ayı hesaplamak, ücreti değişmiş
+  markada yanlış tutar üretir. İleri yönde de zammı kayıtlı markada aynı hatayı üretirdi.
+- **Gider DIŞARIDAN verilir.** `computeLive` `src/tema.jsx`'te ve `lib/` bir `.jsx`
+  import edemez. Verilmezse `gider: null`, `net: null` ve sebebi `varsayimlar`da yazar —
+  **sessizce sıfır yazılmaz**: sıfır gider kârı olduğundan yüksek gösterir.
+- **`dusenler` markayı ADIYLA söyler.** Rakam tek başına "neden düştü"yü cevaplamaz.
+Ay döngüsünde sonsuz döngü üst sınırı var (600 ay), `new Date` yok — ay parametre.
+**Mevcut hiçbir tutar hesabı değişmedi**: `computeLive`, `aylikOzet`, ekstre ve ödeme
+durumu bu işte hiç dokunulmadı; bugünkü rakamlar birebir aynı.
 
 **Para TEK EKRANDA: Finans — menüde TEK madde.** "Ödeme Takvimi" ayrı bir menüydü ve
 `HesapBakiyeleri` İKİ ekranda birden çiziliyordu. Ekran artık Finans'ın içinde

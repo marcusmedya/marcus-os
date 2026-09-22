@@ -52,7 +52,7 @@ npm run build; echo "ÇIKIŞ: $?"
 ```
 npm run test:acilis; echo "ÇIKIŞ: $?"
 ```
-Beklenen: `SONUÇ: 125 kontrol geçti, uygulama açılıyor.` ve `ÇIKIŞ: 0`.
+Beklenen: `SONUÇ: 175 kontrol geçti, uygulama açılıyor.` ve `ÇIKIŞ: 0`.
 **Bu adım tek başına siyah ekranı yakalar** — diğerlerinin hiçbiri uygulamayı çizmiyor.
 `dist/` yoksa test kendisi derler. Çıktıda `TARAYICI BULUNAMADI` yazıyorsa bu bir
 UYGULAMA hatası değil, ortamda Chromium yok demektir; `MARCUS_CHROMIUM=<yol>` ver.
@@ -66,10 +66,12 @@ ls api/*.js | wc -l
 ## Kapsamadığı şey — bunu raporda SÖYLE
 
 **Açılış artık ölçülüyor (4. adım) ve birkaç derin ekran da çiziliyor — ama hepsi değil.**
-Dokuz senaryo var: ilk kurulum · dashboard · müşteri detay paneli (üç sekme geçişiyle) ·
+On iki senaryo var: ilk kurulum · dashboard · müşteri detay paneli (üç sekme geçişiyle) ·
 sağlıklı marka · dar ekranda panel · Finans → Doğrulama · personel Finans sekmeleri ·
-yalnızca ödeme takvimi izni · dar ekranda Finans sekmeleri. Bunların DIŞINDAKİ hiçbir
-ekrana tıklanmıyor, form doldurulmuyor, kart açılmıyor, dosya yüklenmiyor. "Uygulama
+yalnızca ödeme takvimi izni · dar ekranda Finans sekmeleri · Finans → Önümüzdeki Aylar ·
+dar ekranda Önümüzdeki Aylar · müşteri formu ızgarası (yeni müşteri formu AÇILIYOR ama
+DOLDURULMUYOR). Bunların DIŞINDAKİ hiçbir ekrana tıklanmıyor, kart açılmıyor, dosya
+yüklenmiyor. "Uygulama
 açılıyor" ile "uygulama çalışıyor" arasındaki fark duruyor — başka bir düğmeyi ya da akışı
 değiştirdiysen bu zincir onu GÖRMEZ, raporda söyle.
 
