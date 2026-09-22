@@ -365,6 +365,16 @@ const CLIENT_FIELDS = [
   { key: "odemeGunu", label: "Ödeme Günü (ayın kaçı — opsiyonel, örn. 5)", type: "number" },
   { key: "faturaliTutar", label: "Faturalı Tutar (₺/ay) — aylık ücretin ne kadarı faturalı? Kalanı otomatik faturasız sayılır", type: "number" },
   { key: "baslangic", label: "Başlangıç Ayı (ne zaman çalışmaya başladınız)", type: "month" },
+  /* BİTİŞ AYI — `durum` tarihsizdir, bu alan tarihlidir.
+   *
+   * "Eylül'de çalışan, Ekim'de çalışmayacak" markayı bugün işaretlemenin doğru yolu
+   * yoktu: "aktif" bırakmak Ekim tahminini şişiriyor, "ayrildi" yapmak Eylül gelirini
+   * düşürüyordu. Kural `lib/marka-donemi.js`'te ve ileriye dönük tahmin onu okuyor.
+   *
+   * `bosaIzin` ZORUNLU: ay alanları varsayılan olarak BU AYLA doldurulur; bu alanda o
+   * davranış, var olan bir müşteriyi düzenleyip kaydeden herkese sessizce "bu ay
+   * bitiyor" yazardı. Boş = devam ediyor = bugünkü davranış. */
+  { key: "bitisAyi", label: "Bitiş Ayı (ne zamana kadar çalışılacak — boşsa devam ediyor)", type: "month", bosaIzin: true },
   { key: "odemeSekli", label: "Ödeme Şekli", type: "select", options: [{ value: "pesin", label: "Peşin (ay başında/önceden)" }, { value: "sonra", label: "Sonra (ay sonunda/hizmet sonrası)" }] },
   /* ONAY KLASÖRÜ — müşteri onayladığında dosyanın taşınacağı Drive klasörü.
    * Her markanın kendi klasör düzeni olduğu için tek tek girilir. Boş bırakılırsa o marka

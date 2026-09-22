@@ -14,6 +14,7 @@ import { giderDagilimi, yuzdeMetni } from "../lib/gider-dagilimi.js";
 import { finansHareketleri, eksikBilgiOzeti } from "../lib/finans-hareketleri.js";
 import { finansMutabakati } from "../lib/finans-mutabakat.js";
 import { finansSekmeleri, aktifFinansSekmesi } from "../lib/finans-sekmeleri.js";
+import { maliTahmin, dusenMarkaSatirlari, VARSAYILAN_AY_ADEDI } from "../lib/mali-tahmin.js";
 
 /**
  * FİNANS — para ekranlarının TEK menüsü.
@@ -865,6 +866,155 @@ function Dogrulama({ data, live }) {
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* ÖNÜMÜZDEKİ AYLAR — İLERİYE DÖNÜK MALİ TAHMİN                        */
+/* ------------------------------------------------------------------ */
+/**
+ * NEDEN BU ŞEKİL: bu bir KARŞILAŞTIRMA ekranı (`marcus-design` → kompozisyon §2),
+ * yani **tablo birincil, kart yok**. Kullanıcı buraya "önümüzdeki aylarda gelirim ne
+ * olacak, hangi marka düşüyor" diye geliyor; ilk görmesi gereken şey bir toplam değil,
+ * ayların yan yana dizilmiş hâli ve altında DÜŞEN markaların adı.
+ *
+ * HİÇBİR RAKAM BURADA HESAPLANMIYOR: tahminin tamamı `lib/mali-tahmin.js`'te ve o saf
+ * modül Node'dan çağrılabiliyor (`marcus-mimari` §4 — JSX'e gömülen kural test edilemez).
+ * Bu bileşenin işi yalnızca çizmek.
+ *
+ * GİDER DIŞARIDAN: `computeLive` `src/tema.jsx`'te ve `lib/` onu import edemez. Gider
+ * verilemezse satır BOŞ kalır ve sebebi yazılır — sessizce sıfır yazmak kârı olduğundan
+ * yüksek gösterirdi.
+ */
+function OnumuzdekiAylar({ data, buAy, sabitGider, ayAdedi = VARSAYILAN_AY_ADEDI }) {
+  const tahmin = useMemo(
+    () => maliTahmin(data, { baslangicAy: buAy, ayAdedi, sabitGider }),
+    [data, buAy, ayAdedi, sabitGider],
+  );
+  const dusenler = useMemo(() => dusenMarkaSatirlari(tahmin), [tahmin]);
+
+  const TAHMIN_AY_KISA = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
+  const ayEtiketi = (ay) => {
+    const [y, a] = String(ay).split("-").map(Number);
+    return `${TAHMIN_AY_KISA[a - 1] || ay} ${y}`;
+  };
+
+  /* Başlık hücresi ve rakam hücresi — sayılar mono, tabular ve SAĞA hizalı: bu ekranın
+   * asıl işi karşılaştırma ve hizalanmayan rakam karşılaştırılamaz. */
+  const bs = { padding: "0 12px 8px", fontSize: 11, color: T.textFaint, fontWeight: 600,
+    letterSpacing: 0.4, fontFamily: "Inter, sans-serif", whiteSpace: "nowrap" };
+  const hc = { padding: "12px", textAlign: "right", fontFamily: "'IBM Plex Mono', monospace",
+    fontSize: 13, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" };
+  const etiketHucresi = { padding: "12px", fontSize: 13, color: T.text,
+    fontFamily: "Inter, sans-serif", fontWeight: 600, whiteSpace: "nowrap" };
+
+  const giderVar = tahmin.aylar.length > 0 && tahmin.aylar[0].gider !== null;
+
+  return (
+    <>
+      <Card style={{ padding: "16px 24px", marginBottom: 16 }}>
+        <SectionTitle>Önümüzdeki Aylar</SectionTitle>
+        {/* ÜSTTE TEK SATIR: kaç ay ileriye bakıldığı + varsayım cümleleri. Eksik veri
+          * gizlenmiyor, sayılıyor ve yazılıyor. */}
+        <div style={{ fontSize: 11, color: T.textFaint, fontFamily: "Inter, sans-serif",
+          lineHeight: 1.7, marginBottom: 16 }}>
+          <strong style={{ color: T.textDim }}>
+            {tahmin.aylar.length > 0
+              ? `${ayEtiketi(tahmin.aylar[0].ay)} – ${ayEtiketi(tahmin.aylar[tahmin.aylar.length - 1].ay)} arası ${tahmin.aylar.length} ay.`
+              : "Gösterilecek ay yok."}
+          </strong>{" "}
+          {tahmin.varsayimlar.join(" ")}
+        </div>
+
+        {tahmin.aylar.length === 0 ? (
+          <div style={{ fontSize: 13, color: T.textFaint, fontFamily: "Inter, sans-serif" }}>
+            Tahmin üretilemedi.
+          </div>
+        ) : (
+          <div className="marcus-table-wrap" style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 540 }}>
+              <thead>
+                <tr>
+                  <th style={{ ...bs, textAlign: "left" }}>AY</th>
+                  {tahmin.aylar.map((r) => (
+                    <th key={r.ay} style={{ ...bs, textAlign: "right" }}>{ayEtiketi(r.ay)}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr style={{ borderTop: `1px solid ${T.border}` }}>
+                  <td style={etiketHucresi}>Gelir</td>
+                  {tahmin.aylar.map((r) => (
+                    <td key={r.ay} style={{ ...hc, color: T.text }}>{fmt(r.gelir)}</td>
+                  ))}
+                </tr>
+                <tr style={{ borderTop: `1px solid ${T.borderSoft}` }}>
+                  <td style={etiketHucresi}>Gider</td>
+                  {tahmin.aylar.map((r) => (
+                    <td key={r.ay} style={{ ...hc, color: r.gider === null ? T.textFaint : T.text }}>
+                      {r.gider === null ? "—" : fmt(r.gider)}
+                    </td>
+                  ))}
+                </tr>
+                <tr style={{ borderTop: `1px solid ${T.border}` }}>
+                  <td style={etiketHucresi}>Net</td>
+                  {tahmin.aylar.map((r) => (
+                    <td key={r.ay} style={{ ...hc, fontWeight: 700,
+                      color: r.net === null ? T.textFaint : (r.net < 0 ? T.danger : T.text) }}>
+                      {r.net === null ? "—" : fmt(r.net)}
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* GİDER VERİLEMEDİYSE SEBEBİ YAZILIR — boş bir satır tek başına "veri yok" mu
+          * "sıfır" mı belli etmez. */}
+        {!giderVar && tahmin.aylar.length > 0 && (
+          <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${T.border}`,
+            fontSize: 11, color: T.warning, fontFamily: "Inter, sans-serif", lineHeight: 1.7 }}>
+            <strong>Gider satırı boş.</strong> Şirketin aylık gider toplamı bu ekrana
+            geçirilemedi, bu yüzden gider ve net hesaplanmadı. Sıfır yazılmadı — sıfır
+            gider, kârı olduğundan yüksek gösterirdi.
+          </div>
+        )}
+      </Card>
+
+      <Card style={{ padding: "16px 24px" }}>
+        <SectionTitle>Düşen markalar</SectionTitle>
+        {dusenler.length === 0 ? (
+          /* ÜÇ PARÇALI BOŞ DURUM: ne · neden · tek eylem. */
+          <div style={{ fontSize: 13, color: T.textDim, fontFamily: "Inter, sans-serif",
+            lineHeight: 1.7 }}>
+            Önümüzdeki aylarda düşen marka yok. Bir markanın biteceğini biliyorsan
+            müşteri kartına Bitiş Ayı yaz.
+          </div>
+        ) : (
+          <div className="marcus-table-wrap" style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 360 }}>
+              <thead>
+                <tr>
+                  <th style={{ ...bs, textAlign: "left" }}>AY</th>
+                  <th style={{ ...bs, textAlign: "left" }}>MARKA</th>
+                  <th style={{ ...bs, textAlign: "right" }}>AYLIK TUTAR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dusenler.map((d, i) => (
+                  <tr key={`${d.ay}-${d.ad}-${i}`} style={{ borderTop: `1px solid ${T.borderSoft}` }}>
+                    <td style={{ ...hc, textAlign: "left", color: T.textDim }}>{ayEtiketi(d.ay)}</td>
+                    <td style={etiketHucresi}>{d.ad}</td>
+                    <td style={{ ...hc, color: T.danger }}>−{fmt(d.tutar)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </>
+  );
+}
+
 export function Finans({ data, clients, yonetici = false, izinler, odemeTakvimiIcerigi, onAddGelir, onDeleteGelir, onAddGider, onDeleteGider, onAddOfisGider, onDeleteOfisGider, onAddBekleyen, onDeleteBekleyen, onAddVergi, onDeleteVergi, onAddMonth, onDeleteMonth, onCloseMonth, onExport, onTransfer, onDeleteTransfer, onAddHesap, onDeleteHesap, onUpdateHesap, onAddDuzeltme, onDeleteDuzeltme }) {
   const [sekme, setSekme] = useState("ozet");
   const [acikGider, setAcikGider] = useState(null); // Para Nereye Gidiyor: açık kalem
@@ -1176,6 +1326,14 @@ export function Finans({ data, clients, yonetici = false, izinler, odemeTakvimiI
       )}
 
       {aktifSekme === "karsilastirma" && <AyAyKarsilastirma data={data} chartData={chartData} />}
+
+      {/* ÖNÜMÜZDEKİ AYLAR — `sabitGider` buradan veriliyor çünkü `computeLive`
+        * `src/tema.jsx`'te ve `lib/mali-tahmin.js` bir `.jsx` dosyasını import edemez.
+        * `buAy` da burada çözülüyor: saf modül `new Date()` çağırmıyor, çağırsaydı
+        * testi takvime bağlardı. */}
+      {aktifSekme === "tahmin" && (
+        <OnumuzdekiAylar data={data} buAy={monthKey()} sabitGider={live.gider} />
+      )}
 
       {aktifSekme === "raporlar" && <Raporlar data={data} />}
 

@@ -37,7 +37,7 @@ Kod ve arayüz tamamen Türkçe — değişken ve fonksiyon adları dahil.
 | `src/` | React arayüzü (Vite ile derlenir) |
 | `api/` | Serverless fonksiyonlar — **her dosya bir fonksiyon**, Hobby sınırı 12 |
 | `lib/` | Ortak mantık — hem `api/` hem `src/` buradan import eder, **fonksiyon sayılmaz** |
-| `testler/` | 115 test dosyası (t1…t115) + 27 statik denetim betiği |
+| `testler/` | 116 test dosyası (t1…t116) + 27 statik denetim betiği |
 | `.claude/` | Claude Code katmanı — komutlar, ajanlar ve uzmanlık skill'leri (denetim 26 bayatlamayı sınar) |
 
 En büyük dosyalar: `src/App.jsx` (9.653), `src/CekimEditTakibi.jsx` (2.734),
@@ -212,12 +212,14 @@ Artık **tanımsızsa kimse giremez.**
 | `finans-hareketleri.js` | **Birleşik finans hareketleri** — on beş ayrı para listesini TEK normalleştirilmiş kayıt biçimine çevirir; rakam yeniden hesaplanmaz (`kaydinAyi`, `isUcretiHesapla` import edilir), tarihsiz kayıt gizlenmez, KDV/stopaj uydurulmaz, kimlik kararlıdır. `eksikBilgiOzeti` eksik alanları kaynak kaynak sayar — sayım ekranda değil modülde (**saf**) |
 | `finans-mutabakat.js` | **Migrasyonun önündeki kapı** — eski motorun (`computeLive`, `hesapBakiyesi`, `para-hareketleri`, `ekstre`) toplamlarıyla yeni hareketleri satır satır karşılaştırır; tek kuruş fark `bloke: true`. Her satır birimini kendisi taşır (`birim: "tl" | "adet"`) — ekran onu başlık metninden tahmin etmesin (**saf**) |
 | `aylik-ozet.js` | **Ay ay gelir–gider** — tahakkuk (o ayın ücretiyle), tahsilat, fark ve freelancer gideri; geçmişi "ayı kapat" fotoğrafından değil kayıtlardan türetir (**saf**) |
+| `marka-donemi.js` | **Markanın çalışma dönemi** — `bitisAyi` alanı sayesinde "bu marka o ay çalışıyor mu?" sorusunu TARİHLE cevaplar: başlangıçtan önce hayır, bitiş ayına kadar (DAHİL) evet, sonrası hayır. `bitisAyi` BOŞSA bugünkü davranış birebir korunur (`donduruldu`/`ayrildi` aktif değil) — geriye dönük uyumluluğun tamamı o maddede. `new Date` yok, ay parametre (**saf**) |
+| `mali-tahmin.js` | **İleriye dönük mali tahmin** (Finans → Önümüzdeki Aylar) — ay ay gelir/gider/net ve bir önceki aya göre DÜŞEN markalar adıyla ve tutarıyla. Gelir `ayinUcreti` ile (bugünkü `aylikUcret` ile DEĞİL), gider DIŞARIDAN gelir (`computeLive` `.jsx` içinde) ve verilmezse `gider: null` + sebep — sessiz sıfır yok. Ay döngüsünde sonsuz döngü üst sınırı var (600 ay). `new Date` yok (**saf**) |
 | `is-ucreti.js` | **İş başı ücret matematiği** — freelancer hak edişi, marka maliyeti ve ŞİRKET toplamı (`sirketAylikIsMaliyeti`); dönem = işin teslim edildiği ay (**saf**) |
 | `is-takibi.js` | **Günlük iş takibi** — kim ne zaman hangi işi ilerletti; günlük akış, kişi panosu ("iş kimin elinde" = son dokunan), üretim raporu. Eski tr-TR zaman metnini de ayrıştırır (**saf**) |
 | `kart-secici.js` | Plan hücresine kart seçerken TÜRE göre ayırma: seçilen türün kartları / aynı türün paylaşılmışları / başka tür (gizlenmez, ayrılır) (**saf**) |
 | `bugun.js` | "Bugün" panelinin çekirdeği: geciken/bugün teslim/müşteride/paylaşım özeti, plan tarihini haftaKey+gün kaymasından üretir (**saf**) |
 | `kategori.js` | **Kategoriler ve stok türlerinin TEK kaynağı** — Reels/Post/Carousel + eski adların eşlemesi (**saf**) |
-| `finans-sekmeleri.js` | **Finans menüsünün ve sekmelerinin TEK kaynağı** — hangi iznin hangi sekmeyi açtığı; `finans` Finans sekmelerini, `odemeTakvimi` yalnızca Ödemeler'i, Doğrulama yalnızca yöneticide. `finansMenudeMi` menüde madde çizilip çizilmeyeceğini söyler: yalnızca `odemeTakvimi` izni olan kişi de görür, yoksa ekrana hiç ulaşamaz. Fail-close, girdi değiştirilmez (**saf**) |
+| `finans-sekmeleri.js` | **Finans menüsünün ve sekmelerinin TEK kaynağı** — hangi iznin hangi sekmeyi açtığı; `finans` Finans sekmelerini (**Önümüzdeki Aylar** dahil), `odemeTakvimi` yalnızca Ödemeler'i, Doğrulama yalnızca yöneticide. `finansMenudeMi` menüde madde çizilip çizilmeyeceğini söyler: yalnızca `odemeTakvimi` izni olan kişi de görür, yoksa ekrana hiç ulaşamaz. Fail-close, girdi değiştirilmez (**saf**) |
 | `musteri-karar.js` | **Müşteri detayının karar şeridi** — gecikme/ödeme uyarısı/ödeme günü yok/sakin arasından TEK şerit seçer, birincil eylemi ve en fazla üç rozeti belirler; sağlıklı markada düğme üretmez (**saf**) |
 | `drive-denetimi.js` | Kayıtlı stok ile Drive'ın söylediği stoğun farkı + uygulama frenleri (**saf, ağ yok**) |
 | `drive-yukleme.js` | Yükleme oturumu açma, tamamlama, dosya çöpe atma |
@@ -268,6 +270,8 @@ düzeninde kalır ve bu mekanizma hiç çalışmaz. `ucretGecmisi` ücret DÖNEM
 ücretten hesapladığı için, dönem kaydı olmadan ücret düşürüldüğünde tahsil edilmiş geçmiş
 aylar da düşüyordu. Liste yalnızca ücret değiştikçe uzar; `0000-00` "geçmişin tamamı".
 
+**Müşteri kaydındaki dönem alanları.** `baslangic` başlangıç ayı, `bitisAyi` **bitiş ayı** ("YYYY-AA", boşsa devam ediyor). `durum` TARİHSİZDİR ve işaretlendiği anda geçerli olur; bu yüzden "Eylül'de çalışan, Ekim'de çalışmayacak" marka ancak `bitisAyi` ile doğru anlatılabiliyor. Kural `lib/marka-donemi.js`'te: bitiş ayı DOLUYSA tarih durumu yener (bitiş ayına kadar dahil aktif), BOŞSA bugünkü davranış aynen sürer. Geçmiş ay hesabı (`lib/aylik-ozet.js` → `markaAktifMiydi`) bu alandan **bilerek** etkilenmiyor — o hâlâ "kanıt yoksa tahakkuk yazma" kuralında ve geçmiş rakamların değişmesi ayrı bir iştir.
+
 ### Para
 `gelirKalemleri` · `giderKalemleri` · `ofisGiderleri` · `monthly` · `vergiTakvimi` ·
 `hesaplar` · `hesapTransferleri` · `hesapDuzeltmeleri` · `hesapOlcumleri` · `birikimler`
@@ -315,7 +319,7 @@ personel) · **musteri** (müşteri paneli).
 | Müşteri → Müşteri Hesapları | Müşteri paneli girişleri |
 | Müşteri → Teklif & Sözleşme | Teklif ve sözleşme şablonları, gönderim |
 | Müşteri → Reklamlar | Reklam kampanyası takibi |
-| **Para** → Finans | Gelir/gider, aylık tablo, vergi takvimi, **Doğrulama** (yalnızca yönetici) |
+| **Para** → Finans | Gelir/gider, aylık tablo, **Önümüzdeki Aylar** (ileriye dönük tahmin), vergi takvimi, **Doğrulama** (yalnızca yönetici) |
 | Para → Ödeme Takvimi | Tahsilat takibi, ödeme günü, hatırlatma |
 | Para → Personel | Ücret, avans, iş başı ödeme, freelancer |
 | Para → Birikim | Fon takibi |
