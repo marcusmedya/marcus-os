@@ -50,6 +50,10 @@ import { ucretDagilimi, ayinUcreti, ayinDagilimi, ACIK_BASLANGIC } from "../lib/
  * Kural JSX'te DEĞİL — JSX'e gömülü bir kuralı hiçbir test çağıramıyor (marcus-mimari §4). */
 import { musteriKararSeridi, musteriRozetleri, kimlikParcalari, SERIT, EYLEM, TON } from "../lib/musteri-karar.js";
 import { markaEslestirici } from "../lib/marka-kilidi.js";
+/* SUNUCU HATASININ KULLANICIYA ANLATILMASI. Ham metin (`res.error`) doğrudan ekrana
+ * basılıyordu: oturumu düşen yönetici yalnızca "Yetkisiz." görüyor, ne sebebi ne
+ * yapılacağı yazıyordu. Kural saf modülde — JSX'e gömülseydi hiçbir test çağıramazdı. */
+import { istekHatasi, hataMetni } from "../lib/istek-hatasi.js";
 import SistemSagligi from "./sistemSagligi.jsx";
 import StokMutabakat from "./stokMutabakat.jsx";
 /* Paylaşım türleri ve stok anahtarı TEK KAYNAKTAN. Bu iki tanım burada da ayrıca
@@ -8352,6 +8356,35 @@ function MarkaKimligiYukleyici({ value, onChange, maxKenar = 800, hedefBayt = 25
   );
 }
 
+/* UYARI YIĞINI — İKİ KABUKTA DA ÇİZİLİR.
+ *
+ * Yığın JSX'te yalnızca YÖNETİCİ kabuğunda yazılıydı: personel ya da çözüm ortağı bir
+ * sunucu hatası aldığında (oturum düşmesi, izin eksikliği, çakışma) ekranda HİÇBİR ŞEY
+ * görünmüyordu — uyarı state'e yazılıyor ama onu çizen ağaç o rolde hiç bulunmuyordu.
+ * "Bir davranış değiştiğinde personel ve çözüm ortağı panellerini de kontrol et"
+ * (CLAUDE.md §3) tam olarak bu sınıftan bir hata.
+ *
+ * Bileşen olarak TEK yerde duruyor, iki kabuk onu çağırıyor: `operasyonOrtakProps`
+ * dersinin aynısı — iki kez yazılan JSX'te biri güncellenir, öteki sessizce bayatlar.
+ *
+ * `window.alert` KULLANILMAZ (marcus-design → bilesenler.md): engelleyici, yığılmıyor
+ * ve aynı anda iki sorun olduğunda kullanıcı ikincisini hiç göremiyordu. */
+function UyariYigini({ uyarilar, onKapat }) {
+  const liste = uyarilar || [];
+  if (liste.length === 0) return null;
+  return (
+    <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 200, maxWidth: 480, width: "90%", display: "flex", flexDirection: "column", gap: 8 }}>
+      {liste.map((u) => (
+        <div key={u.id} style={{ background: T.warningSoft, border: `1px solid ${T.warning}`, borderRadius: 12, padding: "12px 15px", display: "flex", alignItems: "flex-start", gap: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
+          <span style={{ fontSize: 15 }}>⚠️</span>
+          <div style={{ flex: 1, fontSize: 13, color: T.warning, fontFamily: "Inter", lineHeight: 1.6 }}>{u.metin}</div>
+          <button title="Uyarıyı kapat" onClick={() => onKapat && onKapat(u.id)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0 }}><X size={15} color={T.warning} /></button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function LockScreen({ onSubmit, onKodSubmit, onKodIptal, kodAdimi, onStaffSubmit, onMusteriSubmit, error, checking }) {
   const [mode, setMode] = useState("sifre"); // "sifre" | "personel" | "musteri"
   const [value, setValue] = useState("");
@@ -8761,6 +8794,33 @@ export default function MarcusOS() {
       return [...eski, { id: `u${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, metin }];
     });
   }, []);
+
+  /* SUNUCUDAN DÖNEN HATANIN TEK ÇIKIŞ KAPISI.
+   *
+   * Eskiden yazma yollarında `window.alert(res.error)` vardı: engelleyici bir kutu,
+   * yığılmıyor, tasarım sisteminde yeri yok ve ham sunucu metnini ("Yetkisiz.") olduğu
+   * gibi basıyordu. Artık metni `lib/istek-hatasi.js` üretiyor (sebep + ne yapılacak) ve
+   * uyarı yığınına düşüyor.
+   *
+   * OTURUM DÜŞTÜYSE GİRİŞ EKRANINA ALINIR — yükleme yolundaki MEVCUT mekanizmanın aynısı
+   * (`clearOturum` + `setNeedsAuth`), ikinci bir yol icat edilmedi. Mesaj o durumda
+   * yığına DEĞİL `authError`e yazılıyor: `needsAuth` anında LockScreen'i çiziyor ve yığın
+   * o ağaçta hiç bulunmuyor — yığına yazmak metni görünmez bir yere koymak olurdu.
+   * Kaydedilemeyen verinin kaybolacağı mesajın kendi içinde söyleniyor. */
+  const sunucuHatasiniBildir = React.useCallback((durum, govde) => {
+    const hata = istekHatasi(durum, govde);
+    const metin = hataMetni(hata);
+    if (hata.oturumDustu) {
+      clearOturum();
+      setKodAdimi(false);
+      setAuthError(metin);
+      setNeedsAuth(true);
+      return hata;
+    }
+    setStaleConflictMsg(metin);
+    return hata;
+  }, [setStaleConflictMsg]);
+
   const [tebligOpen, setTebligOpen] = useState(null);
   const saveTimer = useRef(null);
   const skipNextSave = useRef(true);
@@ -9533,9 +9593,9 @@ export default function MarcusOS() {
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ action: "addKaydi", clientId, kayit, islemId: islemKimligiUret() }),
     })
-      .then((r) => r.json()).then(surumBildir)
-      .then((res) => { if (res.ok && res.client) mergeClientLocally(res.client); else if (res.error) window.alert(res.error); })
-      .catch(() => window.alert("Bağlantı hatası — ödeme kaydedilemedi, tekrar dene."));
+      .then(async (r) => ({ durum: r.status, res: surumBildir(await r.json().catch(() => ({}))) }))
+      .then(({ durum, res }) => { if (res.ok && res.client) mergeClientLocally(res.client); else sunucuHatasiniBildir(durum, res); })
+      .catch(() => sunucuHatasiniBildir(0, { error: "Bağlantı hatası — ödeme kaydedilemedi, tekrar dene." }));
   };
   const deleteOdemeKaydi = (clientId, kayitId) => {
     fetch("/api/client-payment", {
@@ -9543,9 +9603,9 @@ export default function MarcusOS() {
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ action: "deleteKaydi", clientId, kayitId, islemId: islemKimligiUret() }),
     })
-      .then((r) => r.json()).then(surumBildir)
-      .then((res) => { if (res.ok && res.client) mergeClientLocally(res.client); else if (res.error) window.alert(res.error); })
-      .catch(() => window.alert("Bağlantı hatası — silinemedi, tekrar dene."));
+      .then(async (r) => ({ durum: r.status, res: surumBildir(await r.json().catch(() => ({}))) }))
+      .then(({ durum, res }) => { if (res.ok && res.client) mergeClientLocally(res.client); else sunucuHatasiniBildir(durum, res); })
+      .catch(() => sunucuHatasiniBildir(0, { error: "Bağlantı hatası — silinemedi, tekrar dene." }));
   };
   /* FATURA KAYITLARI — ödeme kayıtlarıyla aynı uçtan, aynı yetkiyle, aynı işlem
    * kimliğiyle. Para verisinde sessiz tekrar en pahalı hata: ağ kesilip istek yeniden
@@ -9556,9 +9616,9 @@ export default function MarcusOS() {
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ action: "addFatura", clientId, fatura, islemId: islemKimligiUret() }),
     })
-      .then((r) => r.json()).then(surumBildir)
-      .then((res) => { if (res.ok && res.client) mergeClientLocally(res.client); else if (res.error) window.alert(res.error); })
-      .catch(() => window.alert("Bağlantı hatası — fatura kaydedilemedi, tekrar dene."));
+      .then(async (r) => ({ durum: r.status, res: surumBildir(await r.json().catch(() => ({}))) }))
+      .then(({ durum, res }) => { if (res.ok && res.client) mergeClientLocally(res.client); else sunucuHatasiniBildir(durum, res); })
+      .catch(() => sunucuHatasiniBildir(0, { error: "Bağlantı hatası — fatura kaydedilemedi, tekrar dene." }));
   };
   const deleteFatura = (clientId, faturaId) => {
     fetch("/api/client-payment", {
@@ -9566,9 +9626,9 @@ export default function MarcusOS() {
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ action: "deleteFatura", clientId, faturaId, islemId: islemKimligiUret() }),
     })
-      .then((r) => r.json()).then(surumBildir)
-      .then((res) => { if (res.ok && res.client) mergeClientLocally(res.client); else if (res.error) window.alert(res.error); })
-      .catch(() => window.alert("Bağlantı hatası — silinemedi, tekrar dene."));
+      .then(async (r) => ({ durum: r.status, res: surumBildir(await r.json().catch(() => ({}))) }))
+      .then(({ durum, res }) => { if (res.ok && res.client) mergeClientLocally(res.client); else sunucuHatasiniBildir(durum, res); })
+      .catch(() => sunucuHatasiniBildir(0, { error: "Bağlantı hatası — silinemedi, tekrar dene." }));
   };
   const setOdemeGunuSafe = (clientId, odemeGunu) => {
     fetch("/api/client-payment", {
@@ -9576,9 +9636,9 @@ export default function MarcusOS() {
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify({ action: "setOdemeGunu", clientId, odemeGunu, islemId: islemKimligiUret() }),
     })
-      .then((r) => r.json()).then(surumBildir)
-      .then((res) => { if (res.ok && res.client) mergeClientLocally(res.client); else if (res.error) window.alert(res.error); })
-      .catch(() => window.alert("Bağlantı hatası — kaydedilemedi, tekrar dene."));
+      .then(async (r) => ({ durum: r.status, res: surumBildir(await r.json().catch(() => ({}))) }))
+      .then(({ durum, res }) => { if (res.ok && res.client) mergeClientLocally(res.client); else sunucuHatasiniBildir(durum, res); })
+      .catch(() => sunucuHatasiniBildir(0, { error: "Bağlantı hatası — kaydedilemedi, tekrar dene." }));
   };
 
   /** Operasyon > Aylık İş Raporu'ndaki iş başı ücretler. SADECE yöneticiye ait bir veri:
@@ -10117,8 +10177,11 @@ export default function MarcusOS() {
       headers: { "Content-Type": "application/json", ...authHeaders() },
       body: JSON.stringify(govde),
     })
-      .then((r) => r.json())
-      .then((res) => {
+      /* DURUM KODU TAŞINIYOR. Eskiden burada yalnızca `r.json()` vardı; 401 ile 500 ile
+       * 503 arasındaki fark ekrana hiç ulaşmıyor, geriye sunucunun ham metni kalıyordu.
+       * Oturumu düşen kullanıcının "Yetkisiz." görmesinin sebebi tam olarak buydu. */
+      .then(async (r) => ({ durum: r.status, govde: await r.json().catch(() => ({})) }))
+      .then(({ durum, govde: res }) => {
         if (res.ok) {
           /* DRIVE SONUCU KULLANICIYA GÖSTERİLİYOR.
            *
@@ -10140,10 +10203,13 @@ export default function MarcusOS() {
          * Bu dalın istemci karşılığı YOKTU — uyarı gösteriliyor, onay gönderilemiyordu,
          * yani planı ya da kilitli kartı olan şube HİÇ silinemiyordu. */
         if (res.onayGerekli && secenekler && typeof secenekler.onayGerekli === "function") { secenekler.onayGerekli(res); return res; }
-        if (res.error) window.alert(res.error);
+        sunucuHatasiniBildir(durum, res);
         return res;
       })
-      .catch(() => window.alert(hataMesaji));
+      /* AĞ HATASI: durum kodu YOK. `istekHatasi` bunu ayrı bir dal olarak tanıyor —
+       * "sunucu hatası" demek kullanıcıyı yanlış yere baktırırdı. Çağrı yerinin kendi
+       * cümlesi ("plan eklenemedi") korunuyor, üstüne ne yapılacağı ekleniyor. */
+      .catch(() => { sunucuHatasiniBildir(0, { error: hataMesaji }); });
   };
 
   const degistirStok = (clientId, marka, tur, delta) => paylasimIstek({ action: "stokDegistir", clientId, tur, delta }, "Bağlantı hatası — stok güncellenemedi, tekrar dene.");
@@ -11127,6 +11193,9 @@ export default function MarcusOS() {
           )}
                   </HataYakalayici>
         </div>
+        {/* Sunucu hatası uyarıları PERSONEL kabuğunda da çizilir — yalnızca yönetici
+          * kabuğunda yazılıydı ve personelin aldığı hata ekranda hiç görünmüyordu. */}
+        <UyariYigini uyarilar={uyarilar} onKapat={(id) => setUyarilar((eski) => eski.filter((x) => x.id !== id))} />
       </div>
     );
   }
@@ -11669,17 +11738,7 @@ export default function MarcusOS() {
           onForce={forceSave}
         />
       )}
-      {uyarilar.length > 0 && (
-        <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 200, maxWidth: 480, width: "90%", display: "flex", flexDirection: "column", gap: 8 }}>
-          {uyarilar.map((u) => (
-            <div key={u.id} style={{ background: T.warningSoft, border: `1px solid ${T.warning}`, borderRadius: 12, padding: "12px 15px", display: "flex", alignItems: "flex-start", gap: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.25)" }}>
-              <span style={{ fontSize: 15 }}>⚠️</span>
-              <div style={{ flex: 1, fontSize: 13, color: T.warning, fontFamily: "Inter", lineHeight: 1.6 }}>{u.metin}</div>
-              <button onClick={() => setUyarilar((eski) => eski.filter((x) => x.id !== u.id))} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, flexShrink: 0 }}><X size={15} color={T.warning} /></button>
-            </div>
-          ))}
-        </div>
-      )}
+      <UyariYigini uyarilar={uyarilar} onKapat={(id) => setUyarilar((eski) => eski.filter((x) => x.id !== id))} />
       {tebligOpen && (
         <TebligDuzenleModal
           initialText={tebligOpen.text}

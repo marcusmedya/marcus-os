@@ -131,13 +131,24 @@ onaylandığında burada görünür." + varsa düğme. İllüstrasyon yok.
 e-posta hatasının gerçek sebebi yutuluyordu ve sorun günlerce teşhis edilemedi
 (`lib/eposta-hata.js` → `neYapmali`). Aynı disiplin her hata yüzeyi için geçerli.
 
+**Sunucudan dönen hatanın metnini ELDEN YAZMA — `lib/istek-hatasi.js` üretir.**
+`istekHatasi(durum, govde)` → `{ tur, baslik, mesaj, oturumDustu }`; 401 · 403 · 409 ·
+503(`mesgul`) · ağ · 500/bilinmeyen dallarının hepsi sebep + ne yapılacak taşıyor ve
+sunucunun kendi mesajı **yutulmuyor**. İkinci kez yazılan bir metin, dallardan biri
+değişince sessizce bayatlar. `oturumDustu: true` (yalnızca 401) kullanıcıyı giriş
+ekranına alır; 401 ile 403'ün neden ayrı kaldığı → `marcus-yetki`.
+
 **`window.alert` kullanılmaz** — engelleyici, yığılmıyor ve tasarım sisteminde yeri yok;
-hata uyarı yığınına yazılır. Kodda hâlâ birkaç yerde duruyor (`src/App.jsx` müşteri/şube
-akışları), dokunulan ekranda temizlenir. **`window.confirm` yıkıcı eylem için geçerli
-bir onay yoludur** — kaldırılması gereken yalnızca bilgi amaçlı `alert`.
+hata uyarı yığınına yazılır. `src/` altında hâlâ **57 tane** var (doğrulama uyarıları,
+pop-up engelleyici bildirimleri, müşteri paneli); dokunulan ekranda temizlenir.
+**`window.confirm` yıkıcı eylem için geçerli bir onay yoludur** — kaldırılması gereken
+yalnızca bilgi amaçlı `alert`.
 
 Uyarılar **yığın hâlinde** gösterilir, tek metin state'iyle değil — ikinci uyarı
 birincisini siliyordu ve kullanıcı birini hiç görmüyordu (`src/App.jsx` → `uyarilar`).
+Yığını çizen `UyariYigini` bileşeni **TEK yerde** duruyor ve İKİ kabuk (yönetici +
+personel) onu çağırıyor: bir süre yalnızca yönetici kabuğunda yazılıydı ve personelin
+aldığı sunucu hatası ekranda hiç görünmüyordu.
 
 ## Navigasyon · sidebar
 

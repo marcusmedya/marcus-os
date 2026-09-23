@@ -403,6 +403,30 @@ const SAHTE_YANIT_TAHMIN = () => ({
   },
 });
 
+/* ── YAZMA HATASI (OTURUM DÜŞMESİ / YETKİ) İÇİN FİXTURE ────────────────────────
+ *
+ * Neden var: sahadan bildirilen hata tam olarak bu ekranda görüldü. Yönetici Üyelikler
+ * ekranında bir işlem yaptı, oturumu sessizce dolmuştu ve beyaz bir `alert` kutusunda
+ * yalnızca "Yetkisiz." yazıyordu. Ne sebep ne yapılacak; kullanıcı "yetkim alınmış"
+ * sandı. Node'dan görülemez: mesajın hangi YÜZEYDE çizildiği (yığın mı, engelleyici
+ * kutu mu) ve 401'in kullanıcıyı giriş ekranına alıp almadığı ancak burada ölçülür.
+ *
+ * Belge `SAHTE_BELGE`den türüyor — gerçek belgenin BÜTÜN üst düzey alanlarını taşıyor;
+ * yalnızca `uyelikler` dolduruluyor ki ekran boş durum yerine asıl listeyi çizsin.
+ * Adlar bilerek gerçek dışı; buraya asla üretim verisi kopyalanmaz. */
+const UYELIK_ADI = "Deneme Abonelik (TEST)";
+const SAHTE_YANIT_UYELIK = () => ({
+  role: "owner",
+  data: {
+    ...SAHTE_BELGE,
+    uyelikler: [{ id: 1, ad: UYELIK_ADI, tutar: 600, periyot: "aylik", aktif: true }],
+  },
+});
+
+/* Giriş ekranının imzası — "401 kullanıcıyı giriş ekranına aldı mı" iddiasının kanıtı.
+ * İki metin birden aranıyor: tek bir kelime başka bir ekranda da geçebilir. */
+const GIRIS_EKRANI_IMZASI = ["Şifreyle Gir", "Beni hatırla"];
+
 /* Finans sekmelerinin ADLARI tek yerde: üç senaryo da aynı listeyi kullanıyor ve sekme
  * eklenince tek satır değişir. "Doğrulama" bilerek YOK — personel onu görmemeli. */
 const PERSONEL_SEKMELERI = ["Özet", "Gelir-Gider", "Ay Ay Karşılaştırma",
@@ -424,10 +448,22 @@ const TIP = {
   ".json": "application/json", ".webmanifest": "application/manifest+json",
 };
 
-function sunucuKur(apiYaniti) {
+/* YAZMA YANITLARI SIRAYLA VERİLİR — hata dallarını çizmenin tek yolu.
+ *
+ * `/api/paylasim`'a giden POST istekleri için sırayla tüketilen bir kuyruk. Yalnızca BU
+ * yola bakılıyor: belge otomatik kaydı (`/api/data`) da POST ve kuyruğu yanlışlıkla
+ * tüketirse senaryo ölçtüğü şeyi kaybeder. Kuyruk bitince normal yanıt döner. */
+function sunucuKur(apiYaniti, yazmaSirasi) {
+  const kuyruk = Array.isArray(yazmaSirasi) ? [...yazmaSirasi] : [];
   const s = http.createServer((req, res) => {
     const u = new URL(req.url, "http://127.0.0.1");
     if (u.pathname.startsWith("/api/")) {
+      req.resume();   // gövdeyi boşalt, bağlantı asılı kalmasın
+      if (req.method === "POST" && u.pathname === "/api/paylasim" && kuyruk.length > 0) {
+        const y = kuyruk.shift();
+        res.writeHead(y.durum, { "Content-Type": "application/json" });
+        return res.end(JSON.stringify(y.govde || {}));
+      }
       res.writeHead(200, { "Content-Type": "application/json" });
       return res.end(JSON.stringify(apiYaniti));
     }
@@ -450,7 +486,14 @@ function sunucuKur(apiYaniti) {
  *                           çalışır — açılışta temiz olup tıklayınca patlayan ekran,
  *                           bu testin kapatmaya çalıştığı boşluğun tam ortasında.
  * `secenekler.pencere`    : pencere ölçüsü. Verilmezse 1280×900. Dar ekran dalını
- *                           çizmek için verilir. */
+ *                           çizmek için verilir.
+ * `secenekler.yazmaSirasi`: `/api/paylasim`'a giden POST'lara SIRAYLA verilecek yanıtlar
+ *                           (`{ durum, govde }`). Sunucu hatası dallarını (401 · 403)
+ *                           çizmenin tek yolu; kuyruk bitince normal yanıt döner.
+ * `secenekler.beklenenKonsolHatalari`: tarayıcının KENDİ ürettiği, senaryonun kurduğu
+ *                           durumdan kaynaklanan konsol satırları (RegExp listesi).
+ *                           Muaf tutulur AMA eşleşmek zorundadır — bayat muafiyet
+ *                           testi gürültülü kırar. */
 async function senaryo(tarayici, ad, apiYaniti, enAzMetin, beklenenMetin, secenekler = {}) {
   console.log(`\n── ${ad} ──`);
 
@@ -484,7 +527,7 @@ async function senaryo(tarayici, ad, apiYaniti, enAzMetin, beklenenMetin, secene
       '"beklenen ekran çizildi" kontrolü her zaman geçer, yani koruma yoktur');
     return;
   }
-  const sunucu = sunucuKur(apiYaniti);
+  const sunucu = sunucuKur(apiYaniti, secenekler.yazmaSirasi);
   await new Promise((r) => sunucu.listen(0, "127.0.0.1", r));
   const port = sunucu.address().port;
 
@@ -510,6 +553,17 @@ async function senaryo(tarayici, ad, apiYaniti, enAzMetin, beklenenMetin, secene
 
   sayfa.on("pageerror", (e) => jsHatalari.push(e.message));
   sayfa.on("console", (m) => { if (m.type() === "error") konsolHatalari.push(m.text()); });
+
+  /* BEKLENEN KONSOL SATIRLARI — muafiyet, ama SESSİZ değil.
+   *
+   * Sunucu hatası dallarını çizen senaryo, tarayıcının KENDİ kaynak günlüğünü üretiyor
+   * ("Failed to load resource: … 401"). Bu uygulamanın bir kusuru değil, senaryonun
+   * kurduğu durumun ta kendisi. Yine de muafiyeti körü körüne vermek, ileride gerçek
+   * bir konsol hatasını da yutardı: bu yüzden desen GERÇEKTEN eşleşmek ZORUNDA —
+   * eşleşmezse muafiyet bayatlamıştır ve test gürültülü kırılır. */
+  const beklenenKonsol = secenekler.beklenenKonsolHatalari || [];
+  const beklenmeyenKonsol = () => konsolHatalari.filter(
+    (m) => !beklenenKonsol.some((d) => d.test(m)));
 
   // 127.0.0.1 dışına giden her istek BOŞ yanıtla karşılanır: test ağa bağımlı olmasın
   // ve dış dünyaya tek istek bile gitmesin.
@@ -575,8 +629,8 @@ async function senaryo(tarayici, ad, apiYaniti, enAzMetin, beklenenMetin, secene
     (durum.metinUzunlugu || 0) >= enAzMetin, `metin uzunluğu: ${durum.metinUzunlugu}`);
   kontrol(`${ad}: açılışta yakalanmamış JS hatası yok`, jsHatalari.length === 0,
     jsHatalari.slice(0, 3).join(" | "));
-  kontrol(`${ad}: açılışta konsol hatası yok`, konsolHatalari.length === 0,
-    konsolHatalari.slice(0, 3).join(" | "));
+  kontrol(`${ad}: açılışta konsol hatası yok`, beklenmeyenKonsol().length === 0,
+    beklenmeyenKonsol().slice(0, 3).join(" | "));
   // Yalnızca "bir şey çizildi" demek yetmez: hata ekranı da bir şey çizer. Bu yüzden o
   // senaryoda görünmesi GEREKEN metin aranıyor — böylece doğru dalın çizildiği belli olur.
   const metinVar = beklenenMetin.every((m) => (durum.ornekTam || "").includes(m));
@@ -606,8 +660,15 @@ async function senaryo(tarayici, ad, apiYaniti, enAzMetin, beklenenMetin, secene
     // listeleri etkileşimden SONRA bir kez daha okunuyor (liste birikimli).
     kontrol(`${ad}: etkileşimden sonra yakalanmamış JS hatası yok`, jsHatalari.length === 0,
       jsHatalari.slice(0, 3).join(" | "));
-    kontrol(`${ad}: etkileşimden sonra konsol hatası yok`, konsolHatalari.length === 0,
-      konsolHatalari.slice(0, 3).join(" | "));
+    kontrol(`${ad}: etkileşimden sonra konsol hatası yok`, beklenmeyenKonsol().length === 0,
+      beklenmeyenKonsol().slice(0, 3).join(" | "));
+    /* Muafiyet bildiren senaryoda o desenin GERÇEKTEN eşleştiği ölçülüyor: eşleşmiyorsa
+     * senaryo artık o durumu hiç kurmuyordur ve muafiyet sessizce bir kör nokta olur. */
+    if (beklenenKonsol.length > 0) {
+      kontrol(`${ad}: beklenen konsol satırları gerçekten göründü (muafiyet bayat değil)`,
+        beklenenKonsol.every((d) => konsolHatalari.some((m) => d.test(m))),
+        `konsol: ${konsolHatalari.slice(0, 3).join(" | ") || "(boş)"}`);
+    }
   }
 
   await baglam.close();
@@ -1518,6 +1579,115 @@ async function musteriFormuEtkilesimi({ sayfa, ad }) {
     `belge: ${kayma.belge}px, gövde: ${kayma.govde}px, ızgara: ${form === null ? "yok" : form.izgaraTasmasi + "px"}`);
 }
 
+/* ── YAZMA HATASI: UYARI YIĞINI VE OTURUM DÜŞMESİ ───────────────────────────────
+ *
+ * ÖLÇÜLEN İKİ ŞEY, ikisi de yalnızca tarayıcıda görülebiliyor:
+ *   1. Sunucu hatası ENGELLEYİCİ BİR KUTUDA değil, uyarı yığınında çiziliyor mu
+ *      (`window.alert` yasak — marcus-design → bilesenler.md).
+ *   2. 401 kullanıcıyı giriş ekranına alıyor mu, 403 ALMIYOR mu. İki dal karıştırılırsa
+ *      yetkisi olmayan kişi sebepsiz yere çıkış yapmış olur.
+ *
+ * SIRA ÖNEMLİ: önce 403 (ekranda kalınır, yığın okunur), sonra 401 (giriş ekranına
+ * gidilir ve senaryo orada biter). Ters sırada 403 dalı hiç çizilemezdi.
+ *
+ * `dialog` dinleyicisi hem SAYAR hem kapatır: kapatılmazsa sayfa asılı kalır ve test
+ * "uygulama açılmıyor" der — oysa sorun `alert`in kendisidir. */
+const yiginOku = (sayfa) => () => sayfa.evaluate(() => {
+  /* ÇIPA: yığındaki her satırın ⚠️ ikonu ayrı bir <span>. Satır metni o span'in
+   * EBEVEYNİNDEN okunuyor — sayfanın tamamından değil, yoksa başka bir ekrandaki
+   * uyarı bu kontrolü boş yere geçirirdi. */
+  const satirlar = [...document.querySelectorAll("span")]
+    .filter((x) => (x.textContent || "").trim() === "⚠️")
+    .map((x) => (x.parentElement ? (x.parentElement.innerText || "").trim() : ""))
+    .filter((m) => m.length > 0);
+  const kap = satirlar.length > 0
+    ? (() => {
+      let el = [...document.querySelectorAll("span")].find((x) => (x.textContent || "").trim() === "⚠️");
+      while (el && getComputedStyle(el).position !== "fixed") el = el.parentElement;
+      return el ? "fixed" : "akışta";
+    })()
+    : null;
+  return { satirlar, kap, sayfaMetni: (document.getElementById("root") || {}).innerText || "" };
+});
+
+async function yazmaHatasiEtkilesimi({ sayfa, ad }) {
+  const kutular = [];
+  sayfa.on("dialog", async (d) => { kutular.push(d.message()); await d.dismiss().catch(() => {}); });
+  const yigin = yiginOku(sayfa);
+
+  /* Üyelik ekleme: iki tık, yazı yazmaya gerek yok. `FieldForm` boş değerle de
+   * `onAdd`i çağırıyor, yani istek gerçekten uçuyor — ölçülmek istenen de o. */
+  const uyelikEkle = async () => {
+    await sayfa.locator("button").filter({ hasText: "Yeni Üyelik Ekle" }).first()
+      .click({ timeout: 20000 });
+    await sayfa.locator("button").filter({ hasText: "Üyeliği Ekle" }).first()
+      .click({ timeout: 20000 });
+  };
+
+  /* ── 1. TUR: 403 — YETKİ ──────────────────────────────────────────────────── */
+  let hata403 = null;
+  try {
+    await uyelikEkle();
+    await sayfa.waitForFunction(
+      () => [...document.querySelectorAll("span")].some((x) => (x.textContent || "").trim() === "⚠️"),
+      null, { timeout: 20000 },
+    );
+  } catch (e) { hata403 = e.message.split("\n")[0]; }
+
+  const y403 = await yigin();
+  kontrol(`${ad}: 403'te uyarı yığınında satır çizildi`,
+    hata403 === null && y403.satirlar.length === 1,
+    hata403 || `satır sayısı: ${y403.satirlar.length}`);
+  kontrol(`${ad}: 403 uyarısı SEBEBİ söylüyor (izin/yetki)`,
+    y403.satirlar.length > 0 && /izin|yetki/i.test(y403.satirlar[0]),
+    JSON.stringify(y403.satirlar[0] || "").slice(0, 160));
+  kontrol(`${ad}: 403 uyarısı NE YAPILACAĞINI söylüyor (yöneticiden iste)`,
+    y403.satirlar.length > 0 && /yönetici/i.test(y403.satirlar[0]),
+    JSON.stringify(y403.satirlar[0] || "").slice(0, 160));
+  /* Ham sunucu metni ("Yetkisiz.") TEK BAŞINA ekrana basılmıyor: sahadaki hata buydu. */
+  kontrol(`${ad}: 403 uyarısı ham sunucu metninden UZUN (açıklayıcı)`,
+    y403.satirlar.length > 0 && y403.satirlar[0].length > 60,
+    `uzunluk: ${(y403.satirlar[0] || "").length}`);
+  kontrol(`${ad}: 403'te engelleyici alert AÇILMADI`,
+    kutular.length === 0, kutular.join(" | ").slice(0, 160));
+  /* Yığın SABİT (fixed) kapta duruyor: sayfanın neresinde olursan ol görülür ve
+   * üst üste yığılabilir. Satır içi bir hata metni bu şartı geçemez. */
+  kontrol(`${ad}: uyarı sabit (fixed) yığın kabında çizildi`,
+    y403.kap === "fixed", `kap: ${y403.kap}`);
+  /* 403 oturumu DÜŞÜRMEZ: kullanıcı ekranında kalır, giriş ekranına atılmaz. */
+  kontrol(`${ad}: 403'te giriş ekranına ATILMADI (Üyelikler duruyor)`,
+    y403.sayfaMetni.includes("Yeni Üyelik Ekle")
+      && !GIRIS_EKRANI_IMZASI.every((m) => y403.sayfaMetni.includes(m)),
+    y403.sayfaMetni.slice(0, 120).replace(/\s+/g, " "));
+
+  /* ── 2. TUR: 401 — KİMLİK ─────────────────────────────────────────────────── */
+  let hata401 = null;
+  try {
+    await uyelikEkle();
+    await sayfa.waitForFunction(
+      (imza) => {
+        const m = (document.getElementById("root") || {}).innerText || "";
+        return imza.every((x) => m.includes(x));
+      },
+      GIRIS_EKRANI_IMZASI, { timeout: 20000 },
+    );
+  } catch (e) { hata401 = e.message.split("\n")[0]; }
+
+  const y401 = await yigin();
+  kontrol(`${ad}: 401 kullanıcıyı GİRİŞ EKRANINA aldı`,
+    hata401 === null && GIRIS_EKRANI_IMZASI.every((m) => y401.sayfaMetni.includes(m)),
+    hata401 || y401.sayfaMetni.slice(0, 120).replace(/\s+/g, " "));
+  /* Mesaj giriş ekranında da OKUNUYOR — yoksa kullanıcı neden atıldığını bilemez. */
+  kontrol(`${ad}: 401 mesajı ekranda çizildi (oturumun sona erdiği yazıyor)`,
+    /oturum/i.test(y401.sayfaMetni) && /sona erdi|süre/i.test(y401.sayfaMetni),
+    y401.sayfaMetni.slice(0, 200).replace(/\s+/g, " "));
+  kontrol(`${ad}: 401 mesajı NE YAPILACAĞINI söylüyor (yeniden gir)`,
+    /yeniden gir/i.test(y401.sayfaMetni),
+    y401.sayfaMetni.slice(0, 200).replace(/\s+/g, " "));
+  kontrol(`${ad}: 401'de de engelleyici alert AÇILMADI`,
+    kutular.length === 0, kutular.join(" | ").slice(0, 160));
+}
+
 /* ── TARAYICIYI BUL ──────────────────────────────────────────────────────────── */
 /**
  * Chromium'un yeri MAKİNEDEN MAKİNEYE DEĞİŞİR. Yol sabit yazılıydı
@@ -1676,6 +1846,24 @@ async function calistir() {
     await senaryo(tarayici, "müşteri formu ızgarası", SAHTE_YANIT_PANEL(), 50,
       ["Müşteriler", "Yeni müşteri ekle"],
       { yerelDepo: PANEL_DEPOSU, etkilesim: musteriFormuEtkilesimi });
+    /* 13) YAZMA HATASI — SAHADAN BİLDİRİLEN HATANIN KENDİSİ.
+     *     Sunucu `/api/paylasim`'a önce 403, sonra 401 döndürüyor. Ölçülen: mesajın
+     *     engelleyici bir `alert` kutusunda DEĞİL uyarı yığınında çizilmesi, 403'te
+     *     ekranda kalınması, 401'de giriş ekranına alınıp sebebin orada da okunması.
+     *     Hiçbiri Node'dan görülemez: üçü de ancak uygulama çizildiğinde ortaya çıkar. */
+    await senaryo(tarayici, "yazma hatası uyarıları", SAHTE_YANIT_UYELIK(), 50,
+      ["Üyelikler", UYELIK_ADI],
+      {
+        yerelDepo: { "marcus-os-son-sekme": "uyelikler", "marcus-os-gizlilik": "0" },
+        etkilesim: yazmaHatasiEtkilesimi,
+        /* 401/403 dönen bir `fetch`, tarayıcının kendi kaynak günlüğüne düşüyor.
+         * Uygulamanın kusuru değil, senaryonun kurduğu durumun kendisi. */
+        beklenenKonsolHatalari: [/Failed to load resource.*401/, /Failed to load resource.*403/],
+        yazmaSirasi: [
+          { durum: 403, govde: { error: "Yetkisiz." } },
+          { durum: 401, govde: { error: "Yetkisiz." } },
+        ],
+      });
   } finally {
     await tarayici.close();
   }
@@ -1695,7 +1883,7 @@ async function calistir() {
    *
    * Sayıyı BİLEREK değiştirmek serbest — yeni kontrol eklerken bu sabit de artar. Yasak
    * olan, sayının KENDİLİĞİNDEN düşmesi ve kimsenin görmemesi. */
-  const BEKLENEN = 175;
+  const BEKLENEN = 196;
   if (gecen !== BEKLENEN) {
     console.log(`SONUÇ: ✗ ${gecen} kontrol çalıştı, ${BEKLENEN} bekleniyordu — kapsam DEĞİŞMİŞ.`);
     console.log("       Kontrol eklediysen bu sabiti de artır; artırmadıysan bir kontrol");

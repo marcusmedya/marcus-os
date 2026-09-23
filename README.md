@@ -6917,3 +6917,121 @@ Zincir: 27 denetim ✓ · **2765 kontrol** (t1…t116) ✓ · derleme ✓ · tar
   veriyor; seçici yok.
 - **Düşen markalar yalnızca ÇIKIŞI gösteriyor.** Yeni başlayan marka (`baslangic` gelecek
   bir ay) gelire ekleniyor ama ayrı bir "eklenenler" listesi yok.
+
+---
+
+## Güncelleme 191: "Yetkisiz." Yerine Sebep + Ne Yapılacak — Oturumu Düşen Kullanıcının Gördüğü Hata
+
+**Sahadan bildirildi ve doğrulandı.** Yönetici, Üyelikler ekranında bir işlem yaptı ve
+beyaz bir `alert` kutusunda yalnızca **"Yetkisiz."** gördü. Sebebini anlayamadı.
+
+Gerçek sebep: sayfa saatlerdir açıktı, veriler ekranda duruyordu ama **oturum süresi
+dolmuştu** (`lib/oturum.js`: normal giriş 12 saat, "Beni hatırla" 30 gün) ve
+`api/paylasim.js` yazma isteğini **401** ile reddediyordu. Okuma yapılmadığı için
+kullanıcı hiçbir şey fark etmiyordu — ekrandaki veriler zaten yüklüydü.
+
+Mesaj **iki şeyi birden yapmıyordu**:
+- **Sebebi söylemiyordu.** "Yetkisiz." okuyunca insan "yetkim alınmış" sanıyor; oysa
+  sunucunun dediği "kim olduğunu doğrulayamadım".
+- **Ne yapılacağını söylemiyordu.** Çıkış yapıp yeniden girmesi gerektiği hiçbir yerde
+  yazmıyordu.
+
+Bu, bu projenin ikinci kez yaşadığı hata sınıfı: ham hata metnini kullanıcıya basmak
+(`lib/eposta-hata.js` → `neYapmali`) bir kez **günlerce teşhis edilemeyen** bir soruna
+yol açmıştı.
+
+### Ne yapıldı
+
+**1. `lib/istek-hatasi.js` (YENİ, saf).** `istekHatasi(durum, govde)` → `{ tur, baslik,
+mesaj, oturumDustu }`. Sunucu yanıtını kullanıcıya anlatılabilir bir hataya çeviriyor;
+**her dal sebep + ne yapılacak taşıyor**:
+
+| Durum | tur | oturumDustu | Ne diyor |
+|---|---|---|---|
+| **401** | `oturum` | **true** | Oturum süresi doldu, işlem kaydedilmedi, çıkış yapıp yeniden gir; "Beni hatırla" 30 gün, aksi hâlde 12 saat |
+| **403** | `yetki` | false | Girişin geçerli, eksik olan İZİN — yöneticiden Ayarlar → Personel Hesapları'ndan iste |
+| **409** | `cakisma` | false | Sunucunun kendi sebebi varsa **o başta** ("bu adda bir şube zaten var"), yoksa "başkası aynı anda değiştirmiş olabilir, sayfayı yenile" |
+| **503** + `mesgul` | `mesgul` | false | Sıra bekleniyor, tarayıcı kendiliğinden tekrar deniyor — **"hata" kelimesi bilerek yok** |
+| durum yok (ağ) | `ag` | false | Sunucuya ulaşılamadı, bağlantını kontrol et |
+| **500 / bilinmeyen** | `sunucu` | false | Sunucunun kendi mesajı **yutulmuyor**, yoksa genel metin |
+
+**401 ile 403 AYRI dallar ve ayrı kalmak zorunda.** Biri kimlik, öteki yetki. Aynı dala
+inselerdi yetkisi olmayan kişi boş yere çıkış yapıp yeniden girer ve aynı duvara toslardı.
+
+**Süreler ikinci kez yazılmadı.** `lib/oturum.js` artık `SURE_NORMAL` / `SURE_HATIRLA`
+sabitlerini **dışa açıyor** (değerler DEĞİŞMEDİ, yalnızca `export` eklendi) ve `t117`
+ikisinin birbirini tuttuğunu ölçüyor. O modül `@vercel/kv` + `crypto` çektiği için
+tarayıcıya import edilemiyor; bu yüzden saf modül insan birimini (saat/gün) kendi
+tutuyor ama **ayrışması test tarafından yakalanıyor**.
+
+**2. Yazma yollarında kullanıldı.** `src/App.jsx` → `sunucuHatasiniBildir(durum, govde)`
+tek çıkış kapısı:
+- Mesaj **`alert` ile değil, mevcut uyarı yığınıyla** gösteriliyor (`uyarilar`).
+- `oturumDustu: true` ise **yükleme yolundaki MEVCUT mekanizma** kullanılıyor
+  (`clearOturum()` + `setNeedsAuth(true)`), ikinci bir yol icat edilmedi. Mesaj o durumda
+  yığına değil `authError`e yazılıyor: `needsAuth` anında giriş ekranını çiziyor ve yığın
+  o ağaçta hiç bulunmuyor — yığına yazmak metni görünmez bir yere koymak olurdu.
+  Kaydedilemeyen verinin yeniden girilmesi gerektiği mesajın kendi içinde yazıyor.
+
+`fetch` zincirleri artık **durum kodunu taşıyor**: eskiden yalnızca `r.json()` vardı, yani
+401 ile 500 ile 503 arasındaki fark ekrana hiç ulaşmıyordu. Sahadaki hatanın kökü buydu.
+
+**3. Uyarı yığını artık PERSONEL kabuğunda da çiziliyor.** Yığın JSX'te yalnızca yönetici
+kabuğunda yazılıydı: personel ya da çözüm ortağı bir sunucu hatası aldığında uyarı state'e
+yazılıyor ama onu çizen ağaç o rolde hiç bulunmuyordu — ekranda **hiçbir şey görünmüyordu**.
+`UyariYigini` bileşeni tek yerde duruyor, iki kabuk onu çağırıyor (`operasyonOrtakProps`
+dersinin aynısı: iki kez yazılan JSX'te biri güncellenir, öteki sessizce bayatlar).
+
+### Kapsam — 70 `alert`in hepsi DEĞİŞTİRİLMEDİ
+
+Yalnızca **sunucu yanıtındaki hatayı gösteren** yollara dokunuldu: `paylasimIstek`
+(19 action buradan geçiyor) ve `/api/client-payment`'ın beş yardımcısı — **12 `alert`**.
+Doğrulama uyarıları ("Geçerli bir tutar gir"), bilgi mesajları, pop-up engelleyici
+uyarıları ve `confirm()` çağrıları bu işin kapsamı dışında; `src/` altında **57 `alert`
+duruyor**. Kapsam dışı bırakılan sunucu yolları (yedek geri yükleme, tüm oturumları
+kapatma, kilit açma, personel bildirim e-postası, müşteri paneli) uyarı yığınına erişimi
+olmayan alt bileşenlerin içinde — ayrı bir iş.
+
+### Ölçüm — kırarak
+
+| Kırılan koruma | t117 | Tarayıcı testi |
+|---|---|---|
+| 401 ile 403 aynı dala indirildi (ikisi de `oturumDustu: true`) | **5 kontrol düştü** | **8 kontrol düştü** |
+| Uyarı yığını yerine `window.alert`'e dönüldü | 0 (beklenen — saf modül değişmiyor) | **10 kontrol düştü** |
+
+Birinci kırmada düşenler: `403 oturumDustu: false` · `403 türü "yetki"` · `403 türü
+401'inkinden FARKLI` · `403 mesajı SEBEBİ söylüyor` · `403 mesajı NE YAPILACAĞINI
+söylüyor`; tarayıcıda ayrıca 403'te ekranda kalınmadığı için altı senaryo kontrolü ve
+muafiyet bekçisi.
+
+İkinci kırmada düşenler: 403'ün yığında çizilmesiyle ilgili dört kontrol, **iki ayrı
+"engelleyici alert AÇILMADI"** kontrolü, "sabit yığın kabında çizildi", ve engelleyici
+kutu yüzünden 401 dalının üç kontrolü.
+
+### Testler
+
+- **`testler/t117.mjs` — 43 kontrol, dokuz bölüm, `BEKLENEN` bekçisi.** Davranış sınanıyor,
+  metin değil: kontroller tam cümle aramıyor, **anahtar kavramları** (eşanlamlılardan en az
+  biri) arıyor — cümle yeniden yazılabilsin ama bilgi kaybolmasın.
+- **Tarayıcı testine 13. senaryo: "yazma hatası uyarıları" (21 kontrol).** Sahte sunucu
+  `/api/paylasim`'a önce **403**, sonra **401** döndürüyor; ölçülen üç şey:
+  mesajın engelleyici bir kutuda DEĞİL yığında çizilmesi, 403'te ekranda kalınması,
+  401'de giriş ekranına alınıp sebebin orada da okunması. Hiçbiri Node'dan görülemez.
+- Fixture `SAHTE_BELGE`den türüyor, yani **gerçek belgenin bütün üst düzey alanlarını**
+  taşıyor.
+- **Konsol muafiyeti bayat kalamaz.** 401/403 dönen bir `fetch`, tarayıcının kendi kaynak
+  günlüğüne düşüyor ("Failed to load resource … 401") — uygulamanın kusuru değil.
+  Muafiyet veriliyor AMA desenin **gerçekten eşleştiği** ayrıca ölçülüyor: eşleşmezse
+  senaryo o durumu artık kurmuyordur ve muafiyet sessizce bir kör noktaya dönüşürdü.
+
+**Sayılar:** 116 → **117 test dosyası**, 2765 → **2808 kontrol**; tarayıcı testi
+12 → **13 senaryo**, 175 → **196 kontrol**.
+
+### Bilinerek yapılmayanlar
+
+- **`lib/oturum.js`'teki süreler DEĞİŞTİRİLMEDİ.** Bu bir mesaj düzeltmesi, güvenlik ayarı
+  değişikliği değil. Eklenen tek şey `export`.
+- **`api/` altındaki hiçbir yetki kontrolü gevşetilmedi**; 401/403 dönen yerlere
+  dokunulmadı. Değişen yalnızca istemcinin o yanıtı nasıl ANLATTIĞI.
+- **Müşteri / çözüm ortağı panelindeki `alert`ler** (`src/musteriPaneli.jsx`) duruyor: o
+  kabuk uyarı yığınını hiç çizmiyor, bağlamak ayrı bir iş.

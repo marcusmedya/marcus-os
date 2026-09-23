@@ -98,6 +98,26 @@ açtığı kartın numarası GÖREMEDİĞİ bir kartla çakışınca yetki denet
 onları sıfırlar ve marka kilitli hesap `cekimEdit` açık olduğu hâlde kart açamazdı.
 
 
+**401 İLE 403 AYRI ŞEYLER — kullanıcıya da ayrı anlatılır (`lib/istek-hatasi.js`).**
+Sunucu ikisini zaten ayrı döndürüyordu ama tarayıcı ham metni (`res.error`) olduğu gibi
+bir `alert` kutusuna basıyordu: oturumu düşen yönetici Üyelikler ekranında yalnızca
+**"Yetkisiz."** gördü ve "yetkim alınmış" sandı. Kural artık saf modülde:
+
+- **401 = KİMLİK.** "Seni tanıyamadım." `oturumDustu: true` → kullanıcı giriş ekranına
+  alınır (`clearOturum()` + `setNeedsAuth(true)` — yükleme yolundaki MEVCUT mekanizma,
+  ikinci bir yol yok). Mesaj oturum süresini de yazar; süreler `lib/oturum.js`'ten
+  (`SURE_NORMAL` 12 saat · `SURE_HATIRLA` 30 gün) ve ayrışmayı **t117** ölçüyor.
+- **403 = YETKİ.** "Seni tanıdım ama bunu yapamazsın." `oturumDustu: false` → kullanıcı
+  ekranında KALIR, mesaj izni kimden isteyeceğini söyler. **İkisini aynı dala indirme:**
+  ölçüldü, yetkisi olmayan kişi boş yere çıkış yapıyor ve aynı duvara toslıyor
+  (t117'de 5, tarayıcı testinde 8 kontrol düşüyor).
+
+Mesaj **uyarı yığınında** çizilir, `window.alert` ile değil — ayrıntı `marcus-design`
+skill'inin bileşen katmanında. Yığın bir süre yalnızca YÖNETİCİ kabuğunda yazılıydı:
+personelin aldığı sunucu hatası state'e yazılıyor ama onu çizen ağaç o rolde hiç
+bulunmuyordu — ekranda hiçbir şey görünmüyordu. Artık `UyariYigini` bileşeni tek yerde
+duruyor ve iki kabuk da onu çağırıyor.
+
 **Giriş defteri, tek şifreyle açılan oturumu da kaydeder** (`api/data.js` → `authAction`).
 İki adımlı doğrulama yapılandırılmamışsa ya da kod e-postası gönderilemiyorsa sistem
 **bilerek fail-open** davranıyor (kilitlenmeyi önlemek için) — ama eskiden bu girişlerin

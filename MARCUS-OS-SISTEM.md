@@ -37,7 +37,7 @@ Kod ve arayüz tamamen Türkçe — değişken ve fonksiyon adları dahil.
 | `src/` | React arayüzü (Vite ile derlenir) |
 | `api/` | Serverless fonksiyonlar — **her dosya bir fonksiyon**, Hobby sınırı 12 |
 | `lib/` | Ortak mantık — hem `api/` hem `src/` buradan import eder, **fonksiyon sayılmaz** |
-| `testler/` | 116 test dosyası (t1…t116) + 27 statik denetim betiği |
+| `testler/` | 117 test dosyası (t1…t117) + 27 statik denetim betiği |
 | `.claude/` | Claude Code katmanı — komutlar, ajanlar ve uzmanlık skill'leri (denetim 26 bayatlamayı sınar) |
 
 En büyük dosyalar: `src/App.jsx` (9.653), `src/CekimEditTakibi.jsx` (2.734),
@@ -228,6 +228,7 @@ Artık **tanımsızsa kimse giremez.**
 | `oturum.js` | İki adımlı doğrulama, oturum jetonu, owner yetkisi |
 | `eposta.js` | Resend üzerinden e-posta gönderimi ve şablonlar |
 | `eposta-hata.js` | Resend hata metnini sebep+koda çevirir ve ne yapılacağını söyler (**saf**) |
+| `istek-hatasi.js` | Sunucu yanıtını (401 · 403 · 409 · 503 · 500) sebep+ne yapılacak mesajına çevirir (**saf**) |
 | `video-jeton.js` | Video akışı için kısa ömürlü imzalı jeton |
 | `sistem-sagligi.js` | Belge ölçümü, büyüyen alanlar, ortam değişkeni var/yok — **yalnızca okur** |
 | `yedek-dogrula.js` | Geri yüklemeden önce yedeğin yapısı ve kayıp özeti — saf, yan etkisiz |

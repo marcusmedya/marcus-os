@@ -26,7 +26,7 @@ kaldı — her birinde "temiz" diye raporlandı. Bu yüzden buradaki kurallar ü
 | Katman | Yakaladığı | Yakalayamadığı |
 |---|---|---|
 | 27 statik denetim | Sözdizimi, tanımsız ad, kapsam, belge bayatlığı, izin listesi ayrışması | Davranış |
-| t1…t116 (2765 kontrol) | Sunucu ve saf modül davranışı, sahte veritabanıyla | `.jsx`, prop bağlantısı, çizim |
+| t1…t117 (2808 kontrol) | Sunucu ve saf modül davranışı, sahte veritabanıyla | `.jsx`, prop bağlantısı, çizim |
 | `npm run build` | Derleme hatası | Çalışma anı hatası |
 | `npm run test:acilis` | **Uygulamanın gerçekten açılması**, siyah ekran, açılışta JS hatası | Açılış sonrası akışlar |
 
@@ -72,6 +72,22 @@ içinde kayar, yani `scrollWidth - clientWidth > 0` bir KUSUR DEĞİL. Ölçüle
 **EBEVEYNİN** taşması (taşma şeridin içinde kaldı mı) ve yanına şeridin gerçekten taştığı
 konulur — taşma hiç yoksa "ebeveyn taşmıyor" iddiası boş yere geçer. `position: fixed`
 tuzağının (panelde) tersi bir durum; ikisini karıştırma.
+
+**SUNUCU HATASI DALINI ÇİZMEK — `secenekler.yazmaSirasi`.** Sahte sunucu bütün `/api/*`
+isteklerine aynı yanıtı veriyordu, yani 401/403/409 dalları tarayıcıda HİÇ çizilemiyordu.
+`yazmaSirasi` ile `/api/paylasim`'a giden POST'lara sırayla `{ durum, govde }` verilir;
+kuyruk bitince normal yanıt döner. **Yalnızca o yola bakılır**: belge otomatik kaydı
+(`/api/data`) da POST ve kuyruğu yanlışlıkla tüketirse senaryo ölçtüğü şeyi kaybeder.
+`window.alert` açılıp açılmadığını ölçerken `dialog` dinleyicisi hem SAYAR hem kapatır —
+kapatılmazsa sayfa asılır ve test "uygulama açılmıyor" der, oysa sorun `alert`in kendisidir.
+
+**KONSOL MUAFİYETİ VERİLEBİLİR AMA BAYAT KALAMAZ — `secenekler.beklenenKonsolHatalari`.**
+401/403 dönen bir `fetch`, tarayıcının KENDİ kaynak günlüğüne düşüyor ("Failed to load
+resource … 401") ve "konsol hatası yok" kontrolünü düşürüyor; bu uygulamanın kusuru değil,
+senaryonun kurduğu durumun kendisi. Muafiyet bir RegExp listesiyle veriliyor **ve desenin
+gerçekten eşleştiği ayrıca ölçülüyor**: eşleşmezse senaryo o durumu artık kurmuyordur ve
+muafiyet sessizce bir kör noktaya dönüşürdü. Her muafiyet böyle yazılır — muafiyetin
+kendisi de bir kontrol taşır.
 
 ## 4 · Yeni statik denetim ekleme
 
